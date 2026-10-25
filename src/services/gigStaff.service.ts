@@ -1,6 +1,7 @@
 import { handleApiError } from '../utils/api-error-utils';
 import { getCurrentUser, getSupabase } from './base/dataAccess';
-import { logActivity } from './activityLog.service';
+import { writeActivity, actorNameOf } from './writeActivity';
+import { verifyGigAccess } from './gigService.shared';
 import { StaffingChange } from '../utils/supabase/types';
 import { toDateInTimeZone } from '../utils/dateUtils';
 
@@ -49,33 +50,11 @@ export async function updateGigStaffSlots(
   loadedIds: string[] = []
 ) {
   try {
-    const user = await getCurrentUser();
+    const { user, primaryOrgId, managedOrgIds } = await verifyGigAccess(gigId, 'update staff slots');
     const supabase = getSupabase();
 
-    const { data: gigParticipants } = await supabase
-      .from('gig_participants')
-      .select('organization_id')
-      .eq('gig_id', gigId);
-
-    if (!gigParticipants || gigParticipants.length === 0) throw new Error('Access denied - no participants found');
-
-    const orgIds = gigParticipants.map(gp => gp.organization_id);
-    const { data: userMemberships } = await supabase
-      .from('organization_members')
-      .select('organization_id, role')
-      .eq('user_id', user.id)
-      .in('organization_id', orgIds);
-
-    if (!userMemberships || userMemberships.length === 0) throw new Error('Access denied - not a member of participating organizations');
-
-    const hasAdminOrManager = userMemberships.some(m => m.role === 'Admin' || m.role === 'Manager');
-    if (!hasAdminOrManager) throw new Error('Access denied - only Admins and Managers can update staff slots');
-
-    // Only the caller's own orgs' slots are theirs to reconcile. RLS also shows
+    // Only the caller's own orgs' slots are theirs to reconcile (managedOrgIds). RLS also shows
     // a slot in another org the caller is booked into; leave that alone (#61).
-    const managedOrgIds = userMemberships
-      .filter(m => m.role === 'Admin' || m.role === 'Manager')
-      .map(m => m.organization_id);
     const { data: existingSlots } = await supabase
       .from('gig_staff_slots')
       .select('id, organization_id')
@@ -206,7 +185,7 @@ export async function updateGigStaffSlots(
         // derive it here rather than silently skipping the log (issue #55).
         let effectiveCtx = activityCtx;
         if (!effectiveCtx) {
-          const primary_organization_id = userMemberships.find(m => m.role === 'Admin' || m.role === 'Manager')?.organization_id || userMemberships[0]?.organization_id || null;
+          const primary_organization_id = primaryOrgId || null;
           let actor_org_name = '';
           if (primary_organization_id) {
             const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', primary_organization_id).single();
@@ -215,26 +194,21 @@ export async function updateGigStaffSlots(
           const { data: gigRow } = await supabase.from('gigs').select('title').eq('id', gigId).single();
           effectiveCtx = {
             organization_id: primary_organization_id,
-            actor_display_name: `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '',
+            actor_display_name: actorNameOf(user),
             actor_org_name,
             gig_title: (gigRow as any)?.title ?? '',
           };
         }
 
-        await logActivity({
+        await writeActivity({
           organization_id: effectiveCtx.organization_id,
           event_type: 'staffing.updated',
           entity_type: 'staffing',
           entity_id: gigId,
           gig_id: gigId,
-          context: {
-            context_version: 1,
-            actor_display_name: effectiveCtx.actor_display_name,
-            actor_org_name: effectiveCtx.actor_org_name,
-            gig_title: effectiveCtx.gig_title,
-            changes: staffingChanges,
-            change_count: staffingChanges.length
-          }
+          actor_display_name: effectiveCtx.actor_display_name,
+          actor_org_name: effectiveCtx.actor_org_name,
+          context: { gig_title: effectiveCtx.gig_title, changes: staffingChanges, change_count: staffingChanges.length },
         });
       } catch (e) { console.error('Activity log failed:', e); }
     }

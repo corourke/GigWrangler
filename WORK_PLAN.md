@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-24 (coordinator: #302 merged (Cameron's OK); the guide matches prod for all of #186. Triage prompt updated by Cameron 10-24. #20: the Equipment Lead is writing the plan for the remaining goals; Cameron approves before code)
+- **Last updated:** 2026-10-24 (coordinator 06:45 UTC: **#20 remaining-goals plan approved** (Lead's plan on #20 + Cameron's 10-24 decisions there: skip verifyAsset/KitAccess, drop verifyOrgAccess, one uniform change-tracking rule). The Equipment Lead is building PRs A (error surface + helper additions), B (`writeActivity` + uniform change tracking, the one behaviour change), C (`verifyGigAccess`), then D–F (CRUD moves). Each needs Cameron's merge OK)
 
 ---
 
@@ -21,7 +21,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 |---|---|---|---|
 | ~~[#162](https://github.com/corourke/GigManager/issues/162)~~ (closed 10-23) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
-| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Equipment Lead, 10-23** (Cameron: all of it ASAP); batches 3–8 | Equipment Lead |
+| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Equipment Lead, 10-23** (Cameron: all of it ASAP); batches 3–8; PRs A–C open (#311, #312, #313) | Equipment Lead |
 
 - **Phone update notice (Cameron 10-14, approved):** the installed phone app doesn't announce new versions. Causes found: prod serves `/sw.js` with a 4-hour browser cache (Cloudflare zone setting), and iOS often skips the `controllerchange` event. **PR #291 merged 10-14 (b78067b, Cameron's OK):** a no-cache `/version.json` check on foreground and every 30 min, the same Reload banner, and `public/_headers`. Cameron may need a Cloudflare Cache Rule to bypass cache for `/sw.js`, `/registerSW.js` and `/version.json`.
 
@@ -322,7 +322,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 **Triage routine** (daily, ~09:00 UTC). Each run:
 1. Check CI and mergeability on its own open PRs; fix a red or conflicted one by merging `main` in, never by rebasing.
 2. Build what §3c releases that has no PR yet: plan comment on the issue, failing test first.
-3. On a quiet run, do one `docs/` pass (technical and development docs; next candidate: `docs/development/dry-run-findings-2026-09-08.md` (or retire the dry-run records)). Leave `website/docs/` to the Docs Lead.
+3. On a quiet run, do one `docs/` pass (technical and development docs; next candidate: `docs/development/dry-run-findings-2026-09-06.md` (or archive both dry-run records, which needs a PR)). Leave `website/docs/` to the Docs Lead.
 4. Don't manufacture activity: if nothing changed, commit nothing and post nothing.
 
 **Who updates which docs** (Cameron, 10-07):

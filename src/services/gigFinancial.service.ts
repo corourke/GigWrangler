@@ -1,7 +1,8 @@
 import { FinCategory, FinDirection, FinStage, DbGigFinancial, FieldChange } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
 import { getSupabase, getCurrentUser, listRecords } from './base/dataAccess';
-import { logActivity } from './activityLog.service';
+import { writeActivity, actorNameOf } from './writeActivity';
+import { computeFieldChanges } from '../utils/fieldChanges';
 import type { ActivityEventType } from '../utils/activityLog.events';
 import { expectedAmount, summarizeMoney, type MoneyRow, type MoneySummary } from '../utils/moneyFlow';
 import { projectedStaffCost } from '../utils/rateEstimate';
@@ -332,32 +333,20 @@ async function logFinancialEvent(
   try {
     const user = await getCurrentUser();
     const supabase = getSupabase();
-    const actor_display_name =
-      `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() ||
-      user.email ||
-      '';
+    const actor_display_name = actorNameOf(user);
     const [{ data: orgRow }, { data: gigRow }] = await Promise.all([
       (supabase.from('organizations') as any).select('name').eq('id', row.organization_id).maybeSingle(),
       supabase.from('gigs').select('title').eq('id', row.gig_id).maybeSingle(),
     ]);
-    await logActivity({
+    await writeActivity({
       organization_id: row.organization_id,
       event_type: event,
       entity_type: 'financial',
       entity_id: row.id,
       gig_id: row.gig_id,
-      context: {
-        context_version: 1,
-        actor_display_name,
-        actor_org_name: (orgRow as any)?.name ?? '',
-        gig_title: (gigRow as any)?.title ?? '',
-        direction: row.direction,
-        stage: row.stage,
-        amount: row.amount === null ? null : Number(row.amount),
-        amount_settled: row.amount_settled === null ? null : Number(row.amount_settled),
-        description: row.description,
-        ...(fieldChanges?.length ? { field_changes: fieldChanges } : {}),
-      },
+      actor_display_name: actor_display_name,
+      actor_org_name: (orgRow as any)?.name ?? '',
+      context: { gig_title: (gigRow as any)?.title ?? '', direction: row.direction, stage: row.stage, amount: row.amount === null ? null : Number(row.amount), amount_settled: row.amount_settled === null ? null : Number(row.amount_settled), description: row.description, ...(fieldChanges?.length ? { field_changes: fieldChanges } : {}) },
     });
   } catch (e) {
     console.error('Activity log failed:', e);
@@ -409,9 +398,7 @@ export async function updateGigFinancial(finId: string, finData: GigFinancialPat
     if (error) throw error;
 
     const after = data as DbGigFinancial;
-    const changes: FieldChange[] = LOGGED_FIELDS
-      .filter((f) => String((before as any)[f] ?? '') !== String((after as any)[f] ?? ''))
-      .map((f) => ({ field: f, from: (before as any)[f] ?? null, to: (after as any)[f] ?? null }));
+    const changes: FieldChange[] = computeFieldChanges(before as DbGigFinancial, after, LOGGED_FIELDS);
     if (changes.length > 0) {
       const event: ActivityEventType =
         after.stage === 'paid' && (before as DbGigFinancial).stage !== 'paid' ? 'financial.paid' : 'financial.updated';
