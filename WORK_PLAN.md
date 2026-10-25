@@ -9,11 +9,11 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-25 (coordinator 06:45 UTC: **#20 PRs A, C, B merged** (#311, #312, #313, B's activity-log change approved by Cameron 10-24). D, E, F (#316, #315, #314) retargeted to `main`, with CI running; the coordinator merges them on its own review (Cameron, 10-24: no behaviour or DB change, CI green). Then #20 closes and a frontend-only deploy is due)
+- **Last updated:** 2026-10-25 (coordinator 06:55 UTC: **#20 closed.** PRs A–F merged (#311–#316), CI green on main. **Frontend-only prod deploy due** (no migration): #20 A–F, including B's approved activity-log change. Equipment Lead idle; next item is Cameron's call)
 
 ---
 
-- **Cameron 10-18: finish and close #162, #183, #186. All three are closed:** #183 on 10-18, and #186 and #162 on 10-23. #186 Maintenance shipped in 4 steps: #296 (database, migration `20261022000000`, in prod 10-22), #298 (web list, in prod 10-22), #299 (phone) and #303 (desktop override, the Locations/Item page/packing-list lines, #300). **#299 and #303 are in prod (10-23).** The guide for all of #186 is published (#301, #302). The Equipment Lead is standing by for its next item (Cameron to choose). **#20 goes to the Equipment Lead (Cameron, 10-23): finish all of it ASAP,** batches 3–8, pipelined. Triage doesn't build #20.
+- **Cameron 10-18: finish and close #162, #183, #186. All three are closed:** #183 on 10-18, and #186 and #162 on 10-23. #186 Maintenance shipped in 4 steps: #296 (database, migration `20261022000000`, in prod 10-22), #298 (web list, in prod 10-22), #299 (phone) and #303 (desktop override, the Locations/Item page/packing-list lines, #300). **#299 and #303 are in prod (10-23).** The guide for all of #186 is published (#301, #302). The Equipment Lead is standing by for its next item (Cameron to choose). **#20 is done (closed 10-25):** batches 1–9 and PRs A–F merged; prod deploy pending.
 
 ## 1. Open issues
 
@@ -21,7 +21,6 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 |---|---|---|---|
 | ~~[#162](https://github.com/corourke/GigManager/issues/162)~~ (closed 10-23) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
-| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Equipment Lead, 10-23** (Cameron: all of it ASAP); batches 3–9 merged; PRs A–C merged 10-25 (#311–#313); D–F in CI (#314–#316) | Equipment Lead |
 
 - **Phone update notice (Cameron 10-14, approved):** the installed phone app doesn't announce new versions. Causes found: prod serves `/sw.js` with a 4-hour browser cache (Cloudflare zone setting), and iOS often skips the `controllerchange` event. **PR #291 merged 10-14 (b78067b, Cameron's OK):** a no-cache `/version.json` check on foreground and every 30 min, the same Reload banner, and `public/_headers`. Cameron may need a Cloudflare Cache Rule to bypass cache for `/sw.js`, `/registerSW.js` and `/version.json`.
 
