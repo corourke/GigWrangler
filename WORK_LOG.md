@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Prod deploy, 10-25** (Cameron): #20 PRs A–F (frontend only). Coordinator verified read-only: build 2026-10-25T10:40Z; the bundle has one `context_version` writer (21 copies in the 10-23 build), matching a local build of main.
+
 - **#20 closed** (Equipment Lead; PRs merged 10-25 by the coordinator on review, B with Cameron's OK): PR A #311 (base helpers: required `context`, `listAllRecords`, `countRecords`, `maybeSingle`/`single`, `or`, multiple order keys, audit stamps, `deleteOne`), C #312 (`verifyGigAccess`), B #313 (`writeActivity`, `actorNameOf`, and one change rule in `fieldChanges.ts` for asset, kit and money, the one approved behaviour change), D #316 / E #315 / F #314 (plain equipment, money, gig and organization functions onto the helpers). D–F were stacked on A and had to be retargeted to `main` before CI ran. No migration. Prod: frontend deploy pending.
 
 - **PR #302** (Docs Lead, merged 10-24 with Cameron's OK): user guide for #186 steps 3–4, covering the phone's Send to Maintenance (location, expected back, how many, To maintenance, Add more, undo), the Locations override's Sending to maintenance, the In maintenance / Flagged to maintenance tags, the packing-list note, and the full-width Maintenance screenshot.
