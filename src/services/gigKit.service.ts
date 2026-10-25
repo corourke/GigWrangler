@@ -1,6 +1,7 @@
 import { handleApiError } from '../utils/api-error-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
-import { getCurrentUser, getSupabase } from './base/dataAccess';
+import { getCurrentUser, getSupabase, deleteOne, updateRecord, listRecords } from './base/dataAccess';
+import type { DbGigKitAssignment } from '../utils/supabase/types';
 
 /**
  * Kit-assignment operations for gigs (Phase 7, Step 4 — extracted from
@@ -38,32 +39,19 @@ export async function assignKitToGig(gigId: string, kitId: string, organizationI
  * Remove a kit from a gig
  */
 export async function removeKitFromGig(assignmentId: string) {
-  const supabase = getSupabase();
-  try {
-    // .select() to confirm a row was removed — RLS denies silently (0 rows, no error)
-    const { data, error } = await supabase.from('gig_kit_assignments').delete().eq('id', assignmentId).select();
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      throw new Error('Kit assignment not found, or you do not have permission to remove it.');
-    }
-    return { success: true };
-  } catch (err) {
-    return handleApiError(err, 'remove kit from gig');
-  }
+  // deleteOne confirms a row was removed — RLS denies silently (0 rows, no error)
+  await deleteOne('gig_kit_assignments', assignmentId, {
+    context: 'remove kit from gig',
+    notFound: 'Kit assignment not found, or you do not have permission to remove it.',
+  });
+  return { success: true };
 }
 
 /**
  * Update a kit assignment for a gig
  */
 export async function updateGigKitAssignment(assignmentId: string, updates: { notes?: string }) {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase.from('gig_kit_assignments').update(updates).eq('id', assignmentId).select().single();
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    return handleApiError(err, 'update kit assignment');
-  }
+  return updateRecord<DbGigKitAssignment>('gig_kit_assignments', assignmentId, updates, { context: 'update kit assignment' });
 }
 
 /**
@@ -132,11 +120,8 @@ export async function updateGigKitAssignments(gigId: string, organizationId: str
  * Fetch kits assigned to a gig
  */
 export async function getGigKits(gigId: string, organizationId?: string) {
-  const supabase = getSupabase();
-  try {
-    let query = supabase
-      .from('gig_kit_assignments')
-      .select(`
+  return listRecords<any>('gig_kit_assignments', {
+    select: `
         *,
         kit:kits(
           id,
@@ -151,16 +136,13 @@ export async function getGigKits(gigId: string, organizationId?: string) {
             asset:assets(*)
           )
         )
-      `)
-      .eq('gig_id', gigId);
-
-    if (organizationId) query = query.eq('organization_id', organizationId);
-
-    const { data, error } = await query.order('assigned_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
-  } catch (err) {
-    return handleApiError(err, 'fetch gig kits');
-  }
+      `,
+    filters: [
+      { column: 'gig_id', operator: 'eq', value: gigId },
+      ...(organizationId ? [{ column: 'organization_id', operator: 'eq' as const, value: organizationId }] : []),
+    ],
+    order: { column: 'assigned_at', ascending: false },
+    context: 'fetch gig kits',
+  });
 }
 

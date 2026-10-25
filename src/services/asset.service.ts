@@ -1,5 +1,5 @@
 import { handleApiError } from '../utils/api-error-utils';
-import { getCurrentUser, getSupabase } from './base/dataAccess';
+import { getCurrentUser, getSupabase, getRecord, deleteOne } from './base/dataAccess';
 import { computeFieldChanges } from '../utils/fieldChanges';
 import { sanitizeLikeInput } from '../utils/validation-utils';
 import type { DbAsset, DbInventoryTracking, ActivityLogEntry } from '../utils/supabase/types';
@@ -94,18 +94,7 @@ export async function getDistinctAssetValues(
  * Fetch a single asset
  */
 export async function getAsset(assetId: string) {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await (supabase.from('assets') as any)
-      .select('*')
-      .eq('id', assetId)
-      .single();
-
-    if (error) throw error;
-    return data as Record<string, any>;
-  } catch (err) {
-    return handleApiError(err, 'fetch asset');
-  }
+  return (await getRecord<Record<string, any>>('assets', assetId, { mode: 'single', context: 'fetch asset' })) as Record<string, any>;
 }
 
 /**
@@ -369,18 +358,12 @@ export async function updateAsset(assetId: string, assetData: Partial<DbAsset> &
  * Delete an asset
  */
 export async function deleteAsset(assetId: string) {
-  const supabase = getSupabase();
-  try {
-    // .select() to confirm a row was removed — RLS denies silently (0 rows, no error)
-    const { data, error } = await (supabase.from('assets') as any).delete().eq('id', assetId).select();
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      throw new Error('Asset not found, or you do not have permission to delete it.');
-    }
-    return { success: true };
-  } catch (err) {
-    return handleApiError(err, 'delete asset');
-  }
+  // deleteOne confirms a row was removed — RLS denies silently (0 rows, no error)
+  await deleteOne('assets', assetId, {
+    context: 'delete asset',
+    notFound: 'Asset not found, or you do not have permission to delete it.',
+  });
+  return { success: true };
 }
 
 /**

@@ -1,4 +1,4 @@
-import { getSupabase, getCurrentUser } from './base/dataAccess';
+import { getSupabase, getCurrentUser, getRecord, listRecords } from './base/dataAccess';
 import { handleApiError } from '../utils/api-error-utils';
 import type { DbAsset, DbEquipmentItem } from '../utils/supabase/types';
 import { containerPiecesByItem, recordItemMaps, type ContainerPieces, type ItemRecord } from '../utils/equipmentItems';
@@ -31,17 +31,12 @@ export async function getItems(organizationId: string): Promise<EquipmentItemWit
 
 /** One item with its units and lots. */
 export async function getItem(itemId: string): Promise<EquipmentItemWithRecords> {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await (supabase.from('equipment_items') as any)
-      .select('*, records:assets(*)')
-      .eq('id', itemId)
-      .single();
-    if (error) throw error;
-    return withRecords(data);
-  } catch (err) {
-    return handleApiError(err, 'fetch equipment item');
-  }
+  const data = await getRecord('equipment_items', itemId, {
+    select: '*, records:assets(*)',
+    mode: 'single',
+    context: 'fetch equipment item',
+  });
+  return withRecords(data);
 }
 
 /**
@@ -146,17 +141,12 @@ export interface ItemKitLine {
  * units or lots (`recordIds`).
  */
 export async function getItemKitLines(itemId: string, recordIds: readonly string[]): Promise<ItemKitLine[]> {
-  const supabase = getSupabase();
-  try {
-    const filter = recordIds.length
-      ? `equipment_item_id.eq.${itemId},asset_id.in.(${recordIds.join(',')})`
-      : `equipment_item_id.eq.${itemId}`;
-    const { data, error } = await (supabase.from('kit_components') as any)
-      .select('id, quantity, asset_id, equipment_item_id, kit:kits!kit_assets_kit_id_fkey(id, name, tag_number, is_container)')
-      .or(filter);
-    if (error) throw error;
-    return data ?? [];
-  } catch (err) {
-    return handleApiError(err, 'fetch the kits that use this item');
-  }
+  const filter = recordIds.length
+    ? `equipment_item_id.eq.${itemId},asset_id.in.(${recordIds.join(',')})`
+    : `equipment_item_id.eq.${itemId}`;
+  return listRecords<ItemKitLine>('kit_components', {
+    select: 'id, quantity, asset_id, equipment_item_id, kit:kits!kit_assets_kit_id_fkey(id, name, tag_number, is_container)',
+    or: filter,
+    context: 'fetch the kits that use this item',
+  });
 }

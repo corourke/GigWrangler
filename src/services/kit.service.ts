@@ -1,5 +1,5 @@
 import { handleApiError } from '../utils/api-error-utils';
-import { getCurrentUser, getSupabase } from './base/dataAccess';
+import { getCurrentUser, getSupabase, getRecord, deleteOne, listRecords } from './base/dataAccess';
 import { computeFieldChanges } from '../utils/fieldChanges';
 import { sanitizeLikeInput } from '../utils/validation-utils';
 import { writeActivity, actorNameOf } from './writeActivity';
@@ -92,11 +92,8 @@ export async function addKitAssetLines(lines: { kit_id: string; asset_id: string
  * level — not the recursive flattened view, see getKitFlattenedContents).
  */
 export async function getKit(kitId: string) {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase
-      .from('kits')
-      .select(`
+  return getRecord<any>('kits', kitId, {
+    select: `
         *,
         kit_components!kit_assets_kit_id_fkey(
           id,
@@ -109,15 +106,10 @@ export async function getKit(kitId: string) {
           item:equipment_items(id, manufacturer_model, category, type),
           child_kit:kits!kit_components_child_kit_id_fkey(id, name, is_container, category, rental_value)
         )
-      `)
-      .eq('id', kitId)
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    return handleApiError(err, 'fetch kit');
-  }
+      `,
+    mode: 'single',
+    context: 'fetch kit',
+  });
 }
 
 /**
@@ -439,18 +431,12 @@ export async function updateKit(kitId: string, kitData: {
  * Delete a kit
  */
 export async function deleteKit(kitId: string) {
-  const supabase = getSupabase();
-  try {
-    // .select() to confirm a row was removed — RLS denies silently (0 rows, no error)
-    const { data, error } = await supabase.from('kits').delete().eq('id', kitId).select();
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      throw new Error('Kit not found, or you do not have permission to delete it.');
-    }
-    return { success: true };
-  } catch (err) {
-    return handleApiError(err, 'delete kit');
-  }
+  // deleteOne confirms a row was removed — RLS denies silently (0 rows, no error)
+  await deleteOne('kits', kitId, {
+    context: 'delete kit',
+    notFound: 'Kit not found, or you do not have permission to delete it.',
+  });
+  return { success: true };
 }
 
 /**
@@ -530,18 +516,11 @@ export async function duplicateKit(kitId: string, newName?: string) {
  * display data for rendering.
  */
 export async function getKitFlattenedContents(kitId: string) {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase
-      .from('kit_flattened_cache')
-      .select('asset_id, total_quantity, asset:assets(*)')
-      .eq('kit_id', kitId);
-
-    if (error) throw error;
-    return data || [];
-  } catch (err) {
-    return handleApiError(err, 'fetch kit flattened contents');
-  }
+  return listRecords<any>('kit_flattened_cache', {
+    select: 'asset_id, total_quantity, asset:assets(*)',
+    filters: [{ column: 'kit_id', operator: 'eq', value: kitId }],
+    context: 'fetch kit flattened contents',
+  });
 }
 
 /**
@@ -549,20 +528,15 @@ export async function getKitFlattenedContents(kitId: string) {
  * item, with the item and its records (for owned and value).
  */
 export async function getKitFlattenedItems(kitId: string) {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await (supabase.from('kit_flattened_item_cache') as any)
-      .select('equipment_item_id, total_quantity, item:equipment_items(id, manufacturer_model, category, type, records:assets(quantity, replacement_value, status, retired_on))')
-      .eq('kit_id', kitId);
-    if (error) throw error;
-    return (data || []) as {
-      equipment_item_id: string;
-      total_quantity: number;
-      item: { id: string; manufacturer_model: string; category: string | null; type?: string | null; records: any[] } | null;
-    }[];
-  } catch (err) {
-    return handleApiError(err, 'fetch kit item lines');
-  }
+  return listRecords<{
+    equipment_item_id: string;
+    total_quantity: number;
+    item: { id: string; manufacturer_model: string; category: string | null; type?: string | null; records: any[] } | null;
+  }>('kit_flattened_item_cache', {
+    select: 'equipment_item_id, total_quantity, item:equipment_items(id, manufacturer_model, category, type, records:assets(quantity, replacement_value, status, retired_on))',
+    filters: [{ column: 'kit_id', operator: 'eq', value: kitId }],
+    context: 'fetch kit item lines',
+  });
 }
 
 export interface KitFlattenedSummary {
