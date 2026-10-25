@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-24 (coordinator 06:45 UTC: **#20 remaining-goals plan approved** (Lead's plan on #20 + Cameron's 10-24 decisions there: skip verifyAsset/KitAccess, drop verifyOrgAccess, one uniform change-tracking rule). The Equipment Lead is building PRs A (error surface + helper additions), B (`writeActivity` + uniform change tracking, the one behaviour change), C (`verifyGigAccess`), then D–F (CRUD moves). Each needs Cameron's merge OK)
+- **Last updated:** 2026-10-25 (coordinator 06:45 UTC: **#20 PRs A, C, B merged** (#311, #312, #313, B's activity-log change approved by Cameron 10-24). D, E, F (#316, #315, #314) retargeted to `main`, with CI running; the coordinator merges them on its own review (Cameron, 10-24: no behaviour or DB change, CI green). Then #20 closes and a frontend-only deploy is due)
 
 ---
 
@@ -21,7 +21,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 |---|---|---|---|
 | ~~[#162](https://github.com/corourke/GigManager/issues/162)~~ (closed 10-23) | Equipment items and units (serials, tags, quantities, kits); parent of #179–#186 | Mockups approved and merged 10-08 (PR #165, `docs/design/mockups/equipment-units/`); split into sub-issues | See the rows below |
 | [#135](https://github.com/corourke/GigManager/issues/135) | Audit and fix 2026 purchase data | Unblocked once the reports are on dev; they show what needs fixing | Coordinator with Cameron; each prod data fix needs his go |
-| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Equipment Lead, 10-23** (Cameron: all of it ASAP); batches 3–8; PRs A–C open (#311, #312, #313) | Equipment Lead |
+| [#20](https://github.com/corourke/GigManager/issues/20) | Shared data-access layer under `src/services/` | Batches 1–2 merged (PRs #203, #204). **Equipment Lead, 10-23** (Cameron: all of it ASAP); batches 3–9 merged; PRs A–C merged 10-25 (#311–#313); D–F in CI (#314–#316) | Equipment Lead |
 
 - **Phone update notice (Cameron 10-14, approved):** the installed phone app doesn't announce new versions. Causes found: prod serves `/sw.js` with a 4-hour browser cache (Cloudflare zone setting), and iOS often skips the `controllerchange` event. **PR #291 merged 10-14 (b78067b, Cameron's OK):** a no-cache `/version.json` check on foreground and every 30 min, the same Reload banner, and `public/_headers`. Cameron may need a Cloudflare Cache Rule to bypass cache for `/sw.js`, `/registerSW.js` and `/version.json`.
 
