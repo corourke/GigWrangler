@@ -1,4 +1,4 @@
-import { getSupabase, getCurrentUser } from './base/dataAccess';
+import { getSupabase, getCurrentUser, getRecord, countRecords } from './base/dataAccess';
 import { verifyGigAccess } from './gigService.shared';
 import {
   GigStatus,
@@ -268,11 +268,10 @@ export async function getGigOptionsForOrganization(
  * Fetch a single gig with all its details (participants, staff slots, assignments, kits, bids)
  */
 export async function getGig(gigId: string) {
-  const supabase = getSupabase();
-  try {
-    const { data: gig, error } = await supabase
-      .from('gigs')
-      .select(`
+  const gig = await getRecord<any>('gigs', gigId, {
+    context: 'fetch gig details',
+    mode: 'single',
+    select: `
         *,
         participants:gig_participants(
           *,
@@ -296,37 +295,31 @@ export async function getGig(gigId: string) {
         ),
         kit_assignments:gig_kit_assignments(*),
         financials:gig_financials(*)
-      `)
-      .eq('id', gigId)
-      .single();
+      `,
+  });
+  if (!gig) throw new Error('Gig not found');
 
-    if (error) throw error;
-    if (!gig) throw new Error('Gig not found');
+  // Post-process to maintain existing interface
+  const processedSlots = (gig.staff_slots || []).map((slot: any) => ({
+    ...slot,
+    role: slot.role_info?.name || '',
+    count: slot.required_count,
+    staff_assignments: (slot.assignments || []).map((assignment: any) => ({
+      ...assignment,
+      user: assignment.user
+    }))
+  }));
 
-    // Post-process to maintain existing interface
-    const processedSlots = (gig.staff_slots || []).map((slot: any) => ({
-      ...slot,
-      role: slot.role_info?.name || '',
-      count: slot.required_count,
-      staff_assignments: (slot.assignments || []).map((assignment: any) => ({
-        ...assignment,
-        user: assignment.user
-      }))
-    }));
+  const sortedScheduleEntries = ((gig as any).schedule_entries || []).sort(
+    (a: any, b: any) => a.sort_order - b.sort_order || new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+  );
 
-    const sortedScheduleEntries = ((gig as any).schedule_entries || []).sort(
-      (a: any, b: any) => a.sort_order - b.sort_order || new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
-    );
-
-    return {
-      ...gig,
-      tags: gig.tags ?? [],
-      staff_slots: processedSlots,
-      schedule_entries: sortedScheduleEntries,
-    };
-  } catch (err) {
-    return handleApiError(err, 'fetch gig details');
-  }
+  return {
+    ...gig,
+    tags: gig.tags ?? [],
+    staff_slots: processedSlots,
+    schedule_entries: sortedScheduleEntries,
+  };
 }
 
 /**
@@ -575,16 +568,10 @@ export async function updateGig(gigId: string, gigData: {
 
 /** How many child gigs a gig has (#175: a parent can't be deleted). */
 export async function countChildGigs(gigId: string): Promise<number> {
-  try {
-    const { count, error } = await getSupabase()
-      .from('gigs')
-      .select('id', { count: 'exact', head: true })
-      .eq('parent_gig_id', gigId);
-    if (error) throw error;
-    return count ?? 0;
-  } catch (err) {
-    return handleApiError(err, 'count child gigs');
-  }
+  return countRecords('gigs', {
+    context: 'count child gigs',
+    filters: [{ column: 'parent_gig_id', operator: 'eq', value: gigId }],
+  });
 }
 
 /**

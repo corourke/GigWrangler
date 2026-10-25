@@ -1,4 +1,4 @@
-import { getSupabase } from './base/dataAccess';
+import { getSupabase, listRecords } from './base/dataAccess';
 import { 
   Organization, 
   OrganizationRole, 
@@ -175,11 +175,9 @@ export async function getOrganizationMembersWithAuth(organizationId: string) {
  * Fetch organization members directly from Supabase
  */
 export async function getOrganizationMembers(organizationId: string) {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase
-      .from('organization_members')
-      .select(`
+  return listRecords<any>('organization_members', {
+    context: 'fetch organization members',
+    select: `
         *,
         user:users(
           id,
@@ -196,15 +194,10 @@ export async function getOrganizationMembers(organizationId: string) {
           country,
           user_status
         )
-      `)
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
-    return data || [];
-  } catch (err) {
-    return handleApiError(err, 'fetch organization members');
-  }
+      `,
+    filters: [{ column: 'organization_id', operator: 'eq', value: organizationId }],
+    order: { column: 'created_at', ascending: true },
+  });
 }
 
 /**
@@ -419,11 +412,9 @@ export async function removeMember(organizationId: string, memberId: string) {
  * person. The caller groups by that status rather than filtering it out.
  */
 export async function getOrganizationContacts(organizationId: string) {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase
-      .from('organization_members')
-      .select(`
+  return listRecords<any>('organization_members', {
+    context: 'fetch organization contacts',
+    select: `
         id,
         organization_id,
         user_id,
@@ -439,16 +430,13 @@ export async function getOrganizationContacts(organizationId: string) {
           phone,
           user_status
         )
-      `)
-      .eq('organization_id', organizationId)
-      .order('is_primary_contact', { ascending: false })
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
-    return data || [];
-  } catch (err) {
-    return handleApiError(err, 'fetch organization contacts');
-  }
+      `,
+    filters: [{ column: 'organization_id', operator: 'eq', value: organizationId }],
+    order: [
+      { column: 'is_primary_contact', ascending: false },
+      { column: 'created_at', ascending: true },
+    ],
+  });
 }
 
 /**

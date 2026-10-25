@@ -1,5 +1,5 @@
 import { handleApiError } from '../utils/api-error-utils';
-import { getCurrentUser, getSupabase } from './base/dataAccess';
+import { getCurrentUser, getSupabase, listRecords } from './base/dataAccess';
 import { resolveGigActivityCtx, type GigActivityCtxInput } from './gigService.shared';
 import { writeActivity } from './writeActivity';
 import type { GigScheduleEntry, ScheduleChange } from '../utils/supabase/types';
@@ -8,27 +8,22 @@ import type { GigScheduleEntry, ScheduleChange } from '../utils/supabase/types';
  * Fetch schedule entries for a gig, with joined act participant data.
  */
 export async function getGigScheduleEntries(gigId: string): Promise<GigScheduleEntry[]> {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase
-      .from('gig_schedule_entries')
-      .select(`
+  return listRecords<GigScheduleEntry>('gig_schedule_entries', {
+    context: 'fetch schedule entries',
+    select: `
         *,
         act_participant:act_participant_id(
           id,
           role,
           organization:organization_id(id, name)
         )
-      `)
-      .eq('gig_id', gigId)
-      .order('sort_order', { ascending: true })
-      .order('start_time', { ascending: true });
-
-    if (error) throw error;
-    return (data || []) as unknown as GigScheduleEntry[];
-  } catch (err) {
-    return handleApiError(err, 'fetch schedule entries') as never;
-  }
+      `,
+    filters: [{ column: 'gig_id', operator: 'eq', value: gigId }],
+    order: [
+      { column: 'sort_order', ascending: true },
+      { column: 'start_time', ascending: true },
+    ],
+  });
 }
 
 /**

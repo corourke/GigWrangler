@@ -1,7 +1,7 @@
 import { OrganizationRole } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
-import { getCurrentUser, getSupabase } from './base/dataAccess';
+import { getCurrentUser, getSupabase, listRecords } from './base/dataAccess';
 import { resolveGigActivityCtx, type GigActivityCtx, type GigActivityCtxInput } from './gigService.shared';
 import { writeActivity } from './writeActivity';
 
@@ -227,16 +227,9 @@ export async function setGigParticipantInactive(gigId: string, organizationId: s
  * The gig's participants with their organizations.
  */
 export async function getGigParticipants(gigId: string) {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase
-      .from('gig_participants')
-      .select('id, role, organization:organization_id(id, name)')
-      .eq('gig_id', gigId);
-
-    if (error) throw error;
-    return data || [];
-  } catch (err) {
-    return handleApiError(err, 'fetch gig participants') as never;
-  }
+  return listRecords<{ id: string; role: OrganizationRole; organization: { id: string; name: string } | null }>('gig_participants', {
+    context: 'fetch gig participants',
+    select: 'id, role, organization:organization_id(id, name)',
+    filters: [{ column: 'gig_id', operator: 'eq', value: gigId }],
+  });
 }

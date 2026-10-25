@@ -1,5 +1,5 @@
 import { handleApiError } from '../utils/api-error-utils';
-import { getSupabase } from './base/dataAccess';
+import { getSupabase, listRecords } from './base/dataAccess';
 
 /**
  * Contacts for one participating organization on one specific gig —
@@ -33,11 +33,9 @@ export async function getGigParticipantContacts(
   gigId: string,
   organizationId: string,
 ): Promise<GigParticipantContact[]> {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase
-      .from('gig_participant_contacts')
-      .select(`
+  return listRecords<GigParticipantContact>('gig_participant_contacts', {
+    context: 'fetch gig participant contacts',
+    select: `
         id,
         gig_id,
         organization_id,
@@ -46,17 +44,16 @@ export async function getGigParticipantContacts(
         title,
         created_at,
         user:users(id, first_name, last_name, email, phone)
-      `)
-      .eq('gig_id', gigId)
-      .eq('organization_id', organizationId)
-      .order('is_primary_contact', { ascending: false })
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
-    return (data || []) as unknown as GigParticipantContact[];
-  } catch (err) {
-    return handleApiError(err, 'fetch gig participant contacts');
-  }
+      `,
+    filters: [
+      { column: 'gig_id', operator: 'eq', value: gigId },
+      { column: 'organization_id', operator: 'eq', value: organizationId },
+    ],
+    order: [
+      { column: 'is_primary_contact', ascending: false },
+      { column: 'created_at', ascending: true },
+    ],
+  });
 }
 
 /**
