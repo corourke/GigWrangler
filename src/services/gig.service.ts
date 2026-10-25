@@ -1,4 +1,5 @@
 import { getSupabase, getCurrentUser } from './base/dataAccess';
+import { verifyGigAccess } from './gigService.shared';
 import {
   GigStatus,
   GigAccountingSummary,
@@ -488,29 +489,8 @@ export async function updateGig(gigId: string, gigData: {
   }>;
 }) {
   try {
-    const user = await getCurrentUser();
+    const { user, primaryOrgId: primary_organization_id } = await verifyGigAccess(gigId, 'update gigs');
     const supabase = getSupabase();
-
-    const { data: gigParticipants } = await supabase
-      .from('gig_participants')
-      .select('organization_id')
-      .eq('gig_id', gigId);
-
-    if (!gigParticipants || gigParticipants.length === 0) throw new Error('Access denied - no participants found');
-
-    const orgIds = gigParticipants.map(gp => gp.organization_id);
-    const { data: userMemberships } = await supabase
-      .from('organization_members')
-      .select('organization_id, role')
-      .eq('user_id', user.id)
-      .in('organization_id', orgIds);
-
-    if (!userMemberships || userMemberships.length === 0) throw new Error('Access denied - not a member of participating organizations');
-
-    const hasAdminOrManager = userMemberships.some(m => m.role === 'Admin' || m.role === 'Manager');
-    if (!hasAdminOrManager) throw new Error('Access denied - only Admins and Managers can update gigs');
-
-    const primary_organization_id = userMemberships.find(m => m.role === 'Admin' || m.role === 'Manager')?.organization_id || userMemberships[0]?.organization_id;
 
     const { data: orgRow } = await supabase
       .from('organizations')

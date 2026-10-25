@@ -40,7 +40,7 @@ export async function uploadAttachment(
         file_path: filePath,
         file_name: file.name,
         created_by: user.id,
-      });
+      }, { context: "create record in 'attachments'" });
     } catch (dbError) {
       // Cleanup storage if database insert fails
       await supabase.storage.from(BUCKET_NAME).remove([filePath]);
@@ -67,7 +67,7 @@ export async function linkAttachmentToEntity(
       entity_type: entityType,
       entity_id: entityId,
       created_by: user.id,
-    });
+    }, { context: "create record in 'entity_attachments'" });
   } catch (err) {
     return handleApiError(err, 'link attachment to entity');
   }
@@ -79,6 +79,7 @@ export async function linkAttachmentToEntity(
 export async function getEntityAttachments(entityType: EntityType, entityId: string) {
   try {
     const data = await listRecords<any>('entity_attachments', {
+      context: "list records from 'entity_attachments'",
       select: '*, attachment:attachment_id(*)',
       filters: [
         { column: 'entity_type', operator: 'eq', value: entityType },
@@ -148,7 +149,7 @@ export async function deleteAttachment(attachmentId: string) {
  */
 export async function unlinkAttachmentFromEntity(entityAttachmentId: string) {
   try {
-    await deleteRecord('entity_attachments', entityAttachmentId);
+    await deleteRecord('entity_attachments', entityAttachmentId, { context: "delete record from 'entity_attachments'" });
     return { success: true };
   } catch (err) {
     return handleApiError(err, 'unlink attachment');

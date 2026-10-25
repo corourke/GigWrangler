@@ -72,7 +72,7 @@ export async function createUserProfile(userData: {
   const existing = await getUserProfile(userData.id);
   if (existing) return existing;
 
-  return createRecord<User>('users', userData);
+  return createRecord<User>('users', userData, { context: "create record in 'users'" });
 }
 
 /**
@@ -90,9 +90,9 @@ export async function updateUserProfile(userId: string, updates: {
   country?: string;
   timezone?: string;
 }): Promise<User> {
-  return updateRecord<User>('users', userId, {
-    ...updates,
-    updated_at: new Date().toISOString(),
+  return updateRecord<User>('users', userId, updates, {
+    context: "update record in 'users'",
+    audit: { updatedAt: true },
   });
 }
 
