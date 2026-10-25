@@ -1,4 +1,5 @@
 import { getSupabase, getCurrentUser, getRecord, countRecords } from './base/dataAccess';
+import { verifyGigAccess } from './gigService.shared';
 import {
   GigStatus,
   GigAccountingSummary,
@@ -13,7 +14,7 @@ import { createGigFinancial } from './gigFinancial.service';
 import { updateGigParticipants } from './gigParticipant.service';
 // updateGig calls updateGigStaffSlots internally.
 import { updateGigStaffSlots } from './gigStaff.service';
-import { logActivity } from './activityLog.service';
+import { writeActivity, actorNameOf } from './writeActivity';
 import { toDateInTimeZone } from '../utils/dateUtils';
 import { summarizeMoney, moneyInBadge, type MoneyRow } from '../utils/moneyFlow';
 import { projectedStaffCost } from '../utils/rateEstimate';
@@ -395,23 +396,20 @@ export async function createGig(gigData: any, options?: { skipActivityLog?: bool
     if (!options?.skipActivityLog) {
       try {
         const user = await getCurrentUser();
-        const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+        const actorDisplayName = actorNameOf(user);
         
         const { data: orgRow } = await supabase.from('organizations').select('name').eq('id', primary_organization_id).single();
         const actorOrgName = (orgRow as any)?.name ?? '';
 
-        await logActivity({
+        await writeActivity({
           organization_id: primary_organization_id,
           event_type: 'gig.created',
           entity_type: 'gig',
           entity_id: newGigId,
           gig_id: newGigId,
-          context: {
-            context_version: 1,
-            actor_display_name: actorDisplayName,
-            actor_org_name: actorOrgName,
-            gig_title: restGigData.title
-          }
+          actor_display_name: actorDisplayName,
+          actor_org_name: actorOrgName,
+          context: { gig_title: restGigData.title },
         });
       } catch (e) {
         console.error('Activity log failed:', e);
@@ -484,29 +482,8 @@ export async function updateGig(gigId: string, gigData: {
   }>;
 }) {
   try {
-    const user = await getCurrentUser();
+    const { user, primaryOrgId: primary_organization_id } = await verifyGigAccess(gigId, 'update gigs');
     const supabase = getSupabase();
-
-    const { data: gigParticipants } = await supabase
-      .from('gig_participants')
-      .select('organization_id')
-      .eq('gig_id', gigId);
-
-    if (!gigParticipants || gigParticipants.length === 0) throw new Error('Access denied - no participants found');
-
-    const orgIds = gigParticipants.map(gp => gp.organization_id);
-    const { data: userMemberships } = await supabase
-      .from('organization_members')
-      .select('organization_id, role')
-      .eq('user_id', user.id)
-      .in('organization_id', orgIds);
-
-    if (!userMemberships || userMemberships.length === 0) throw new Error('Access denied - not a member of participating organizations');
-
-    const hasAdminOrManager = userMemberships.some(m => m.role === 'Admin' || m.role === 'Manager');
-    if (!hasAdminOrManager) throw new Error('Access denied - only Admins and Managers can update gigs');
-
-    const primary_organization_id = userMemberships.find(m => m.role === 'Admin' || m.role === 'Manager')?.organization_id || userMemberships[0]?.organization_id;
 
     const { data: orgRow } = await supabase
       .from('organizations')
@@ -514,7 +491,7 @@ export async function updateGig(gigId: string, gigData: {
       .eq('id', primary_organization_id)
       .single();
     const actorOrgName: string = (orgRow as any)?.name ?? '';
-    const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+    const actorDisplayName = actorNameOf(user);
 
     const { participants, staff_slots, schedule_entries, ...restGigData } = gigData;
 
@@ -540,41 +517,28 @@ export async function updateGig(gigId: string, gigData: {
       throw new Error('Failed to save gig — you may not have permission to edit this gig.');
     }
 
-    const baseCtx = { context_version: 1 as const, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, gig_title: (preGig as any)?.title ?? '' };
+    const gigEntry = {
+      organization_id: primary_organization_id, entity_type: 'gig', entity_id: gigId, gig_id: gigId,
+      actor_display_name: actorDisplayName, actor_org_name: actorOrgName,
+    };
+    const gig_title = (preGig as any)?.title ?? '';
 
     if (gigData.status && gigData.status !== (preGig as any)?.status) {
-      try {
-        await logActivity({ organization_id: primary_organization_id, event_type: 'gig.status_changed', entity_type: 'gig', entity_id: gigId, gig_id: gigId, context: { ...baseCtx, from_status: (preGig as any).status, to_status: gigData.status } });
-      } catch (e) { console.error('Activity log failed:', e); }
+      await writeActivity({ ...gigEntry, event_type: 'gig.status_changed', context: { gig_title, from_status: (preGig as any).status, to_status: gigData.status } });
     }
 
     const startChanged = gigData.start !== undefined && !datesRepresentSameInstant(gigData.start, (preGig as any)?.start);
     const endChanged = gigData.end !== undefined && !datesRepresentSameInstant(gigData.end, (preGig as any)?.end);
     if (startChanged || endChanged) {
-      try {
-        await logActivity({ organization_id: primary_organization_id, event_type: 'gig.rescheduled', entity_type: 'gig', entity_id: gigId, gig_id: gigId, context: { ...baseCtx, from: { start: (preGig as any).start, end: (preGig as any).end }, to: { start: gigData.start ?? (preGig as any).start, end: gigData.end ?? (preGig as any).end } } });
-      } catch (e) { console.error('Activity log failed:', e); }
+      await writeActivity({ ...gigEntry, event_type: 'gig.rescheduled', context: { gig_title, from: { start: (preGig as any).start, end: (preGig as any).end }, to: { start: gigData.start ?? (preGig as any).start, end: gigData.end ?? (preGig as any).end } } });
     }
 
     if (gigData.title !== undefined && gigData.title !== (preGig as any)?.title) {
-      try {
-        await logActivity({ organization_id: primary_organization_id, event_type: 'gig.renamed', entity_type: 'gig', entity_id: gigId, gig_id: gigId, context: { ...baseCtx, from_title: (preGig as any).title, to_title: gigData.title } });
-      } catch (e) { console.error('Activity log failed:', e); }
+      await writeActivity({ ...gigEntry, event_type: 'gig.renamed', context: { gig_title, from_title: (preGig as any).title, to_title: gigData.title } });
     }
 
     if (gigData.notes !== undefined && gigData.notes !== (preGig as any)?.notes) {
-      try {
-        await logActivity({
-          organization_id: primary_organization_id,
-          event_type: 'gig.notes_updated',
-          entity_type: 'gig',
-          entity_id: gigId,
-          gig_id: gigId,
-          context: { ...baseCtx, notes_changed: true }
-        });
-      } catch (e) {
-        console.error('Activity log failed:', e);
-      }
+      await writeActivity({ ...gigEntry, event_type: 'gig.notes_updated', context: { gig_title, notes_changed: true } });
     }
 
     // These pass no loaded ids, so they add and update rows but delete none (#92).
@@ -794,22 +758,19 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
     const duplicatedGig = await getGig(newGigId);
 
     try {
-      const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+      const actorDisplayName = actorNameOf(user);
       const { data: orgRow } = await supabase.from('organizations').select('name').eq('id', primaryOrgId).single();
       const actorOrgName = (orgRow as any)?.name ?? '';
 
-      await logActivity({
+      await writeActivity({
         organization_id: primaryOrgId,
         event_type: 'gig.created',
         entity_type: 'gig',
         entity_id: newGigId,
         gig_id: newGigId,
-        context: {
-          context_version: 1,
-          actor_display_name: actorDisplayName,
-          actor_org_name: actorOrgName,
-          gig_title: newTitle || originalGig.title + ' (Copy)'
-        }
+        actor_display_name: actorDisplayName,
+        actor_org_name: actorOrgName,
+        context: { gig_title: newTitle || originalGig.title + ' (Copy)' },
       });
     } catch (e) {
       console.error('Activity log failed:', e);
