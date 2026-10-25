@@ -321,7 +321,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 **Triage routine** (daily, ~09:00 UTC). Each run:
 1. Check CI and mergeability on its own open PRs; fix a red or conflicted one by merging `main` in, never by rebasing.
 2. Build what §3c releases that has no PR yet: plan comment on the issue, failing test first.
-3. On a quiet run, do one `docs/` pass (technical and development docs; next candidate: `docs/development/dry-run-findings-2026-09-06.md` (or archive both dry-run records, which needs a PR)). Leave `website/docs/` to the Docs Lead.
+3. On a quiet run, do one `docs/` pass (technical and development docs; next candidate: `docs/technical/tenant-isolation-architecture.md`; archiving both dry-run records needs a PR). Leave `website/docs/` to the Docs Lead.
 4. Don't manufacture activity: if nothing changed, commit nothing and post nothing.
 
 **Who updates which docs** (Cameron, 10-07):
