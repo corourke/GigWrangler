@@ -2,6 +2,56 @@
  * Shared internal helpers for the gig service modules (Phase 7, Step 4 split).
  * The client and signed-in user come from `./base/dataAccess` (#20).
  */
+import { getCurrentUser, getSupabase } from './base/dataAccess';
+
+export interface GigMembership {
+  organization_id: string;
+  role: string;
+}
+
+const manages = (m: GigMembership) => m.role === 'Admin' || m.role === 'Manager';
+
+/** The org a user acts as on a gig: their first Admin or Manager membership, else their first. */
+export function actingOrgId(memberships: GigMembership[]): string | undefined {
+  return memberships.find(manages)?.organization_id || memberships[0]?.organization_id;
+}
+
+/**
+ * The check a gig change runs before it writes (#20): the user must be an Admin or Manager of
+ * an org on the gig. Refuses with "Access denied - ..." (`action` ends the last one, e.g.
+ * 'update gigs'). RLS is still what enforces it; this makes the refusal readable.
+ */
+export async function verifyGigAccess(gigId: string, action: string) {
+  const user = await getCurrentUser();
+  const supabase = getSupabase();
+
+  const { data: gigParticipants } = await supabase
+    .from('gig_participants')
+    .select('organization_id')
+    .eq('gig_id', gigId);
+
+  if (!gigParticipants || gigParticipants.length === 0) throw new Error('Access denied - no participants found');
+
+  const orgIds = gigParticipants.map(gp => gp.organization_id);
+  const { data } = await supabase
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
+    .in('organization_id', orgIds);
+  const memberships = (data ?? []) as GigMembership[];
+
+  if (memberships.length === 0) throw new Error('Access denied - not a member of participating organizations');
+  if (!memberships.some(manages)) throw new Error(`Access denied - only Admins and Managers can ${action}`);
+
+  return {
+    user,
+    memberships,
+    // Never empty here, so there's always an acting org.
+    primaryOrgId: actingOrgId(memberships) as string,
+    /** The orgs the user is Admin or Manager of. */
+    managedOrgIds: memberships.filter(manages).map(m => m.organization_id),
+  };
+}
 
 /** Who did it and to which gig, as the gig services log it in activity_log. */
 export interface GigActivityCtx {
@@ -60,10 +110,7 @@ export async function resolveGigActivityCtx(
         .eq('user_id', user.id)
         .in('organization_id', orgIds);
       if (error) throw error;
-      organization_id =
-        (memberships ?? []).find((m: any) => m.role === 'Admin' || m.role === 'Manager')?.organization_id ||
-        (memberships ?? [])[0]?.organization_id ||
-        null;
+      organization_id = actingOrgId((memberships ?? []) as GigMembership[]) || null;
     }
   }
 
