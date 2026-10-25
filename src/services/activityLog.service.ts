@@ -1,4 +1,4 @@
-import { getCurrentUser, getSupabase } from './base/dataAccess';
+import { getCurrentUser, getSupabase, listRecords } from './base/dataAccess';
 import { handleApiError } from '../utils/api-error-utils';
 import type { ActivityEventType } from '../utils/activityLog.events';
 import type { ActivityLogContext, ActivityLogEntry } from '../utils/supabase/types';
@@ -57,32 +57,22 @@ export async function getEntityActivity(
   entityType: string,
   entityId: string
 ): Promise<ActivityLogEntry[]> {
-  try {
-    await getCurrentUser();
-    const supabase = getSupabase();
-    const { data, error } = await (supabase.from('activity_log') as any)
-      .select('*')
-      .eq('entity_type', entityType)
-      .eq('entity_id', entityId)
-      .order('occurred_at', { ascending: false });
-    if (error) throw error;
-    return (data ?? []) as ActivityLogEntry[];
-  } catch (err) {
-    return handleApiError(err, 'fetch entity activity') as any;
-  }
+  await getCurrentUser();
+  return listRecords<ActivityLogEntry>('activity_log', {
+    context: 'fetch entity activity',
+    filters: [
+      { column: 'entity_type', operator: 'eq', value: entityType },
+      { column: 'entity_id', operator: 'eq', value: entityId },
+    ],
+    order: { column: 'occurred_at', ascending: false },
+  });
 }
 
 export async function getGigActivity(gigId: string): Promise<ActivityLogEntry[]> {
-  try {
-    await getCurrentUser();
-    const supabase = getSupabase();
-    const { data, error } = await (supabase.from('activity_log') as any)
-      .select('*')
-      .eq('gig_id', gigId)
-      .order('occurred_at', { ascending: false });
-    if (error) throw error;
-    return (data ?? []) as ActivityLogEntry[];
-  } catch (err) {
-    return handleApiError(err, 'fetch gig activity') as any;
-  }
+  await getCurrentUser();
+  return listRecords<ActivityLogEntry>('activity_log', {
+    context: 'fetch gig activity',
+    filters: [{ column: 'gig_id', operator: 'eq', value: gigId }],
+    order: { column: 'occurred_at', ascending: false },
+  });
 }

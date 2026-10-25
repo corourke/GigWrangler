@@ -1,6 +1,6 @@
 import { FinCategory, FinDirection, FinStage, DbGigFinancial, FieldChange } from '../utils/supabase/types';
 import { handleApiError } from '../utils/api-error-utils';
-import { getSupabase, getCurrentUser } from './base/dataAccess';
+import { getSupabase, getCurrentUser, listRecords } from './base/dataAccess';
 import { writeActivity, actorNameOf } from './writeActivity';
 import { computeFieldChanges } from '../utils/fieldChanges';
 import type { ActivityEventType } from '../utils/activityLog.events';
@@ -241,17 +241,10 @@ export async function getGigExportAggregates(
  * a gig, and as a dedup guard so a line never gets two ledger entries.
  */
 export async function getGigFinancialsByPurchaseId(purchaseId: string): Promise<DbGigFinancial[]> {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase
-      .from('gig_financials')
-      .select('*')
-      .eq('purchase_id', purchaseId);
-    if (error) throw error;
-    return (data as DbGigFinancial[]) || [];
-  } catch (err) {
-    return handleApiError(err, 'fetch gig financials by purchase');
-  }
+  return listRecords<DbGigFinancial>('gig_financials', {
+    context: 'fetch gig financials by purchase',
+    filters: [{ column: 'purchase_id', operator: 'eq', value: purchaseId }],
+  });
 }
 
 /**
@@ -262,18 +255,12 @@ export async function getGigFinancialsByPurchaseId(purchaseId: string): Promise<
  */
 export async function getPurchaseIdsWithLedgerEntry(purchaseIds: string[]): Promise<Set<string>> {
   if (purchaseIds.length === 0) return new Set();
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase
-      .from('gig_financials')
-      .select('purchase_id')
-      .in('purchase_id', purchaseIds);
-    if (error) throw error;
-    return new Set((data || []).map((r: any) => r.purchase_id).filter(Boolean));
-  } catch (err) {
-    handleApiError(err, 'fetch purchase ids with ledger entry');
-    return new Set();
-  }
+  const data = await listRecords<{ purchase_id: string | null }>('gig_financials', {
+    context: 'fetch purchase ids with ledger entry',
+    select: 'purchase_id',
+    filters: [{ column: 'purchase_id', operator: 'in', value: purchaseIds }],
+  });
+  return new Set(data.map((r) => r.purchase_id).filter(Boolean) as string[]);
 }
 
 

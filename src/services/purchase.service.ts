@@ -1,5 +1,5 @@
 import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
-import { getSupabase, getCurrentUser } from './base/dataAccess';
+import { getSupabase, getCurrentUser, listRecords, createRecord, updateRecord, deleteOne } from './base/dataAccess';
 import type { DbPurchase, PurchaseWithItems, DbGigFinancial, DbAsset } from '../utils/supabase/types';
 import type { LineUnitInput } from '../utils/lineUnits';
 import type { PurchaseToSave } from '../utils/csvAssetImportPlan';
@@ -106,62 +106,31 @@ export async function getPurchaseWithDetails(purchaseId: string): Promise<Purcha
  * Create a new purchase
  */
 export async function createPurchase(purchaseData: Partial<DbPurchase>) {
-  try {
-    await getCurrentUser();
-    const supabase = getSupabase();
-
-    const { data, error } = await (supabase.from('purchases') as any)
-      .insert(purchaseData)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    return handleApiError(err, 'create purchase');
-  }
+  await getCurrentUser();
+  return createRecord<any>('purchases', purchaseData, { context: 'create purchase' });
 }
 
 /**
  * Update an existing purchase
  */
 export async function updatePurchase(purchaseId: string, purchaseData: Partial<DbPurchase>) {
-  try {
-    await getCurrentUser();
-    const supabase = getSupabase();
-
-    const { data, error } = await (supabase.from('purchases') as any)
-      .update({
-        ...purchaseData,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', purchaseId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (err) {
-    return handleApiError(err, 'update purchase');
-  }
+  await getCurrentUser();
+  return updateRecord<any>('purchases', purchaseId, purchaseData, {
+    context: 'update purchase',
+    audit: { updatedAt: true },
+  });
 }
 
 /**
  * Delete a purchase
  */
 export async function deletePurchase(purchaseId: string) {
-  const supabase = getSupabase();
-  try {
-    // .select() to confirm a row was removed — RLS denies silently (0 rows, no error)
-    const { data, error } = await (supabase.from('purchases') as any).delete().eq('id', purchaseId).select();
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      throw new Error('Purchase not found, or you do not have permission to delete it.');
-    }
-    return { success: true };
-  } catch (err) {
-    return handleApiError(err, 'delete purchase');
-  }
+  // deleteOne confirms a row was removed — RLS denies silently (0 rows, no error)
+  await deleteOne('purchases', purchaseId, {
+    context: 'delete purchase',
+    notFound: 'Purchase not found, or you do not have permission to delete it.',
+  });
+  return { success: true };
 }
 
 /** How one planned purchase went: saved (perhaps with a kit warning) or not saved at all. */
@@ -328,17 +297,11 @@ export async function addLineUnits(lineId: string, units: Omit<LineUnitInput, 'l
 
 /** The units, or the lot, a purchase line made (#183). */
 export async function getLineUnits(lineId: string): Promise<DbAsset[]> {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await (supabase.from('assets') as any)
-      .select('*')
-      .eq('purchase_line_id', lineId)
-      .order('created_at', { ascending: true });
-    if (error) throw error;
-    return (data ?? []) as DbAsset[];
-  } catch (err) {
-    return handleApiError(err, 'fetch purchase line equipment');
-  }
+  return listRecords<DbAsset>('assets', {
+    context: 'fetch purchase line equipment',
+    filters: [{ column: 'purchase_line_id', operator: 'eq', value: lineId }],
+    order: { column: 'created_at', ascending: true },
+  });
 }
 
 /** The subset of a purchase line needed to build/refresh its ledger entry. */
