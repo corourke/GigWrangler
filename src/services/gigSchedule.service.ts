@@ -1,7 +1,7 @@
 import { handleApiError } from '../utils/api-error-utils';
 import { getCurrentUser, getSupabase } from './base/dataAccess';
 import { resolveGigActivityCtx, type GigActivityCtxInput } from './gigService.shared';
-import { logActivity } from './activityLog.service';
+import { writeActivity } from './writeActivity';
 import type { GigScheduleEntry, ScheduleChange } from '../utils/supabase/types';
 
 /**
@@ -123,20 +123,15 @@ export async function updateGigScheduleEntries(
         }));
         // Throws on a failed lookup, which the catch below reports (issue #103).
         const ctx = await resolveGigActivityCtx(supabase, user, gigId, activityCtx);
-        await logActivity({
+        await writeActivity({
           organization_id: ctx.organization_id,
           event_type: 'schedule_entry.added',
           entity_type: 'schedule_entry',
           entity_id: gigId,
           gig_id: gigId,
-          context: {
-            context_version: 1,
-            actor_display_name: ctx.actor_display_name,
-            actor_org_name: ctx.actor_org_name,
-            gig_title: ctx.gig_title,
-            schedule_changes: scheduleChanges,
-            change_count: scheduleChanges.length
-          }
+          actor_display_name: ctx.actor_display_name,
+          actor_org_name: ctx.actor_org_name,
+          context: { gig_title: ctx.gig_title, schedule_changes: scheduleChanges, change_count: scheduleChanges.length },
         });
       } catch (e) { console.error('Activity log failed:', e); }
     }

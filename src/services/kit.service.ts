@@ -2,7 +2,7 @@ import { handleApiError } from '../utils/api-error-utils';
 import { getCurrentUser, getSupabase } from './base/dataAccess';
 import { computeFieldChanges } from '../utils/fieldChanges';
 import { sanitizeLikeInput } from '../utils/validation-utils';
-import { logActivity } from './activityLog.service';
+import { writeActivity, actorNameOf } from './writeActivity';
 import { pieceValue } from '../utils/equipmentItems';
 
 const KIT_TRACKED_FIELDS = [
@@ -195,22 +195,19 @@ export async function createKit(kitData: {
     if (kitError) throw kitError;
 
     try {
-      const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+      const actorDisplayName = actorNameOf(user);
       const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', restKitData.organization_id).single();
       const actorOrgName = (orgRow as any)?.name ?? '';
 
-      await logActivity({
+      await writeActivity({
         organization_id: restKitData.organization_id,
         event_type: 'kit.created',
         entity_type: 'kit',
         entity_id: kit.id,
         gig_id: null,
-        context: {
-          context_version: 1,
-          actor_display_name: actorDisplayName,
-          actor_org_name: actorOrgName,
-          kit_name: kit.name
-        }
+        actor_display_name: actorDisplayName,
+        actor_org_name: actorOrgName,
+        context: { kit_name: kit.name },
       });
     } catch (e) {
       console.error('Activity log failed:', e);
@@ -279,7 +276,7 @@ export async function updateKit(kitId: string, kitData: {
 
     if (!kitRow) throw new Error('Kit not found');
 
-    const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+    const actorDisplayName = actorNameOf(user);
     const actorOrgName = (kitRow as any).organization?.name ?? '';
     const organizationId = kitRow.organization_id;
     const kitName = kitRow.name;
@@ -287,34 +284,34 @@ export async function updateKit(kitId: string, kitData: {
     const { components, organization_id: _orgId, ...restKitData } = kitData;
 
     if (Object.keys(restKitData).length > 0) {
-      const field_changes = computeFieldChanges(kitRow, restKitData, KIT_TRACKED_FIELDS);
-
-      const { error: updateError } = await supabase
+      // .select() returns the saved row from this same update, for the change list (#20).
+      const { data: savedRows, error: updateError } = await supabase
         .from('kits')
         .update({
           ...restKitData,
           updated_by: user.id,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', kitId);
+        .eq('id', kitId)
+        .select();
 
       if (updateError) throw updateError;
 
+      // What the save changed: the record as saved before vs as saved now. Nothing saved, nothing logged.
+      const savedKit = (savedRows ?? [])[0];
+      const field_changes = savedKit ? computeFieldChanges(kitRow, savedKit, KIT_TRACKED_FIELDS) : [];
+
       if (field_changes.length > 0) {
         try {
-          await logActivity({
+          await writeActivity({
             organization_id: organizationId,
             event_type: 'kit.updated',
             entity_type: 'kit',
             entity_id: kitId,
             gig_id: null,
-            context: {
-              context_version: 1,
-              actor_display_name: actorDisplayName,
-              actor_org_name: actorOrgName,
-              kit_name: kitName,
-              field_changes
-            }
+            actor_display_name: actorDisplayName,
+            actor_org_name: actorOrgName,
+            context: { kit_name: kitName, field_changes },
           });
         } catch (e) { console.error('Activity log failed:', e); }
       }
@@ -337,12 +334,39 @@ export async function updateKit(kitId: string, kitData: {
           try {
             if (c.asset_id) {
               const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', c.asset_id).single();
-              await logActivity({ organization_id: organizationId, event_type: 'kit.asset_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '' } });
+              await writeActivity({
+                organization_id: organizationId,
+                event_type: 'kit.asset_removed',
+                entity_type: 'kit',
+                entity_id: kitId,
+                gig_id: null,
+                actor_display_name: actorDisplayName,
+                actor_org_name: actorOrgName,
+                context: { kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '' },
+              });
             } else if (c.equipment_item_id) {
-              await logActivity({ organization_id: organizationId, event_type: 'kit.asset_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: `any ${await itemModel(supabase, c.equipment_item_id)}` } });
+              await writeActivity({
+                organization_id: organizationId,
+                event_type: 'kit.asset_removed',
+                entity_type: 'kit',
+                entity_id: kitId,
+                gig_id: null,
+                actor_display_name: actorDisplayName,
+                actor_org_name: actorOrgName,
+                context: { kit_name: kitName, asset_model: `any ${await itemModel(supabase, c.equipment_item_id)}` },
+              });
             } else if (c.child_kit_id) {
               const { data: subKitRow } = await (supabase.from('kits') as any).select('name').eq('id', c.child_kit_id).single();
-              await logActivity({ organization_id: organizationId, event_type: 'kit.subkit_removed', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, subkit_name: (subKitRow as any)?.name ?? '' } });
+              await writeActivity({
+                organization_id: organizationId,
+                event_type: 'kit.subkit_removed',
+                entity_type: 'kit',
+                entity_id: kitId,
+                gig_id: null,
+                actor_display_name: actorDisplayName,
+                actor_org_name: actorOrgName,
+                context: { kit_name: kitName, subkit_name: (subKitRow as any)?.name ?? '' },
+              });
             }
           } catch (e) { console.error('Activity log failed:', e); }
         }
@@ -366,12 +390,39 @@ export async function updateKit(kitId: string, kitData: {
           try {
             if (component.asset_id) {
               const { data: assetRow } = await (supabase.from('assets') as any).select('manufacturer_model').eq('id', component.asset_id).single();
-              await logActivity({ organization_id: organizationId, event_type: 'kit.asset_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '', quantity: component.quantity } });
+              await writeActivity({
+                organization_id: organizationId,
+                event_type: 'kit.asset_added',
+                entity_type: 'kit',
+                entity_id: kitId,
+                gig_id: null,
+                actor_display_name: actorDisplayName,
+                actor_org_name: actorOrgName,
+                context: { kit_name: kitName, asset_model: (assetRow as any)?.manufacturer_model ?? '', quantity: component.quantity },
+              });
             } else if (component.equipment_item_id) {
-              await logActivity({ organization_id: organizationId, event_type: 'kit.asset_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, asset_model: `any ${await itemModel(supabase, component.equipment_item_id)}`, quantity: component.quantity } });
+              await writeActivity({
+                organization_id: organizationId,
+                event_type: 'kit.asset_added',
+                entity_type: 'kit',
+                entity_id: kitId,
+                gig_id: null,
+                actor_display_name: actorDisplayName,
+                actor_org_name: actorOrgName,
+                context: { kit_name: kitName, asset_model: `any ${await itemModel(supabase, component.equipment_item_id)}`, quantity: component.quantity },
+              });
             } else if (component.child_kit_id) {
               const { data: subKitRow } = await (supabase.from('kits') as any).select('name').eq('id', component.child_kit_id).single();
-              await logActivity({ organization_id: organizationId, event_type: 'kit.subkit_added', entity_type: 'kit', entity_id: kitId, gig_id: null, context: { context_version: 1, actor_display_name: actorDisplayName, actor_org_name: actorOrgName, kit_name: kitName, subkit_name: (subKitRow as any)?.name ?? '', quantity: component.quantity } });
+              await writeActivity({
+                organization_id: organizationId,
+                event_type: 'kit.subkit_added',
+                entity_type: 'kit',
+                entity_id: kitId,
+                gig_id: null,
+                actor_display_name: actorDisplayName,
+                actor_org_name: actorOrgName,
+                context: { kit_name: kitName, subkit_name: (subKitRow as any)?.name ?? '', quantity: component.quantity },
+              });
             }
           } catch (e) { console.error('Activity log failed:', e); }
         }
@@ -432,22 +483,19 @@ export async function duplicateKit(kitId: string, newName?: string) {
     if (kitError) throw kitError;
 
     try {
-      const actorDisplayName = `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '';
+      const actorDisplayName = actorNameOf(user);
       const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', originalKit.organization_id).single();
       const actorOrgName = (orgRow as any)?.name ?? '';
 
-      await logActivity({
+      await writeActivity({
         organization_id: originalKit.organization_id,
         event_type: 'kit.created',
         entity_type: 'kit',
         entity_id: newKit.id,
         gig_id: null,
-        context: {
-          context_version: 1,
-          actor_display_name: actorDisplayName,
-          actor_org_name: actorOrgName,
-          kit_name: newKit.name
-        }
+        actor_display_name: actorDisplayName,
+        actor_org_name: actorOrgName,
+        context: { kit_name: newKit.name },
       });
     } catch (e) {
       console.error('Activity log failed:', e);

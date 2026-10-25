@@ -3,7 +3,7 @@ import { handleApiError } from '../utils/api-error-utils';
 import { UUID_REGEX } from '../utils/validation-utils';
 import { getCurrentUser, getSupabase } from './base/dataAccess';
 import { resolveGigActivityCtx, type GigActivityCtx, type GigActivityCtxInput } from './gigService.shared';
-import { logActivity } from './activityLog.service';
+import { writeActivity } from './writeActivity';
 
 /**
  * Gig participant / venue / act operations (Phase 7, Step 4 — extracted from
@@ -135,20 +135,15 @@ export async function updateGigParticipants(
         if (inserted?.id && effectiveCtx) {
           const { data: orgRow } = await (supabase.from('organizations') as any).select('name').eq('id', participant.organization_id).single();
           try {
-            await logActivity({
+            await writeActivity({
               organization_id: effectiveCtx.organization_id,
               event_type: 'participant.added',
               entity_type: 'participant',
               entity_id: inserted.id,
               gig_id: gigId,
-              context: {
-                context_version: 1,
-                actor_display_name: effectiveCtx.actor_display_name,
-                actor_org_name: effectiveCtx.actor_org_name,
-                gig_title: effectiveCtx.gig_title,
-                organization_name: (orgRow as any)?.name ?? '',
-                role: participant.role
-              }
+              actor_display_name: effectiveCtx.actor_display_name,
+              actor_org_name: effectiveCtx.actor_org_name,
+              context: { gig_title: effectiveCtx.gig_title, organization_name: (orgRow as any)?.name ?? '', role: participant.role },
             });
           } catch (e) { console.error('Activity log failed:', e); }
         }

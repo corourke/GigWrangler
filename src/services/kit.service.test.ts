@@ -263,7 +263,8 @@ describe('kit.service', () => {
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'kits') {
           const chain = makeChain({ data: preKit, error: null });
-          chain.update = vi.fn().mockReturnValue(makeChain({ data: null, error: null }));
+          // The update answers with the row as saved (#20: the change list compares saved rows).
+          chain.update = vi.fn().mockReturnValue(makeChain({ data: [{ ...preKit, ...updates }], error: null }));
           return chain;
         }
         return makeChain({ data: {}, error: null });
@@ -278,6 +279,23 @@ describe('kit.service', () => {
           field_changes: [{ field: 'name', from: 'Old Kit', to: 'Updated Kit' }]
         })
       }));
+    });
+
+    it('logs nothing when the update saves no row', async () => {
+      const preKit = { id: 'k1', name: 'Old Kit', organization_id: 'org-1', organization: { name: 'Acme' } };
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'kits') {
+          const chain = makeChain({ data: preKit, error: null });
+          chain.update = vi.fn().mockReturnValue(makeChain({ data: [], error: null }));
+          return chain;
+        }
+        return makeChain({ data: {}, error: null });
+      });
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'u1' } });
+
+      await updateKit('k1', { name: 'Updated Kit' });
+
+      expect(logActivity).not.toHaveBeenCalledWith(expect.objectContaining({ event_type: 'kit.updated' }));
     });
 
     it('adds a mixed asset + sub-kit component in one update, logging both event types', async () => {

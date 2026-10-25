@@ -1,7 +1,7 @@
 import { handleApiError } from '../utils/api-error-utils';
 import { getCurrentUser, getSupabase } from './base/dataAccess';
+import { writeActivity, actorNameOf } from './writeActivity';
 import { verifyGigAccess } from './gigService.shared';
-import { logActivity } from './activityLog.service';
 import { StaffingChange } from '../utils/supabase/types';
 import { toDateInTimeZone } from '../utils/dateUtils';
 
@@ -194,26 +194,21 @@ export async function updateGigStaffSlots(
           const { data: gigRow } = await supabase.from('gigs').select('title').eq('id', gigId).single();
           effectiveCtx = {
             organization_id: primary_organization_id,
-            actor_display_name: `${(user as any).user_metadata?.first_name ?? ''} ${(user as any).user_metadata?.last_name ?? ''}`.trim() || user.email || '',
+            actor_display_name: actorNameOf(user),
             actor_org_name,
             gig_title: (gigRow as any)?.title ?? '',
           };
         }
 
-        await logActivity({
+        await writeActivity({
           organization_id: effectiveCtx.organization_id,
           event_type: 'staffing.updated',
           entity_type: 'staffing',
           entity_id: gigId,
           gig_id: gigId,
-          context: {
-            context_version: 1,
-            actor_display_name: effectiveCtx.actor_display_name,
-            actor_org_name: effectiveCtx.actor_org_name,
-            gig_title: effectiveCtx.gig_title,
-            changes: staffingChanges,
-            change_count: staffingChanges.length
-          }
+          actor_display_name: effectiveCtx.actor_display_name,
+          actor_org_name: effectiveCtx.actor_org_name,
+          context: { gig_title: effectiveCtx.gig_title, changes: staffingChanges, change_count: staffingChanges.length },
         });
       } catch (e) { console.error('Activity log failed:', e); }
     }
