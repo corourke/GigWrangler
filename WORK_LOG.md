@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #318** (Equipment Lead; merged 10-26 with Cameron's OK; closes #317, the #183 D2 follow-up): migration `20261025000000` drops `create_purchase_transaction_v1`; six RLS tests save through v2 (three v1-only input checks removed, listed in the PR); test 45's kit checks are now direct `kit_components` writes (cross-org refused). Applied to dev by the coordinator; prod apply pending (Cameron).
+
 - **Prod deploy, 10-25** (Cameron): #20 PRs A–F (frontend only). Coordinator verified read-only: build 2026-10-25T10:40Z; the bundle has one `context_version` writer (21 copies in the 10-23 build), matching a local build of main.
 
 - **#20 closed** (Equipment Lead; PRs merged 10-25 by the coordinator on review, B with Cameron's OK): PR A #311 (base helpers: required `context`, `listAllRecords`, `countRecords`, `maybeSingle`/`single`, `or`, multiple order keys, audit stamps, `deleteOne`), C #312 (`verifyGigAccess`), B #313 (`writeActivity`, `actorNameOf`, and one change rule in `fieldChanges.ts` for asset, kit and money, the one approved behaviour change), D #316 / E #315 / F #314 (plain equipment, money, gig and organization functions onto the helpers). D–F were stacked on A and had to be retargeted to `main` before CI ran. No migration. Prod: frontend deploy pending.
