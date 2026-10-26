@@ -1865,10 +1865,6 @@ export type Database = {
           id: string
         }[]
       }
-      create_purchase_transaction_v1: {
-        Args: { p_assets: Json[]; p_header: Json; p_items: Json[] }
-        Returns: Json
-      }
       get_complete_user_data: { Args: { user_uuid: string }; Returns: Json }
       get_kit_hierarchy_tree: {
         Args: { p_kit_id: string }
