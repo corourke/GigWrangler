@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-25 (coordinator 11:00 UTC: **#20 in prod** (Cameron's deploy, build 2026-10-25T10:40Z, verified read-only). **Equipment Lead next (Cameron 10-25): #183 D2 follow-up**, dropping `create_purchase_transaction_v1` (the cards and column guide shipped in #295, in prod 10-19). Plan on a new issue first; migration PR needs Cameron's merge OK and his prod apply; then the #135 worksheet (Cameron 10-25))
+- **Last updated:** 2026-10-26 (coordinator 20:45 UTC: **#318** (drop `create_purchase_transaction_v1`, #317) green, applied to dev by the coordinator; one doc nit, then Cameron's merge OK and his prod apply of `20261025000000`. **#135 worksheet plan confirmed** (with F4–F6 added); the Equipment Lead is building it. Coordinator check-in every 4h until the worksheet merges)
 
 ---
 
@@ -87,7 +87,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 **Status 10-12 03:00 UTC:**
 - **Merged since (not yet in prod):** #276 (#183 D: CSV import makes units, lots and kit lines through the v2 save; kit column kept; no status / retired_on / liquidation_amt; template regrouped; Download Example mic-kit file; held purchases; Retry failed; the app no longer calls v1), #269 (#265: container still out at another gig), #275 (docs: Payment received → Apply to). No migrations.
 - **In review:** #268 (#186 Locations step): Equipment Lead pushed fixes for every finding; an independent re-check is running. #274 (docs: Locations page): two sentences contradict the 10-10 rule (contents keep their own records); the Docs Lead is fixing them.
-- **#183 D2:** the cards and column guide shipped (#295, in prod 10-19). **Released 10-25 to the Equipment Lead:** drop `create_purchase_transaction_v1` (still in prod; the app calls only v2), with the RLS tests moved to v2.
+- **#183 D2:** the cards and column guide shipped (#295, in prod 10-19). The v1 drop is PR #318 (plan #317): green, on dev 10-26; waiting on Cameron's merge OK, then his prod apply.
 
 **Status 10-12 22:45 UTC:**
 - **In prod (Cameron's deploy 10-12):** #263, #264, #267, #269, #270, #271, #272, #273, #276.
