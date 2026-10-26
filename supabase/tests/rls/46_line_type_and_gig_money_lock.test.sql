@@ -50,26 +50,22 @@ SELECT rls_test.expect('An old-style item line is stored as an expense line',
   (SELECT count(*)::int FROM purchases WHERE description = 'old item' AND row_type = 'line' AND tax_treatment = 'expense'), 1);
 
 SELECT rls_test.as_user('a_manager');
-SELECT public.create_purchase_transaction_v1(
+-- create_purchase_transaction_v2: a line's units make it tracked (v1's old-style asset lines
+-- went with v1 in 20261025000000).
+SELECT public.create_purchase_transaction_v2(
   jsonb_build_object('organization_id', rls_test.u('org_a'), 'purchase_date', '2026-04-02', 'vendor', 'V', 'total_inv_amount', 120),
-  ARRAY[jsonb_build_object('organization_id', rls_test.u('org_a'), 'track', true, 'tax_treatment', 'depreciate', 'purchase_date', '2026-04-02',
+  ARRAY[jsonb_build_object('organization_id', rls_test.u('org_a'), 'tax_treatment', 'depreciate', 'purchase_date', '2026-04-02',
                            'quantity', 1, 'item_cost', 100, 'line_cost', 100, 'description', 'tracked amp'),
         jsonb_build_object('organization_id', rls_test.u('org_a'), 'tax_treatment', 'expense', 'purchase_date', '2026-04-02',
-                           'quantity', 1, 'item_cost', 20, 'line_cost', 20, 'description', 'plain tape'),
-        jsonb_build_object('organization_id', rls_test.u('org_a'), 'row_type', 'asset', 'tax_treatment', 'expense', 'purchase_date', '2026-04-02',
-                           'quantity', 1, 'item_cost', 0, 'line_cost', 0, 'description', 'old-style tracked')],
-  ARRAY[jsonb_build_object('organization_id', rls_test.u('org_a'), 'acquisition_date', '2026-04-02', 'category', 'Audio',
-                           'manufacturer_model', 'Amp', 'quantity', 1, 'item_cost', 100, 'status', 'Active', 'insurance_policy_added', false),
-        jsonb_build_object('organization_id', rls_test.u('org_a'), 'acquisition_date', '2026-04-02', 'category', 'Audio',
-                           'manufacturer_model', 'Old', 'quantity', 1, 'item_cost', 0, 'status', 'Active', 'insurance_policy_added', false)]);
+                           'quantity', 1, 'item_cost', 20, 'line_cost', 20, 'description', 'plain tape')],
+  ARRAY[jsonb_build_object('organization_id', rls_test.u('org_a'), 'line_index', 0, 'acquisition_date', '2026-04-02', 'category', 'Audio',
+                           'manufacturer_model', 'Amp', 'quantity', 1, 'item_cost', 100, 'status', 'Active', 'insurance_policy_added', false)]);
 SELECT rls_test.expect('The purchase RPC writes every line as row_type line',
-  (SELECT count(*)::int FROM purchases WHERE description IN ('tracked amp', 'plain tape', 'old-style tracked') AND row_type = 'line'), 3);
-SELECT rls_test.expect('A line sent with track gets its equipment record',
+  (SELECT count(*)::int FROM purchases WHERE description IN ('tracked amp', 'plain tape') AND row_type = 'line'), 2);
+SELECT rls_test.expect('A line with a unit gets its equipment record',
   (SELECT count(*)::int FROM purchases p JOIN assets a ON a.id = p.asset_id WHERE p.description = 'tracked amp' AND a.manufacturer_model = 'Amp'), 1);
-SELECT rls_test.expect('A line sent without track gets none',
+SELECT rls_test.expect('A line without units gets none',
   (SELECT count(*)::int FROM purchases WHERE description = 'plain tape' AND asset_id IS NULL), 1);
-SELECT rls_test.expect('An old-style asset line still gets its equipment record',
-  (SELECT count(*)::int FROM purchases p JOIN assets a ON a.id = p.asset_id WHERE p.description = 'old-style tracked' AND a.manufacturer_model = 'Old'), 1);
 
 -- 2. Filed years lock gig money that is tax data -----------------------------------
 INSERT INTO purchases (id, organization_id, parent_id, row_type, purchase_date, vendor, total_inv_amount)

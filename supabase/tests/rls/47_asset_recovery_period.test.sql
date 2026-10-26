@@ -45,25 +45,24 @@ SELECT rls_test.expect('An organization''s copy carries the defaults',
 
 -- 2. The purchase RPC --------------------------------------------------------------
 SELECT rls_test.as_user('a_manager');
-SELECT public.create_purchase_transaction_v1(
-  jsonb_build_object('organization_id', rls_test.u('org_a'), 'purchase_date', '2026-06-01', 'vendor', 'V', 'total_inv_amount', 5000),
+-- create_purchase_transaction_v2 takes the period on the unit (v1, which also took an older
+-- app's period on the line, was dropped in 20261025000000).
+SELECT public.create_purchase_transaction_v2(
+  jsonb_build_object('organization_id', rls_test.u('org_a'), 'purchase_date', '2026-06-01', 'vendor', 'V', 'total_inv_amount', 4000),
   ARRAY[
-    jsonb_build_object('organization_id', rls_test.u('org_a'), 'track', true, 'tax_treatment', 'depreciate', 'purchase_date', '2026-06-01', 'quantity', 1, 'item_cost', 1000, 'line_cost', 1000, 'description', 'chosen 5'),
-    jsonb_build_object('organization_id', rls_test.u('org_a'), 'track', true, 'tax_treatment', 'depreciate', 'purchase_date', '2026-06-01', 'quantity', 1, 'item_cost', 1000, 'line_cost', 1000, 'description', 'audio default'),
-    jsonb_build_object('organization_id', rls_test.u('org_a'), 'track', true, 'tax_treatment', 'depreciate', 'purchase_date', '2026-06-01', 'quantity', 1, 'item_cost', 1000, 'line_cost', 1000, 'description', 'networking asks'),
-    jsonb_build_object('organization_id', rls_test.u('org_a'), 'track', true, 'tax_treatment', 'expense', 'purchase_date', '2026-06-01', 'quantity', 1, 'item_cost', 1000, 'line_cost', 1000, 'description', 'expensed gear'),
-    jsonb_build_object('organization_id', rls_test.u('org_a'), 'row_type', 'asset', 'tax_treatment', 'depreciate', 'recovery_period', 15, 'purchase_date', '2026-06-01', 'quantity', 1, 'item_cost', 1000, 'line_cost', 1000, 'description', 'old app period')],
+    jsonb_build_object('organization_id', rls_test.u('org_a'), 'tax_treatment', 'depreciate', 'purchase_date', '2026-06-01', 'quantity', 1, 'item_cost', 1000, 'line_cost', 1000, 'description', 'chosen 5'),
+    jsonb_build_object('organization_id', rls_test.u('org_a'), 'tax_treatment', 'depreciate', 'purchase_date', '2026-06-01', 'quantity', 1, 'item_cost', 1000, 'line_cost', 1000, 'description', 'audio default'),
+    jsonb_build_object('organization_id', rls_test.u('org_a'), 'tax_treatment', 'depreciate', 'purchase_date', '2026-06-01', 'quantity', 1, 'item_cost', 1000, 'line_cost', 1000, 'description', 'networking asks'),
+    jsonb_build_object('organization_id', rls_test.u('org_a'), 'tax_treatment', 'expense', 'purchase_date', '2026-06-01', 'quantity', 1, 'item_cost', 1000, 'line_cost', 1000, 'description', 'expensed gear')],
   ARRAY[
-    jsonb_build_object('organization_id', rls_test.u('org_a'), 'acquisition_date', '2026-06-01', 'category', 'Audio', 'recovery_period', 5, 'manufacturer_model', 'A', 'quantity', 1, 'status', 'Active', 'insurance_policy_added', false),
-    jsonb_build_object('organization_id', rls_test.u('org_a'), 'acquisition_date', '2026-06-01', 'category', 'Audio', 'manufacturer_model', 'B', 'quantity', 1, 'status', 'Active', 'insurance_policy_added', false),
-    jsonb_build_object('organization_id', rls_test.u('org_a'), 'acquisition_date', '2026-06-01', 'category', 'Networking', 'manufacturer_model', 'C', 'quantity', 1, 'status', 'Active', 'insurance_policy_added', false),
-    jsonb_build_object('organization_id', rls_test.u('org_a'), 'acquisition_date', '2026-06-01', 'category', 'Audio', 'recovery_period', 7, 'manufacturer_model', 'D', 'quantity', 1, 'status', 'Active', 'insurance_policy_added', false),
-    jsonb_build_object('organization_id', rls_test.u('org_a'), 'acquisition_date', '2026-06-01', 'category', 'Audio', 'manufacturer_model', 'E', 'quantity', 1, 'status', 'Active', 'insurance_policy_added', false)]);
+    jsonb_build_object('organization_id', rls_test.u('org_a'), 'line_index', 0, 'acquisition_date', '2026-06-01', 'category', 'Audio', 'recovery_period', 5, 'manufacturer_model', 'A', 'quantity', 1, 'status', 'Active', 'insurance_policy_added', false),
+    jsonb_build_object('organization_id', rls_test.u('org_a'), 'line_index', 1, 'acquisition_date', '2026-06-01', 'category', 'Audio', 'manufacturer_model', 'B', 'quantity', 1, 'status', 'Active', 'insurance_policy_added', false),
+    jsonb_build_object('organization_id', rls_test.u('org_a'), 'line_index', 2, 'acquisition_date', '2026-06-01', 'category', 'Networking', 'manufacturer_model', 'C', 'quantity', 1, 'status', 'Active', 'insurance_policy_added', false),
+    jsonb_build_object('organization_id', rls_test.u('org_a'), 'line_index', 3, 'acquisition_date', '2026-06-01', 'category', 'Audio', 'recovery_period', 7, 'manufacturer_model', 'D', 'quantity', 1, 'status', 'Active', 'insurance_policy_added', false)]);
 SELECT rls_test.expect('A period sent with the equipment is kept', (rls_test.rp('chosen 5') = '5')::int, 1);
 SELECT rls_test.expect('No period sent: the category''s default', (rls_test.rp('audio default') = '7')::int, 1);
 SELECT rls_test.expect('A category with no default leaves it to be asked', (rls_test.rp('networking asks') = '-')::int, 1);
 SELECT rls_test.expect('Expensed equipment gets no period, even if one is sent', (rls_test.rp('expensed gear') = '-')::int, 1);
-SELECT rls_test.expect('An older app''s period on the line still lands on the equipment', (rls_test.rp('old app period') = '15')::int, 1);
 
 -- 3. Direct edits --------------------------------------------------------------------
 SELECT rls_test.expect('The period of depreciated equipment can be set',

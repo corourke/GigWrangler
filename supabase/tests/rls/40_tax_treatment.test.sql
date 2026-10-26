@@ -136,17 +136,17 @@ UPDATE tax_years SET locked = false WHERE organization_id = rls_test.u('org_a') 
 SELECT rls_test.expect('Once unlocked, the year can change again',
   rls_test.run('a_manager', format('UPDATE purchases SET line_cost = 90, item_cost = 90 WHERE id = %s', rls_test.id('i25'))), 1);
 
--- Today's app keeps working: create_purchase_transaction_v1 inserts an asset line
--- before linking its asset; the equipment check waits for the end of the transaction.
+-- Saving keeps working: create_purchase_transaction_v2 inserts a tracked line before
+-- linking its unit; the equipment check waits for the end of the transaction.
 CREATE FUNCTION rls_test.attempt_as(p_user text, p_sql text) RETURNS int LANGUAGE plpgsql AS $$
 BEGIN
   PERFORM set_config('request.jwt.claim.sub', rls_test.u(p_user)::text, true);
   RETURN rls_test.attempt(p_sql);
 END $$;
-SELECT rls_test.expect('Saving a purchase with an asset line still works',
-  rls_test.attempt_as('a_manager', format($q$SELECT public.create_purchase_transaction_v1(
+SELECT rls_test.expect('Saving a purchase with a tracked line still works',
+  rls_test.attempt_as('a_manager', format($q$SELECT public.create_purchase_transaction_v2(
     jsonb_build_object('organization_id', %1$s, 'purchase_date', '2026-04-01', 'vendor', 'V', 'total_inv_amount', 120),
-    ARRAY[jsonb_build_object('organization_id', %1$s, 'row_type', 'asset', 'purchase_date', '2026-04-01', 'quantity', 1, 'item_cost', 100, 'line_cost', 100, 'description', 'amp'),
-          jsonb_build_object('organization_id', %1$s, 'row_type', 'item',  'purchase_date', '2026-04-01', 'quantity', 1, 'item_cost', 20,  'line_cost', 20,  'description', 'cable')],
-    ARRAY[jsonb_build_object('organization_id', %1$s, 'acquisition_date', '2026-04-01', 'category', 'Audio', 'manufacturer_model', 'Amp', 'quantity', 1, 'item_cost', 100, 'status', 'Active', 'insurance_policy_added', false)])$q$,
+    ARRAY[jsonb_build_object('organization_id', %1$s, 'purchase_date', '2026-04-01', 'quantity', 1, 'item_cost', 100, 'line_cost', 100, 'description', 'amp'),
+          jsonb_build_object('organization_id', %1$s, 'purchase_date', '2026-04-01', 'quantity', 1, 'item_cost', 20,  'line_cost', 20,  'description', 'cable')],
+    ARRAY[jsonb_build_object('organization_id', %1$s, 'line_index', 0, 'acquisition_date', '2026-04-01', 'category', 'Audio', 'manufacturer_model', 'Amp', 'quantity', 1, 'item_cost', 100, 'status', 'Active', 'insurance_policy_added', false)])$q$,
     rls_test.id('org_a'))), 1);

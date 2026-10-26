@@ -143,7 +143,7 @@ These are mechanisms, not topologies. Any one can be layered onto the topologies
 
 | Feature | Under naive E2EE | Path forward |
 |---|---|---|
-| Financial totals, per‑gig P&L, org Financials reporting (`gig_financials`/`purchases` SUM/GROUP BY, `create_purchase_transaction_v1`) | **Breaks.** Aggregation is SQL today. | Pull rows to client and total there (fine at 100s, bad at 10,000s), or maintain a client‑written encrypted running total. Conflicts with the [reporting‑gap](../product/reporting-gap-202608.md) roadmap, which wants *more* server aggregation. |
+| Financial totals, per‑gig P&L, org Financials reporting (`gig_financials`/`purchases` SUM/GROUP BY, `create_purchase_transaction_v2`) | **Breaks.** Aggregation is SQL today. | Pull rows to client and total there (fine at 100s, bad at 10,000s), or maintain a client‑written encrypted running total. Conflicts with the [reporting‑gap](../product/reporting-gap-202608.md) roadmap, which wants *more* server aggregation. |
 | Sort/filter lists by amount/category/vendor/notes | **Breaks for encrypted columns** (`.order()`, `.eq()`, range filters over PostgREST). | Dates/status/ids stay cleartext (low‑sensitivity, shared anyway); sensitive columns need client‑side sort/filter or searchable encryption (§3.2). |
 | Full‑text search (vendor, description, notes) | **Breaks** — no `ilike`, no `tsvector`. | Client‑side search, or blind‑index equality via §3.2. |
 | **AI receipt scan** (`ai-scan` → Anthropic) | **Breaks by design** — needs the image, returns plaintext fields. | Run fully client‑side (browser → Anthropic with the *org's own* API key, never touching Cameron's server), or make receipt‑scan an explicit plaintext‑in‑transit opt‑in. The sharpest "needs plaintext" example. |

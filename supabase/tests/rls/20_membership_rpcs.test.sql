@@ -124,7 +124,7 @@ SELECT rls_test.expect('New user creates own profile', rls_test.try(rls_test.u('
 CREATE FUNCTION rls_test.purchase(p_actor text, p_header_org text, p_item_org text) RETURNS int
 LANGUAGE sql AS $$
   SELECT rls_test.try(rls_test.u(p_actor), format(
-    'SELECT public.create_purchase_transaction_v1(%L::jsonb, ARRAY[%L::jsonb], ARRAY[]::jsonb[])',
+    'SELECT public.create_purchase_transaction_v2(%L::jsonb, ARRAY[%L::jsonb], ARRAY[]::jsonb[])',
     jsonb_build_object('organization_id', rls_test.u(p_header_org), 'purchase_date', '2026-09-01', 'vendor', 'V', 'total_inv_amount', 10),
     jsonb_build_object('organization_id', rls_test.u(p_item_org), 'purchase_date', '2026-09-01', 'vendor', 'V', 'line_amount', 10,
                        'quantity', 1, 'item_price', 10, 'description', 'Cable')))
