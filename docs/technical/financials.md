@@ -210,7 +210,7 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 
 **Writers** (migration `20261007000000`, tests in `41_tax_treatment_writers.test.sql`):
 - `create_purchase_transaction_v2` stores each line's `tax_treatment` when given (and a unit's `recovery_period`; see below), and writes every line as `row_type = 'line'`. A line is tracked as equipment when `p_units` has entries for it (`line_index`). (v1, which took `track: true` and the old `row_type: 'asset'`, was dropped by 20261025000000.)
-- `track_purchase_line_as_equipment(line)` (Admins and Managers) creates the equipment record from the line and links it. It changes nothing else, so it works on lines in a locked year. Since #183 D the app's **Track as equipment** makes the same lot through `add_purchase_line_units` instead (also fine in a locked year), so neither this function nor v1 has a caller in the app; both are dropped in a later migration.
+- `track_purchase_line_as_equipment(line)` (Admins and Managers) creates the equipment record from the line and links it. It changes nothing else, so it works on lines in a locked year. Since #183 D the app's **Track as equipment** makes the same lot through `add_purchase_line_units` instead (also fine in a locked year), so this function has no caller in the app and is dropped in a later migration.
 
 **Choosing the treatment** (UI, #133 step 2: `ReviewScannedDataDialog`, `src/utils/taxTreatment.ts`). Each line on the review screen has a **Track as equipment** checkbox (column "Equip") and an **Expense | Depreciate** switch with a (?) that shows:
 
