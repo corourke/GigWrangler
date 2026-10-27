@@ -9,8 +9,9 @@ const miles = (n: number) => `${n.toLocaleString('en-US')} mi`;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /**
- * Schedule C summary (#125): gross receipts, expenses by Schedule C line (the
- * Expenses report's roll-up), line 9 mileage, and the net before depreciation.
+ * Schedule C summary (#125): gross receipts, less line 4 cost of goods sold (#321) for gross
+ * profit, expenses by Part II line (the Expenses report's roll-up), line 9 mileage, and the net
+ * before depreciation.
  */
 export default function ScheduleCView({ report, year }: { report: ScheduleCSummary; year: number }) {
   const { line9, elsewhere } = report.mileage;
@@ -46,6 +47,12 @@ export default function ScheduleCView({ report, year }: { report: ScheduleCSumma
         <TableBody>
           <TableRow className="font-semibold">
             <TableCell>Gross receipts</TableCell><TableCell /><TableCell className="text-right tabular-nums">{usd(report.receipts)}</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>{`Line 4: ${report.costOfGoodsSoldLabel}`}</TableCell><TableCell /><TableCell className="text-right tabular-nums">{usd(report.costOfGoodsSold)}</TableCell>
+          </TableRow>
+          <TableRow className="font-semibold">
+            <TableCell>Gross profit</TableCell><TableCell /><TableCell className="text-right tabular-nums">{usd(report.grossProfit)}</TableCell>
           </TableRow>
           <TableRow className="bg-muted/40">
             <TableCell colSpan={3} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expenses</TableCell>

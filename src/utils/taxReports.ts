@@ -98,6 +98,9 @@ const lineDay = (l: ReportPurchaseLine) => dayOf(l.purchase_date ?? l.parent?.pu
 const lineCost = (l: ReportPurchaseLine) =>
   money(l.line_cost != null ? Number(l.line_cost) : Number(l.item_cost ?? 0) * Number(l.quantity ?? 1));
 
+/** Schedule C line 4: cost of goods sold, worked out in Part III and kept apart from the Part II expenses (#321). */
+export const COGS_LINE = '4';
+
 /** Gig money-out categories (the IRS list, `fin_category`) → Schedule C line. */
 export const FIN_CATEGORY_LINE: Record<string, string> = {
   'Advertising': '8',
@@ -184,9 +187,12 @@ export interface ExpenseLineGroup {
 
 export interface ExpenseReport {
   rows: ExpenseRow[];
-  /** By Schedule C line, in line order; rows with no line come last. */
+  /** By Part II Schedule C line, in line order; rows with no line come last. Line 4 is apart. */
   byLine: ExpenseLineGroup[];
+  /** The Part II expenses: every row except those on line 4. */
   total: number;
+  /** Rows on line 4 (cost of goods sold, Part III), not in byLine or total. */
+  costOfGoodsSold: { total: number; categories: { category: string; total: number; count: number }[] };
   /** Rows whose category is blank or not on the list. */
   needsCategory: number;
 }
@@ -247,7 +253,15 @@ export function buildExpenseReport(
   const order = new Map(scheduleC.map((s, i) => [s.code, i] as const));
   const labels = new Map(scheduleC.map(s => [s.code, s.label] as const));
   const groups = new Map<string, ExpenseLineGroup>();
+  const cogs: ExpenseReport['costOfGoodsSold'] = { total: 0, categories: [] };
   for (const r of rows) {
+    if (r.line === COGS_LINE) {
+      cogs.total = money(cogs.total + r.amount);
+      const c = cogs.categories.find(x => x.category === r.category);
+      if (c) { c.total = money(c.total + r.amount); c.count += 1; }
+      else cogs.categories.push({ category: r.category, total: r.amount, count: 1 });
+      continue;
+    }
     const key = r.line ?? '';
     let g = groups.get(key);
     if (!g) {
@@ -273,7 +287,8 @@ export function buildExpenseReport(
   return {
     rows,
     byLine,
-    total: money(rows.reduce((s, r) => s + r.amount, 0)),
+    total: money(rows.filter(r => r.line !== COGS_LINE).reduce((s, r) => s + r.amount, 0)),
+    costOfGoodsSold: { ...cogs, categories: cogs.categories.sort((a, b) => a.category.localeCompare(b.category)) },
     needsCategory: rows.filter(r => r.unlisted).length,
   };
 }

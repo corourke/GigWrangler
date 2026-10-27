@@ -204,6 +204,7 @@ function ExpensesView({ report, year }: { report: ReturnType<typeof buildExpense
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3">
         <Metric label={`Expenses in ${year}`} value={usd(report.total)} />
+        {report.costOfGoodsSold.categories.length > 0 && <Metric label="Cost of goods sold" value={usd(report.costOfGoodsSold.total)} />}
         <Metric label="Items" value={String(report.rows.length)} />
         {report.needsCategory > 0 && <Metric label="Need a category" value={String(report.needsCategory)} tone="warn" />}
       </div>
@@ -215,6 +216,29 @@ function ExpensesView({ report, year }: { report: ReturnType<typeof buildExpense
               {report.needsCategory} {report.needsCategory === 1 ? 'item has' : 'items have'} no category, or one that isn’t on your expense list,
               so {report.needsCategory === 1 ? 'it has' : 'they have'} no Schedule C line. {needsCategoryFix(report.rows)}
             </p>
+          )}
+          {report.costOfGoodsSold.categories.length > 0 && (
+            <>
+              <h3 className="text-sm font-semibold">Line 4: Cost of goods sold (Part III), not in the expenses total</h3>
+              <Table aria-label="Cost of goods sold">
+                <TableHeader>
+                  <TableRow><TableHead>Category</TableHead><TableHead className="text-right">Items</TableHead><TableHead className="text-right">Total</TableHead></TableRow>
+                </TableHeader>
+                <TableBody>
+                  {report.costOfGoodsSold.categories.map(c => (
+                    <TableRow key={c.category}>
+                      <TableCell>{c.category}</TableCell>
+                      <TableCell className="text-right tabular-nums">{c.count}</TableCell>
+                      <TableCell className="text-right tabular-nums">{usd(c.total)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+                <TableFooter>
+                  <TableRow><TableCell colSpan={2}>Total</TableCell><TableCell className="text-right tabular-nums">{usd(report.costOfGoodsSold.total)}</TableCell></TableRow>
+                </TableFooter>
+              </Table>
+              <h3 className="text-sm font-semibold pt-2">Expenses (Part II)</h3>
+            </>
           )}
           <Table aria-label="Expenses by Schedule C line">
             <TableHeader>
