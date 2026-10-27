@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-27 (coordinator: **#320 closed unmerged** (Cameron: a one-time fix doesn't belong on main; branch `claude/135-fix` kept as the record). Prod preview passes (194 changes); Cameron runs the filled-in `apply.sql` himself, coordinator verifies read-only. **Cost of goods sold (Schedule C line 4 / Part III)** is the Equipment Lead's next PR; plan on a new issue first. Check-in every 4h until it merges)
+- **Last updated:** 2026-10-27 (coordinator 21:25 UTC: **#322 merged** (cost of goods sold on Schedule C line 4 / Part III, closes #321; on dev). **Cameron's steps:** apply `20261027000000` to prod, deploy the frontend, run the #135 fix (`apply.sql`, not yet run), then create "Cost of goods sold (resale)" on line 4 and move the 10 SHEHDS heads into it; the coordinator verifies each read-only. #135 item 10 (filed 2024/2025 totals) waits on Cameron. Coordinator check-in stopped; Equipment Lead idle)
 
 ---
 
