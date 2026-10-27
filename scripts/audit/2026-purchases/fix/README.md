@@ -73,14 +73,34 @@ SELECT, the error shows as an "invalid input syntax for type integer".
 - every purchase and equipment row, compared with a snapshot, changed in exactly the planned
   values, including the recovery periods the triggers clear, and nothing else.
 
-## Running
+## Running it on prod (Cameron)
 
-- **Preview:** run `preview.sql` with the values filled in. You get one row per change. Every row
-  says `all checks passed`, or the query stops with the problem.
-- **Dry run:** run `apply.sql` as it is. It makes and checks every change, shows them, and then
-  ends with "Dry run: nothing was saved."
-- **Save:** with Cameron's OK, change `set_config('fix135.save', 'false', true)` to `'true'` and run
-  it. Running it a second time stops, because the counts no longer match.
+You'll get the run-time values privately from the coordinator: the counts, invoice ids, expected
+differences and equipment ids. Use the Supabase SQL editor for the prod project, or psql.
+
+1. **Fill in the values in both files.** In `preview.sql` and `apply.sql`, replace the lines
+   between `-- >>> RUN-TIME VALUES` and `-- <<< RUN-TIME VALUES` with the block you were given. It
+   must be the same in both files. Don't save the filled-in copies to the repo.
+2. **Preview.** Run the filled-in `preview.sql`.
+   - **Success** is one row per change, and every row says `all checks passed` in the `checks`
+     column. Read the rows: these are exactly the changes the apply will make.
+   - **Failure** is an error containing `STOP:` followed by the problem, for example
+     `STOP: step 6 finds 101 lines, expected 102`. Nothing has changed. Send the message to the
+     coordinator and stop here.
+3. **Dry run.** Run the filled-in `apply.sql` without changing anything else.
+   - **Success** is the error `Dry run: nothing was saved. Set fix135.save to 'true' to save.` It
+     means every change was made, matched the plan exactly, and was then rolled back.
+   - **Failure** is any error containing `STOP:`. Nothing has changed.
+4. **Save.** In `apply.sql`, find this line near the top:
+   ```sql
+   SELECT set_config('fix135.save', 'false', true);  -- 'true' saves the changes
+   ```
+   Change `'false'` to `'true'`, then run the file once.
+   - **Success** is no error at all. Every change is saved in one transaction.
+   - **Failure** is any error. Nothing is saved, because it's all or nothing.
+5. **Check.** Run the filled-in `preview.sql` again. It should now stop with a `STOP:` error that
+   includes `step 1 finds 0 lines, expected …`. The fixes are in, so the old counts no longer match.
+   Running `apply.sql` a second time stops the same way, so it can't apply twice.
 
 What the triggers do when a line goes from depreciate to expense:
 - `purchases_sync_asset_recovery_period` clears the equipment's recovery period, unless another

@@ -7,12 +7,14 @@ CREATE FUNCTION rls_test.k(p text) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$ SEL
 SELECT set_config('request.jwt.claim.sub', rls_test.u('a_admin')::text, false), public.ensure_org_categories(rls_test.u('org_a'));
 SELECT set_config('request.jwt.claim.sub', rls_test.u('b_admin')::text, false), public.ensure_org_categories(rls_test.u('org_b'));
 SELECT set_config('request.jwt.claim.sub', '', false);
--- Org A has its own names for some of the map's targets, and no longer uses 'Small audio parts'.
+-- Org A has its own names for some of the map's targets, and no longer uses 'Small audio parts',
+-- 'Office expenses' or 'Small power and networking parts'.
 INSERT INTO expense_categories (organization_id, name, schedule_c_line, sort_order, active)
 SELECT rls_test.u('org_a'), n, '27b', 100 + i, true
   FROM unnest(ARRAY['Small audio tools and supplies', 'Small networking parts', 'Small power tools and consumables',
                     'Other small parts and supplies', 'Supplies']) WITH ORDINALITY x (n, i);
-UPDATE expense_categories SET active = false WHERE organization_id = rls_test.u('org_a') AND name = 'Small audio parts';
+UPDATE expense_categories SET active = false
+ WHERE organization_id = rls_test.u('org_a') AND name IN ('Small audio parts', 'Office expenses', 'Small power and networking parts');
 
 -- Invoices. Totals of F1, FB and F0 are set to their lines below; F2, F3, F4 are a few cents under.
 INSERT INTO purchases (id, organization_id, row_type, purchase_date, vendor, total_inv_amount) VALUES
@@ -72,7 +74,7 @@ INSERT INTO purchases (id, organization_id, parent_id, row_type, purchase_date, 
   (rls_test.k('C14'), rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Misc', NULL, 'old category'),
   (rls_test.k('C15'), rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Tools', NULL, 'old category'),
   (rls_test.k('C16'), rls_test.u('org_a'), rls_test.k('F0'), 'line', NULL, 1, 10, 10, 'expense', 'Misc', NULL, '2025, old category'),
-  (rls_test.k('C17'), rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'office EXPENSES', NULL, 'a current category in other case');
+  (rls_test.k('C17'), rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'TRAVEL ', NULL, 'a current category in other case');
 
 UPDATE purchases h SET total_inv_amount = (SELECT sum(COALESCE(l.line_cost, l.item_cost * l.quantity)) FROM purchases l WHERE l.parent_id = h.id)
                                          - CASE h.id WHEN rls_test.k('F2') THEN 0.07 WHEN rls_test.k('F3') THEN 0.03 WHEN rls_test.k('F4') THEN 0.01 ELSE 0 END
