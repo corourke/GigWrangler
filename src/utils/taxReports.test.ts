@@ -90,6 +90,42 @@ describe('Expenses report (#125)', () => {
   });
 });
 
+describe('Cost of goods sold, Schedule C line 4 (#321)', () => {
+  const sc = [{ code: '4', label: 'Cost of goods sold (Part III)' }, ...scheduleC];
+  const withResale = [...cats, { name: 'Cost of goods sold (resale)', schedule_c_line: '4' }];
+  const lines = [
+    line({ id: 'p1', category: 'Supplies', line_cost: 40.5 }),
+    line({ id: 'r1', category: 'Cost of goods sold (resale)', line_cost: 2000 }),
+    line({ id: 'r2', category: ' Cost of goods sold (resale) ', line_cost: 500 }),
+    line({ id: 'r3', category: 'Cost of goods sold (resale)', tax_treatment: 'depreciate', line_cost: 900 }),  // an asset, not sold stock
+  ];
+  const r = buildExpenseReport(lines, [], withResale, sc, 2026);
+
+  it('keeps line 4 out of the Part II lines and their total', () => {
+    expect(r.byLine.map(g => g.line)).toEqual(['22']);
+    expect(r.total).toBe(40.5);
+  });
+
+  it('totals it as cost of goods sold, by category', () => {
+    expect(r.costOfGoodsSold).toEqual({
+      total: 2500,
+      categories: [{ category: 'Cost of goods sold (resale)', total: 2500, count: 2 }],
+    });
+  });
+
+  it('still lists its rows, on line 4, and exports them', () => {
+    expect(r.rows.filter(x => x.line === '4').map(x => x.id).sort()).toEqual(['r1', 'r2']);
+    const rows = Papa.parse<string[]>(expensesCsv(r, sc)).data;
+    expect(rows.filter(x => x[5] === '4').map(x => x[6])).toEqual(['Cost of goods sold (Part III)', 'Cost of goods sold (Part III)']);
+  });
+
+  it('is empty when nothing is on line 4', () => {
+    const none = buildExpenseReport([line({ id: 'p1', line_cost: 10 })], [], withResale, sc, 2026);
+    expect(none.costOfGoodsSold).toEqual({ total: 0, categories: [] });
+    expect(none.total).toBe(10);
+  });
+});
+
 describe('Assets report (#125)', () => {
   const asset = (o: Partial<NonNullable<ReportPurchaseLine['asset']>>) => ({
     id: 'a', manufacturer_model: 'Chauvet Intimidator Trio', category: 'Lighting', recovery_period: 7,
