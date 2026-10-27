@@ -66,3 +66,8 @@ back.
 # from the repo root, after supabase/tests/rls/run.sh has built gw_rls_test
 PGHOST=/var/run/postgresql scripts/audit/2026-purchases/test/run.sh
 ```
+
+## Fixes
+
+The fixes Cameron has decided are in [`fix/`](fix/README.md). `preview.sql` is read-only and
+lists every change. `apply.sql` makes those changes, and only saves with its save flag set.
