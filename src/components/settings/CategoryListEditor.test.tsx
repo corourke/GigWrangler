@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CategoryListEditor, { TypeWritingRules } from './CategoryListEditor';
 import * as svc from '../../services/purchaseCategory.service';
@@ -56,6 +56,19 @@ describe('CategoryListEditor', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
     await waitFor(() => expect(svc.addCategory).toHaveBeenCalledWith('expense', 'org-1', { name: 'Postage', schedule_c_line: '27b', sort_order: 30 }));
     expect(await screen.findByDisplayValue('Postage')).toBeInTheDocument();
+  });
+
+  it('offers line 4, cost of goods sold, when the lines include it (#321)', async () => {
+    vi.mocked(svc.getScheduleCLines).mockResolvedValueOnce([
+      { code: '4', label: 'Cost of goods sold (Part III)' }, { code: '22', label: 'Supplies' },
+    ]);
+    render(<CategoryListEditor kind="expense" organizationId="org-1" canEdit />);
+    const pick = await screen.findByRole('combobox', { name: 'New category Schedule C line' });
+    await waitFor(() => expect(within(pick).getByRole('option', { name: '4: Cost of goods sold (Part III)' })).toBeInTheDocument());
+    await userEvent.type(screen.getByRole('textbox', { name: 'New category name' }), 'Cost of goods sold (resale)');
+    await userEvent.selectOptions(pick, '4');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(svc.addCategory).toHaveBeenCalledWith('expense', 'org-1', { name: 'Cost of goods sold (resale)', schedule_c_line: '4', sort_order: 30 }));
   });
 
   it('is read-only without edit rights', async () => {

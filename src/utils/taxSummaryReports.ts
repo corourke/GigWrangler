@@ -4,11 +4,13 @@
  * exactly what those count:
  *
  *   GROSS RECEIPTS  = the Income report's total (money in received in the year)
- *   EXPENSES        = the Expenses report's roll-up by Schedule C line
+ *   COST OF GOODS   = line 4: the Expenses report's cost of goods sold (#321)
+ *   GROSS PROFIT    = gross receipts − cost of goods sold
+ *   EXPENSES        = the Expenses report's roll-up by Part II Schedule C line
  *   LINE 9 MILEAGE  = the year's mileage rows on line 9: miles, and miles × the IRS
  *                     rate on each trip's date. A mileage row is already an expense
  *                     on its category's line, so it is shown there, never added again.
- *   NET             = gross receipts − total expenses, before depreciation
+ *   NET             = gross profit − total expenses, before depreciation
  *
  * Needs attention lists what would leave the year's reports wrong or incomplete.
  */
@@ -17,7 +19,7 @@ import { calculateMileageAmount } from './financials.utils';
 import { getDiscrepancy } from '../components/financials/purchases/reconciliation';
 import {
   dayOf, money,
-  type IncomeReport, type ExpenseReport, type ReportGigRow, type ReportPurchaseLine, type ScheduleCLineLabel,
+  COGS_LINE, type IncomeReport, type ExpenseReport, type ReportGigRow, type ReportPurchaseLine, type ScheduleCLineLabel,
 } from './taxReports';
 
 export const usd = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
@@ -44,6 +46,11 @@ export interface ScheduleCLine {
 
 export interface ScheduleCSummary {
   receipts: number;
+  /** Line 4: cost of goods sold (Part III), off gross receipts before the Part II expenses. */
+  costOfGoodsSold: number;
+  /** Line 4's label. */
+  costOfGoodsSoldLabel: string;
+  grossProfit: number;
   /** Lines with expenses, in line order. Equal to the Expenses report's roll-up. */
   lines: ScheduleCLine[];
   /** Expenses with no category, or one that isn't on the list. */
@@ -102,14 +109,20 @@ export function buildScheduleCSummary(
   const notDeducted = money(noLine.filter(r => !r.unlisted).reduce((s, r) => s + r.amount, 0));
   const totalExpenses = money(lines.reduce((s, l) => s + l.total, 0) + noCategory);
 
+  const costOfGoodsSold = expenses.costOfGoodsSold.total;
+  const grossProfit = money(income.total - costOfGoodsSold);
+
   return {
     receipts: income.total,
+    costOfGoodsSold,
+    costOfGoodsSoldLabel: labels.get(COGS_LINE) ?? 'Cost of goods sold (Part III)',
+    grossProfit,
     lines,
     noCategory,
     notDeducted,
     mileage: { line9, elsewhere },
     totalExpenses,
-    net: money(income.total - totalExpenses),
+    net: money(grossProfit - totalExpenses),
   };
 }
 
@@ -120,6 +133,8 @@ export function scheduleCCsv(r: ScheduleCSummary): string {
     fields: ['Line', 'Description', 'Amount', 'Miles'],
     data: [
       row('', 'Gross receipts', r.receipts),
+      row(COGS_LINE, r.costOfGoodsSoldLabel, r.costOfGoodsSold),
+      row('', 'Gross profit', r.grossProfit),
       ...r.lines.map(l => row(l.line, l.label, l.total, l.miles)),
       ...(r.noCategory ? [row('', NO_CATEGORY_LABEL, r.noCategory)] : []),
       row('', 'Total expenses', r.totalExpenses),

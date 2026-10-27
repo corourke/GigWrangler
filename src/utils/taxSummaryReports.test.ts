@@ -28,6 +28,39 @@ const cats = [
   { name: 'Reimbursable (not deducted)', schedule_c_line: null },
 ];
 
+describe('Schedule C summary with cost of goods sold (#321)', () => {
+  const sc = [{ code: '4', label: 'Cost of goods sold (Part III)' }, ...scheduleC];
+  const withResale = [...cats, { name: 'Cost of goods sold (resale)', schedule_c_line: '4' }];
+  const lines = [
+    line({ id: 'p1', category: 'Supplies', line_cost: 40.5 }),
+    line({ id: 'r1', category: 'Cost of goods sold (resale)', line_cost: 600 }),
+  ];
+  const gig = [gigRow({ id: 'i1', amount_settled: 1500, paid_at: '2026-04-02' })];
+  const r = buildScheduleCSummary(buildIncomeReport(gig, 2026), buildExpenseReport(lines, gig, withResale, sc, 2026), gig, sc);
+
+  it('takes cost of goods sold off gross receipts first, as Part I does', () => {
+    expect(r.costOfGoodsSold).toBe(600);
+    expect(r.grossProfit).toBe(900);
+  });
+
+  it('keeps line 4 out of the Part II lines and total expenses', () => {
+    expect(r.lines.map(l => l.line)).toEqual(['22']);
+    expect(r.totalExpenses).toBe(40.5);
+    expect(r.net).toBe(859.5);
+  });
+
+  it('exports line 4 and gross profit after gross receipts', () => {
+    const rows = Papa.parse<string[]>(scheduleCCsv(r)).data;
+    expect(rows.slice(1, 4)).toEqual([
+      ['', 'Gross receipts', '1500.00', ''],
+      ['4', 'Cost of goods sold (Part III)', '600.00', ''],
+      ['', 'Gross profit', '900.00', ''],
+    ]);
+    expect(rows.find(x => x[1] === 'Total expenses')).toEqual(['', 'Total expenses', '40.50', '']);
+    expect(rows.find(x => x[1] === 'Net (before depreciation)')).toEqual(['', 'Net (before depreciation)', '859.50', '']);
+  });
+});
+
 describe('Schedule C summary (#125)', () => {
   const lines = [
     line({ id: 'p1', category: 'Supplies', line_cost: 40.5 }),
@@ -101,6 +134,8 @@ describe('Schedule C summary (#125)', () => {
     expect(rows).toEqual([
       ['Line', 'Description', 'Amount', 'Miles'],
       ['', 'Gross receipts', '1750.00', ''],
+      ['4', 'Cost of goods sold (Part III)', '0.00', ''],
+      ['', 'Gross profit', '1750.00', ''],
       ['9', 'Car and truck expenses', '148.50', '200'],
       ['11', 'Contract labor', '300.00', ''],
       ['22', 'Supplies', '40.50', ''],
@@ -112,10 +147,10 @@ describe('Schedule C summary (#125)', () => {
     ]);
   });
 
-  it('leaves out the no-category and not-deducted rows when they are zero', () => {
+  it('leaves out the no-category and not-deducted rows when they are zero (line 4 and gross profit always show)', () => {
     const s = buildScheduleCSummary(buildIncomeReport([], 2026), buildExpenseReport([line({ id: 'a' })], [], cats, scheduleC, 2026), [], scheduleC);
     const rows = Papa.parse<string[]>(scheduleCCsv(s)).data.map(x => x[1]);
-    expect(rows).toEqual(['Description', 'Gross receipts', 'Supplies', 'Total expenses', 'Net (before depreciation)']);
+    expect(rows).toEqual(['Description', 'Gross receipts', 'Cost of goods sold (Part III)', 'Gross profit', 'Supplies', 'Total expenses', 'Net (before depreciation)']);
     expect(s.net).toBe(-10);
   });
 });

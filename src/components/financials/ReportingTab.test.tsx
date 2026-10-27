@@ -200,6 +200,53 @@ describe('ReportingTab (#125)', () => {
     });
   });
 
+  describe('cost of goods sold, line 4 (#321)', () => {
+    const withResale = () => vi.mocked(getTaxReportData).mockResolvedValueOnce({
+      lines: [
+        purchaseLine({ id: 'p1', purchase_date: '2026-03-01', description: 'Gaff tape', category: 'Supplies', item_cost: 40, line_cost: 40, tax_treatment: 'expense' }),
+        purchaseLine({ id: 'r1', purchase_date: '2026-05-12', description: 'Heads for resale', category: 'Cost of goods sold (resale)', item_cost: 60, line_cost: 600, quantity: 10, tax_treatment: 'expense' }),
+      ],
+      gigRows: [{ ...gigOut({ id: 'in1', amount_settled: 1500, paid_at: '2026-04-02' }), direction: 'in' }],
+      assets: [], invoices: [],
+      categories: [{ name: 'Supplies', schedule_c_line: '22' }, { name: 'Cost of goods sold (resale)', schedule_c_line: '4' }],
+      scheduleC: [{ code: '4', label: 'Cost of goods sold (Part III)' }, { code: '22', label: 'Supplies' }], equipmentCategories: ['Audio'],
+    } as any);
+
+    it('the Expenses report shows it apart, outside the Part II total', async () => {
+      withResale();
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Expenses' }));
+      expect(screen.getByText('Expenses in 2026').parentElement).toHaveTextContent('$40.00');
+      expect(screen.getByText('Cost of goods sold', { selector: 'p' }).parentElement).toHaveTextContent('$600.00');
+      const cogs = screen.getByRole('table', { name: 'Cost of goods sold' });
+      expect(within(cogs).getByText('Cost of goods sold (resale)').closest('tr')).toHaveTextContent('$600.00');
+      const partII = screen.getByRole('table', { name: 'Expenses by Schedule C line' });
+      expect(within(partII).queryByText(/Line 4/)).not.toBeInTheDocument();
+      expect(within(partII).getAllByText('Total').at(-1)!.closest('tr')).toHaveTextContent('$40.00');  // the footer row
+      expect(within(screen.getByRole('table', { name: 'Expenses' })).getByText('Heads for resale')).toBeInTheDocument();
+    });
+
+    it('the Schedule C summary takes it off receipts as gross profit, then the expenses', async () => {
+      withResale();
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Schedule C' }));
+      const table = screen.getByRole('table', { name: 'Schedule C summary' });
+      const row = (label: string) => within(table).getByText(label).closest('tr')!;
+      expect(row('Gross receipts')).toHaveTextContent('$1,500.00');
+      expect(row('Line 4: Cost of goods sold (Part III)')).toHaveTextContent('$600.00');
+      expect(row('Gross profit')).toHaveTextContent('$900.00');
+      expect(row('Total expenses')).toHaveTextContent('$40.00');
+      expect(row('Net (before depreciation)')).toHaveTextContent('$860.00');
+    });
+
+    it('the Expenses report has no cost of goods sold section when nothing is on line 4', async () => {
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Expenses' }));
+      expect(screen.queryByRole('table', { name: 'Cost of goods sold' })).not.toBeInTheDocument();
+      expect(screen.queryByText('Cost of goods sold')).not.toBeInTheDocument();
+    });
+  });
+
   describe('Needs attention', () => {
     const problems = () => withData({
       lines: [purchaseLine({ id: 'p5', parent_id: 'h1', purchase_date: '2026-03-05', description: 'Strings', category: 'Gear', item_cost: 12, line_cost: 12, tax_treatment: 'expense' })],

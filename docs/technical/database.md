@@ -1354,7 +1354,7 @@ Equipment categories per organization (migration 20261010000000). Rows with `org
 
 ### schedule_c_lines
 
-IRS Schedule C Part II expense lines (migration 20261010000000): `code` (PK, e.g. `22`, `24a`, `27b`), `label`, `sort_order`. Read-only for signed-in users; changed by migration.
+IRS Schedule C lines an expense category can be filed on (migration 20261010000000): the Part II expense lines, and line 4, cost of goods sold (Part III; migration 20261027000000, #321). Columns: `code` (PK, e.g. `4`, `22`, `24a`, `27b`), `label`, `sort_order`. Read-only for signed-in users; changed by migration.
 
 ---
 
