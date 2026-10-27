@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-26 (coordinator 20:45 UTC: **#318 merged** (Cameron's OK; #317 closed). **Prod migration due:** Cameron applies `20261025000000_drop_purchase_transaction_v1.sql` (on dev since 10-26). **#135 worksheet** being built by the Equipment Lead. Coordinator check-in every 4h until the worksheet merges)
+- **Last updated:** 2026-10-27 (coordinator 00:50 UTC: **#319 merged** (#135 worksheet, Cameron's OK). The coordinator ran it read-only on prod and gave Cameron the results privately; **#135 waits on Cameron's answers**, then a guarded fix dry run. **Prod migration still due:** `20261025000000` (#318). Coordinator check-in stopped (its end condition); Equipment Lead idle)
 
 ---
 

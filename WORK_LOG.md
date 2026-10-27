@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #319** (Equipment Lead; merged 10-27 with Cameron's OK; part of #135): `scripts/audit/2026-purchases/`, nine read-only worksheet queries (items 1–7, F4, F6, with F5 in 06), fixture and 60 checks. Run read-only on prod by the coordinator 10-27; results given to Cameron privately (not in GitHub).
+
 - **PR #318** (Equipment Lead; merged 10-26 with Cameron's OK; closes #317, the #183 D2 follow-up): migration `20261025000000` drops `create_purchase_transaction_v1`; six RLS tests save through v2 (three v1-only input checks removed, listed in the PR); test 45's kit checks are now direct `kit_components` writes (cross-org refused). Applied to dev by the coordinator; prod apply pending (Cameron).
 
 - **Prod deploy, 10-25** (Cameron): #20 PRs A–F (frontend only). Coordinator verified read-only: build 2026-10-25T10:40Z; the bundle has one `context_version` writer (21 copies in the 10-23 build), matching a local build of main.
