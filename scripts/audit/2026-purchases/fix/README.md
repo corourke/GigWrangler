@@ -20,6 +20,9 @@ adds, removes or unlinks an equipment record.
 | 3 | Every other line on the named resale invoice(s) that isn't already an expense → expense |
 | 3b | Not built yet: record the resale stock as cost of goods sold, once its category is decided |
 | 4 | On each named invoice, lower the largest line's `line_cost` so its lines add up to the invoice total. `item_cost` doesn't change. If two lines tie for largest, the one with the lower id changes. |
+| 5 | Not built yet: a "Cost of goods sold (resale)" category on Schedule C line 4 for the resale stock. First, line 4 has to be added to `schedule_c_lines`, and the tax report has to show it apart from the Part II expenses. |
+| 6 | 2026 lines whose category isn't one of the org's active expense categories (`05`'s "line category" finding) move to the category named by Cameron's map, which is in the script. Old names match ignoring case and surrounding spaces. Only `purchases.category` on lines changes; equipment categories don't. |
+| 7 | The named equipment with a blank cost gets `item_cost = 0` |
 | T | What the triggers do: equipment that no depreciated line covers any more loses its `recovery_period` |
 
 After steps 1 and 2, the only 2026 depreciated lines left are those over $2,500.
@@ -35,10 +38,14 @@ Both files start with the same block, between `-- >>> RUN-TIME VALUES` and
 `-- <<< RUN-TIME VALUES`. Fill it in identically in both files:
 
 ```sql
-expected (step1_lines, step2_lines, step3_lines) AS (VALUES (<n>, <n>, <n>)),
+expected (step1_lines, step2_lines, step3_lines, step6_lines) AS (VALUES (<n>, <n>, <n>, <n>)),
 resale_invoices (invoice_id) AS (VALUES ('<invoice id>'::uuid)),
 cents_fixes (invoice_id, expected_difference) AS (VALUES ('<invoice id>'::uuid, <invoice total - lines>::numeric), ('<invoice id>'::uuid, <...>)),
+blank_cost_assets (asset_id) AS (VALUES ('<equipment id>'::uuid), ('<equipment id>'::uuid)),
 ```
+
+To name nothing for a list, write `(SELECT NULL::uuid WHERE false)` in place of its `VALUES (...)`.
+For `cents_fixes`, write `(SELECT NULL::uuid, NULL::numeric WHERE false)`.
 
 The repo copy holds placeholders, and the guards refuse to run until they're replaced. Real ids,
 counts and amounts never go in the repo, a commit or a PR.
@@ -55,6 +62,11 @@ SELECT, the error shows as an "invalid input syntax for type integer".
 - No 2026 depreciated line at $2,500 or less would be left.
 - A step 4 line that stays depreciated has its equipment record. The app refuses to save one that
   doesn't.
+- In step 6, every line's category is in the map. A blank category counts as not in the map, and the
+  error lists each unmapped name with its count. Every mapped name is one of that organization's
+  active expense categories.
+- In step 7, every named piece of equipment exists and its cost is blank now. One already at 0 stops
+  the run, so it isn't touched.
 
 `apply.sql` runs the preview's query word for word, so the same guards stop it. It then checks:
 - each UPDATE changed exactly the planned rows, matching each row's current value;
@@ -81,7 +93,9 @@ What the triggers do when a line goes from depreciate to expense:
 `test/run.sh` builds a throwaway copy of the migrated test database, loads `test/fixture.sql` and
 checks that:
 - `apply.sql` embeds the preview's query unchanged;
-- the read-only preview lists exactly the expected rows, with near misses left out;
+- the read-only preview lists exactly the expected rows, with near misses left out (every
+  old name in the map, a current category in another case, a 2025 line, and equipment already
+  at 0 or costed);
 - every guard stops both scripts and leaves the data as it was;
 - a dry run saves nothing;
 - a saving run changes exactly the previewed rows and values, with no equipment record added,
