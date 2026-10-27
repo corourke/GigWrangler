@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-27 (coordinator 15:05 UTC: **#135 fix PR #320** reviewed; prod preview passes with Cameron's 10-27 category choices (Computer/Office → Supplies, Power → Small power tools and consumables); the Equipment Lead is updating the map, then Cameron's merge OK. Cameron runs `apply.sql` himself; the coordinator verifies read-only. **Cost of goods sold (Schedule C line 4 / Part III)** approved as its own PR (migration + tax report); plan on a new issue first. Check-in every 4h until both merge)
+- **Last updated:** 2026-10-27 (coordinator: **#320 closed unmerged** (Cameron: a one-time fix doesn't belong on main; branch `claude/135-fix` kept as the record). Prod preview passes (194 changes); Cameron runs the filled-in `apply.sql` himself, coordinator verifies read-only. **Cost of goods sold (Schedule C line 4 / Part III)** is the Equipment Lead's next PR; plan on a new issue first. Check-in every 4h until it merges)
 
 ---
 
