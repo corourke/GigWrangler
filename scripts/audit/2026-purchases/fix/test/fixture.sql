@@ -7,6 +7,12 @@ CREATE FUNCTION rls_test.k(p text) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$ SEL
 SELECT set_config('request.jwt.claim.sub', rls_test.u('a_admin')::text, false), public.ensure_org_categories(rls_test.u('org_a'));
 SELECT set_config('request.jwt.claim.sub', rls_test.u('b_admin')::text, false), public.ensure_org_categories(rls_test.u('org_b'));
 SELECT set_config('request.jwt.claim.sub', '', false);
+-- Org A has its own names for some of the map's targets, and no longer uses 'Small audio parts'.
+INSERT INTO expense_categories (organization_id, name, schedule_c_line, sort_order, active)
+SELECT rls_test.u('org_a'), n, '27b', 100 + i, true
+  FROM unnest(ARRAY['Small audio tools and supplies', 'Small networking parts', 'Small power tools and consumables',
+                    'Other small parts and supplies', 'Supplies']) WITH ORDINALITY x (n, i);
+UPDATE expense_categories SET active = false WHERE organization_id = rls_test.u('org_a') AND name = 'Small audio parts';
 
 -- Invoices. Totals of F1, FB and F0 are set to their lines below; F2, F3, F4 are a few cents under.
 INSERT INTO purchases (id, organization_id, row_type, purchase_date, vendor, total_inv_amount) VALUES
@@ -16,6 +22,7 @@ INSERT INTO purchases (id, organization_id, row_type, purchase_date, vendor, tot
   (rls_test.k('F3'), rls_test.u('org_a'), 'header', '2026-08-14', 'Music Co', 0),
   (rls_test.k('F4'), rls_test.u('org_a'), 'header', '2026-08-20', 'Tie Co', 0),
   (rls_test.k('F5'), rls_test.u('org_a'), 'header', '2026-09-01', 'Even Co', 0),
+  (rls_test.k('F6'), rls_test.u('org_a'), 'header', '2026-10-01', 'Cat Co', 0),
   (rls_test.k('FB'), rls_test.u('org_b'), 'header', '2026-04-01', 'B Shop', 0);
 
 INSERT INTO purchases (id, organization_id, parent_id, row_type, purchase_date, quantity, item_cost, line_cost, tax_treatment, category, gig_id, description) VALUES
@@ -26,7 +33,7 @@ INSERT INTO purchases (id, organization_id, parent_id, row_type, purchase_date, 
   (rls_test.k('D14'), rls_test.u('org_a'), rls_test.k('F0'), 'line', '2026-01-05', 1, 120, 120, 'depreciate', 'Expendables and supplies', NULL, '2026 line on a 2025 invoice'),
   (rls_test.k('DB'),  rls_test.u('org_b'), rls_test.k('FB'), 'line', NULL, 1, 150, 150, 'depreciate', 'Expendables and supplies', NULL, 'org B, 150'),
   -- step 2: $200 to $2,500 per item, depreciated
-  (rls_test.k('D2'),  rls_test.u('org_a'), rls_test.k('F1'), 'line', NULL, 1, 200.00, 200.00, 'depreciate', 'Expendables and supplies', NULL, '200.00 depreciated'),
+  (rls_test.k('D2'),  rls_test.u('org_a'), rls_test.k('F1'), 'line', NULL, 1, 200.00, 200.00, 'depreciate', 'Tools', NULL, '200.00 depreciated, old category'),
   (rls_test.k('D3'),  rls_test.u('org_a'), rls_test.k('F1'), 'line', NULL, 1, 2500.00, 2500.00, 'depreciate', 'Expendables and supplies', NULL, '2500.00 depreciated'),
   (rls_test.k('D8'),  rls_test.u('org_a'), rls_test.k('F1'), 'line', NULL, 1, 800, 800, 'depreciate', 'Expendables and supplies', NULL, 'grey, equipment also on D9'),
   -- near misses: not changed
@@ -47,11 +54,29 @@ INSERT INTO purchases (id, organization_id, parent_id, row_type, purchase_date, 
   (rls_test.k('T1'),  rls_test.u('org_a'), rls_test.k('F4'), 'line', NULL, 1, 50, 50, 'expense', 'Expendables and supplies', NULL, 'tie'),
   (rls_test.k('T2'),  rls_test.u('org_a'), rls_test.k('F4'), 'line', NULL, 1, 50, 50, 'expense', 'Expendables and supplies', NULL, 'tie'),
   -- an invoice that already adds up
-  (rls_test.k('E1'),  rls_test.u('org_a'), rls_test.k('F5'), 'line', NULL, 1, 75, 75, 'expense', 'Expendables and supplies', NULL, 'even');
+  (rls_test.k('E1'),  rls_test.u('org_a'), rls_test.k('F5'), 'line', NULL, 1, 75, 75, 'expense', 'Expendables and supplies', NULL, 'even'),
+  -- step 6: every old name in the map (C2 in other case and spacing), and near misses
+  (rls_test.k('C1'),  rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Lighting', NULL, 'old category'),
+  (rls_test.k('C2'),  rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', ' software ', NULL, 'old category'),
+  (rls_test.k('C3'),  rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Audio', NULL, 'old category'),
+  (rls_test.k('C4'),  rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Computer', NULL, 'old category'),
+  (rls_test.k('C5'),  rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Networking', NULL, 'old category'),
+  (rls_test.k('C6'),  rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Office', NULL, 'old category'),
+  (rls_test.k('C7'),  rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Cases/Bags', NULL, 'old category'),
+  (rls_test.k('C8'),  rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Transportation', NULL, 'old category'),
+  (rls_test.k('C9'),  rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Power', NULL, 'old category'),
+  (rls_test.k('C10'), rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Car and Truck Exp', NULL, 'old category'),
+  (rls_test.k('C11'), rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Small power parts and consumables', NULL, 'old category'),
+  (rls_test.k('C12'), rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Small audio parts', NULL, 'inactive category'),
+  (rls_test.k('C13'), rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Small Parts', NULL, 'old category'),
+  (rls_test.k('C14'), rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Misc', NULL, 'old category'),
+  (rls_test.k('C15'), rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'Tools', NULL, 'old category'),
+  (rls_test.k('C16'), rls_test.u('org_a'), rls_test.k('F0'), 'line', NULL, 1, 10, 10, 'expense', 'Misc', NULL, '2025, old category'),
+  (rls_test.k('C17'), rls_test.u('org_a'), rls_test.k('F6'), 'line', NULL, 1, 10, 10, 'expense', 'office EXPENSES', NULL, 'a current category in other case');
 
 UPDATE purchases h SET total_inv_amount = (SELECT sum(COALESCE(l.line_cost, l.item_cost * l.quantity)) FROM purchases l WHERE l.parent_id = h.id)
                                          - CASE h.id WHEN rls_test.k('F2') THEN 0.07 WHEN rls_test.k('F3') THEN 0.03 WHEN rls_test.k('F4') THEN 0.01 ELSE 0 END
- WHERE h.row_type = 'header' AND h.id IN (SELECT rls_test.k(x) FROM unnest(ARRAY['F0','F1','F2','F3','F4','F5','FB']) x);
+ WHERE h.row_type = 'header' AND h.id IN (SELECT rls_test.k(x) FROM unnest(ARRAY['F0','F1','F2','F3','F4','F5','F6','FB']) x);
 
 -- Equipment, one record per depreciated line except D9 (it names D8's), plus D5's (tracked,
 -- expensed). The triggers fill each recovery period from its category (Audio: 7).
@@ -66,3 +91,10 @@ UPDATE purchases SET asset_id = rls_test.k('A' || x)
 -- D9 is an upgrade line on D8's equipment: its asset_id names AD8, which stays on D8.
 UPDATE purchases SET asset_id = rls_test.k('AD8') WHERE id = rls_test.k('D9');
 UPDATE assets SET purchase_line_id = rls_test.k('D8') WHERE id = rls_test.k('AD8');
+
+-- Step 7: equipment with no cost (N1, N2), and near misses already at 0 (Z) or costed (V).
+INSERT INTO assets (id, organization_id, acquisition_date, category, manufacturer_model, quantity, item_cost, status, created_by, updated_by) VALUES
+  (rls_test.k('N1'), rls_test.u('org_a'), '2024-01-01', 'Audio', 'No cost 1', 1, NULL, 'Active', rls_test.u('a_admin'), rls_test.u('a_admin')),
+  (rls_test.k('N2'), rls_test.u('org_b'), '2024-01-01', 'Audio', 'No cost 2', 1, NULL, 'Active', rls_test.u('b_admin'), rls_test.u('b_admin')),
+  (rls_test.k('Z'),  rls_test.u('org_a'), '2024-01-01', 'Audio', 'Zero cost', 1, 0, 'Active', rls_test.u('a_admin'), rls_test.u('a_admin')),
+  (rls_test.k('V'),  rls_test.u('org_a'), '2024-01-01', 'Audio', 'Costed', 1, 100, 'Active', rls_test.u('a_admin'), rls_test.u('a_admin'));
