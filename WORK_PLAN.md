@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-27 (coordinator 00:50 UTC: **#319 merged** (#135 worksheet, Cameron's OK). The coordinator ran it read-only on prod and gave Cameron the results privately; **#135 waits on Cameron's answers**, then a guarded fix dry run. **Prod migration still due:** `20261025000000` (#318). Coordinator check-in stopped (its end condition); Equipment Lead idle)
+- **Last updated:** 2026-10-27 (coordinator: **`20261025000000` in prod** (Cameron; verified read-only, v1 gone). **#135:** Cameron answered the worksheet (10-27) except item 10 (filed totals, later). The Equipment Lead is building the fix as `scripts/audit/2026-purchases/fix/`: a SELECT-only preview the coordinator runs on prod, and an apply that runs only with Cameron's OK. Plan on #135 first; prod ids stay out of the repo)
 
 ---
 
@@ -87,7 +87,7 @@ This file lives on `main`. Land updates there promptly: a run that starts from `
 **Status 10-12 03:00 UTC:**
 - **Merged since (not yet in prod):** #276 (#183 D: CSV import makes units, lots and kit lines through the v2 save; kit column kept; no status / retired_on / liquidation_amt; template regrouped; Download Example mic-kit file; held purchases; Retry failed; the app no longer calls v1), #269 (#265: container still out at another gig), #275 (docs: Payment received → Apply to). No migrations.
 - **In review:** #268 (#186 Locations step): Equipment Lead pushed fixes for every finding; an independent re-check is running. #274 (docs: Locations page): two sentences contradict the 10-10 rule (contents keep their own records); the Docs Lead is fixing them.
-- **#183 D2:** the cards and column guide shipped (#295, in prod 10-19). The v1 drop (PR #318, plan #317) merged 10-26; on dev; Cameron to apply `20261025000000` to prod.
+- **#183 D2:** the cards and column guide shipped (#295, in prod 10-19). The v1 drop (PR #318, plan #317) is done: in prod 10-27.
 
 **Status 10-12 22:45 UTC:**
 - **In prod (Cameron's deploy 10-12):** #263, #264, #267, #269, #270, #271, #272, #273, #276.
