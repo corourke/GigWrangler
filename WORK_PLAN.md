@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-27 (coordinator: **`20261025000000` in prod** (Cameron; verified read-only, v1 gone). **#135:** Cameron answered the worksheet (10-27) except item 10 (filed totals, later). The Equipment Lead is building the fix as `scripts/audit/2026-purchases/fix/`: a SELECT-only preview the coordinator runs on prod, and an apply that runs only with Cameron's OK. Plan on #135 first; prod ids stay out of the repo)
+- **Last updated:** 2026-10-27 (coordinator 15:05 UTC: **#135 fix PR #320** reviewed; prod preview passes with Cameron's 10-27 category choices (Computer/Office → Supplies, Power → Small power tools and consumables); the Equipment Lead is updating the map, then Cameron's merge OK. Cameron runs `apply.sql` himself; the coordinator verifies read-only. **Cost of goods sold (Schedule C line 4 / Part III)** approved as its own PR (migration + tax report); plan on a new issue first. Check-in every 4h until both merge)
 
 ---
 
