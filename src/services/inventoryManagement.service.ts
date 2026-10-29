@@ -50,6 +50,7 @@ export interface KitTrackingSummary {
 export interface LocationItem {
   kit_id: string;
   kit_name?: string | null;
+  kit_tag_number?: string | null;
   is_container: boolean;
   asset_id?: string | null;
   asset_name?: string | null;
@@ -62,6 +63,7 @@ export interface LocationItem {
   scanned_by_name?: string | null;
   /** Pieces at this place: 1 for a unit, N of a lot (#186). */
   quantity?: number;
+  notes?: string | null;
   /** A lot's size ("2 of 10"); null for a unit or a kit row. */
   lot_of?: number | null;
   equipment_item_id?: string | null;
@@ -74,20 +76,9 @@ export interface LocationItem {
   maintenance_location?: string | null;
 }
 
-export interface ManifestRow {
-  kit_id: string;
-  kit_name?: string | null;
-  asset_id?: string | null;
-  asset_name?: string | null;
-  tag_number?: string | null;
-  status: string;
-  location?: string | null;
-  gig_id: string;
-  gig_title?: string | null;
-  scanned_at: string;
-  scanned_by_name?: string | null;
-  notes?: string | null;
-  has_conflict: boolean;
+/** A manifest line (#327): a Locations line, and for a case's own line, what the case holds. */
+export interface ManifestLine extends LocationItem {
+  contents?: string[];
 }
 
 export interface PackingListRow {
@@ -167,32 +158,6 @@ function getLatestByKey(records: DbInventoryTracking[]): DbInventoryTracking[] {
     const key = `${record.gig_id}:${record.kit_id ?? ''}:${record.asset_id ?? ''}`;
     const existing = map.get(key);
     // Use string comparison for ISO dates to avoid repeated Date object creation
-    if (!existing || record.scanned_at > existing.scanned_at) {
-      map.set(key, record);
-    }
-  }
-  return Array.from(map.values());
-}
-
-// Like getLatestByKey, but for the Manifest report specifically. A kit scan
-// cascades to every asset in that kit's flattened subtree, and each kit
-// level in a hierarchy (top-level and every nested sub-kit) can
-// independently be scanned — so the same physical asset can end up with
-// tracking rows under more than one kit_id. Deduping by kit_id+asset_id
-// (getLatestByKey's key) would show that asset once per kit level instead
-// of once overall, which is what a manifest is for: confirming every
-// physical item is at this location, exactly once. This drops kit_id from
-// the key for asset-level rows so only the single most-recently-scanned
-// row survives, whichever kit level it was scanned through; kit-level rows
-// (asset_id null, the kit itself as a sealed unit) keep kit_id in the key,
-// since those are genuinely distinct physical units.
-function getLatestManifestRecords(records: DbInventoryTracking[]): DbInventoryTracking[] {
-  const map = new Map<string, DbInventoryTracking>();
-  for (const record of records) {
-    const key = record.asset_id
-      ? `${record.gig_id}:${record.asset_id}`
-      : `${record.gig_id}:${record.kit_id ?? ''}`;
-    const existing = map.get(key);
     if (!existing || record.scanned_at > existing.scanned_at) {
       map.set(key, record);
     }
@@ -430,7 +395,7 @@ export async function getItemsByLocation(
     // rows first would let an older row that matches stand in for a newer one that doesn't.
     const { data, error } = await supabase
       .from('inventory_tracking')
-      .select('id, gig_id, kit_id, asset_id, status, location, scanned_at, quantity, scanned_by, notes, created_at, scanned_by_user:users!scanned_by(first_name, last_name, email), kit:kit_id(name, is_container), gig:gig_id(title)')
+      .select('id, gig_id, kit_id, asset_id, status, location, scanned_at, quantity, scanned_by, notes, created_at, scanned_by_user:users!scanned_by(first_name, last_name, email), kit:kit_id(name, is_container, tag_number), gig:gig_id(title)')
       .eq('organization_id', organizationId);
     if (error) throw error;
 
@@ -477,6 +442,7 @@ export async function getItemsByLocation(
       return {
         kit_id: record.kit_id ?? '',
         kit_name: rawRecord?.kit?.name ?? null,
+        kit_tag_number: rawRecord?.kit?.tag_number ?? null,
         is_container: !!rawRecord?.kit?.is_container,
         asset_id: record.asset_id ?? null,
         asset_name: asset?.manufacturer_model ?? null,
@@ -487,6 +453,7 @@ export async function getItemsByLocation(
         gig_title: rawRecord?.gig?.title ?? null,
         scanned_at: record.scanned_at,
         scanned_by_name: formatUserName(rawRecord?.scanned_by_user),
+        notes: record.notes ?? null,
         quantity: piecesOf.get(record) ?? Math.max(1, Number(record.quantity ?? 1) || 1),
         lot_of: asset && recordKind(asset) === 'lot' ? Number(asset.quantity ?? 1) : null,
         equipment_item_id: asset?.equipment_item_id ?? null,
@@ -653,64 +620,26 @@ export async function createManualTrackingRecord(params: CreateManualTrackingPar
   }
 }
 
+/**
+ * What is at a place now (#327): the Locations screen's lines for it (newest row wins across
+ * gigs; a lot by its pieces here), so the two can't disagree. A case's own line says what the
+ * case holds, as on the packing list; if that can't be read, the line still shows.
+ */
 export async function getManifestReport(
   organizationId: string,
   filters: { location: string; gigId?: string }
-): Promise<ManifestRow[]> {
-  const supabase = getSupabase();
-  try {
-    let query = supabase
-      .from('inventory_tracking')
-      .select('id, gig_id, kit_id, asset_id, status, location, scanned_at, scanned_by, notes, created_at, scanned_by_user:users!scanned_by(first_name, last_name, email), kit:kit_id(name), gig:gig_id(title)')
-      .eq('organization_id', organizationId)
-      .eq('location', filters.location);
-
-    if (filters.gigId) {
-      query = query.eq('gig_id', filters.gigId);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    const records = (data ?? []) as any[];
-    const latest = getLatestManifestRecords(records as DbInventoryTracking[]);
-
-    // Without this, every asset-level row rendered its kit's name instead of
-    // its own (the UI falls back to kit_name when asset_name is null) — a
-    // kit with 8 distinct assets showed up as 8 identical-looking rows.
-    const { data: assets, error: assetsError } = await supabase
-      .from('assets')
-      .select('id, manufacturer_model, tag_number')
-      .in('id', latest.filter((r) => r.asset_id).map((r) => r.asset_id as string));
-
-    if (assetsError) throw assetsError;
-
-    const assetMap = new Map((assets ?? []).map((a: any) => [a.id, a]));
-
-    const conflictFlags = await getInventoryConflictFlags(organizationId);
-
-    return latest.map((record): ManifestRow => {
-      const rawRecord = records.find((r) => r.id === record.id) as any;
-      const asset = record.asset_id ? assetMap.get(record.asset_id) : null;
-      return {
-        kit_id: record.kit_id ?? '',
-        kit_name: rawRecord?.kit?.name ?? null,
-        asset_id: record.asset_id ?? null,
-        asset_name: asset?.manufacturer_model ?? null,
-        tag_number: asset?.tag_number ?? null,
-        status: record.status,
-        location: record.location ?? null,
-        gig_id: record.gig_id,
-        gig_title: rawRecord?.gig?.title ?? null,
-        scanned_at: record.scanned_at,
-        scanned_by_name: formatUserName(rawRecord?.scanned_by_user),
-        notes: record.notes ?? null,
-        has_conflict: record.kit_id ? conflictFlags.has(record.kit_id) : false,
-      };
-    });
-  } catch (err) {
-    return handleApiError(err, 'get manifest report');
+): Promise<ManifestLine[]> {
+  const items = await getItemsByLocation(organizationId, { location: filters.location, gigId: filters.gigId });
+  const cases = new Map(items.filter((i) => i.is_container && !i.asset_id).map((i) => [i.kit_id, i.kit_name ?? '']));
+  const contents = new Map<string, string[]>();
+  for (const [kitId, name] of cases) {
+    const tree = await getKitComponentTree(kitId).catch(() => [] as KitComponentTreeNode[]);
+    contents.set(kitId, flattenToScanUnits([{
+      clientKey: 'top', type: 'kit', quantity: 1, children: tree,
+      kit: { id: kitId, name, category: null, is_container: true, tag_number: null },
+    }], { id: kitId, name })[0]?.contents ?? []);
   }
+  return items.map((i) => (i.is_container && !i.asset_id ? { ...i, contents: contents.get(i.kit_id) ?? [] } : i));
 }
 
 export async function getPackingListReport(organizationId: string, gigId: string): Promise<PackingListRow[]> {
