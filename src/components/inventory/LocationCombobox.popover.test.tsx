@@ -37,12 +37,18 @@ describe('LocationCombobox — opening and closing (#327)', () => {
     expect(option('Warehouse')).toBeInTheDocument();
   });
 
-  it('a second click leaves them showing', async () => {
+  it('a second click leaves them showing, without closing in between', async () => {
     const user = userEvent.setup();
     render(<Harness />);
     await user.click(screen.getByRole('textbox'));
     await waitFor(() => expect(option('Truck')).toBeInTheDocument());
+    // Watch for the list closing in between, not just how it ends up: it mustn't flicker.
+    let closed = false;
+    const observer = new MutationObserver(() => { if (!option('Truck')) closed = true; });
+    observer.observe(document.body, { childList: true, subtree: true });
     await user.click(screen.getByRole('textbox'));
+    observer.disconnect();
+    expect(closed).toBe(false);
     expect(option('Truck')).toBeInTheDocument();
   });
 
@@ -80,6 +86,17 @@ describe('LocationCombobox — opening and closing (#327)', () => {
     await waitFor(() => expect(option('Truck')).toBeInTheDocument());
     await user.keyboard('{Escape}');
     await waitFor(() => expect(option('Truck')).not.toBeInTheDocument());
+  });
+
+  it('after Escape, clicking the box (still focused) opens it again', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole('textbox'));
+    await waitFor(() => expect(option('Truck')).toBeInTheDocument());
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(option('Truck')).not.toBeInTheDocument());
+    await user.click(screen.getByRole('textbox'));
+    await waitFor(() => expect(option('Truck')).toBeInTheDocument());
   });
 
   it('clicking elsewhere closes the list', async () => {

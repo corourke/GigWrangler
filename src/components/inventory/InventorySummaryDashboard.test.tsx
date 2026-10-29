@@ -54,6 +54,7 @@ vi.mock('../ui/dialog', () => ({
 vi.mock('../ui/popover', () => ({
   Popover: ({ children }: any) => <div>{children}</div>,
   PopoverTrigger: ({ children }: any) => <div>{children}</div>,
+  PopoverAnchor: ({ children }: any) => <div>{children}</div>,
   PopoverContent: ({ children }: any) => <div>{children}</div>,
 }));
 

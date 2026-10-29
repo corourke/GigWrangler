@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Input } from '../ui/input';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '../ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover';
 import { MapPin } from 'lucide-react';
 import { getLocationSuggestions } from '../../services/inventoryManagement.service';
 
@@ -22,6 +22,7 @@ export function LocationCombobox({
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [fetched, setFetched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
 
   const filteredSuggestions = suggestions.filter((s) =>
     s.toLowerCase().includes(value.toLowerCase())
@@ -61,9 +62,11 @@ export function LocationCombobox({
   };
 
   return (
+    // An anchor, not a trigger (#327): the input opens the list itself, and a trigger's click
+    // would toggle it shut again right after focus opened it.
     <Popover open={isOpen} onOpenChange={handleOpen}>
-      <PopoverTrigger asChild>
-        <div className="relative">
+      <PopoverAnchor asChild>
+        <div ref={anchorRef} className="relative">
           <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
           <Input
             ref={inputRef}
@@ -73,15 +76,22 @@ export function LocationCombobox({
             onFocus={() => {
               if (!isOpen) handleOpen(true);
             }}
+            onClick={() => {
+              if (!isOpen) handleOpen(true);
+            }}
             placeholder={placeholder}
             className="pl-9"
           />
         </div>
-      </PopoverTrigger>
+      </PopoverAnchor>
       <PopoverContent
         className="p-0 w-[var(--radix-popover-trigger-width)]"
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
+        // Clicking the box itself isn't "outside": it keeps the list open.
+        onInteractOutside={(e) => {
+          if (anchorRef.current?.contains(e.target as Node)) e.preventDefault();
+        }}
       >
         <Command>
           <CommandList>
