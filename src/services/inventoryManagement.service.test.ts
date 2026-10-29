@@ -865,7 +865,7 @@ describe('inventoryManagement.service', () => {
       const trk = (id: string, asset_id: string | null, kit_id: string | null, gig_id: string, location: string, at: string, extra: any = {}) => ({
         id, gig_id, kit_id, asset_id, status: location === 'Warehouse' ? 'In Warehouse' : 'In Transit', location, quantity: 1,
         scanned_at: at, created_at: at, scanned_by: 'user-1', notes: null, scanned_by_user: null,
-        kit: kit_id ? { name: kit_id === 'case' ? 'Mic Case' : 'Small Gig Pack', is_container: kit_id === 'case' } : null,
+        kit: kit_id ? { name: kit_id === 'case' ? 'Mic Case' : 'Small Gig Pack', is_container: kit_id === 'case', tag_number: kit_id === 'case' ? 'CASE-1' : null } : null,
         gig: { title: gig_id }, ...extra,
       });
       const assets = [
@@ -912,14 +912,14 @@ describe('inventoryManagement.service', () => {
         expect(line).toMatchObject({ asset_id: 'cables', quantity: 4, lot_of: 10, notes: 'Bundled' });
       });
 
-      it('says what a case here holds', async () => {
+      it('says what a case here holds, with its tag', async () => {
         const { getManifestReport } = await import('./inventoryManagement.service');
         mockTables([trk('t1', null, 'case', 'gig-1', 'Truck', '2026-10-01T10:00:00Z')], [
           { kit_id: 'case', asset_id: 'mic', child_kit_id: null, equipment_item_id: null, quantity: 2,
             asset: { id: 'mic', manufacturer_model: 'Shure SM58', tag_number: null, serial_number: null, quantity: 1 } },
         ]);
         const [line] = await getManifestReport('org-1', { location: 'Truck' });
-        expect(line).toMatchObject({ kit_id: 'case', is_container: true, contents: ['2 × Shure SM58'] });
+        expect(line).toMatchObject({ kit_id: 'case', kit_tag_number: 'CASE-1', is_container: true, contents: ['2 × Shure SM58'] });
       });
     });
   });
