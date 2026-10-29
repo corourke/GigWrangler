@@ -40,6 +40,12 @@ with the category's **Name**, its **Schedule C line** (expense categories) or
   use can't be renamed here, because each purchase and piece of equipment stores the
   name. **In use** shows how many records use each one.
 
+## Goods you buy to resell
+
+Put goods you buy to sell on, rather than to use, in an expense category on line **4: Cost of goods sold (Part III)**. It's the first choice in the Schedule C line list. The reports keep line 4 apart from your other expenses: it comes off your gross receipts first, as on Schedule C. See [The Schedule C report](/financials/reporting/#the-schedule-c-report).
+
+GigWrangler doesn't count stock on hand, so goods for resale count in the year you pay for them.
+
 ## Recovery periods for equipment
 
 Equipment you depreciate for tax has a recovery period: **5-year** (computers,

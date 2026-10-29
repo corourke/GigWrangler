@@ -146,8 +146,8 @@
       "src/utils/taxSummaryReports.ts"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-10",
-    "appCommit": "0122c92"
+    "taken": "2026-10-29",
+    "appCommit": "128f3d9"
   },
   "getting-started/onboarding-edit-profile": {
     "page": "getting-started/onboarding.md",

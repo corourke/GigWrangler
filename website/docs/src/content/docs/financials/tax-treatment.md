@@ -29,6 +29,8 @@ You can change it until you file that year's taxes: **Edit** the purchase in **F
 
 Per-item cost is the item's cost after tax and shipping (see [Cost allocation](/financials/cost-allocation/)).
 
+Goods you buy to resell are expensed: choose **Expense** and an expense category on line 4, cost of goods sold. See [Goods you buy to resell](/settings/categories/#goods-you-buy-to-resell).
+
 ## How the two fit together
 
 | | Expense | Depreciate |
