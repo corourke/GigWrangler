@@ -13,6 +13,8 @@ The list shows each kit's **Category**, **Tag #**, **Items** (its pieces), **Tot
 
 When a kit is out on a gig, **Tracking Status** shows the status most of its pieces have, such as **Checked Out**, and how many, such as "6 of 29". Hover over the count to see all of them, for example "Pieces at Harvest Gala Dinner & Dance: Checked Out 6 · Not packed 23". The count matches the kit page's **Pieces to check off**: nested kits and "any" lines are included, a lot counts its pieces, and a case counts as one. A kit at home, and a container, show only the status.
 
+![The Kits list: Tracking Status filter, Columns, and six kits with category, tag number, items, total and rental value, tags, tracking status, last location and active gig. Full Band Sound Package is Checked Out, 6 of 29, at the Harvest Gala Dinner & Dance](../../../assets/screenshots/equipment/kits-list.png)
+
 ## What goes in a kit
 
 Each line of a kit is one of three things:
