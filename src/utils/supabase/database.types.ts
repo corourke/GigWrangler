@@ -39,6 +39,67 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_requests: {
+        Row: {
+          created_at: string
+          handled_at: string | null
+          handled_by: string | null
+          id: string
+          message: string | null
+          organization_id: string
+          requested_role: Database["public"]["Enums"]["user_role"]
+          requester_id: string
+          response_message: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          handled_at?: string | null
+          handled_by?: string | null
+          id?: string
+          message?: string | null
+          organization_id: string
+          requested_role: Database["public"]["Enums"]["user_role"]
+          requester_id: string
+          response_message?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          handled_at?: string | null
+          handled_by?: string | null
+          id?: string
+          message?: string | null
+          organization_id?: string
+          requested_role?: Database["public"]["Enums"]["user_role"]
+          requester_id?: string
+          response_message?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "access_requests_handled_by_fkey"
+            columns: ["handled_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "access_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "access_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_log: {
         Row: {
           actor_id: string | null
@@ -120,13 +181,12 @@ export type Database = {
       }
       assets: {
         Row: {
-          equipment_item_id: string
-          purchase_line_id: string | null
           acquisition_date: string
           category: string
           created_at: string
           created_by: string
           description: string | null
+          equipment_item_id: string
           id: string
           insurance_class: string | null
           insurance_policy_added: boolean
@@ -142,30 +202,32 @@ export type Database = {
           maintenance_pending_gig_id: string | null
           maintenance_pending_quantity: number | null
           maintenance_since: string | null
-          status_before_maintenance: string | null
           manufacturer_model: string
           organization_id: string
           purchase_id: string | null
+          purchase_line_id: string | null
           quantity: number | null
+          recovery_period: number | null
           replacement_value: number | null
           retired_on: string | null
           serial_number: string | null
-          recovery_period: number | null
           status: string
+          status_before_maintenance: string | null
+          status_before_write_off: string | null
           tag_number: string | null
           type: string | null
           updated_at: string
           updated_by: string
           vendor: string | null
+          written_off_from: string | null
         }
         Insert: {
-          equipment_item_id?: string
-          purchase_line_id?: string | null
           acquisition_date: string
           category: string
           created_at?: string
           created_by: string
           description?: string | null
+          equipment_item_id?: string
           id?: string
           insurance_class?: string | null
           insurance_policy_added?: boolean
@@ -181,30 +243,32 @@ export type Database = {
           maintenance_pending_gig_id?: string | null
           maintenance_pending_quantity?: number | null
           maintenance_since?: string | null
-          status_before_maintenance?: string | null
           manufacturer_model: string
           organization_id: string
           purchase_id?: string | null
+          purchase_line_id?: string | null
           quantity?: number | null
+          recovery_period?: number | null
           replacement_value?: number | null
           retired_on?: string | null
           serial_number?: string | null
-          recovery_period?: number | null
           status?: string
+          status_before_maintenance?: string | null
+          status_before_write_off?: string | null
           tag_number?: string | null
           type?: string | null
           updated_at?: string
           updated_by: string
           vendor?: string | null
+          written_off_from?: string | null
         }
         Update: {
-          equipment_item_id?: string
-          purchase_line_id?: string | null
           acquisition_date?: string
           category?: string
           created_at?: string
           created_by?: string
           description?: string | null
+          equipment_item_id?: string
           id?: string
           insurance_class?: string | null
           insurance_policy_added?: boolean
@@ -220,23 +284,54 @@ export type Database = {
           maintenance_pending_gig_id?: string | null
           maintenance_pending_quantity?: number | null
           maintenance_since?: string | null
-          status_before_maintenance?: string | null
           manufacturer_model?: string
           organization_id?: string
           purchase_id?: string | null
+          purchase_line_id?: string | null
           quantity?: number | null
+          recovery_period?: number | null
           replacement_value?: number | null
           retired_on?: string | null
           serial_number?: string | null
-          recovery_period?: number | null
           status?: string
+          status_before_maintenance?: string | null
+          status_before_write_off?: string | null
           tag_number?: string | null
           type?: string | null
           updated_at?: string
           updated_by?: string
           vendor?: string | null
+          written_off_from?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "assets_equipment_item_id_fkey"
+            columns: ["equipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_maintenance_by_fkey"
+            columns: ["maintenance_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_maintenance_from_fkey"
+            columns: ["maintenance_from"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_maintenance_pending_gig_id_fkey"
+            columns: ["maintenance_pending_gig_id"]
+            isOneToOne: false
+            referencedRelation: "gigs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "assets_organization_id_fkey"
             columns: ["organization_id"]
@@ -249,6 +344,20 @@ export type Database = {
             columns: ["purchase_id"]
             isOneToOne: false
             referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_purchase_line_id_fkey"
+            columns: ["purchase_line_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_written_off_from_fkey"
+            columns: ["written_off_from"]
+            isOneToOne: false
+            referencedRelation: "assets"
             referencedColumns: ["id"]
           },
         ]
@@ -351,7 +460,15 @@ export type Database = {
           organization_id?: string | null
           sort_order?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "equipment_categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       equipment_items: {
         Row: {
@@ -393,7 +510,29 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "equipment_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_items_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       expense_categories: {
         Row: {
@@ -423,7 +562,22 @@ export type Database = {
           schedule_c_line?: string | null
           sort_order?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "expense_categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_categories_schedule_c_line_fkey"
+            columns: ["schedule_c_line"]
+            isOneToOne: false
+            referencedRelation: "schedule_c_lines"
+            referencedColumns: ["code"]
+          },
+        ]
       }
       gig_financials: {
         Row: {
@@ -475,8 +629,8 @@ export type Database = {
           paid_at?: string | null
           purchase_id?: string | null
           reference_number?: string | null
-          stage: Database["public"]["Enums"]["fin_stage"]
           staff_assignment_id?: string | null
+          stage: Database["public"]["Enums"]["fin_stage"]
           updated_at?: string | null
           updated_by?: string | null
         }
@@ -502,8 +656,8 @@ export type Database = {
           paid_at?: string | null
           purchase_id?: string | null
           reference_number?: string | null
-          stage?: Database["public"]["Enums"]["fin_stage"]
           staff_assignment_id?: string | null
+          stage?: Database["public"]["Enums"]["fin_stage"]
           updated_at?: string | null
           updated_by?: string | null
         }
@@ -663,8 +817,8 @@ export type Database = {
         Row: {
           gig_id: string
           id: string
-          is_client: boolean
           inactive: boolean
+          is_client: boolean
           notes: string | null
           organization_id: string
           role: Database["public"]["Enums"]["organization_role"]
@@ -672,8 +826,8 @@ export type Database = {
         Insert: {
           gig_id: string
           id?: string
-          is_client?: boolean
           inactive?: boolean
+          is_client?: boolean
           notes?: string | null
           organization_id: string
           role: Database["public"]["Enums"]["organization_role"]
@@ -681,8 +835,8 @@ export type Database = {
         Update: {
           gig_id?: string
           id?: string
-          is_client?: boolean
           inactive?: boolean
+          is_client?: boolean
           notes?: string | null
           organization_id?: string
           role?: Database["public"]["Enums"]["organization_role"]
@@ -837,7 +991,7 @@ export type Database = {
           gig_id: string
           id: string
           notes: string | null
-          organization_id: string | null
+          organization_id: string
           required_count: number
           staff_role_id: string
           updated_at: string
@@ -847,7 +1001,7 @@ export type Database = {
           gig_id: string
           id?: string
           notes?: string | null
-          organization_id?: string | null
+          organization_id: string
           required_count?: number
           staff_role_id: string
           updated_at?: string
@@ -857,7 +1011,7 @@ export type Database = {
           gig_id?: string
           id?: string
           notes?: string | null
-          organization_id?: string | null
+          organization_id?: string
           required_count?: number
           staff_role_id?: string
           updated_at?: string
@@ -991,6 +1145,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "gigs_owner_organization_id_fkey"
+            columns: ["owner_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "gigs_parent_gig_id_fkey"
             columns: ["parent_gig_id"]
             isOneToOne: false
@@ -1001,7 +1162,6 @@ export type Database = {
       }
       inventory_tracking: {
         Row: {
-          quantity: number
           asset_id: string | null
           created_at: string
           gig_id: string
@@ -1010,12 +1170,12 @@ export type Database = {
           location: string | null
           notes: string | null
           organization_id: string
+          quantity: number
           scanned_at: string
           scanned_by: string | null
           status: string
         }
         Insert: {
-          quantity?: number
           asset_id?: string | null
           created_at?: string
           gig_id: string
@@ -1024,12 +1184,12 @@ export type Database = {
           location?: string | null
           notes?: string | null
           organization_id: string
+          quantity?: number
           scanned_at?: string
           scanned_by?: string | null
           status: string
         }
         Update: {
-          quantity?: number
           asset_id?: string | null
           created_at?: string
           gig_id?: string
@@ -1038,6 +1198,7 @@ export type Database = {
           location?: string | null
           notes?: string | null
           organization_id?: string
+          quantity?: number
           scanned_at?: string
           scanned_by?: string | null
           status?: string
@@ -1149,30 +1310,30 @@ export type Database = {
       }
       kit_components: {
         Row: {
-          equipment_item_id: string | null
           asset_id: string | null
           child_kit_id: string | null
           created_at: string
+          equipment_item_id: string | null
           id: string
           kit_id: string
           notes: string | null
           quantity: number
         }
         Insert: {
-          equipment_item_id?: string | null
           asset_id?: string | null
           child_kit_id?: string | null
           created_at?: string
+          equipment_item_id?: string | null
           id?: string
           kit_id: string
           notes?: string | null
           quantity?: number
         }
         Update: {
-          equipment_item_id?: string | null
           asset_id?: string | null
           child_kit_id?: string | null
           created_at?: string
+          equipment_item_id?: string | null
           id?: string
           kit_id?: string
           notes?: string | null
@@ -1200,28 +1361,14 @@ export type Database = {
             referencedRelation: "kits"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "kit_components_equipment_item_id_fkey"
+            columns: ["equipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
         ]
-      }
-      kit_flattened_item_cache: {
-        Row: {
-          equipment_item_id: string
-          kit_id: string
-          total_quantity: number
-          updated_at: string
-        }
-        Insert: {
-          equipment_item_id: string
-          kit_id: string
-          total_quantity: number
-          updated_at?: string
-        }
-        Update: {
-          equipment_item_id?: string
-          kit_id?: string
-          total_quantity?: number
-          updated_at?: string
-        }
-        Relationships: []
       }
       kit_flattened_cache: {
         Row: {
@@ -1252,6 +1399,42 @@ export type Database = {
           },
           {
             foreignKeyName: "kit_flattened_cache_kit_id_fkey"
+            columns: ["kit_id"]
+            isOneToOne: false
+            referencedRelation: "kits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kit_flattened_item_cache: {
+        Row: {
+          equipment_item_id: string
+          kit_id: string
+          total_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          equipment_item_id: string
+          kit_id: string
+          total_quantity: number
+          updated_at?: string
+        }
+        Update: {
+          equipment_item_id?: string
+          kit_id?: string
+          total_quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kit_flattened_item_cache_equipment_item_id_fkey"
+            columns: ["equipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kit_flattened_item_cache_kit_id_fkey"
             columns: ["kit_id"]
             isOneToOne: false
             referencedRelation: "kits"
@@ -1329,6 +1512,41 @@ export type Database = {
           value?: Json
         }
         Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          payload: Json
+          read_at: string | null
+          recipient_id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          payload?: Json
+          read_at?: string | null
+          recipient_id: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          payload?: Json
+          read_at?: string | null
+          recipient_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       organization_members: {
         Row: {
@@ -1442,6 +1660,60 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_scan_queue: {
+        Row: {
+          attachment_id: string
+          created_at: string
+          created_by: string | null
+          error: string | null
+          file_name: string
+          id: string
+          organization_id: string
+          scanned_data: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attachment_id: string
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          file_name: string
+          id?: string
+          organization_id: string
+          scanned_data?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attachment_id?: string
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          file_name?: string
+          id?: string
+          organization_id?: string
+          scanned_data?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_scan_queue_attachment_id_fkey"
+            columns: ["attachment_id"]
+            isOneToOne: false
+            referencedRelation: "attachments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_scan_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchases: {
         Row: {
           asset_id: string | null
@@ -1547,9 +1819,21 @@ export type Database = {
         ]
       }
       schedule_c_lines: {
-        Row: { code: string; label: string; sort_order: number }
-        Insert: { code: string; label: string; sort_order: number }
-        Update: { code?: string; label?: string; sort_order?: number }
+        Row: {
+          code: string
+          label: string
+          sort_order: number
+        }
+        Insert: {
+          code: string
+          label: string
+          sort_order: number
+        }
+        Update: {
+          code?: string
+          label?: string
+          sort_order?: number
+        }
         Relationships: []
       }
       staff_roles: {
@@ -1604,7 +1888,15 @@ export type Database = {
           updated_at?: string
           year?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tax_years_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_devices: {
         Row: {
@@ -1694,7 +1986,7 @@ export type Database = {
           city: string | null
           country: string | null
           created_at: string
-          email: string
+          email: string | null
           first_name: string
           id: string
           last_name: string
@@ -1714,7 +2006,7 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string
-          email: string
+          email?: string | null
           first_name: string
           id: string
           last_name: string
@@ -1734,7 +2026,7 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string
-          email?: string
+          email?: string | null
           first_name?: string
           id?: string
           last_name?: string
@@ -1749,77 +2041,16 @@ export type Database = {
         }
         Relationships: []
       }
-      access_requests: {
-        Row: {
-          created_at: string
-          handled_at: string | null
-          handled_by: string | null
-          id: string
-          message: string | null
-          organization_id: string
-          requested_role: Database["public"]["Enums"]["user_role"]
-          requester_id: string
-          response_message: string | null
-          status: string
-        }
-        Insert: {
-          created_at?: string
-          handled_at?: string | null
-          handled_by?: string | null
-          id?: string
-          message?: string | null
-          organization_id: string
-          requested_role: Database["public"]["Enums"]["user_role"]
-          requester_id: string
-          response_message?: string | null
-          status?: string
-        }
-        Update: {
-          created_at?: string
-          handled_at?: string | null
-          handled_by?: string | null
-          id?: string
-          message?: string | null
-          organization_id?: string
-          requested_role?: Database["public"]["Enums"]["user_role"]
-          requester_id?: string
-          response_message?: string | null
-          status?: string
-        }
-        Relationships: []
-      }
-      notifications: {
-        Row: {
-          created_at: string
-          id: string
-          payload: Json
-          read_at: string | null
-          recipient_id: string
-          type: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          payload?: Json
-          read_at?: string | null
-          recipient_id: string
-          type: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          payload?: Json
-          read_at?: string | null
-          recipient_id?: string
-          type?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      acting_user: { Args: { p_claimed: string }; Returns: string }
+      activity_entity_is_shared: {
+        Args: { p_entity_type: string }
+        Returns: boolean
+      }
       add_gig_participant_contact: {
         Args: {
           p_actor_id?: string
@@ -1831,19 +2062,99 @@ export type Database = {
         }
         Returns: Json
       }
-      add_organization_contact: {
+      add_organization_contact:
+        | {
+            Args: {
+              p_actor_id?: string
+              p_email?: string
+              p_first_name?: string
+              p_is_primary?: boolean
+              p_last_name?: string
+              p_organization_id: string
+              p_phone?: string
+              p_role?: Database["public"]["Enums"]["user_role"]
+              p_title?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_actor_id?: string
+              p_email: string
+              p_first_name: string
+              p_is_primary?: boolean
+              p_last_name: string
+              p_organization_id: string
+              p_phone?: string
+              p_title?: string
+            }
+            Returns: Json
+          }
+      add_purchase_line_units: {
+        Args: { p_line_id: string; p_units: Json[] }
+        Returns: string[]
+      }
+      asset_depreciated_line_date: {
+        Args: { p_asset: string }
+        Returns: string
+      }
+      asset_is_unit: {
+        Args: { p_asset: Database["public"]["Tables"]["assets"]["Row"] }
+        Returns: boolean
+      }
+      assets_clear_flag_out_of_service: {
         Args: {
-          p_actor_id?: string
-          p_email?: string
-          p_first_name?: string
-          p_is_primary?: boolean
-          p_last_name?: string
-          p_organization_id: string
-          p_phone?: string
-          p_role?: Database["public"]["Enums"]["user_role"]
-          p_title?: string
+          p_new: Database["public"]["Tables"]["assets"]["Row"]
+          p_old: Database["public"]["Tables"]["assets"]["Row"]
+          p_op: string
         }
-        Returns: Json
+        Returns: {
+          acquisition_date: string
+          category: string
+          created_at: string
+          created_by: string
+          description: string | null
+          equipment_item_id: string
+          id: string
+          insurance_class: string | null
+          insurance_policy_added: boolean
+          item_cost: number | null
+          item_price: number | null
+          liquidation_amt: number | null
+          maintenance_by: string | null
+          maintenance_expected_back: string | null
+          maintenance_from: string | null
+          maintenance_location: string | null
+          maintenance_notes: string | null
+          maintenance_pending: boolean
+          maintenance_pending_gig_id: string | null
+          maintenance_pending_quantity: number | null
+          maintenance_since: string | null
+          manufacturer_model: string
+          organization_id: string
+          purchase_id: string | null
+          purchase_line_id: string | null
+          quantity: number | null
+          recovery_period: number | null
+          replacement_value: number | null
+          retired_on: string | null
+          serial_number: string | null
+          status: string
+          status_before_maintenance: string | null
+          status_before_write_off: string | null
+          tag_number: string | null
+          type: string | null
+          updated_at: string
+          updated_by: string
+          vendor: string | null
+          written_off_from: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "assets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       convert_pending_user_to_active: {
         Args: { p_auth_user_id: string; p_email: string }
@@ -1865,6 +2176,29 @@ export type Database = {
           id: string
         }[]
       }
+      create_purchase_transaction_v2: {
+        Args: { p_header: Json; p_items: Json[]; p_units: Json[] }
+        Returns: Json
+      }
+      ensure_org_categories: { Args: { p_org: string }; Returns: undefined }
+      equipment_category_recovery_period: {
+        Args: { p_category: string; p_org: string }
+        Returns: number
+      }
+      equipment_item_for: {
+        Args: {
+          p_category: string
+          p_description?: string
+          p_insurance_class?: string
+          p_model: string
+          p_org: string
+          p_type?: string
+          p_user?: string
+        }
+        Returns: string
+      }
+      equipment_match_key: { Args: { p: string }; Returns: string }
+      equipment_tidy_name: { Args: { p: string }; Returns: string }
       get_complete_user_data: { Args: { user_uuid: string }; Returns: Json }
       get_kit_hierarchy_tree: {
         Args: { p_kit_id: string }
@@ -1901,7 +2235,7 @@ export type Database = {
           city: string | null
           country: string | null
           created_at: string
-          email: string
+          email: string | null
           first_name: string
           id: string
           last_name: string
@@ -1925,6 +2259,19 @@ export type Database = {
         Args: { org_id: string; user_uuid: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      gig_activity_actor_org: {
+        Args: { p_actor: string; p_gig_id: string; p_subject_org: string }
+        Returns: string
+      }
+      gig_staff_slot_org_id: { Args: { p_slot_id: string }; Returns: string }
+      insert_purchase_line_unit: {
+        Args: {
+          p_header: Database["public"]["Tables"]["purchases"]["Row"]
+          p_line: Database["public"]["Tables"]["purchases"]["Row"]
+          p_unit: Json
+        }
+        Returns: string
+      }
       invite_user_to_organization:
         | {
             Args: {
@@ -1947,6 +2294,7 @@ export type Database = {
             }
             Returns: Json
           }
+      is_platform_moderator: { Args: never; Returns: boolean }
       kit_would_create_cycle: {
         Args: { p_child_kit_id: string; p_parent_kit_id: string }
         Returns: boolean
@@ -1979,8 +2327,53 @@ export type Database = {
         }
         Returns: string
       }
-      track_purchase_line_as_equipment: {
-        Args: { p_line_id: string }
+      log_participant_event: {
+        Args: {
+          p_entity_id: string
+          p_event: string
+          p_extra?: Json
+          p_gig_id: string
+          p_subject_org: string
+        }
+        Returns: undefined
+      }
+      lot_pieces_out: {
+        Args: { p_asset_id: string; p_gig_id?: string }
+        Returns: number
+      }
+      maintenance_apply: { Args: { p_asset_id: string }; Returns: string }
+      maintenance_log: {
+        Args: {
+          p_asset: Database["public"]["Tables"]["assets"]["Row"]
+          p_context: Json
+          p_event: string
+          p_gig_id?: string
+        }
+        Returns: undefined
+      }
+      maintenance_send: {
+        Args: {
+          p_asset_id: string
+          p_check_home: boolean
+          p_expected_back: string
+          p_gig_id: string
+          p_location: string
+          p_notes: string
+          p_quantity: number
+        }
+        Returns: string
+      }
+      member_role_in_org: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: Database["public"]["Enums"]["user_role"]
+      }
+      org_is_claimed: { Args: { p_org_id: string }; Returns: boolean }
+      org_participates_in_gig: {
+        Args: { p_gig_id: string; p_org_id: string }
+        Returns: boolean
+      }
+      purchase_line_depreciated_date: {
+        Args: { p_line: string }
         Returns: string
       }
       refresh_kit_flattened_cache: {
@@ -2004,6 +2397,7 @@ export type Database = {
         Args: { p_actor_id?: string; p_member_id: string }
         Returns: undefined
       }
+      return_to_service: { Args: { p_asset_id: string }; Returns: string }
       search_name_rank: {
         Args: { p_name: string; p_query: string }
         Returns: number
@@ -2049,6 +2443,17 @@ export type Database = {
           organization_names: string[]
         }[]
       }
+      send_to_maintenance: {
+        Args: {
+          p_asset_id: string
+          p_expected_back?: string | null
+          p_gig_id?: string | null
+          p_location?: string | null
+          p_notes?: string | null
+          p_quantity: number
+        }
+        Returns: string
+      }
       set_gig_participant_contact_primary: {
         Args: {
           p_actor_id?: string
@@ -2063,6 +2468,13 @@ export type Database = {
         Args: { p_actor_id?: string; p_member_id: string }
         Returns: undefined
       }
+      signed_in_email: { Args: never; Returns: string }
+      tax_year_is_locked: {
+        Args: { p_date: string; p_org: string }
+        Returns: boolean
+      }
+      undo_write_off: { Args: { p_asset_id: string }; Returns: string }
+      unit_out_at: { Args: { p_asset_id: string }; Returns: string }
       unset_organization_primary_contact: {
         Args: { p_actor_id?: string; p_member_id: string }
         Returns: undefined
@@ -2071,29 +2483,14 @@ export type Database = {
         Args: { p_asset_id: string; p_status: string }
         Returns: undefined
       }
-      send_to_maintenance: {
-        Args: {
-          p_asset_id: string
-          p_quantity: number
-          p_notes?: string | null
-          p_location?: string | null
-          p_expected_back?: string | null
-          p_gig_id?: string | null
-        }
-        Returns: string
-      }
       update_maintenance: {
         Args: {
           p_asset_id: string
-          p_notes: string | null
-          p_location: string | null
           p_expected_back: string | null
+          p_location: string | null
+          p_notes: string | null
         }
         Returns: undefined
-      }
-      return_to_service: {
-        Args: { p_asset_id: string }
-        Returns: string
       }
       update_organization_contact: {
         Args: {
@@ -2106,8 +2503,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      user_can_delete_gig: {
+        Args: { p_gig_id: string; p_user: string }
+        Returns: boolean
+      }
       user_can_manage_gig: {
         Args: { gig_id: string; user_uuid: string }
+        Returns: boolean
+      }
+      user_can_manage_gig_active: {
+        Args: { p_gig_id: string; p_user: string }
         Returns: boolean
       }
       user_can_manage_org_contacts: {
@@ -2131,8 +2536,16 @@ export type Database = {
         Args: { org_id: string; user_uuid: string }
         Returns: boolean
       }
+      user_is_assigned_to_staff_slot: {
+        Args: { p_slot_id: string; p_user_id: string }
+        Returns: boolean
+      }
       user_is_contact_status: { Args: { p_user_id: string }; Returns: boolean }
       user_is_member_of_org: {
+        Args: { org_id: string; user_uuid: string }
+        Returns: boolean
+      }
+      user_is_staff_or_above_of_org: {
         Args: { org_id: string; user_uuid: string }
         Returns: boolean
       }
@@ -2140,11 +2553,27 @@ export type Database = {
         Args: { p_gig_id: string; p_user: string }
         Returns: boolean
       }
+      user_manages_person: {
+        Args: { p_actor: string; p_person: string }
+        Returns: boolean
+      }
       user_organization_ids: {
         Args: { user_uuid: string }
         Returns: {
           organization_id: string
         }[]
+      }
+      write_off_pieces: {
+        Args: {
+          p_asset_id: string
+          p_gig_id?: string
+          p_kit_id?: string
+          p_note?: string
+          p_on?: string
+          p_quantity: number
+          p_still_out?: number
+        }
+        Returns: string
       }
     }
     Enums: {
@@ -2236,12 +2665,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2265,11 +2694,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2290,11 +2719,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2315,11 +2744,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2332,11 +2761,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

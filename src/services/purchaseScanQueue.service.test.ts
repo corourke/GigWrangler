@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createClient } from '../utils/supabase/client';
 import { uploadAttachment, deleteAttachment } from './attachment.service';
-import { enqueueInvoice, scanQueuedInvoice, discardQueuedInvoice, listScanQueue } from './purchaseScanQueue.service';
+import { enqueueInvoice, scanQueuedInvoice, discardQueuedInvoice, listScanQueue, removeFromScanQueue } from './purchaseScanQueue.service';
 
 vi.mock('../utils/supabase/client', () => ({ createClient: vi.fn() }));
 vi.mock('./attachment.service', () => ({
@@ -47,6 +47,31 @@ describe('purchase scan queue service', () => {
     expect(await listScanQueue('org-1')).toEqual([{ id: 'q1' }]);
     expect(chain.eq).toHaveBeenCalledWith('organization_id', 'org-1');
     expect(chain.order).toHaveBeenCalledWith('created_at', { ascending: true });
+  });
+
+  it('lists the queue with its file paths', async () => {
+    chain.order.mockResolvedValueOnce({ data: [], error: null });
+    await listScanQueue('org-1');
+    expect(chain.select).toHaveBeenCalledWith(
+      'id, organization_id, attachment_id, file_name, status, scanned_data, error, created_at, updated_at, attachments(file_path)');
+  });
+
+  it('a failed list says what it was doing', async () => {
+    chain.order.mockResolvedValueOnce({ data: null, error: { message: 'Failed to fetch' } });
+    await expect(listScanQueue('org-1')).rejects.toThrow(/load the scan queue/);
+  });
+
+  it('takes a saved invoice off the queue by its id', async () => {
+    chain.eq.mockResolvedValueOnce({ error: null });
+    await removeFromScanQueue('q1');
+    expect(chain.from).toHaveBeenCalledWith('purchase_scan_queue');
+    expect(chain.delete).toHaveBeenCalled();
+    expect(chain.eq).toHaveBeenCalledWith('id', 'q1');
+  });
+
+  it('a failed removal says what it was doing', async () => {
+    chain.eq.mockResolvedValueOnce({ error: { message: 'Failed to fetch' } });
+    await expect(removeFromScanQueue('q1')).rejects.toThrow(/remove the invoice from the scan queue/);
   });
 
   it('discarding deletes the file, which takes it off the queue', async () => {

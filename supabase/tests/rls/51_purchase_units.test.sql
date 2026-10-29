@@ -119,6 +119,24 @@ SELECT rls_test.expect('Another organization''s admin can''t add units to a line
   rls_test.run('b_admin', rls_test.add_units(rls_test.line('three K12s'), 'org_b')), -1);
 SELECT rls_test.expect('Nor with its own organization on the units',
   rls_test.run('b_admin', rls_test.add_units(rls_test.line('three K12s'), 'org_a')), -1);
+SELECT rls_test.expect('A purchase header can''t have units added',
+  rls_test.run('a_manager', rls_test.add_units((SELECT parent_id FROM purchases WHERE id = rls_test.line('three K12s')), 'org_a')), -1);
+-- An expensed line in a locked (filed) year can still be tracked, and stays an expense.
+WITH h AS (
+  INSERT INTO purchases (organization_id, row_type, purchase_date, vendor, total_inv_amount, description)
+  VALUES (rls_test.u('org_a'), 'header', '2025-02-14', 'Sweetwater', 314.30, 'cables') RETURNING id)
+INSERT INTO purchases (organization_id, parent_id, row_type, tax_treatment, purchase_date, vendor, quantity, item_price, item_cost, line_cost, description, category)
+SELECT rls_test.u('org_a'), h.id, 'line', 'expense', '2025-02-14', 'Sweetwater', 10, 29.99, 31.43, 314.30, '2025 cables', 'Audio' FROM h;
+INSERT INTO tax_years (organization_id, year) VALUES (rls_test.u('org_a'), 2025);
+SELECT rls_test.expect('A line in a locked year can have units added',
+  rls_test.run('a_manager', rls_test.add_units(rls_test.line('2025 cables'), 'org_a')), 1);
+SELECT rls_test.as_user('a_manager');
+SELECT public.add_purchase_line_units(rls_test.line('2025 cables'),
+  ARRAY[jsonb_build_object('organization_id', rls_test.u('org_a'), 'manufacturer_model', 'XLR cable 20ft', 'category', 'Audio', 'quantity', 10)]);
+SELECT rls_test.expect('It is then tracked, still an expense, and its lot copies the line',
+  (SELECT count(*)::int FROM purchases p JOIN assets a ON a.id = p.asset_id
+   WHERE p.id = rls_test.line('2025 cables') AND p.tax_treatment = 'expense' AND a.quantity = 10 AND a.item_cost = 31.43
+     AND a.acquisition_date = '2025-02-14' AND a.vendor = 'Sweetwater'), 1);
 
 -- 5. Changing the line's treatment reaches every unit --------------------------------------------
 UPDATE purchases SET tax_treatment = 'expense' WHERE id = rls_test.line('three K12s');
