@@ -28,6 +28,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { LocationCombobox } from './LocationCombobox';
 import { TrackingStatusBadge } from './TrackingStatusBadge';
+import { LineExtras, piecesOf } from './LineExtras';
 import { packedPieces } from '../../utils/packingSummary';
 import { loadPackingColumns, savePackingColumns, type PackingColumn } from '../../utils/packingColumns';
 import {
@@ -38,7 +39,7 @@ import {
 } from '../../services/inventoryManagement.service';
 import type {
   GigOption,
-  ManifestRow,
+  ManifestLine,
   PackingListRow,
 } from '../../services/inventoryManagement.service';
 
@@ -141,6 +142,50 @@ function ShowAllGigsCheckbox({ id, checked, onChange }: { id: string; checked: b
   );
 }
 
+/**
+ * One line of the manifest (#327): a kit or case (depth 0) or something in it (depth 1), and
+ * the "Not in a kit" heading over what isn't in one.
+ */
+interface ManifestDisplayLine {
+  key: string;
+  depth: 0 | 1;
+  name: string;
+  /** What was scanned; absent for an Items kit with no row of its own, and for the heading. */
+  item?: ManifestLine;
+  /** A kit or case line. */
+  kitId?: string;
+  isContainer?: boolean;
+  tag?: string | null;
+  notInKit?: boolean;
+}
+
+const byName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' });
+
+/** Kits and cases A to Z, each with what's in it, then what isn't in a kit (#327), as the packing list lists a gig. */
+function manifestLines(items: ManifestLine[]): ManifestDisplayLine[] {
+  const groups = new Map<string, ManifestLine[]>();
+  for (const item of items) groups.set(item.kit_id, [...(groups.get(item.kit_id) ?? []), item]);
+  const children = (list: ManifestLine[]) => list.filter((i) => i.asset_id)
+    .sort((a, b) => byName(a.asset_name ?? '', b.asset_name ?? '') || byName(a.tag_number ?? '', b.tag_number ?? ''))
+    .map((i, n): ManifestDisplayLine => ({ key: `${i.kit_id}-${i.asset_id}-${n}`, depth: 1, name: i.asset_name ?? '—', item: i }));
+  const kits = [...groups.entries()].filter(([kitId]) => kitId !== '')
+    .map(([kitId, list]) => ({ kitId, list, first: list[0] }))
+    .sort((a, b) => byName(a.first.kit_name ?? '', b.first.kit_name ?? ''));
+  const loose = groups.get('') ?? [];
+  return [
+    ...kits.flatMap(({ kitId, list, first }) => [
+      { key: `${kitId}-kit`, depth: 0 as const, name: first.kit_name ?? '—', item: list.find((i) => !i.asset_id), kitId,
+        isContainer: first.is_container, tag: first.kit_tag_number ?? null },
+      ...children(list),
+    ]),
+    ...(loose.length ? [{ key: 'not-in-a-kit', depth: 0 as const, name: 'Not in a kit', notInKit: true }, ...children(loose)] : []),
+  ];
+}
+
+/** Pieces a line stands for: a unit 1, a lot line its N, a case 1. An Items kit's own row isn't a piece. */
+const manifestPieces = (line: ManifestDisplayLine) =>
+  !line.item || (line.depth === 0 && !line.isContainer) ? 0 : piecesOf(line.item);
+
 function ManifestTab({
   organizationId,
   organizationName,
@@ -159,7 +204,7 @@ function ManifestTab({
   const [location, setLocation] = useState('');
   const [gigFilter, setGigFilter] = useState('all');
   const gigs = useGigsWithSelected(gigList, gigFilter);
-  const [rows, setRows] = useState<ManifestRow[]>([]);
+  const [rows, setRows] = useState<ManifestLine[]>([]);
   const [loading, setLoading] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Set<ManifestColumn>>(
     new Set(['status', 'gig', 'scanned_at', 'scanned_by', 'notes'])
@@ -210,28 +255,31 @@ function ManifestTab({
     fetchManifest();
   }, [fetchManifest]);
 
-  const rowsByKit = useMemo(() => {
-    const map = new Map<string, ManifestRow[]>();
-    for (const row of rows) {
-      const kitKey = row.kit_id;
-      const list = map.get(kitKey) ?? [];
-      list.push(row);
-      map.set(kitKey, list);
-    }
-    return map;
-  }, [rows]);
+  const lines = useMemo(() => manifestLines(rows), [rows]);
+  const kitCount = lines.filter((l) => l.kitId).length;
+  const pieceCount = lines.reduce((n, l) => n + manifestPieces(l), 0);
 
   const gigTitle = gigs.find((g) => g.id === gigFilter)?.title;
 
   const show = (col: ManifestColumn) => visibleColumns.has(col);
+  const blank = <span className="sr-only">None</span>;
 
   return (
     <div className="flex flex-col gap-4">
-      <PrintHeader
-        organizationName={organizationName}
-        reportTitle="Truck Manifest"
-        subtitle={[location, gigTitle].filter(Boolean).join(' — ')}
-      />
+      {/* Printed header (#327), as the packing list's: the place, then its kits and pieces. */}
+      <div data-testid="manifest-print-header" className="print-only hidden text-black mb-3">
+        <div className="flex justify-between items-start border-b-[3px] border-black pb-2">
+          <div className="flex flex-col gap-0.5">
+            <div className="text-[8pt] uppercase tracking-[0.1em]">Manifest · {organizationName}</div>
+            <div className="text-[16pt] font-bold">{location}</div>
+            {gigTitle && <div>{gigTitle}</div>}
+          </div>
+          <div className="text-right text-[8.5pt]">
+            {kitCount} kits · {pieceCount} pieces
+            <br />Printed {format(new Date(), 'MMM d, yyyy')}
+          </div>
+        </div>
+      </div>
 
       <div className="flex flex-wrap gap-3 items-end no-print">
         <div className="flex flex-col gap-1 min-w-[220px] flex-1">
@@ -312,88 +360,88 @@ function ManifestTab({
 
       {location && !loading && (
         <div className="rounded-md border overflow-hidden">
-          {rowsByKit.size === 0 ? (
+          {lines.length === 0 ? (
             <div className="flex items-center justify-center py-10">
-              <span className="text-sm text-muted-foreground">No items found at this location.</span>
+              <span className="text-sm text-muted-foreground">{`Nothing is at ${location} now.`}</span>
             </div>
           ) : (
-            Array.from(rowsByKit.entries()).map(([kitId, kitRows]) => {
-              const kitName = kitRows[0]?.kit_name ?? '—';
-              const hasConflict = conflictFlags.has(kitId);
-              return (
-                <div key={kitId}>
-                  <div className="bg-muted/40 px-4 py-2 flex items-center gap-2 border-b">
-                    <span className="font-medium text-sm">{kitName}</span>
-                    {hasConflict && <ConflictBadge />}
-                  </div>
-                  <Table className="[&_th]:border [&_td]:border">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-8 text-center">✓</TableHead>
-                        <TableHead>Asset / Kit</TableHead>
-                        <TableHead>Tag #</TableHead>
-                        {show('status') && <TableHead>Status</TableHead>}
-                        {show('gig') && <TableHead>Gig</TableHead>}
-                        {show('scanned_at') && <TableHead>Last Scanned</TableHead>}
-                        {show('scanned_by') && <TableHead>Scanned By</TableHead>}
-                        {show('notes') && <TableHead>Notes</TableHead>}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {kitRows.map((row, i) => {
-                        const rowKey = `${row.kit_id}-${row.asset_id ?? 'kit'}-${i}`;
-                        const isChecked = checkedRows.has(rowKey);
-                        return (
-                        <TableRow key={rowKey}>
-                          <TableCell className="text-center">
-                            <Checkbox
-                              aria-label={`Verified: ${row.asset_name ?? row.kit_name ?? 'item'}`}
-                              checked={isChecked}
-                              onCheckedChange={() => toggleChecked(rowKey)}
-                            />
-                          </TableCell>
-                          <TableCell className={`font-medium ${isChecked ? 'line-through text-muted-foreground' : ''}`}>
-                            {row.asset_name ?? row.kit_name ?? '—'}
-                          </TableCell>
-                          <TableCell>{row.tag_number ?? '—'}</TableCell>
-                          {show('status') && (
-                            <TableCell>
-                              <TrackingStatusBadge status={row.status} />
-                            </TableCell>
-                          )}
-                          {show('gig') && (
-                            <TableCell>{row.gig_title ?? '—'}</TableCell>
-                          )}
-                          {show('scanned_at') && (
-                            <TableCell className="text-xs text-muted-foreground">
-                              {formatScanned(row.scanned_at)}
-                            </TableCell>
-                          )}
-                          {show('scanned_by') && (
-                            <TableCell className="text-xs text-muted-foreground">
-                              {row.scanned_by_name ?? '—'}
-                            </TableCell>
-                          )}
-                          {show('notes') && (
-                            <TableCell className="text-xs text-muted-foreground">
-                              {row.notes ?? '—'}
-                            </TableCell>
-                          )}
-                        </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              );
-            })
+            <Table className="[&_th]:border [&_td]:border">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8 text-center">✓</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Tag #</TableHead>
+                  <TableHead className="text-center">Qty</TableHead>
+                  {show('status') && <TableHead>Status</TableHead>}
+                  {show('gig') && <TableHead>Gig</TableHead>}
+                  {show('scanned_at') && <TableHead>Last Scanned</TableHead>}
+                  {show('scanned_by') && <TableHead>Scanned By</TableHead>}
+                  {show('notes') && <TableHead>Notes</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {lines.map((line) => {
+                  const { item } = line;
+                  const isChecked = checkedRows.has(line.key);
+                  // A lot has no tag (Cameron, 10-29): its Tag # is blank, not "—".
+                  const tag = line.notInKit || item?.lot_of != null ? '' : (line.depth === 0 ? line.tag : item?.tag_number) ?? '—';
+                  const pieces = manifestPieces(line);
+                  return (
+                    <TableRow key={line.key} data-depth={line.depth} className={line.depth === 0 ? 'border-t-2' : undefined}>
+                      <TableCell className="text-center">
+                        {!line.notInKit && (
+                          <Checkbox
+                            aria-label={`Verified: ${line.name}`}
+                            checked={isChecked}
+                            onCheckedChange={() => toggleChecked(line.key)}
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell className={`${line.depth === 0 ? 'font-semibold' : ''} ${isChecked ? 'line-through text-muted-foreground' : ''}`}>
+                        <div className={`flex items-center gap-2 ${line.depth === 1 ? 'pl-6 relative before:absolute before:left-2 before:top-1/2 before:w-3 before:border-t before:border-border' : ''}`}>
+                          <span data-testid="manifest-name">{line.name}</span>
+                          {line.kitId && <KitTypeBadge isContainer={!!line.isContainer} />}
+                          {line.kitId && conflictFlags.has(line.kitId) && <ConflictBadge />}
+                          {item?.asset_id && <LineExtras item={item} />}
+                        </div>
+                        {(item?.contents?.length ?? 0) > 0 && (
+                          <div className="whitespace-normal pl-6 text-xs text-muted-foreground">{item!.contents!.join(' · ')}</div>
+                        )}
+                      </TableCell>
+                      <TableCell>{tag}</TableCell>
+                      <TableCell className="text-center">{pieces || ''}</TableCell>
+                      {show('status') && (
+                        <TableCell>{item ? <TrackingStatusBadge status={item.status} /> : blank}</TableCell>
+                      )}
+                      {show('gig') && (
+                        <TableCell>{item ? item.gig_title ?? '—' : blank}</TableCell>
+                      )}
+                      {show('scanned_at') && (
+                        <TableCell className="text-xs text-muted-foreground">
+                          {item ? formatScanned(item.scanned_at) : blank}
+                        </TableCell>
+                      )}
+                      {show('scanned_by') && (
+                        <TableCell className="text-xs text-muted-foreground">
+                          {item ? item.scanned_by_name ?? '—' : blank}
+                        </TableCell>
+                      )}
+                      {show('notes') && (
+                        <TableCell className="text-xs text-muted-foreground">
+                          {item ? item.notes ?? '—' : blank}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
         </div>
       )}
     </div>
   );
 }
-
 
 const PACKING_COLUMNS: { key: PackingColumn; label: string }[] = [
   { key: 'status', label: 'Status' },
