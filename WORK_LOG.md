@@ -5,6 +5,8 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Leads moved to nested sessions** (Cameron, 10-28; done 10-29): the Equipment Lead became a general **Engineering Lead** (`session_01LwY4oDQF3d4ov6DJYAeUHR`) and the Docs Lead moved to `session_01LwY4oEmi9cZB9ezMTCQp9a`, both created by the coordinator in Supabase Dev with briefs built from the old sessions' handoffs. The first attempt failed on the Supabase Dev setup script (unbound `SUPABASE_CLI_VERSION`; Cameron fixed it). Old sessions `session_013gAYYf…` and `session_0118YwkJ…` archived.
+
 - **PR #322** (Equipment Lead; merged 10-27 with Cameron's OK; closes #321): migration `20261027000000` adds Schedule C line 4 (cost of goods sold, Part III); the Expenses report keeps line 4 apart from the Part II total; the Schedule C summary shows line 4 and gross profit (net = gross profit − expenses). Applied to dev by the coordinator. Prod apply and deploy pending (Cameron).
 - **PR #320 closed unmerged** (10-27, Cameron): the #135 one-time fix scripts stay on branch `claude/135-fix`; Cameron runs the filled-in copy on prod.
 
