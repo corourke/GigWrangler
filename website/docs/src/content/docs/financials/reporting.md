@@ -42,6 +42,8 @@ A gig cost that came from a purchase isn't listed twice. The purchase counts it 
 
 The boxes at the top show **Expenses in {year}** and the number of **Items**. The first table groups the expenses by IRS Schedule C line, with each line's categories under it and a **Total**. Anything without a Schedule C line goes under "No Schedule C line", at the end.
 
+If you have expense categories on line 4, cost of goods sold (see [Goods you buy to resell](/settings/categories/#goods-you-buy-to-resell)), they get their own table first, "Line 4: Cost of goods sold (Part III), not in the expenses total", with its categories and a **Total**, and a **Cost of goods sold** box at the top. The table of the other lines follows under **Expenses (Part II)**. **Expenses in {year}** doesn't include line 4, but **Items** and **Every expense** do.
+
 Below it, **Every expense** lists each item with **Date paid**, **Source** (**Purchase** or **Gig**), **Payee**, **Description**, **Category**, **Line** and **Amount**. Mileage shows its miles beside the description. A purchase's amount includes its share of tax and shipping (see [Cost allocation](/financials/cost-allocation/)).
 
 An item whose category isn't on your expense list, or has none, can't be placed on a Schedule C line. An amber **Need a category** box counts them, and the category shows in amber. For a purchase, edit the purchase to choose a category; for a gig's own cost, edit the gig, then on its [Financials tab](/financials/gig-expenses/) open the cost's **⋯** menu → **Edit** and choose a **Category**. A gig cost only needs a category when it has none. Your lists are under [Expense and equipment categories](/settings/categories/).
@@ -85,7 +87,14 @@ The CSV adds the vendor and a **Tracked as equipment** column.
 
 The Schedule C report pulls the year together in the order of your Schedule C. It has no figures of its own: gross receipts are the Income report's total, and each line is the Expenses report's total for that line.
 
-The boxes at the top show **Gross receipts {year}**, **Expenses** and **Net before depreciation**. The table starts with **Gross receipts**, then lists each Schedule C line that has expenses, such as **Line 9: Car and truck expenses**, then **Total expenses** and **Net (before depreciation)**.
+The boxes at the top show **Gross receipts {year}**, **Expenses** and **Net before depreciation**. The table goes:
+
+1. **Gross receipts**.
+2. **Line 4: Cost of goods sold (Part III)**, the Expenses report's line 4 total ($0.00 if you have none).
+3. **Gross profit**: gross receipts less cost of goods sold.
+4. Each other Schedule C line that has expenses, such as **Line 9: Car and truck expenses**.
+5. **Total expenses**, which doesn't include line 4.
+6. **Net (before depreciation)**: gross profit less total expenses.
 
 - **Line 9** also shows its miles, and a note under it gives what those miles come to at the IRS rate on each trip's date. Mileage is counted once, on its category's line. If the mileage you recorded differs from the IRS-rate amount, or a trip has a different category, an amber note says what to correct on the gig's [Financials tab](/financials/gig-expenses/).
 - **No category (no Schedule C line)** appears in amber when some expenses have no category, or one that isn't on your list. It's included in the total. Fix it as described under [The Expenses report](#the-expenses-report).
@@ -93,9 +102,9 @@ The boxes at the top show **Gross receipts {year}**, **Expenses** and **Net befo
 
 Depreciation isn't included: "Depreciation and Section 179 are worked out by your tax program from the Assets report." If no expenses were paid, the table says "No expenses were paid in {year}."
 
-The CSV has the columns **Line**, **Description**, **Amount** and **Miles**.
+The CSV has the columns **Line**, **Description**, **Amount** and **Miles**, with the rows in the same order, line 4 and gross profit included.
 
-![The Schedule C report for 2026: gross receipts, expenses and net before depreciation, then a table from Gross receipts through Line 9 with 124 miles at the IRS rate, Lines 11, 20a, 22 and 27b, an amber No category row, Total expenses and Net, with the depreciation note below](../../../assets/screenshots/financials/reporting-schedule-c.png)
+![The Schedule C report for 2026: gross receipts, expenses and net before depreciation, then a table from Gross receipts, Line 4 Cost of goods sold at $0.00 and Gross profit, through Line 9 with 124 miles at the IRS rate, Lines 11, 20a, 22 and 27b, an amber No category row, Total expenses and Net, with the depreciation note below](../../../assets/screenshots/financials/reporting-schedule-c.png)
 
 ## The Needs attention report
 
