@@ -274,6 +274,22 @@ describe('inventoryManagement.service', () => {
       expect(truckCount).toBe(1);
     });
 
+    // #327 (Cameron, 10-29): every place ever scanned, not just the first 1,000 rows' worth.
+    it('reads past the 1,000-row cap', async () => {
+      const { getLocationSuggestions } = await import('./inventoryManagement.service');
+      const page1 = Array.from({ length: 1000 }, () => ({ location: 'Aisle 1' }));
+      const chain = makeQueryChain({ data: [], error: null });
+      chain.range = vi.fn((from: number) => ({
+        then: (resolve: any, reject: any) => Promise.resolve({ data: from === 0 ? page1 : [{ location: 'Zone Z' }], error: null }).then(resolve, reject),
+      }));
+      chain.then = (resolve: any, reject: any) => Promise.resolve({ data: page1, error: null }).then(resolve, reject);
+      mockSupabase.from.mockReturnValue(chain);
+
+      const result = await getLocationSuggestions('org-1');
+      expect(result).toContain('Aisle 1');
+      expect(result).toContain('Zone Z');
+    });
+
     it('returns sorted deduplicated list when DB returns empty', async () => {
       const { getLocationSuggestions } = await import('./inventoryManagement.service');
 
