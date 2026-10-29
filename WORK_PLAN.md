@@ -350,9 +350,9 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `financials/gig-expenses.md` | published | 2026-10-12 (Docs Lead, PRs #275, #277; matches prod) | projected staff estimate; Payment received → Apply to an open booking (#262); phone row names (#263) |
 | `financials/overview.md` | published | 2026-10-09 (Docs Lead, PR #227) | Upload Invoice is on the Items tab |
 | `financials/purchases.md` | published | 2026-10-09 (Docs Lead, PR #227) | Track as equipment makes a lot |
-| `financials/reporting.md` | published | 2026-10-09 (Docs Lead, PR #235; matches prod 10-09) | Schedule C and Needs attention documented; line 4 cost of goods sold and Gross profit (#322) drafted in PR #323, merge after #322 deploys |
+| `financials/reporting.md` | published | 2026-10-09 (Docs Lead, PR #235; matches prod 10-09) | Schedule C and Needs attention documented; line 4 cost of goods sold and Gross profit (#322) in PR #323; #322 in prod 10-29, awaiting merge OK |
 | `financials/receipts-and-invoices.md` | published | 2026-10-09 (Docs Lead, PR #227) | purchase form updated for #216/#221 (units/lots, Equipment details, quantity changes) |
-| `financials/tax-treatment.md` | published | 2026-10-09 (Docs Lead, PR #227) | equipment records and filed-year wording updated for #221; resale goods line (#322) in PR #323 |
+| `financials/tax-treatment.md` | published | 2026-10-09 (Docs Lead, PR #227) | equipment records and filed-year wording updated for #221; resale goods line (#322) in PR #323; #322 in prod 10-29, awaiting merge OK |
 | `getting-started/onboarding.md` | published | 2026-10-12 (Docs Lead, PR #277); screenshots PR #163 | Keeping up to date: the new-version notice (#264) |
 | `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes and screenshots in |
 | `getting-started/the-dashboard.md` | published | 2026-10-08 (Docs Lead, PR #207) | dashboard and Staff cards shots in; overview shot retakeable again (PR #261, merged 10-11); its list uses the server's real date, so move the seed anchor at the next full refresh |
@@ -376,7 +376,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `reference/access-requests-and-moderation.md` | published (PR #222) | 2026-10-07 (Docs Lead); screenshots PR #191 | — |
 | `reference/glossary.md` | published (PR #222) | 2026-10-07 (Docs Lead) | equipment terms (Asset, Kit, Container, Packing list) to revise with the Equipment pages |
 | `reference/roles-and-access.md` | published | 2026-10-09 (Docs Lead, PR #235; matches prod 10-09) | manager-only addresses redirect (#233) |
-| `settings/categories.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | corrections in; Goods you buy to resell (line 4, #322) drafted in PR #323, merge after #322 deploys |
+| `settings/categories.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | corrections in; Goods you buy to resell (line 4, #322) in PR #323; #322 in prod 10-29, awaiting merge OK |
 | `settings/google-calendar.md` | published | 2026-10-08 (Docs Lead, overnight rule checked) | connected-state shot needs a Google account |
 | `settings/overview.md` | published | 2026-10-08 (Docs Lead, Edit Organization button checked) | — |
 | `team/invitations.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #207) | — |
