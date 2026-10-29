@@ -210,7 +210,7 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 
 **Writers** (migration `20261007000000`, tests in `41_tax_treatment_writers.test.sql`):
 - `create_purchase_transaction_v2` stores each line's `tax_treatment` when given (and a unit's `recovery_period`; see below), and writes every line as `row_type = 'line'`. A line is tracked as equipment when `p_units` has entries for it (`line_index`). (v1, which took `track: true` and the old `row_type: 'asset'`, was dropped by 20261025000000.)
-- `track_purchase_line_as_equipment(line)` (Admins and Managers) creates the equipment record from the line and links it. It changes nothing else, so it works on lines in a locked year. Since #183 D the app's **Track as equipment** makes the same lot through `add_purchase_line_units` instead (also fine in a locked year), so this function has no caller in the app and is dropped in a later migration.
+- `add_purchase_line_units(line, units)` (Admins and Managers, migration `20261017000000`, tests in `51_purchase_units.test.sql`) adds equipment records to a saved line and links the line to the first one if it wasn't tracked. It changes nothing else on the line, so it works on lines in a locked year. **Track as equipment** and the review screen use it. (`track_purchase_line_as_equipment`, which did this for one record before #183 D, was dropped by `20261029000000`, #325.)
 
 **Choosing the treatment** (UI, #133 step 2: `ReviewScannedDataDialog`, `src/utils/taxTreatment.ts`). Each line on the review screen has a **Track as equipment** checkbox (column "Equip") and an **Expense | Depreciate** switch with a (?) that shows:
 
@@ -222,7 +222,7 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 - **Saving waits** until every grey-zone line has a choice.
 - **Depreciate ticks equipment** and keeps it ticked.
 - **Edit mode:**
-  - you can change the treatment, or start tracking a line (the dialog calls `track_purchase_line_as_equipment` first, then saves the treatment);
+  - you can change the treatment, or start tracking a line (the dialog adds its units with `add_purchase_line_units` first, then saves the treatment);
   - Depreciate is disabled on a line that's a gig expense;
   - a purchase dated in a locked year shows a notice, and only descriptions are sent (plus tracking).
 - **Purchases report:**
@@ -266,7 +266,7 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 | Gig → **Expense / Mileage** | One money-out row | Mileage = miles × the IRS rate for the date (`src/utils/financials.utils.ts`; 2025–26 rates wrong, #125 F1). A simple expense can carry a receipt (`gig_financial`). |
 | Staffing → **Finalize** | Money-out row at Owed | §2.4 |
 | Purchases report → line → **Assign Gig** | Line `gig_id`; then offers a paid money-out row at `line_cost` | Moving the line moves the row; clearing the gig offers to delete it; **Add to gig ledger** covers lines linked earlier. |
-| Purchases report → line → **Track as equipment** | An `assets` row linked to the line (RPC `track_purchase_line_as_equipment`) | Tax treatment unchanged; works in locked years. Replaced **Reclassify as Asset** (#133 step 2). |
+| Purchases report → line → **Track as equipment** | One lot of the line's quantity, linked to the line (RPC `add_purchase_line_units`) | Tax treatment unchanged; works in locked years. Replaced **Reclassify as Asset** (#133 step 2). |
 | Review screen (edit) → **Expense / Depreciate** | The line's `tax_treatment` | Depreciating first tracks the line as equipment. Not on a gig expense or in a locked year. |
 | Financials → Reporting → **Filed tax years** | `tax_years` rows (Admins) | Lock with the filed date; unlock to amend. |
 
