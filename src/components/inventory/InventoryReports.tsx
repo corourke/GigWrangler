@@ -28,7 +28,8 @@ import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { LocationCombobox } from './LocationCombobox';
 import { TrackingStatusBadge } from './TrackingStatusBadge';
-import { LineExtras, piecesOf } from './LineExtras';
+import { LineExtras } from './LineExtras';
+import { piecesOf } from './piecesOf';
 import { packedPieces } from '../../utils/packingSummary';
 import { loadPackingColumns, savePackingColumns, type PackingColumn } from '../../utils/packingColumns';
 import {

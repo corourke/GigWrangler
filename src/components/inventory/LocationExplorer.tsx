@@ -34,7 +34,8 @@ import { whereCardText } from '../../utils/whereaboutText';
 import { RETURNED_STATUS, SCANNING_MODES } from '../../config/inventoryWorkflow';
 import { TRACKING_STATUS_CONFIG } from '../../utils/supabase/constants';
 import type { UserRole } from '../../utils/supabase/types';
-import { LineExtras, piecesOf } from './LineExtras';
+import { LineExtras } from './LineExtras';
+import { piecesOf } from './piecesOf';
 
 interface LocationExplorerProps {
   organizationId: string;
