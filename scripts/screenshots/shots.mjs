@@ -781,6 +781,23 @@ export const shots = [
   },
   // Kits: the kit page and the kit editor, for Main PA: 4 Top / 2 Sub.
   {
+    id: 'equipment/kits-list',
+    page: 'equipment/kits.md',
+    user: 'admin',
+    sources: ['src/components/KitListScreen.tsx'],
+    viewport: { width: 1200, height: 1200 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/kits`);
+      await page.getByText('Main PA: 4 Top / 2 Sub').first().waitFor();
+      await page.getByText('6 of 29').first().waitFor();
+    },
+    // From the Equipment header through the list's card.
+    clip: async (page) => {
+      const t = await box(page.locator('table').first());
+      return { x: 0, y: 56, width: 1200, height: t.y + t.height + 36 - 56 };
+    },
+  },
+  {
     id: 'equipment/kits-kit-page',
     page: 'equipment/kits.md',
     user: 'admin',

@@ -74,6 +74,16 @@
     "taken": "2026-10-12",
     "appCommit": "337a8ee"
   },
+  "equipment/kits-list": {
+    "page": "equipment/kits.md",
+    "user": "admin",
+    "sources": [
+      "src/components/KitListScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-29",
+    "appCommit": "1ddd944"
+  },
   "equipment/location-explorer-overview": {
     "page": "equipment/location-explorer.md",
     "user": "admin",
