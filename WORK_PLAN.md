@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-29 (coordinator: **Leads replaced by nested sessions under the coordinator (Cameron, 10-28):** the **Engineering Lead** (`session_01LwY4oDQF3d4ov6DJYAeUHR`, general engineering, replaces the Equipment Lead) and the **Docs Lead** (`session_01LwY4oEmi9cZB9ezMTCQp9a`); both Supabase Dev, no prod access, and both can message the coordinator. The old sessions are archived after writing handoffs. Engineering Lead waits for its next item; Docs Lead drafts #322's pages (merge after #322 deploys). Cameron's prod steps for #322/#135 still pending)
+- **Last updated:** 2026-10-29 (coordinator: Leads are nested sessions (Engineering Lead `session_01LwY4oDQF3d4ov6DJYAeUHR`, Docs Lead `session_01LwY4oEmi9cZB9ezMTCQp9a`). **Engineering Lead:** #325 cleanup (drop `track_purchase_line_as_equipment`, migration `20261029000000` on dev; regenerate types), then **rework Locations → Print manifest** (Cameron 10-29; plan on an issue first). Audit SQL in CI dropped (Cameron 10-29: the 2026 queries are a dated reference). **Docs:** #324 merged; #323 held until #322 is in prod. **Cameron's prod steps:** `20261027000000`, deploy, #135 apply, COGS category)
 
 ---
 
