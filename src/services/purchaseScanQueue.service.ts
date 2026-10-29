@@ -1,4 +1,4 @@
-import { getSupabase } from './base/dataAccess';
+import { getSupabase, listRecords, deleteRecord } from './base/dataAccess';
 import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
 import { uploadAttachment, deleteAttachment, getAttachmentUrl } from './attachment.service';
 
@@ -26,28 +26,24 @@ const COLUMNS = 'id, organization_id, attachment_id, file_name, status, scanned_
 
 /** The org's queue, oldest first, so invoices are reviewed in the order they were added. */
 export async function listScanQueue(organizationId: string): Promise<ScanQueueItem[]> {
-  try {
-    const { data, error } = await (getSupabase() as any).from('purchase_scan_queue')
-      .select(COLUMNS)
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: true });
-    if (error) throw error;
-    return data ?? [];
-  } catch (err) {
-    return handleApiError(err, 'load the scan queue');
-  }
+  return listRecords<ScanQueueItem>('purchase_scan_queue', {
+    select: COLUMNS,
+    filters: [{ column: 'organization_id', operator: 'eq', value: organizationId }],
+    order: { column: 'created_at', ascending: true },
+    context: 'load the scan queue',
+  });
 }
 
 /** Uploads an invoice file and adds it to the queue, waiting to be scanned. */
 export async function enqueueInvoice(organizationId: string, file: File): Promise<ScanQueueItem> {
   const attachment = await uploadAttachment(organizationId, file);
   try {
-    const { data, error } = await (getSupabase() as any).from('purchase_scan_queue')
+    const { data, error } = await getSupabase().from('purchase_scan_queue')
       .insert({ organization_id: organizationId, attachment_id: attachment.id, file_name: file.name })
       .select(COLUMNS)
       .single();
     if (error) throw error;
-    return data;
+    return data as ScanQueueItem; // status is text in the table; the check constraint keeps it to ScanQueueStatus
   } catch (err) {
     await deleteAttachment(attachment.id).catch(() => {});
     return handleApiError(err, 'add the invoice to the scan queue');
@@ -67,12 +63,7 @@ export async function scanQueuedInvoice(queueItemId: string) {
 
 /** Takes an invoice off the queue once its purchase is saved; the file stays, linked to the purchase. */
 export async function removeFromScanQueue(queueItemId: string): Promise<void> {
-  try {
-    const { error } = await (getSupabase() as any).from('purchase_scan_queue').delete().eq('id', queueItemId);
-    if (error) throw error;
-  } catch (err) {
-    return handleApiError(err, 'remove the invoice from the scan queue');
-  }
+  return deleteRecord('purchase_scan_queue', queueItemId, { context: 'remove the invoice from the scan queue' });
 }
 
 /** Discards a queued invoice: deletes its file, which also removes it from the queue. */
