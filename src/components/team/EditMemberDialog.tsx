@@ -52,7 +52,7 @@ export default function EditMemberDialog({
     setEditForm({
       first_name: member.user.first_name,
       last_name: member.user.last_name,
-      email: member.user.email,
+      email: member.user.email ?? '',
       phone: member.user.phone || '',
       avatar_url: member.user.avatar_url || '',
       address_line1: member.user.address_line1 || '',

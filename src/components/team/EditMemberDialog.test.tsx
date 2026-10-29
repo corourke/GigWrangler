@@ -86,3 +86,20 @@ describe('EditMemberDialog — Organization Role', () => {
     expect(data.role).toBeUndefined();
   });
 });
+
+describe('EditMemberDialog — member with no email (#325)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('shows the email blank and asks for it on save, rather than throwing', async () => {
+    const { toast } = await import('sonner');
+    const noEmail = { ...member('Staff'), user: { ...member('Staff').user, email: null } } as unknown as OrganizationMember;
+    render(
+      <EditMemberDialog open onOpenChange={vi.fn()} orgId="org-1" member={noEmail}
+        currentUserId="me" currentUserRole="Admin" staffRoles={[]} />,
+    );
+    expect(screen.getByLabelText(/^Email/)).toHaveValue('');
+    fireEvent.click(screen.getByText('Save Changes'));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Please fill in all required fields'));
+    expect(organizationService.updateMemberDetails).not.toHaveBeenCalled();
+  });
+});
