@@ -212,6 +212,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - Checked on dev at main f1f3d08.
   - **Merge after #299 and #303 deploy.**
   - Comments and edits on #302 still work under the old repo name, but events don't reach me: message me when it's time to merge.
+- **Docs Lead status, 10-29 21:05 UTC:** #323 merged (4e5a5bf); the guide matches prod through #322. Nothing open; waiting on #327 (manifest rework) for guide pages.
 - **Docs Lead status, 10-29 20:45 UTC:** PR #324 (Kits list screenshot) merged 10-29 (71e794b). Print manifest TODO is left alone, pending Cameron's call on rework.
 - **Docs Lead status, 10-29 20:40 UTC:** New Docs Lead session is up. PR #323 drafts #322 (cost of goods sold, line 4): categories, reporting and tax-treatment, plus the Schedule C shot. Checked on dev as admin and manager; head dd78718. **Merge after #322 deploys.**
 - **Docs Lead status, 10-24 05:15 UTC:** #302 is merged (2271003), and the guide matches prod for all of #186. No docs PRs are open and nothing is held.
@@ -341,7 +342,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `equipment/assigning-to-a-gig.md` | published (PRs #250, #259, #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | kit assignment, equipment table, Not returned, write-offs, Undo write-off on the equipment page (#270), Added at pack-out label |
 | `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/csv-asset-import.md` | published (PR #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | Importing equipment from a spreadsheet (#276): example/template, invoice rows, units vs lots, kits by name, fix and retry |
-| `equipment/inventory-reports.md` | published (PRs #250, #259, #277), packing list only | 2026-10-12 (Docs Lead; matches prod 10-12) | Columns remembered and printed, "N kits · M pieces", "4 of 6" lots (#267); packing-list shot; manifest and maintenance queue to come; Maintenance section (#186 steps 1–2) published in PR #301 (merged 10-23); shot cropped before actions until #300; phone step 3 and desktop step 4 published in PR #302 (merged 10-24); full-width shot retaken (#300 fixed); Manifest section held: Cameron chose to rework Print manifest (10-29), document after it ships |
+| `equipment/inventory-reports.md` | published (PRs #250, #259, #277), packing list only | 2026-10-12 (Docs Lead; matches prod 10-12) | Columns remembered and printed, "N kits · M pieces", "4 of 6" lots (#267); packing-list shot; manifest and maintenance queue to come; Maintenance section (#186 steps 1–2) published in PR #301 (merged 10-23); shot cropped before actions until #300; phone step 3 and desktop step 4 published in PR #302 (merged 10-24); full-width shot retaken (#300 fixed); Manifest section held: Cameron chose to rework Print manifest (10-29, #327), document after it ships |
 | `equipment/kits.md` | published (PRs #280, #288) | 2026-10-13 (Docs Lead; matches prod 10-13) | kit page (#273), editor, any lines, nesting, containers; Tracking Status "6 of 29" and tooltip (#282); full editor shot with Kit Contents (#283); Kits list shot published in PR #324 (merged 10-29) |
 | `equipment/location-explorer.md` | published (PRs #274, #287) | 2026-10-13 (Docs Lead; matches prod 10-13) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; #268 update (Item filter and card, N of M, pieces, Move N, leave-the-case) published in PR #287 (merged 10-13), overview shot retaken; Mark for Maintenance → Sending to maintenance, In maintenance / Flagged tags, card text (#303), published in PR #302 |
 | `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages; Maintenance tab row (PR #301) |
@@ -350,9 +351,9 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `financials/gig-expenses.md` | published | 2026-10-12 (Docs Lead, PRs #275, #277; matches prod) | projected staff estimate; Payment received → Apply to an open booking (#262); phone row names (#263) |
 | `financials/overview.md` | published | 2026-10-09 (Docs Lead, PR #227) | Upload Invoice is on the Items tab |
 | `financials/purchases.md` | published | 2026-10-09 (Docs Lead, PR #227) | Track as equipment makes a lot |
-| `financials/reporting.md` | published | 2026-10-09 (Docs Lead, PR #235; matches prod 10-09) | Schedule C and Needs attention documented; line 4 cost of goods sold and Gross profit (#322) in PR #323; #322 in prod 10-29, awaiting merge OK |
+| `financials/reporting.md` | published | 2026-10-29 (Docs Lead, PR #323; matches prod 10-29) | Schedule C and Needs attention documented; line 4 cost of goods sold and Gross profit (#322) published in PR #323 (merged 10-29) |
 | `financials/receipts-and-invoices.md` | published | 2026-10-09 (Docs Lead, PR #227) | purchase form updated for #216/#221 (units/lots, Equipment details, quantity changes) |
-| `financials/tax-treatment.md` | published | 2026-10-09 (Docs Lead, PR #227) | equipment records and filed-year wording updated for #221; resale goods line (#322) in PR #323; #322 in prod 10-29, awaiting merge OK |
+| `financials/tax-treatment.md` | published | 2026-10-29 (Docs Lead, PR #323; matches prod 10-29) | equipment records and filed-year wording updated for #221; resale goods line (#322) published in PR #323 (merged 10-29) |
 | `getting-started/onboarding.md` | published | 2026-10-12 (Docs Lead, PR #277); screenshots PR #163 | Keeping up to date: the new-version notice (#264) |
 | `getting-started/organizations.md` | published | 2026-10-08 (Docs Lead, PR #191, merged) | fixes and screenshots in |
 | `getting-started/the-dashboard.md` | published | 2026-10-08 (Docs Lead, PR #207) | dashboard and Staff cards shots in; overview shot retakeable again (PR #261, merged 10-11); its list uses the server's real date, so move the seed anchor at the next full refresh |
@@ -376,7 +377,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `reference/access-requests-and-moderation.md` | published (PR #222) | 2026-10-07 (Docs Lead); screenshots PR #191 | — |
 | `reference/glossary.md` | published (PR #222) | 2026-10-07 (Docs Lead) | equipment terms (Asset, Kit, Container, Packing list) to revise with the Equipment pages |
 | `reference/roles-and-access.md` | published | 2026-10-09 (Docs Lead, PR #235; matches prod 10-09) | manager-only addresses redirect (#233) |
-| `settings/categories.md` | published | 2026-10-08 (Docs Lead, PR #189, merged) | corrections in; Goods you buy to resell (line 4, #322) in PR #323; #322 in prod 10-29, awaiting merge OK |
+| `settings/categories.md` | published | 2026-10-29 (Docs Lead, PR #323; matches prod 10-29) | corrections in; Goods you buy to resell (line 4, #322) published in PR #323 (merged 10-29) |
 | `settings/google-calendar.md` | published | 2026-10-08 (Docs Lead, overnight rule checked) | connected-state shot needs a Google account |
 | `settings/overview.md` | published | 2026-10-08 (Docs Lead, Edit Organization button checked) | — |
 | `team/invitations.md` | published (PR #222) | 2026-10-08 (Docs Lead, PR #207) | — |
