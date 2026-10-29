@@ -1,4 +1,4 @@
-import { getSupabase } from './base/dataAccess';
+import { getSupabase, listAllRecords } from './base/dataAccess';
 import { handleApiError } from '../utils/api-error-utils';
 import { SCANNING_MODES, RETURNED_STATUS } from '../config/inventoryWorkflow';
 import { getKitComponentTree, flattenToScanUnits, type KitComponentTreeNode } from './kit.service';
@@ -359,26 +359,17 @@ export async function getGigsForReportPicker(
   }
 }
 
+/** Every place the org has ever scanned at, plus the scanning defaults: all pages, not the first 1,000 rows (#327). */
 export async function getLocationSuggestions(organizationId: string): Promise<string[]> {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase
-      .from('inventory_tracking')
-      .select('location')
-      .eq('organization_id', organizationId)
-      .not('location', 'is', null)
-      .order('location');
-
-    if (error) throw error;
-
-    const dbLocations = (data ?? []).map((r: any) => r.location as string).filter(Boolean);
-    const modeDefaults = SCANNING_MODES.map((m) => m.locationLabel);
-
-    const combined = Array.from(new Set([...dbLocations, ...modeDefaults])).sort();
-    return combined;
-  } catch (err) {
-    return handleApiError(err, 'get location suggestions');
-  }
+  const rows = await listAllRecords<{ location: string | null }>('inventory_tracking', {
+    select: 'location',
+    filters: [{ column: 'organization_id', operator: 'eq', value: organizationId }],
+    order: [{ column: 'location' }, { column: 'id' }],
+    context: 'get location suggestions',
+  });
+  const dbLocations = rows.map((r) => r.location).filter((l): l is string => !!l);
+  const modeDefaults = SCANNING_MODES.map((m) => m.locationLabel);
+  return Array.from(new Set([...dbLocations, ...modeDefaults])).sort();
 }
 
 export async function getItemsByLocation(
