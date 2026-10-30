@@ -1036,3 +1036,79 @@ describe('ReviewScannedDataDialog: one record per unit (#183)', () => {
       && u.recovery_period === 7)).toBe(true);
   });
 });
+
+// #330: a saved line keeps its stored line_cost / line_amount unless its own quantity, price or
+// cost share changes. Here "Heads" was trimmed by 6¢ so the lines add up to the paid total:
+// 10 × 23.921 = 239.21 but it stores 239.15; 10 × 23.899 = 238.99 but it stores 239.00.
+describe('ReviewScannedDataDialog: editing keeps stored line totals (#330)', () => {
+  const heads = { id: 'l1', row_type: 'line', tax_treatment: 'expense', description: 'Heads', quantity: 10, item_price: 23.899, item_cost: 23.921,
+    line_amount: 239.0, line_cost: 239.15, asset_id: null, category: 'Small audio parts', gig_id: null as string | null };
+  const cable = { id: 'l2', row_type: 'line', tax_treatment: 'expense', description: 'Cable', quantity: 2, item_price: 30, item_cost: 30.425,
+    line_amount: 60, line_cost: 60.85, asset_id: null, category: 'Small audio parts', gig_id: null as string | null };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  const openEdit = async (opts: { total?: number; ledger?: boolean } = {}) => {
+    const svc = await import('../services/purchase.service');
+    const gigId = opts.ledger ? 'g1' : null;
+    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({
+      id: 'h1', vendor: 'Sweetwater', purchase_date: '2026-06-23', total_inv_amount: opts.total ?? 300, description: 'Parts', gig_id: gigId,
+      items: [{ ...heads, gig_id: gigId }, { ...cable }], assets: [], attachments: [],
+    } as any);
+    const gigs = await import('../services/gig.service');
+    vi.mocked(gigs.getGigFinancials).mockResolvedValue(opts.ledger ? [{ id: 'f1', purchase_id: 'l1', amount: 239.15 }] as any : []);
+    const years = await import('../services/taxYear.service');
+    vi.mocked(years.getLockedTaxYears).mockResolvedValue(new Set());
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} onUpdated={vi.fn()} organizationId="org-1" scannedData={null} file={null} editPurchaseId="h1" />);
+    await screen.findByRole('group', { name: 'Tax treatment: Heads' });
+    return svc;
+  };
+  const sent = (svc: any, id: string) => vi.mocked(svc.updatePurchase).mock.calls.find(([lineId]: any[]) => lineId === id)![1] as any;
+
+  it('saved with no changes, every stored total comes back as it was, and no gig-ledger change is offered', async () => {
+    const svc = await openEdit({ ledger: true });
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('l2', expect.anything()));
+    expect(sent(svc, 'l1')).toMatchObject({ line_cost: 239.15, line_amount: 239.0, item_cost: 23.921, item_price: 23.899, quantity: 10 });
+    expect(sent(svc, 'l2')).toMatchObject({ line_cost: 60.85, line_amount: 60, item_cost: 30.425, item_price: 30, quantity: 2 });
+    expect(screen.queryByRole('button', { name: /Confirm & Save/ })).not.toBeInTheDocument();
+    const gigs = await import('../services/gig.service');
+    expect(gigs.updateGigFinancial).not.toHaveBeenCalled();
+  });
+
+  it('changing only a line\'s category keeps its stored totals, and the untouched line\'s', async () => {
+    const svc = await openEdit();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Expense category: Heads' }), 'Supplies');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('l2', expect.anything()));
+    expect(sent(svc, 'l1')).toMatchObject({ category: 'Supplies', line_cost: 239.15, line_amount: 239.0 });
+    expect(sent(svc, 'l2')).toMatchObject({ line_cost: 60.85, line_amount: 60 });
+  });
+
+  it('changing a quantity re-spreads the costs, and each line whose cost moved is recomputed', async () => {
+    const svc = await openEdit();
+    fireEvent.change(screen.getByDisplayValue('10'), { target: { value: '11' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('l2', expect.anything()));
+    const h = sent(svc, 'l1');
+    const c = sent(svc, 'l2');
+    expect(h.quantity).toBe(11);
+    expect(h.item_cost).not.toBe(23.921);
+    expect(h.line_cost).toBe(Number((11 * h.item_cost).toFixed(4)));
+    expect(h.line_amount).toBe(Number((11 * 23.899).toFixed(4)));
+    expect(c.item_cost).not.toBe(30.425);
+    expect(c.line_cost).toBe(Number((2 * c.item_cost).toFixed(4)));
+    expect(c.line_amount).toBe(60);
+  });
+
+  it('reads Reconciled when the stored line costs add up to the invoice', async () => {
+    await openEdit();
+    expect(screen.getByText(/Reconciled/)).toBeInTheDocument();
+    expect(screen.getByText(/Line costs \$300\.00 vs Invoice \$300\.00/)).toBeInTheDocument();
+  });
+
+  it('"Use $X" offers the stored line costs\' sum', async () => {
+    await openEdit({ total: 0 });
+    expect(await screen.findByRole('button', { name: 'Use $300.00' })).toBeInTheDocument();
+  });
+});
