@@ -274,6 +274,22 @@ describe('inventoryManagement.service', () => {
       expect(truckCount).toBe(1);
     });
 
+    // #327 (Cameron, 10-29): every place ever scanned, not just the first 1,000 rows' worth.
+    it('reads past the 1,000-row cap', async () => {
+      const { getLocationSuggestions } = await import('./inventoryManagement.service');
+      const page1 = Array.from({ length: 1000 }, () => ({ location: 'Aisle 1' }));
+      const chain = makeQueryChain({ data: [], error: null });
+      chain.range = vi.fn((from: number) => ({
+        then: (resolve: any, reject: any) => Promise.resolve({ data: from === 0 ? page1 : [{ location: 'Zone Z' }], error: null }).then(resolve, reject),
+      }));
+      chain.then = (resolve: any, reject: any) => Promise.resolve({ data: page1, error: null }).then(resolve, reject);
+      mockSupabase.from.mockReturnValue(chain);
+
+      const result = await getLocationSuggestions('org-1');
+      expect(result).toContain('Aisle 1');
+      expect(result).toContain('Zone Z');
+    });
+
     it('returns sorted deduplicated list when DB returns empty', async () => {
       const { getLocationSuggestions } = await import('./inventoryManagement.service');
 
@@ -858,6 +874,69 @@ describe('inventoryManagement.service', () => {
       expect(result).toHaveLength(1);
       // The later scan (through Mic Case, the nested sub-kit) wins.
       expect(result[0]).toMatchObject({ kit_id: 'kit-mic-case', kit_name: 'Mic Case', asset_id: 'asset-mic' });
+    });
+
+    // #327: what is at the place *now*, by the Locations rule, not each gig's last row there.
+    describe('current places (#327)', () => {
+      const trk = (id: string, asset_id: string | null, kit_id: string | null, gig_id: string, location: string, at: string, extra: any = {}) => ({
+        id, gig_id, kit_id, asset_id, status: location === 'Warehouse' ? 'In Warehouse' : 'In Transit', location, quantity: 1,
+        scanned_at: at, created_at: at, scanned_by: 'user-1', notes: null, scanned_by_user: null,
+        kit: kit_id ? { name: kit_id === 'case' ? 'Mic Case' : 'Small Gig Pack', is_container: kit_id === 'case', tag_number: kit_id === 'case' ? 'CASE-1' : null } : null,
+        gig: { title: gig_id }, ...extra,
+      });
+      const assets = [
+        { id: 'stand', manufacturer_model: 'Mic Stand', tag_number: 'MS-1', serial_number: null, quantity: 1, status: 'Active' },
+        { id: 'amp', manufacturer_model: 'Amp', tag_number: 'A-1', serial_number: null, quantity: 1, status: 'Active' },
+        { id: 'cables', manufacturer_model: 'XLR Cable, 25 ft', tag_number: null, serial_number: null, quantity: 10, status: 'Active' },
+      ];
+      function mockTables(rows: any[], kitComponents: any[] = []) {
+        mockSupabase.rpc = vi.fn().mockResolvedValue({ data: [], error: null });
+        mockSupabase.from.mockImplementation((table: string) => makeQueryChain(
+          table === 'inventory_tracking' ? { data: rows, error: null }
+            : table === 'assets' ? { data: assets, error: null }
+              : table === 'kits' ? { data: [{ id: 'case', name: 'Mic Case', category: null, is_container: true, tag_number: 'CASE-1' }], error: null }
+                : table === 'kit_components' ? { data: kitComponents, error: null }
+                  : { data: [], error: null }));
+      }
+
+      it('leaves out what has since moved somewhere else', async () => {
+        const { getManifestReport } = await import('./inventoryManagement.service');
+        mockTables([
+          trk('t1', 'stand', 'pack', 'gig-1', 'Truck', '2026-10-01T10:00:00Z'),
+          trk('t2', 'stand', 'pack', 'gig-1', 'Warehouse', '2026-10-02T10:00:00Z'),
+          trk('t3', 'amp', 'pack', 'gig-1', 'Truck', '2026-10-01T10:00:00Z'),
+        ]);
+        const result = await getManifestReport('org-1', { location: 'Truck' });
+        expect(result.map((r) => r.asset_id)).toEqual(['amp']);
+      });
+
+      it('lists an item once, though it was scanned here for two gigs', async () => {
+        const { getManifestReport } = await import('./inventoryManagement.service');
+        mockTables([
+          trk('t1', 'amp', 'pack', 'gig-1', 'Truck', '2026-10-01T10:00:00Z'),
+          trk('t2', 'amp', 'pack', 'gig-2', 'Truck', '2026-10-05T10:00:00Z'),
+        ]);
+        const result = await getManifestReport('org-1', { location: 'Truck' });
+        expect(result).toHaveLength(1);
+        expect(result[0]).toMatchObject({ asset_id: 'amp', gig_id: 'gig-2' });
+      });
+
+      it('gives a lot line its pieces here and the lot size, and keeps the row notes', async () => {
+        const { getManifestReport } = await import('./inventoryManagement.service');
+        mockTables([trk('t1', 'cables', 'pack', 'gig-1', 'Truck', '2026-10-01T10:00:00Z', { quantity: 4, notes: 'Bundled' })]);
+        const [line] = await getManifestReport('org-1', { location: 'Truck' });
+        expect(line).toMatchObject({ asset_id: 'cables', quantity: 4, lot_of: 10, notes: 'Bundled' });
+      });
+
+      it('says what a case here holds, with its tag', async () => {
+        const { getManifestReport } = await import('./inventoryManagement.service');
+        mockTables([trk('t1', null, 'case', 'gig-1', 'Truck', '2026-10-01T10:00:00Z')], [
+          { kit_id: 'case', asset_id: 'mic', child_kit_id: null, equipment_item_id: null, quantity: 2,
+            asset: { id: 'mic', manufacturer_model: 'Shure SM58', tag_number: null, serial_number: null, quantity: 1 } },
+        ]);
+        const [line] = await getManifestReport('org-1', { location: 'Truck' });
+        expect(line).toMatchObject({ kit_id: 'case', kit_tag_number: 'CASE-1', is_container: true, contents: ['2 × Shure SM58'] });
+      });
     });
   });
 

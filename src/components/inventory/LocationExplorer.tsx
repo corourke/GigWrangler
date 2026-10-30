@@ -34,6 +34,8 @@ import { whereCardText } from '../../utils/whereaboutText';
 import { RETURNED_STATUS, SCANNING_MODES } from '../../config/inventoryWorkflow';
 import { TRACKING_STATUS_CONFIG } from '../../utils/supabase/constants';
 import type { UserRole } from '../../utils/supabase/types';
+import { LineExtras } from './LineExtras';
+import { piecesOf } from './piecesOf';
 
 interface LocationExplorerProps {
   organizationId: string;
@@ -94,24 +96,13 @@ function formatLastScanned(isoString: string): string {
   }
 }
 
-/** Pieces at a place (#186): a unit is 1, a lot line its N. */
-const piecesOf = (item: LocationItem) => Math.max(1, Number(item.quantity ?? 1) || 1);
 
 /** A line's name, with "2 of 10" for part of a lot (#186). */
 function lineName(item: LocationItem) {
   return (
     <span className="inline-flex items-center gap-2">
       {item.asset_name ?? '—'}
-      {item.lot_of != null && <span className="text-xs text-muted-foreground whitespace-nowrap">{`${piecesOf(item)} of ${item.lot_of}`}</span>}
-      {/* #186 step 4: from the record itself, never an old "Maintenance" row. */}
-      {item.maintenance === 'in' && (
-        <span className="rounded border border-orange-200 bg-orange-50 px-1.5 text-[11px] text-orange-700 whitespace-nowrap">
-          {item.maintenance_location ? `In maintenance · ${item.maintenance_location}` : 'In maintenance'}
-        </span>
-      )}
-      {item.maintenance === 'flagged' && (
-        <span className="rounded border border-amber-200 bg-amber-50 px-1.5 text-[11px] text-amber-700 whitespace-nowrap">Flagged to maintenance</span>
-      )}
+      <LineExtras item={item} />
     </span>
   );
 }
