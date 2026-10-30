@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-29 (coordinator: **#322 in prod** (Cameron's deploy 10-29; verified read-only: `20261027000000` applied, line 4 present, build 2026-10-29T20:58Z). **Merged 10-29 with Cameron's OK:** #323 (guide for #322), #324 (Kits list shot), #326 (#325 cleanup; migration `20261029000000` on dev, **due in Cameron's next deploy**). **Engineering Lead:** #327 PR A (Location box click fix); PR B (manifest rework) waits on Cameron's Q1–Q4. **Cameron's #135 steps left:** run `apply.sql` (preview still passes, 194 changes), then the cost-of-goods category; item 10 later)
+- **Last updated:** 2026-10-30 (coordinator: **Merged 10-29 with Cameron's OK, not yet in prod:** #326 (migration `20261029000000`), #328 (Location box click), #329 (Print manifest rework; closes #327). **Next prod deploy due:** Cameron runs `./deploy_prod.sh` (one migration, frontend). **#135:** Parts 1–3 done (fix verified, 194/194; cost-of-goods category in place). Open: the SHEHDS 06-23 invoice is 6¢ off again because saving it in the app recomputed the 10-head line; Cameron trims the Worry-Free line $46.41 → $46.35; item 10 (filed 2024/2025 totals) later. **Engineering Lead next:** editing a purchase overwrites line costs (Cameron 10-30; plan on a new issue first). **Docs Lead:** manifest section for #329, held for the deploy)
 
 ---
 
@@ -389,6 +389,8 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 **Project rules that bite** ([AGENTS.md](./AGENTS.md)): approval before going from plan to code (rule 1); a failing test before a bug fix (rule 3); never edit a committed migration, and Cameron applies new ones (rule 4); list manual deploy and verification steps (rule 7). Prod is read-only for agents unless Cameron approves a specific change.
 
 ## 5. Future considerations (not open work)
+
+- **Lot buckets across kit levels (Engineering Lead, 10-29):** `currentRows` keys a lot as `lot:<asset>:<gig>:<kit>`, so a lot recorded under two non-container kit levels at one gig shows as two buckets on Locations and the manifest. Not seen in practice.
 
 - *From #183 (closed 10-18):* drop the v1 purchase RPCs in a later migration; one server-side RPC for a whole purchase edit, which would make lowering quantities on several lines atomic (#221 notes A–C).
 - *From the #281 re-review (10-12):* saving a gig's edit on mobile resets every participant's notes and client flag (MobileGigDetail sends only id, organization and role; `updateGigParticipants` writes `notes || null` and `is_client ?? false`). Prod today: 0 participant notes and 1 client flag, so little is at risk yet. Raised with Cameron; a fit for #175 PR 3 (UI).
