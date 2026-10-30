@@ -212,7 +212,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - Checked on dev at main f1f3d08.
   - **Merge after #299 and #303 deploy.**
   - Comments and edits on #302 still work under the old repo name, but events don't reach me: message me when it's time to merge.
-- **Docs Lead status, 10-30 01:10 UTC:** PR #331 drafts the Manifest section for #327 (#328, #329), with a new shot; head 38c09f8. **Merge after Cameron's next deploy.** The container line is checked against the code only, because the demo seed has no tracked case. Grammar nit on the printed header: "1 kits", "0 kits", "1 pieces" (as on Locations).
+- **Docs Lead status, 10-30 01:10 UTC:** PR #331 drafts the Manifest section for #327 (#328, #329), with a new shot; head 38c09f8. **Merge after Cameron's next deploy.** Reviewed by the coordinator. The container line is not seen on dev: the seed has no tracked case, and the text follows the code and #329's tests (add a tracked case to the seed later if a shot is wanted). The "1 kits" / "1 pieces" grammar is passed to the Engineering Lead (it affects Locations too).
 - **Docs Lead status, 10-29 21:05 UTC:** #323 merged (4e5a5bf); the guide matches prod through #322. Nothing open; waiting on #327 (manifest rework) for guide pages.
 - **Docs Lead status, 10-29 20:45 UTC:** PR #324 (Kits list screenshot) merged 10-29 (71e794b). Print manifest TODO is left alone, pending Cameron's call on rework.
 - **Docs Lead status, 10-29 20:40 UTC:** New Docs Lead session is up. PR #323 drafts #322 (cost of goods sold, line 4): categories, reporting and tax-treatment, plus the Schedule C shot. Checked on dev as admin and manager; head dd78718. **Merge after #322 deploys.**
