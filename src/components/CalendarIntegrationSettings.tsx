@@ -35,6 +35,7 @@ import {
   bulkSyncAllGigsServerSide,
 } from '../services/googleCalendar.service';
 import { UserGoogleCalendarSettings, GigSyncStatus } from '../utils/supabase/types';
+import { plural } from '../utils/plural';
 
 interface CalendarIntegrationSettingsProps {
   userId: string;
@@ -303,9 +304,9 @@ export default function CalendarIntegrationSettings({
       await loadSyncData();
 
       if (result.failed > 0) {
-        toast.warning(`Synced ${result.synced} gigs, ${result.failed} failed`);
+        toast.warning(`Synced ${plural(result.synced, 'gig')}, ${result.failed} failed`);
       } else {
-        toast.success(`Successfully synced ${result.synced} gigs`);
+        toast.success(`Successfully synced ${plural(result.synced, 'gig')}`);
       }
     } catch (error) {
       console.error('Error syncing gigs:', error);
@@ -329,9 +330,9 @@ export default function CalendarIntegrationSettings({
       await loadSyncData();
 
       if (result.failed > 0) {
-        toast.warning(`Re-synced ${result.total - result.failed} gigs, ${result.failed} failed`);
+        toast.warning(`Re-synced ${plural(result.total - result.failed, 'gig')}, ${result.failed} failed`);
       } else {
-        toast.success(`Successfully re-synced all ${result.total} gigs server-side`);
+        toast.success(`Successfully re-synced all ${plural(result.total, 'gig')} server-side`);
       }
     } catch (error) {
       console.error('Error server-side bulk syncing gigs:', error);

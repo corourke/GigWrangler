@@ -87,6 +87,12 @@ describe('MobileGigList', () => {
     expect(screen.getByText('Summer Festival')).toBeInTheDocument()
   })
 
+  it('counts one gig in the singular', async () => {
+    vi.mocked(getGigsForOrganization).mockResolvedValue([mockGigs[0]] as any)
+    render(<MobileGigList onViewGig={vi.fn()} />)
+    expect(await screen.findByText(/· 1 gig$/)).toBeInTheDocument()
+  })
+
   it('filters gigs by status tab', async () => {
     render(<MobileGigList onViewGig={vi.fn()} />)
 

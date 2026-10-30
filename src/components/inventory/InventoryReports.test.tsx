@@ -316,12 +316,19 @@ describe('PackingList: #245 follow-ups', () => {
     expect(header).not.toHaveTextContent('packed');
   });
 
+  it('counts one kit and one piece in the singular', async () => {
+    (getPackingListReport as any).mockResolvedValue([unit('amp', 1, { status: 'Checked Out' })]);
+    await renderPackingListTab();
+    expect(await screen.findByText('1 piece · 1 packed')).toBeInTheDocument();
+    expect(screen.getByTestId('packing-print-header')).toHaveTextContent('1 kit · 1 piece');
+  });
+
   it('a unit since moved to another gig reads Not scanned and isn\'t packed here', async () => {
     (getPackingListReport as any).mockResolvedValue([unit('moved', 0)]);
     await renderPackingListTab();
     const row = (await screen.findByText('moved')).closest('tr')!;
     expect(within(row).getByText('Not scanned')).toBeInTheDocument();
-    expect(screen.getByText('1 pieces · 0 packed')).toBeInTheDocument();
+    expect(screen.getByText('1 piece · 0 packed')).toBeInTheDocument();
   });
 
   // Cameron, 10-11: the Columns choice is remembered per browser, for every packing list.

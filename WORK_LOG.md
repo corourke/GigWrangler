@@ -5,6 +5,9 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **PR #328 and #329** (Engineering Lead; merged 10-29 with Cameron's OK; #327): the Location box opens on click (Locations filter and manifest); the Print manifest lists what is at the place now (newest row wins, once per item), in the packing list's grouping with Name / Tag # / Qty, "N of M" on lots, case contents, "Manifest · <org>" title, and suggestions read past the 1,000-row cap. Cameron's answers: lot Tag # blank, all statuses, title "Manifest", all places ever scanned; badges stay Container / Items.
+- **#135 on prod** (Cameron, 10-29): Part 2 fix applied (194 changes, verified value for value); cost-of-goods category "Cost of goods sold (resale)" on line 4 with the 10 SHEHDS resale heads. Saving that invoice in the app recomputed the line cost and undid its 6¢ trim (follow-up: Engineering Lead).
+
 - **Prod deploy, 10-29** (Cameron): #322 (cost of goods sold, Schedule C line 4). Verified read-only: migrations at `20261027000000`, line 4 present, build 2026-10-29T20:58Z with the Gross profit row.
 - **PR #326** (Engineering Lead; merged 10-29 with Cameron's OK; closes #325): migration `20261029000000` drops `track_purchase_line_as_equipment`; RLS 41's checks moved to 51; regenerated `database.types.ts` (adds `purchase_scan_queue`, ~35 functions); scan-queue service on the base helpers; null-safe `users.email` (fixes a crash saving a member with no email). On dev; prod apply pending.
 - **PR #323** (Docs Lead; merged 10-29): guide for #322 (categories, reporting, tax treatment). **PR #324** (Docs Lead; merged 10-29): Kits list screenshot.

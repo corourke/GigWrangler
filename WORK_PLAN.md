@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-29 (coordinator: **#322 in prod** (Cameron's deploy 10-29; verified read-only: `20261027000000` applied, line 4 present, build 2026-10-29T20:58Z). **Merged 10-29 with Cameron's OK:** #323 (guide for #322), #324 (Kits list shot), #326 (#325 cleanup; migration `20261029000000` on dev, **due in Cameron's next deploy**). **Engineering Lead:** #327 PR A (Location box click fix); PR B (manifest rework) waits on Cameron's Q1–Q4. **Cameron's #135 steps left:** run `apply.sql` (preview still passes, 194 changes), then the cost-of-goods category; item 10 later)
+- **Last updated:** 2026-10-30 (coordinator: **Merged 10-29 with Cameron's OK, not yet in prod:** #326 (migration `20261029000000`), #328 (Location box click), #329 (Print manifest rework; closes #327). **Next prod deploy due:** Cameron runs `./deploy_prod.sh` (one migration, frontend). **#135:** Parts 1–3 done (fix verified, 194/194; cost-of-goods category in place). Open: the SHEHDS 06-23 invoice is 6¢ off again because saving it in the app recomputed the 10-head line; Cameron trims the Worry-Free line $46.41 → $46.35; item 10 (filed 2024/2025 totals) later. **Engineering Lead next:** editing a purchase overwrites line costs (Cameron 10-30; plan on a new issue first). **Docs Lead:** manifest section for #329, held for the deploy)
 
 ---
 
@@ -212,6 +212,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - Checked on dev at main f1f3d08.
   - **Merge after #299 and #303 deploy.**
   - Comments and edits on #302 still work under the old repo name, but events don't reach me: message me when it's time to merge.
+- **Docs Lead status, 10-30 01:10 UTC:** PR #331 drafts the Manifest section for #327 (#328, #329), with a new shot; head 38c09f8. **Merge after Cameron's next deploy.** Reviewed by the coordinator. The container line is not seen on dev: the seed has no tracked case, and the text follows the code and #329's tests (add a tracked case to the seed later if a shot is wanted). The "1 kits" / "1 pieces" grammar is passed to the Engineering Lead (it affects Locations too).
 - **Docs Lead status, 10-29 21:05 UTC:** #323 merged (4e5a5bf); the guide matches prod through #322. Nothing open; waiting on #327 (manifest rework) for guide pages.
 - **Docs Lead status, 10-29 20:45 UTC:** PR #324 (Kits list screenshot) merged 10-29 (71e794b). Print manifest TODO is left alone, pending Cameron's call on rework.
 - **Docs Lead status, 10-29 20:40 UTC:** New Docs Lead session is up. PR #323 drafts #322 (cost of goods sold, line 4): categories, reporting and tax-treatment, plus the Schedule C shot. Checked on dev as admin and manager; head dd78718. **Merge after #322 deploys.**
@@ -342,7 +343,7 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 | `equipment/assigning-to-a-gig.md` | published (PRs #250, #259, #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | kit assignment, equipment table, Not returned, write-offs, Undo write-off on the equipment page (#270), Added at pack-out label |
 | `equipment/barcode-scanning.md` | draft | — | held: equipment rework (#162/#180) |
 | `equipment/csv-asset-import.md` | published (PR #277) | 2026-10-12 (Docs Lead; matches prod 10-12) | Importing equipment from a spreadsheet (#276): example/template, invoice rows, units vs lots, kits by name, fix and retry |
-| `equipment/inventory-reports.md` | published (PRs #250, #259, #277), packing list only | 2026-10-12 (Docs Lead; matches prod 10-12) | Columns remembered and printed, "N kits · M pieces", "4 of 6" lots (#267); packing-list shot; manifest and maintenance queue to come; Maintenance section (#186 steps 1–2) published in PR #301 (merged 10-23); shot cropped before actions until #300; phone step 3 and desktop step 4 published in PR #302 (merged 10-24); full-width shot retaken (#300 fixed); Manifest section held: Cameron chose to rework Print manifest (10-29, #327), document after it ships |
+| `equipment/inventory-reports.md` | published (PRs #250, #259, #277), packing list only | 2026-10-12 (Docs Lead; matches prod 10-12) | Columns remembered and printed, "N kits · M pieces", "4 of 6" lots (#267); packing-list shot; manifest and maintenance queue to come; Maintenance section (#186 steps 1–2) published in PR #301 (merged 10-23); shot cropped before actions until #300; phone step 3 and desktop step 4 published in PR #302 (merged 10-24); full-width shot retaken (#300 fixed); Manifest section (#327) drafted in PR #331, merge after Cameron's next deploy |
 | `equipment/kits.md` | published (PRs #280, #288) | 2026-10-13 (Docs Lead; matches prod 10-13) | kit page (#273), editor, any lines, nesting, containers; Tracking Status "6 of 29" and tooltip (#282); full editor shot with Kit Contents (#283); Kits list shot published in PR #324 (merged 10-29) |
 | `equipment/location-explorer.md` | published (PRs #274, #287) | 2026-10-13 (Docs Lead; matches prod 10-13) | Locations: status/place groups, cases and Contents, untagged items, filters, Override; #268 update (Item filter and card, N of M, pieces, Move N, leave-the-case) published in PR #287 (merged 10-13), overview shot retaken; Mark for Maintenance → Sending to maintenance, In maintenance / Flagged tags, card text (#303), published in PR #302 |
 | `equipment/overview.md` | published | 2026-10-10 (Docs Lead, PRs #241/#250) | links the two published equipment pages; Maintenance tab row (PR #301) |
@@ -389,6 +390,8 @@ All three merges are on main, not in prod yet; time the PR per STYLE.md.
 **Project rules that bite** ([AGENTS.md](./AGENTS.md)): approval before going from plan to code (rule 1); a failing test before a bug fix (rule 3); never edit a committed migration, and Cameron applies new ones (rule 4); list manual deploy and verification steps (rule 7). Prod is read-only for agents unless Cameron approves a specific change.
 
 ## 5. Future considerations (not open work)
+
+- **Lot buckets across kit levels (Engineering Lead, 10-29):** `currentRows` keys a lot as `lot:<asset>:<gig>:<kit>`, so a lot recorded under two non-container kit levels at one gig shows as two buckets on Locations and the manifest. Not seen in practice.
 
 - *From #183 (closed 10-18):* drop the v1 purchase RPCs in a later migration; one server-side RPC for a whole purchase edit, which would make lowering quantities on several lines atomic (#221 notes A–C).
 - *From the #281 re-review (10-12):* saving a gig's edit on mobile resets every participant's notes and client flag (MobileGigDetail sends only id, organization and role; `updateGigParticipants` writes `notes || null` and `is_client ?? false`). Prod today: 0 participant notes and 1 client flag, so little is at risk yet. Raised with Cameron; a fit for #175 PR 3 (UI).

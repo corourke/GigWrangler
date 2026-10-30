@@ -50,6 +50,12 @@ describe('NotReturnedSection (#185)', () => {
     expect(goneRow).toHaveTextContent('lost at load-out');
   });
 
+  it('says "1 piece still out" for a single piece', async () => {
+    vi.mocked(getGigReturns).mockResolvedValue({ notReturned: [k12], writtenOff: [] } as any);
+    render(<NotReturnedSection organizationId="org-1" gigId="gig-1" gigEnd={past} canEdit />);
+    expect(await screen.findByText('1 piece still out')).toBeInTheDocument();
+  });
+
   it('before the gig ends, only pieces already left behind are listed', async () => {
     render(<NotReturnedSection organizationId="org-1" gigId="gig-1" gigEnd={future} canEdit />);
     expect(await screen.findByText('XLR Cable, 50 ft')).toBeInTheDocument();

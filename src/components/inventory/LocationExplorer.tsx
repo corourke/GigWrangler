@@ -36,6 +36,7 @@ import { TRACKING_STATUS_CONFIG } from '../../utils/supabase/constants';
 import type { UserRole } from '../../utils/supabase/types';
 import { LineExtras } from './LineExtras';
 import { piecesOf } from './piecesOf';
+import { plural } from '../../utils/plural';
 
 interface LocationExplorerProps {
   organizationId: string;
@@ -349,7 +350,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                         <MapPin className="h-3.5 w-3.5" />
                         {location}
                         <span className="text-xs bg-muted px-2 py-0.5 rounded-full ml-1">
-                          {locationItems.reduce((n, i) => n + piecesOf(i), 0)} pieces
+                          {plural(locationItems.reduce((n, i) => n + piecesOf(i), 0), 'piece')}
                         </span>
                       </div>
 

@@ -542,10 +542,13 @@ describe('MobileInventoryMode', () => {
 
     beforeEach(() => { auth.role = 'Admin' })
 
+    // Role queries look only inside the count dialog: across the whole page each one took
+    // ~130 ms in a full run of this file, enough to time out under load (deploy gate, 10-30).
     async function countBack(user: ReturnType<typeof userEvent.setup>, minus: number) {
       await user.click(await screen.findByRole('button', { name: 'Check XLR Cable' }))
-      for (let i = 0; i < minus; i++) await user.click(screen.getByRole('button', { name: 'One fewer' }))
-      await user.click(screen.getByRole('button', { name: 'Confirm' }))
+      const dialog = within(screen.getByRole('dialog'))
+      for (let i = 0; i < minus; i++) await user.click(dialog.getByRole('button', { name: 'One fewer' }))
+      await user.click(dialog.getByRole('button', { name: 'Confirm' }))
     }
 
     it('Pack-Out starts at the full line; fewer packs fewer', async () => {
@@ -620,8 +623,9 @@ describe('MobileInventoryMode', () => {
       const { unmount } = render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
       await user.click(await screen.findByText(UNLOAD.label))
       await countBack(user, 3)
-      expect(screen.getByRole('button', { name: 'Leave at the gig' })).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Mark missing' })).not.toBeInTheDocument()
+      const asked = within(screen.getByRole('dialog'))
+      expect(asked.getByRole('button', { name: 'Leave at the gig' })).toBeInTheDocument()
+      expect(asked.queryByRole('button', { name: 'Mark missing' })).not.toBeInTheDocument()
       unmount()
 
       auth.role = 'Admin'
@@ -629,7 +633,9 @@ describe('MobileInventoryMode', () => {
       render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
       await user.click(await screen.findByText(UNLOAD.label))
       await countBack(user, 3)
-      expect(screen.queryByRole('button', { name: 'Mark missing' })).not.toBeInTheDocument()
+      const askedOffline = within(screen.getByRole('dialog'))
+      expect(askedOffline.getByRole('button', { name: 'Leave at the gig' })).toBeInTheDocument()
+      expect(askedOffline.queryByRole('button', { name: 'Mark missing' })).not.toBeInTheDocument()
     })
   })
 
@@ -895,7 +901,7 @@ describe('MobileInventoryMode', () => {
       expect(screen.queryByText(/Swapped/)).not.toBeInTheDocument()
       // K12-1 was put back, and nothing stands in for it: its line isn't packed.
       expect(screen.getByRole('button', { name: 'Check K12 Speaker' })).toBeInTheDocument()
-      expect(screen.getByText('0 / 1 pieces')).toBeInTheDocument()
+      expect(screen.getByText('0 / 1 piece')).toBeInTheDocument()
     })
   })
 
