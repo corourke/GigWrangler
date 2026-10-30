@@ -121,6 +121,8 @@ interface ScannedItem {
   _records?: any[];
   /** The line's quantity as loaded. */
   _loadedQuantity?: number;
+  /** The line's unit price and cost, and its stored totals, as loaded (#330). */
+  _loadedTotals?: { item_price: number; item_cost: number; line_amount: number | null; line_cost: number | null };
   /** The equipment as loaded: per-unit values are sent only when the pop-up changed them. */
   _savedEquipment?: EquipmentDetails;
 }
@@ -165,6 +167,25 @@ interface LineMismatch {
   markerId: string | null;
   /** Saved like this before (the line wasn't changed here): left as it is then. */
   leftBefore: boolean;
+}
+
+/**
+ * A line's cost total (#330): a saved line's stored line_cost, unless this edit changed its
+ * quantity or unit cost (its own price, or its share of tax and shipping when the total is
+ * re-spread); then quantity × unit cost. A stored total may differ by cents, trimmed so the
+ * lines add up to what was paid.
+ */
+function lineCost(item: ScannedItem): number {
+  const was = item._loadedTotals;
+  if (was?.line_cost != null && item.quantity === item._loadedQuantity && item.item_cost === was.item_cost) return Number(was.line_cost);
+  return Number(((item.item_cost ?? 0) * item.quantity).toFixed(4));
+}
+
+/** A line's printed total, by the same rule (#330): stored, unless its quantity or unit price changed. */
+function lineAmount(item: ScannedItem): number {
+  const was = item._loadedTotals;
+  if (was?.line_amount != null && item.quantity === item._loadedQuantity && item.item_price === was.item_price) return Number(was.line_amount);
+  return Number(((item.item_price ?? 0) * item.quantity).toFixed(4));
 }
 
 const recordLabel = (r: any) =>
@@ -394,6 +415,10 @@ export default function ReviewScannedDataDialog({
               _purchaseId: it.id,
               _assetId: it.asset_id || null,
               _loadedQuantity: it.quantity || 1,
+              _loadedTotals: {
+                item_price: it.item_price || 0, item_cost: it.item_cost || 0,
+                line_amount: it.line_amount ?? null, line_cost: it.line_cost ?? null,
+              },
               _gigId: it.gig_id || null,
             };
           }),
@@ -554,7 +579,7 @@ export default function ReviewScannedDataDialog({
   const useLinesTotal = () => {
     setFormData(prev => {
       if (!prev) return null;
-      const sum = prev.items.reduce((acc, item) => acc + ((item.item_cost ?? 0) * item.quantity), 0);
+      const sum = prev.items.reduce((acc, item) => acc + lineCost(item), 0);
       return { ...prev, total_inv_amount: Number(sum.toFixed(2)) };
     });
   };
@@ -779,8 +804,8 @@ export default function ReviewScannedDataDialog({
         quantity: item.quantity,
         item_price: item.item_price,
         item_cost: item.item_cost,
-        line_amount: Number((item.item_price * item.quantity).toFixed(4)),
-        line_cost: Number((item.item_cost * item.quantity).toFixed(4)),
+        line_amount: lineAmount(item),
+        line_cost: lineCost(item),
         category: item.category || fd.category,
         tax_treatment: item.tax_treatment ?? 'expense',
         // Lines take the purchase's date (#131), so none lands in the wrong tax year.
@@ -844,7 +869,7 @@ export default function ReviewScannedDataDialog({
       const led = ledgerByPurchaseId[item._purchaseId];
       if (!led) continue;
       // The line's cost, with its share of tax and shipping (#131), not the printed price.
-      const newAmt = Number((item.item_cost * item.quantity).toFixed(2));
+      const newAmt = Number(lineCost(item).toFixed(2));
       if (Number(led.amount) !== newAmt) {
         gigChanges.push({ finId: led.id, label: `${item.description || 'Line item'} → gig ledger`, from: Number(led.amount), to: newAmt,
           settle: led.amount_settled != null });
@@ -949,7 +974,7 @@ export default function ReviewScannedDataDialog({
 
   const fmtVal = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : String(v));
 
-  const calculatedTotalCost = formData.items.reduce((sum, item) => sum + ((item.item_cost ?? 0) * item.quantity), 0);
+  const calculatedTotalCost = formData.items.reduce((sum, item) => sum + lineCost(item), 0);
   const diff = Math.abs(calculatedTotalCost - formData.total_inv_amount);
   const hasMismatch = diff > 0.05;
   // A $0 or empty invoice total over lines that cost something is a missed field (#226).
@@ -1354,7 +1379,7 @@ export default function ReviewScannedDataDialog({
                         <div style={{ position: 'relative' }}>
                           <span style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 10 }}>$</span>
                           <NumericInput
-                            value={Number(((item.item_price ?? 0) * item.quantity).toFixed(2))}
+                            value={Number(lineAmount(item).toFixed(2))}
                             disabled={purchaseLocked}
                             onChange={v => handleLineAmtChange(index, v)}
                             className="pl-3.5 bg-white border-gray-200 h-6 text-[11px] text-right"
