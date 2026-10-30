@@ -36,6 +36,7 @@ import {
   PAST_FILTER_LABEL,
 } from '../gigs/GigDateFilterDropdown';
 import { GigStatusFilterDropdown } from '../gigs/GigStatusFilterDropdown';
+import { plural } from '../../utils/plural';
 
 interface MobileGigListProps {
   onViewGig: (gigId: string) => void;
@@ -191,7 +192,7 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
               {futureDateFilter === 'none' && pastDateFilter === 'none'
                 ? 'All Dates'
                 : [FUTURE_FILTER_LABEL[futureDateFilter], PAST_FILTER_LABEL[pastDateFilter]]
-                    .filter(Boolean).join(' / ')} · {filteredGigs.length} gigs
+                    .filter(Boolean).join(' / ')} · {plural(filteredGigs.length, 'gig')}
             </p>
           </div>
           <div className="flex items-center gap-1">

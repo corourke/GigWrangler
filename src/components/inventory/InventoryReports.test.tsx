@@ -328,7 +328,7 @@ describe('PackingList: #245 follow-ups', () => {
     await renderPackingListTab();
     const row = (await screen.findByText('moved')).closest('tr')!;
     expect(within(row).getByText('Not scanned')).toBeInTheDocument();
-    expect(screen.getByText('1 pieces · 0 packed')).toBeInTheDocument();
+    expect(screen.getByText('1 piece · 0 packed')).toBeInTheDocument();
   });
 
   // Cameron, 10-11: the Columns choice is remembered per browser, for every packing list.

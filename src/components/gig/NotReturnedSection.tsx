@@ -15,6 +15,7 @@ import { getLockedTaxYears } from '../../services/taxYear.service';
 import { recordKind } from '../../utils/equipmentItems';
 import { formatDateDisplay } from '../../utils/dateUtils';
 import { WRITE_OFF_LOCKED_MESSAGE } from '../../utils/writeOffMessages';
+import { plural } from '../../utils/plural';
 
 interface NotReturnedSectionProps {
   organizationId: string;
@@ -67,7 +68,7 @@ export default function NotReturnedSection({ organizationId, gigId, gigEnd, canE
   };
 
   return (
-    <GigSection title="Not returned" summary={shown.length ? `${shown.reduce((n, e) => n + e.quantity, 0)} pieces still out` : undefined}>
+    <GigSection title="Not returned" summary={shown.length ? `${plural(shown.reduce((n, e) => n + e.quantity, 0), 'piece')} still out` : undefined}>
       {shown.length > 0 && (
         <ul className="divide-y text-sm">
           {shown.map((e) => (

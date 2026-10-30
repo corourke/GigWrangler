@@ -895,7 +895,7 @@ describe('MobileInventoryMode', () => {
       expect(screen.queryByText(/Swapped/)).not.toBeInTheDocument()
       // K12-1 was put back, and nothing stands in for it: its line isn't packed.
       expect(screen.getByRole('button', { name: 'Check K12 Speaker' })).toBeInTheDocument()
-      expect(screen.getByText('0 / 1 pieces')).toBeInTheDocument()
+      expect(screen.getByText('0 / 1 piece')).toBeInTheDocument()
     })
   })
 

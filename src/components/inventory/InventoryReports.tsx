@@ -43,6 +43,7 @@ import type {
   ManifestLine,
   PackingListRow,
 } from '../../services/inventoryManagement.service';
+import { plural } from '../../utils/plural';
 
 interface InventoryReportsProps {
   organizationId: string;
@@ -276,7 +277,7 @@ function ManifestTab({
             {gigTitle && <div>{gigTitle}</div>}
           </div>
           <div className="text-right text-[8.5pt]">
-            {kitCount} kits · {pieceCount} pieces
+            {`${plural(kitCount, 'kit')} · ${plural(pieceCount, 'piece')}`}
             <br />Printed {format(new Date(), 'MMM d, yyyy')}
           </div>
         </div>
@@ -645,7 +646,7 @@ function PackingListTab({
           </div>
           <div className="text-right text-[8.5pt]">
             {/* Kits and pieces (#245, Cameron 10-11): the pack-out group isn't a kit. */}
-            {new Set(rows.filter((r) => !r.group_is_loose).map((r) => r.group_kit_id)).size} kits · {pieces.total} pieces
+            {`${plural(new Set(rows.filter((r) => !r.group_is_loose).map((r) => r.group_kit_id)).size, 'kit')} · ${plural(pieces.total, 'piece')}`}
             <br />Printed {format(new Date(), 'MMM d, yyyy')}
           </div>
         </div>
@@ -703,7 +704,7 @@ function PackingListTab({
       )}
 
       {gigId && !loading && rows.length > 0 && (
-        <p className="text-sm text-muted-foreground">{`${pieces.total} pieces · ${pieces.packed} packed`}</p>
+        <p className="text-sm text-muted-foreground">{`${plural(pieces.total, 'piece')} · ${pieces.packed} packed`}</p>
       )}
 
       {gigId && !loading && (

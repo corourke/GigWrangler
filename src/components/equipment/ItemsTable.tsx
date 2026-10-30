@@ -7,6 +7,7 @@ import { ASSET_STATUS_CONFIG } from '../../utils/supabase/constants';
 import { recordKind, summarizeItem, type ContainerPieces, type ItemSummary } from '../../utils/equipmentItems';
 import type { EquipmentItemWithRecords } from '../../services/equipmentItem.service';
 import type { DbAsset } from '../../utils/supabase/types';
+import { plural } from '../../utils/plural';
 
 export type TrackingSummary = Map<string, { status: string; location?: string | null; gigTitle?: string | null }>;
 
@@ -201,7 +202,7 @@ export default function ItemsTable({ items, containerPieces, tracking, onViewIte
           <tr className="border-t-2 bg-muted/30">
             <td />
             <td className="px-3 py-2 text-sm font-semibold" colSpan={2}>
-              {`${items.length} ${items.length === 1 ? 'item' : 'items'} · ${totals.units} units · ${totals.lots} lots`}
+              {`${plural(items.length, 'item')} · ${plural(totals.units, 'unit')} · ${plural(totals.lots, 'lot')}`}
             </td>
             <td className="px-3 py-2 text-right text-sm font-semibold tabular-nums">{totals.pieces}</td>
             <td colSpan={2} />

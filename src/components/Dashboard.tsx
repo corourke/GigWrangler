@@ -18,6 +18,7 @@ import { PageHeader } from './layout/PageHeader';
 import { getRecentActivity } from '../services/activityLog.service';
 import ActivityFeed from './ActivityFeed';
 import { canManage } from '../utils/permissions';
+import { plural } from '../utils/plural';
 
 interface DashboardProps {
   organization: Organization;
@@ -235,7 +236,7 @@ export default function Dashboard({
                   {stats.assetValues.ownedItems != null && (
                     <div className="flex items-baseline justify-between">
                       <p className="text-xs text-muted-foreground">Owned</p>
-                      <p className="text-foreground">{`${stats.assetValues.ownedItems} items · ${stats.assetValues.ownedPieces ?? 0} pieces`}</p>
+                      <p className="text-foreground">{`${plural(stats.assetValues.ownedItems, 'item')} · ${plural(stats.assetValues.ownedPieces ?? 0, 'piece')}`}</p>
                     </div>
                   )}
                 </div>

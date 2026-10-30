@@ -14,6 +14,7 @@ import {
 } from '../../services/inventoryManagement.service';
 import type { GigWithTracking, KitAssignmentWithTracking } from '../../services/inventoryManagement.service';
 import type { UserRole } from '../../utils/supabase/types';
+import { plural } from '../../utils/plural';
 
 interface InventorySummaryDashboardProps {
   /** Opens the scanning panel for a gig (Equipment › Out on gigs). */
@@ -198,7 +199,7 @@ function KitRow({ assignment, gigId, conflictKitIds, canOverride, onOverride }: 
               )
             ) : (
               <span>
-                {progress.scanned}/{progress.total} items scanned
+                {progress.scanned}/{plural(progress.total, 'item')} scanned
                 {progress.latestStatus ? ` — ${progress.latestStatus}` : ''}
               </span>
             )}
@@ -304,7 +305,7 @@ function GigRow({ gig, conflictKitIds, canOverride, onOverride, onTrack }: GigRo
             <div className="flex items-center gap-2 mt-0.5">
               <Progress value={progressPercent} className="h-1.5 flex-1 max-w-48" />
               <span className="text-xs text-muted-foreground shrink-0">
-                {onSite}/{total} items tracked
+                {onSite}/{plural(total, 'item')} tracked
               </span>
             </div>
           </div>
