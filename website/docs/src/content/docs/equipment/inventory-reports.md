@@ -1,19 +1,14 @@
 ---
 title: Inventory reports
-description: "A gig's packing list, and the Maintenance list of equipment out of service for repair."
+description: "A gig's packing list, the manifest of what's at a place, and the Maintenance list of equipment out of service for repair."
 sidebar:
   order: 6
 ---
 
 A gig's **packing list** shows what the gig needs and what's been packed for it. The
-[**Maintenance**](#maintenance) list shows what's out of service for repair.
-
-<!-- TODO: write the Manifest section. Still to cover:
-- **Manifest**: **Equipment → Locations → Print manifest**. Dedupes assets across kit
-  levels; interactive checkboxes on screen.
-- When a field tech reaches for it.
-Screenshots: Manifest with checkboxes.
-Source: Plan §4, Prompt 7. Commits `Inventory reports` (2026-05-31) + 2026-08-26 fixes. -->
+[**manifest**](#manifest) shows what's at one place right now, such as a truck or a
+warehouse bay. The [**Maintenance**](#maintenance) list shows what's out of service for
+repair.
 
 ## Packing list
 
@@ -133,6 +128,53 @@ To fill in by hand:
   you counted.
 - **Every line** has an empty box in the **✓** column to tick.
 
+
+## Manifest
+
+The manifest lists what's at one place right now, such as the "Truck" or "Warehouse,
+Bay 2", so you can walk the place and check it off, or print it to take along. It
+follows the same records as [Locations](/equipment/location-explorer/): something that
+has moved on isn't listed. Everyone in the organization can open it.
+
+1. Open **Equipment → Locations** and select **Print manifest**.
+2. In **Location**, pick a place from the list, or type one.
+3. To see only one gig's equipment there, choose it in **Gig (optional)**. The list holds
+   gigs from the last and next 30 days; check **Show all gigs** for the rest.
+
+Select **Close manifest** to go back to Locations.
+
+![The manifest for the Staging Area: Location, Gig (optional), Show all gigs, Columns and Print, then the Full Band Sound Package with its Items badge and KIT-004, and under it Armorline 8U Rack Case at 1 of 3, Netline 8-Port PoE Switch at 1 of 2, a mixing console and a stage box with their tags, and XLR Cable, 50 ft at 2 of 10, all Checked Out for the Harvest Gala Dinner & Dance](../../../assets/screenshots/equipment/inventory-reports-manifest.png)
+
+If nothing is there, you'll see "Nothing is at {place} now."
+
+### How the manifest is laid out
+
+Kits come first, A to Z. Each kit is a heading with an **Items** or **Container** badge
+and its tag, and the equipment of that kit that's at the place is indented under it.
+Equipment that isn't in a kit comes last, under **Not in a kit**.
+
+Every line has **Name**, **Tag #** and **Qty**. Choose the other columns under
+**Columns**: **Status**, **Gig**, **Last Scanned**, **Scanned By** and **Notes**.
+
+- **A unit** shows its tag, and a Qty of 1.
+- **A lot** shows how many of its pieces are at the place, such as "2 of 10" after
+  its name, and that number in **Qty**. Its **Tag #** is blank, because a lot has no
+  tag.
+- **A container** is one line with its tag and a Qty of 1, because it travels as one
+  case. Underneath, it lists what the case holds.
+- **Equipment in maintenance** has an **In maintenance** tag, and equipment flagged to
+  go has a **Flagged to maintenance** tag, as on Locations.
+
+### Checking off and printing
+
+Select the box in the **✓** column to check a line off as you find it. The name is
+crossed out; select the box again to undo it. Checks aren't saved: they clear when you
+reload the page or choose another place or gig.
+
+To print, select **Print**. The printout starts with "Manifest" and your organization's
+name, then the place and, if you chose one, the gig. On the right, it shows how many
+kits and pieces there are, and the date it was printed.
+Below that is the list, with the columns you chose and a box on each line to tick.
 
 ## Maintenance
 
