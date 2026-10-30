@@ -1101,6 +1101,15 @@ describe('ReviewScannedDataDialog: editing keeps stored line totals (#330)', () 
     expect(c.line_amount).toBe(60);
   });
 
+  it('changing a unit price recomputes that line\'s printed total, and keeps the other\'s', async () => {
+    const svc = await openEdit();
+    fireEvent.change(screen.getByDisplayValue('30'), { target: { value: '31' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('l2', expect.anything()));
+    expect(sent(svc, 'l2')).toMatchObject({ item_price: 31, line_amount: 62 });
+    expect(sent(svc, 'l1')).toMatchObject({ item_price: 23.899, line_amount: 239.0 });
+  });
+
   it('reads Reconciled when the stored line costs add up to the invoice', async () => {
     await openEdit();
     expect(screen.getByText(/Reconciled/)).toBeInTheDocument();
