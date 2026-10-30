@@ -23,6 +23,7 @@ import { recordKind, summarizeItem } from '../utils/equipmentItems';
 import { useAutoSave } from '../utils/hooks/useAutoSave';
 import { canManage } from '../utils/permissions';
 import type { Organization, User, UserRole, DbAsset } from '../utils/supabase/types';
+import { plural } from '../utils/plural';
 
 interface ItemDetailScreenProps {
   organization: Organization;
@@ -369,7 +370,7 @@ export default function ItemDetailScreen({
             </div>
           </Section>
 
-          <Section title="Used in kits" summary={kitLines.length ? `${new Set(kitLines.map((l) => l.kit?.id)).size} kits` : undefined} className="lg:col-span-3">
+          <Section title="Used in kits" summary={kitLines.length ? plural(new Set(kitLines.map((l) => l.kit?.id)).size, 'kit') : undefined} className="lg:col-span-3">
             {kitLines.length === 0 ? (
               <p className="text-sm italic text-muted-foreground">Not in any kit</p>
             ) : (

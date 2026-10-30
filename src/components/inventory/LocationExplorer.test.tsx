@@ -375,6 +375,12 @@ describe('LocationExplorer', () => {
       expect(screen.getByText('2 of 10')).toBeInTheDocument();
     });
 
+    it('says "1 piece" for a single piece', async () => {
+      (getItemsByLocation as any).mockResolvedValue([unitLine]);
+      render(<LocationExplorer organizationId="org-1" />);
+      expect(await screen.findByText('1 piece')).toBeInTheDocument();
+    });
+
     it('opens the override on a lot line to move N of its pieces there (#160)', async () => {
       (getItemsByLocation as any).mockResolvedValue([lotLine]);
       render(<LocationExplorer {...mockPropsAdmin} />);

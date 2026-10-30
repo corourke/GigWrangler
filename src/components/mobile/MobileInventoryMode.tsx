@@ -42,6 +42,7 @@ import { cn } from '../ui/utils';
 import { useAuth } from '../../contexts/AuthContext';
 import { getOrganizationMembers } from '../../services/organization.service';
 import { TrackingStatusBadge } from '../inventory/TrackingStatusBadge';
+import { plural } from '../../utils/plural';
 
 interface MobileInventoryModeProps {
   gigId: string | null;
@@ -1184,7 +1185,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="font-medium truncate" style={{ color: '#0284c7' }}>{gigTitle || 'Select a gig'}</span>
                 <span>·</span>
-                <span>{stats.done} / {stats.total} pieces</span>
+                <span>{stats.done} / {plural(stats.total, 'piece')}</span>
               </div>
             </div>
             <button
@@ -1376,7 +1377,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                               <p className="mt-1 text-[11px] text-muted-foreground leading-snug truncate">Note: {kitTracking.notes}</p>
                             ) : null}
                             {isLogicalKit && kitProgress.total > 0 ? (
-                              <p className="mt-1 text-[10px] text-muted-foreground">{kitProgress.done} / {kitProgress.total} pieces {selectedMode.resultingStatus}</p>
+                              <p className="mt-1 text-[10px] text-muted-foreground">{kitProgress.done} / {plural(kitProgress.total, 'piece')} {selectedMode.resultingStatus}</p>
                             ) : null}
                           </div>
                           <div className="flex items-stretch shrink-0 border-l border-border/50">
