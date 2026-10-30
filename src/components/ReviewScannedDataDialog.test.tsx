@@ -27,6 +27,9 @@ vi.mock('../services/attachment.service', () => ({
   getAttachmentUrl: vi.fn(),
 }));
 vi.mock('../services/asset.service', () => ({ updateAsset: vi.fn(), deleteAsset: vi.fn() }));
+// No toasts are checked here; the real sonner adds a 97-rule stylesheet that makes every
+// role query several times slower in jsdom (deploy gate, 10-30).
+vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }) }));
 vi.mock('../services/purchaseCategory.service', () => ({
   getTypeUsage: vi.fn(async () => [{ type: 'Cable, XLR', count: 7 }]),
   getExpenseCategories: vi.fn(async () => ['Small audio parts', 'Small lighting parts', 'Supplies', 'Software subscriptions'].map(name => ({ name, schedule_c_line: '27b' }))),
@@ -34,6 +37,13 @@ vi.mock('../services/purchaseCategory.service', () => ({
   // Audio and Lighting imply 7 years; Misc has no default, so it is asked (#125).
   getEquipmentCategoryPeriods: vi.fn(async () => ({ audio: 7, lighting: 7, misc: null })),
 }));
+
+// Enters a whole value at once: one input event, not one re-render of the dialog per key, which
+// made the longer values slow enough to time out under a loaded full run (deploy gate, 10-30).
+async function enter(el: HTMLElement, text: string) {
+  await userEvent.click(el);
+  await userEvent.paste(text);
+}
 
 // The Equipment details pop-up, opened from a line's chip.
 const chip = (desc: string) => screen.getByRole('button', { name: `Equipment details: ${desc}` });
@@ -43,13 +53,13 @@ async function setEquipment(desc: string, fields: { category?: string; newCatego
   if (fields.category) await userEvent.selectOptions(dialog.getByLabelText(/^Category/), fields.category);
   if (fields.newCategory) {
     await userEvent.selectOptions(dialog.getByLabelText(/^Category/), 'Add new category…');
-    await userEvent.type(dialog.getByLabelText(/^Category/), fields.newCategory);
+    await enter(dialog.getByLabelText(/^Category/), fields.newCategory);
   }
-  if (fields.type) await userEvent.type(dialog.getByRole('combobox', { name: 'Type' }), fields.type);
+  if (fields.type) await enter(dialog.getByRole('combobox', { name: 'Type' }), fields.type);
   if (fields.tags) {
     await userEvent.click(dialog.getByRole('radio', { name: /^Unit/ }));
     for (const [i, tag] of fields.tags.entries()) {
-      await userEvent.type(dialog.getByLabelText(fields.tags.length > 1 ? `Inventory tag, unit ${i + 1}` : 'Inventory tag'), tag);
+      await enter(dialog.getByLabelText(fields.tags.length > 1 ? `Inventory tag, unit ${i + 1}` : 'Inventory tag'), tag);
     }
   }
   if (fields.period) await userEvent.selectOptions(dialog.getByRole('combobox', { name: 'Recovery period' }), fields.period);
@@ -686,7 +696,7 @@ describe('ReviewScannedDataDialog: equipment details pop-up (10-06)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Equipment details: Mic' }));
     const dialog = within(await screen.findByRole('dialog', { name: 'Equipment details' }));
     await userEvent.click(dialog.getByRole('radio', { name: /^Unit/ }));
-    await userEvent.type(dialog.getByLabelText('Inventory tag, unit 1'), 'M-1');
+    await enter(dialog.getByLabelText('Inventory tag, unit 1'), 'M-1');
     await userEvent.click(dialog.getByRole('button', { name: 'Done' }));
     expect(dialog.getByText('Unit 2 needs a serial number or a tag (either will do).')).toBeInTheDocument();
   });
@@ -734,7 +744,7 @@ describe('ReviewScannedDataDialog: equipment details pop-up (10-06)', () => {
     const tag = dialog.getByLabelText('Inventory tag');
     expect(tag).toHaveValue('C-1');
     await userEvent.clear(tag);
-    await userEvent.type(tag, 'C-2');
+    await enter(tag, 'C-2');
     await userEvent.click(dialog.getByRole('button', { name: 'Done' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     expect(await screen.findByText('Confirm linked record updates')).toBeInTheDocument();
@@ -776,7 +786,7 @@ describe('ReviewScannedDataDialog: a saved line\'s units (#183)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Equipment details: K12' }));
     const dialog = within(await screen.findByRole('dialog', { name: 'Equipment details' }));
     expect(dialog.getByLabelText('Inventory tag, unit 1')).toHaveValue('DSL-0101');
-    await userEvent.type(dialog.getByLabelText('Inventory tag, unit 3'), 'DSL-0103');
+    await enter(dialog.getByLabelText('Inventory tag, unit 3'), 'DSL-0103');
     await userEvent.click(dialog.getByRole('button', { name: 'Done' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await waitFor(() => expect(svc.addLineUnits).toHaveBeenCalledWith('l1', [expect.objectContaining({
@@ -1023,8 +1033,8 @@ describe('ReviewScannedDataDialog: one record per unit (#183)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Equipment details: QSC K12.2' }));
     const dialog = within(await screen.findByRole('dialog', { name: 'Equipment details' }));
     await userEvent.click(dialog.getByRole('radio', { name: /^Unit/ }));
-    await userEvent.type(dialog.getByLabelText('Inventory tag, unit 1'), 'DSL-0101');
-    await userEvent.type(dialog.getByLabelText('Inventory tag, unit 2'), 'DSL-0102');
+    await enter(dialog.getByLabelText('Inventory tag, unit 1'), 'DSL-0101');
+    await enter(dialog.getByLabelText('Inventory tag, unit 2'), 'DSL-0102');
     await userEvent.click(dialog.getByRole('button', { name: 'Done' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save Purchase' }));
 

@@ -48,6 +48,9 @@ vi.mock('../../../services/gig.service', () => ({
   getPurchaseIdsWithLedgerEntry: vi.fn(async () => new Set()),
 }));
 vi.mock('./PurchaseDetailPanel', () => ({ default: () => null }));
+// No toasts are checked here; the real sonner adds a 97-rule stylesheet that makes every
+// role query several times slower in jsdom (deploy gate, 10-30).
+vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }) }));
 // The purchase form: shows how it was opened, and Save / Cancel buttons.
 vi.mock('../../ReviewScannedDataDialog', () => ({
   default: ({ layout, open, scannedData, file, attachmentId, cancelLabel, onSuccess, onOpenChange }: any) =>
