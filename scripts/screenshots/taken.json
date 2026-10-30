@@ -42,6 +42,18 @@
     "taken": "2026-10-23",
     "appCommit": "103c6e6"
   },
+  "equipment/inventory-reports-manifest": {
+    "page": "equipment/inventory-reports.md",
+    "user": "admin",
+    "sources": [
+      "src/components/inventory/InventoryReports.tsx",
+      "src/components/inventory/LineExtras.tsx",
+      "src/components/inventory/LocationCombobox.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-10-30",
+    "appCommit": "f1a5c4a"
+  },
   "equipment/inventory-reports-packing-list": {
     "page": "equipment/inventory-reports.md",
     "user": "admin",
