@@ -114,6 +114,26 @@ describe('Dashboard', () => {
     }
   })
 
+  it('counts one item and one piece in the singular', async () => {
+    const stats = {
+      gigsByStatus: { Booked: 0, Proposed: 0, DateHold: 0, Completed: 0, Cancelled: 0, Settled: 0 },
+      assetValues: { totalAssetValue: 100, totalInsuredValue: 0, totalRentalValue: 0, ownedItems: 1, ownedPieces: 1 },
+      revenue: { thisMonth: 0, lastMonth: 0, thisYear: 0 },
+      upcomingGigs: [],
+    }
+    const defaultClient = vi.mocked(createClient).getMockImplementation()
+    vi.mocked(createClient).mockReturnValue({
+      auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't', user: { id: 'user-1' } } } }) },
+      functions: { invoke: vi.fn().mockResolvedValue({ data: stats, error: null }) },
+    } as any)
+    try {
+      render(<Dashboard {...mockProps} userRole="Admin" />)
+      expect(await screen.findByText('1 item · 1 piece')).toBeInTheDocument()
+    } finally {
+      vi.mocked(createClient).mockImplementation(defaultClient!)
+    }
+  })
+
   it('shows Staff what is owned, without the money figures (#158, #190)', async () => {
     const stats = {
       gigsByStatus: { Booked: 0, Proposed: 0, DateHold: 0, Completed: 0, Cancelled: 0, Settled: 0 },

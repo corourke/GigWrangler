@@ -85,6 +85,13 @@ describe('Print manifest (#327)', () => {
     expect(screen.queryByText('Truck Manifest')).not.toBeInTheDocument();
   });
 
+  it('counts one kit and one piece in the singular', async () => {
+    vi.mocked(getManifestReport).mockResolvedValue([LINES[3]]);
+    await openAt('Truck');
+    await waitFor(() => expect(names()).toEqual(['Mic Case']));
+    expect(screen.getByTestId('manifest-print-header')).toHaveTextContent('1 kit · 1 piece');
+  });
+
   it('says when nothing is there', async () => {
     vi.mocked(getManifestReport).mockResolvedValue([]);
     await openAt('Garage');
