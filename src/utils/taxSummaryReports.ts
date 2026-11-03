@@ -66,18 +66,27 @@ export interface ScheduleCSummary {
     /** Mileage counted on another line (or none), because of its category. */
     elsewhere: { trips: number; miles: number; recorded: number; lines: string[] };
   };
-  /** Expenses categorized as Depreciation (line 13): listed as a warning, not counted (Q5, #337). */
+  /**
+   * Expenses categorized as Depreciation (line 13), when line 13 comes from Form 4562 or an
+   * estimate: listed as a warning, not counted (Q5, #337). Zero when they stay on line 13.
+   */
   depreciationCategorized: { count: number; total: number; gigOnly: boolean };
   totalExpenses: number;
   /** Before depreciation: line 13 comes from Form 4562 (see utils/scheduleCDepreciation). */
   net: number;
 }
 
+/**
+ * `line13FromForm4562`: line 13 has a Form 4562 figure or an estimate, so expenses categorized as
+ * Depreciation come off the lines and are listed apart (Q5). When it's "Not entered" (false), they
+ * stay on line 13 as before, labelled as coming from expenses (coordinator, 11-03).
+ */
 export function buildScheduleCSummary(
   income: IncomeReport,
   expenses: ExpenseReport,
   gigRows: ReportGigRow[],
   scheduleC: ScheduleCLineLabel[],
+  { line13FromForm4562 = true }: { line13FromForm4562?: boolean } = {},
 ): ScheduleCSummary {
   const labels = new Map(scheduleC.map(s => [s.code, s.label] as const));
   const tripDay = new Map(gigRows.map(r => [r.id, dayOf(r.date ?? null)] as const));
@@ -102,10 +111,12 @@ export function buildScheduleCSummary(
   }
 
   const lines: ScheduleCLine[] = expenses.byLine
-    .filter(g => g.line !== null && g.line !== DEPRECIATION_LINE)
+    .filter(g => g.line !== null && !(line13FromForm4562 && g.line === DEPRECIATION_LINE))
     .map(g => ({
       line: g.line!,
-      label: labels.get(g.line!) ?? '',
+      label: g.line === DEPRECIATION_LINE
+        ? `${labels.get(g.line) ?? LINE_13_LABEL} (from expenses categorized Depreciation)`
+        : labels.get(g.line!) ?? '',
       total: g.total,
       miles: g.line === CAR_AND_TRUCK_LINE ? line9.miles : null,
     }));
@@ -114,7 +125,7 @@ export function buildScheduleCSummary(
   const noCategory = money(noLine.filter(r => r.unlisted).reduce((s, r) => s + r.amount, 0));
   const notDeducted = money(noLine.filter(r => !r.unlisted).reduce((s, r) => s + r.amount, 0));
   const totalExpenses = money(lines.reduce((s, l) => s + l.total, 0) + noCategory);
-  const depreciationRows = expenses.rows.filter(r => r.line === DEPRECIATION_LINE);
+  const depreciationRows = line13FromForm4562 ? expenses.rows.filter(r => r.line === DEPRECIATION_LINE) : [];
 
   const costOfGoodsSold = expenses.costOfGoodsSold.total;
   const grossProfit = money(income.total - costOfGoodsSold);

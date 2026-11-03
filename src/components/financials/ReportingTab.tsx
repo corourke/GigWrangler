@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { getTaxReportData, type TaxReportData } from '../../services/taxReport.service';
 import { getLockedTaxYears } from '../../services/taxYear.service';
 import { getTaxYearDepreciation, type TaxYearDepreciation } from '../../services/taxYearDepreciation.service';
-import { buildLine13 } from '../../utils/scheduleCDepreciation';
+import { buildLine13, line13Source } from '../../utils/scheduleCDepreciation';
 import type { UserRole } from '../../utils/supabase/types';
 import {
   buildIncomeReport, buildExpenseReport, buildAssetReport, buildGreyZoneReport,
@@ -102,7 +102,9 @@ export default function ReportingTab({ organizationId, organizationName, userRol
   const placed = useMemo(() => placedItemsFrom(data?.lines ?? []), [data]);
   const disposed = useMemo(() => disposedItemsFrom(data?.lines ?? [], data?.assets ?? []), [data]);
   const greyZone = useMemo(() => data && buildGreyZoneReport(data.lines, data.equipmentCategories ?? [], year), [data, year]);
-  const scheduleC = useMemo(() => data && buildScheduleCSummary(income!, expenses!, data.gigRows, data.scheduleC), [data, income, expenses]);
+  const line13FromForm4562 = line13Source(year, figures, locked) !== 'Not entered';
+  const scheduleC = useMemo(() => data && buildScheduleCSummary(income!, expenses!, data.gigRows, data.scheduleC, { line13FromForm4562 }),
+    [data, income, expenses, line13FromForm4562]);
   const line13 = useMemo(() => scheduleC && buildLine13({ year, net: scheduleC.net, figures, locked, purchases: placed, disposals: disposed }),
     [scheduleC, year, figures, locked, placed, disposed]);
   const attention = useMemo(() => data && buildNeedsAttentionReport(

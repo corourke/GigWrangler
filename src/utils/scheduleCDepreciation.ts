@@ -28,6 +28,12 @@ export interface Line13 {
   netAfter: number | null;
 }
 
+/** Which line 13 a year gets: line 22 entered, else "Not entered" for a locked year, else an estimate. */
+export function line13Source(year: number, figures: readonly TaxYearDepreciation[], locked: ReadonlySet<number>): Line13Source {
+  if (figures.some(f => f.year === year && f.line_22 != null)) return 'Form 4562 line 22';
+  return locked.has(year) ? 'Not entered' : 'Estimated';
+}
+
 export function buildLine13(args: {
   year: number;
   /** Net before depreciation. */
