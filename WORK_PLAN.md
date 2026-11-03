@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-11-03 (coordinator: **In prod (Cameron's deploy 11-03, verified read-only):** #326 (migration `20261029000000`), #328, #329, #332, #333, #334. **#331** (manifest guide) merged 11-03 with Cameron's OK. **#135:** Parts 1–3 done; Cameron re-spread the SHEHDS 06-23 invoice in the app 11-03 and it now adds up (verified read-only); open: item 10 (filed 2024/2025 totals). **Engineering Lead:** the Filed tax years card shows only under the Schedule C report (Cameron 11-03, released). **Waiting on Cameron:** a depreciation estimate on Schedule C (needs how the filed returns depreciated), a disposals pointer on Schedule C, and whether a $0 cost entered on purpose stops counting as Needs attention)
+- **Last updated:** 2026-11-03 (coordinator: **In prod (11-03):** #326, #328, #329, #332, #333, #334. **Merged, not yet in prod:** #335 (Filed tax years card under Schedule C only). **Docs:** #336 (guide for #335), merge after #335 deploys. **#135:** Parts 1–3 done, SHEHDS invoice reconciled; item 10: 2025 filed basis ties out; 2024 differs (details with Cameron privately). **Engineering Lead:** plan on a new issue (no code) for general-purpose depreciation: per filed year, Form 4562 figures transcribed into the Filed tax years card, each labelled with its form and line; Schedule C shows line 13 filed or estimated (Cameron 11-03). **Waiting on Cameron:** a disposals pointer on Schedule C; whether a $0 cost entered on purpose stops counting as Needs attention)
 
 ---
 
