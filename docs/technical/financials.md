@@ -231,7 +231,7 @@ Files live in the `attachments` table and storage bucket, joined through `entity
   - **Track as equipment** replaces **Reclassify as Asset**;
   - **Assign Gig** and **Add to gig ledger** appear only on expensed lines;
   - a purchase is never assigned to a gig as a whole: **Assign receipt to gig** was removed in #133 step 3; lines are linked one at a time (`reconcileLedgerForLineGigChange`).
-- **Tax years:** Admins lock and unlock years under **Financials → Reporting → Filed tax years** (`TaxYearsCard`, `taxYear.service.ts`); Managers see them read-only.
+- **Tax years:** Admins lock and unlock years under **Financials → Reporting → Schedule C → Filed tax years** (`TaxYearsCard`, shown under the Schedule C report only; `taxYear.service.ts`); Managers see them read-only.
 
 "Track as equipment" is a separate question.
 
@@ -268,7 +268,7 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 | Purchases report → line → **Assign Gig** | Line `gig_id`; then offers a paid money-out row at `line_cost` | Moving the line moves the row; clearing the gig offers to delete it; **Add to gig ledger** covers lines linked earlier. |
 | Purchases report → line → **Track as equipment** | One lot of the line's quantity, linked to the line (RPC `add_purchase_line_units`) | Tax treatment unchanged; works in locked years. Replaced **Reclassify as Asset** (#133 step 2). |
 | Review screen (edit) → **Expense / Depreciate** | The line's `tax_treatment` | Depreciating first tracks the line as equipment. Not on a gig expense or in a locked year. |
-| Financials → Reporting → **Filed tax years** | `tax_years` rows (Admins) | Lock with the filed date; unlock to amend. |
+| Financials → Reporting → Schedule C → **Filed tax years** | `tax_years` rows (Admins) | Lock with the filed date; unlock to amend. |
 
 The AI scan suggests whether each line is equipment (a $50 durable rule) and suggests categories; the user can change both before saving.
 

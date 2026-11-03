@@ -4,12 +4,14 @@ import { toast } from 'sonner';
 import { Card } from '../ui/card';
 import { Metric, Empty } from './ReportParts';
 import ScheduleCView from './ScheduleCView';
+import TaxYearsCard from './TaxYearsCard';
 import NeedsAttentionView from './NeedsAttentionView';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '../ui/table';
 import { getTaxReportData, type TaxReportData } from '../../services/taxReport.service';
 import { getLockedTaxYears } from '../../services/taxYear.service';
+import type { UserRole } from '../../utils/supabase/types';
 import {
   buildIncomeReport, buildExpenseReport, buildAssetReport, buildGreyZoneReport,
   incomeCsv, expensesCsv, assetsCsv, disposalsCsv, greyZoneCsv, reportFilename, downloadCsv, dayOf,
@@ -35,6 +37,8 @@ const REPORTS: { kind: ReportKind; label: string }[] = [
 interface ReportingTabProps {
   organizationId: string;
   organizationName: string;
+  /** Who is looking: Admins lock and unlock filed years on the Schedule C report; Managers see them. */
+  userRole?: UserRole;
   /** Opens an equipment record's edit form (to choose its recovery period). */
   onEditAsset?: (assetId: string) => void;
 }
@@ -44,7 +48,7 @@ interface ReportingTabProps {
  * Needs attention, cash basis, each with a CSV download for the tax program. The
  * counting is in utils/taxReports and utils/taxSummaryReports.
  */
-export default function ReportingTab({ organizationId, organizationName, onEditAsset }: ReportingTabProps) {
+export default function ReportingTab({ organizationId, organizationName, userRole, onEditAsset }: ReportingTabProps) {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
   const [kind, setKind] = useState<ReportKind>('income');
@@ -95,61 +99,65 @@ export default function ReportingTab({ organizationId, organizationName, onEditA
   };
 
   return (
-    <Card className="p-6 gap-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="report-year" className="text-xs font-semibold text-muted-foreground">Tax year</label>
-          <select id="report-year" aria-label="Tax year" value={year} onChange={e => setYear(Number(e.target.value))}
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm">
-            {years.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+    <>
+      <Card className="p-6 gap-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="report-year" className="text-xs font-semibold text-muted-foreground">Tax year</label>
+            <select id="report-year" aria-label="Tax year" value={year} onChange={e => setYear(Number(e.target.value))}
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm">
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <div role="group" aria-label="Report" className="inline-flex max-w-full rounded-md border border-input overflow-x-auto h-9">
+            {REPORTS.map(r => (
+              <button key={r.kind} type="button" aria-pressed={kind === r.kind} onClick={() => setKind(r.kind)}
+                className={`px-4 text-sm font-medium whitespace-nowrap border-r last:border-r-0 border-input ${kind === r.kind ? 'bg-sky-700 text-white' : 'bg-background text-foreground hover:bg-muted'}`}>
+                {r.label}
+              </button>
+            ))}
+          </div>
+          {locked.has(year) && (
+            <Badge variant="outline" className="h-7 gap-1 text-slate-600"><Lock className="w-3 h-3" />{year} is filed</Badge>
+          )}
+          <Button className="ml-auto bg-sky-700 hover:bg-sky-800 text-white" onClick={download} disabled={!data}>
+            <Download className="w-4 h-4 mr-1" />Download CSV
+          </Button>
         </div>
-        <div role="group" aria-label="Report" className="inline-flex max-w-full rounded-md border border-input overflow-x-auto h-9">
-          {REPORTS.map(r => (
-            <button key={r.kind} type="button" aria-pressed={kind === r.kind} onClick={() => setKind(r.kind)}
-              className={`px-4 text-sm font-medium whitespace-nowrap border-r last:border-r-0 border-input ${kind === r.kind ? 'bg-sky-700 text-white' : 'bg-background text-foreground hover:bg-muted'}`}>
-              {r.label}
-            </button>
-          ))}
-        </div>
-        {locked.has(year) && (
-          <Badge variant="outline" className="h-7 gap-1 text-slate-600"><Lock className="w-3 h-3" />{year} is filed</Badge>
+        <p className="text-xs text-muted-foreground">
+          Cash basis: money counts in the year it was received or paid; equipment in the year it was bought.
+          These are the figures your tax program asks for. GigWrangler doesn't calculate tax.
+        </p>
+
+        {!data ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">Loading reports…</p>
+        ) : kind === 'income' ? (
+          <IncomeView report={income!} year={year} />
+        ) : kind === 'expenses' ? (
+          <ExpensesView report={expenses!} year={year} />
+        ) : kind === 'assets' ? (
+          <AssetsView report={assets!} year={year} onEditAsset={onEditAsset}
+            onDownloadDisposals={() => downloadCsv(disposalsCsv(assets!), reportFilename(organizationName, 'disposals', year))} />
+        ) : kind === 'grey-zone' ? (
+          <GreyZoneView report={greyZone!} year={year} onEditPurchase={locked.has(year) ? undefined : setEditPurchaseId} />
+        ) : kind === 'schedule-c' ? (
+          <ScheduleCView report={scheduleC!} year={year} />
+        ) : (
+          <NeedsAttentionView report={attention!} year={year} onEditAsset={onEditAsset}
+            onEditPurchase={locked.has(year) ? undefined : setEditPurchaseId} />
         )}
-        <Button className="ml-auto bg-sky-700 hover:bg-sky-800 text-white" onClick={download} disabled={!data}>
-          <Download className="w-4 h-4 mr-1" />Download CSV
-        </Button>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Cash basis: money counts in the year it was received or paid; equipment in the year it was bought.
-        These are the figures your tax program asks for. GigWrangler doesn't calculate tax.
-      </p>
 
-      {!data ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">Loading reports…</p>
-      ) : kind === 'income' ? (
-        <IncomeView report={income!} year={year} />
-      ) : kind === 'expenses' ? (
-        <ExpensesView report={expenses!} year={year} />
-      ) : kind === 'assets' ? (
-        <AssetsView report={assets!} year={year} onEditAsset={onEditAsset}
-          onDownloadDisposals={() => downloadCsv(disposalsCsv(assets!), reportFilename(organizationName, 'disposals', year))} />
-      ) : kind === 'grey-zone' ? (
-        <GreyZoneView report={greyZone!} year={year} onEditPurchase={locked.has(year) ? undefined : setEditPurchaseId} />
-      ) : kind === 'schedule-c' ? (
-        <ScheduleCView report={scheduleC!} year={year} />
-      ) : (
-        <NeedsAttentionView report={attention!} year={year} onEditAsset={onEditAsset}
-          onEditPurchase={locked.has(year) ? undefined : setEditPurchaseId} />
-      )}
-
-      {editPurchaseId && (
-        <Suspense fallback={null}>
-          <ReviewScannedDataDialog open onOpenChange={o => { if (!o) setEditPurchaseId(null); }}
-            organizationId={organizationId} scannedData={null} file={null} editPurchaseId={editPurchaseId}
-            onSuccess={() => {}} onUpdated={() => setReload(n => n + 1)} />
-        </Suspense>
-      )}
-    </Card>
+        {editPurchaseId && (
+          <Suspense fallback={null}>
+            <ReviewScannedDataDialog open onOpenChange={o => { if (!o) setEditPurchaseId(null); }}
+              organizationId={organizationId} scannedData={null} file={null} editPurchaseId={editPurchaseId}
+              onSuccess={() => {}} onUpdated={() => setReload(n => n + 1)} />
+          </Suspense>
+        )}
+      </Card>
+      {/* Filed tax years go with the Schedule C report only (Cameron, 11-03). */}
+      {kind === 'schedule-c' && <TaxYearsCard organizationId={organizationId} userRole={userRole} />}
+    </>
   );
 }
 

@@ -16,6 +16,8 @@ vi.mock('../ReviewScannedDataDialog', () => ({
   ) : null,
 }));
 vi.mock('../../services/taxYear.service', () => ({ getLockedTaxYears: vi.fn(async () => new Set([2025])) }));
+// The Filed tax years card stands in as its role, so a test can see which role it was given.
+vi.mock('./TaxYearsCard', () => ({ default: ({ userRole }: any) => <div data-testid="tax-years">{userRole}</div> }));
 
 const asset = { id: 'a1', manufacturer_model: 'Midas M32', category: 'Audio', recovery_period: null, retired_on: null, liquidation_amt: null, status: 'Active' };
 vi.mock('../../services/taxReport.service', () => ({
@@ -322,5 +324,23 @@ describe('ReportingTab (#125)', () => {
       expect(text).toMatch(/1 from a purchase: edit the purchase\./);
       expect(text).toMatch(/2 from gigs: choose one on the gig’s Financials tab\./);
     });
+  });
+});
+
+// Cameron, 11-03: the Filed tax years card belongs to the Schedule C report only, not every report.
+describe('Filed tax years, under Schedule C only', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it.each(['Income', 'Expenses', 'Assets', 'Grey zone', 'Needs attention'])('is not under %s', async (report) => {
+    render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" userRole="Admin" />);
+    await userEvent.click(await screen.findByRole('button', { name: report }));
+    await waitFor(() => expect(getTaxReportData).toHaveBeenCalled());
+    expect(screen.queryByTestId('tax-years')).not.toBeInTheDocument();
+  });
+
+  it.each(['Admin', 'Manager'] as const)('is under Schedule C, for %s', async (role) => {
+    render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" userRole={role} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Schedule C' }));
+    expect(await screen.findByTestId('tax-years')).toHaveTextContent(role);
   });
 });

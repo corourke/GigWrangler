@@ -83,3 +83,10 @@ describe('Financials › Purchases: one row of tabs, Add and Scan in the title r
     expect(onNavigateToGigDetail).toHaveBeenCalledWith('g1');
   });
 });
+
+describe('Filed tax years (Cameron, 11-03)', () => {
+  it('is not added under the Reporting tab as a whole: the Schedule C report shows it', () => {
+    render(<FinancialsScreen {...base} tab="reporting" onNavigate={vi.fn()} />);
+    expect(screen.queryByTestId('tax-years')).not.toBeInTheDocument();
+  });
+});

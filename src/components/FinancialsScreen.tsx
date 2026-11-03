@@ -4,7 +4,6 @@ import { PageHeader } from './layout/PageHeader';
 import { PageTabsList, PageTabsTrigger } from './layout/PageTabs';
 import { Tabs, TabsContent } from './ui/tabs';
 import AppHeader from './AppHeader';
-import TaxYearsCard from './financials/TaxYearsCard';
 import GigAccountingTab from './financials/GigAccountingTab';
 import PurchasesSection, { PurchasesActions } from './financials/purchases/PurchasesSection';
 import { useScanQueue } from './financials/purchases/useScanQueue';
@@ -135,9 +134,8 @@ export default function FinancialsScreen({
 
           <TabsContent value="reporting" className="space-y-4">
             <Suspense fallback={<p className="text-sm text-muted-foreground py-8 text-center">Loading reports…</p>}>
-              <ReportingTab organizationId={organization.id} organizationName={organization.name} onEditAsset={onEditAsset} />
+              <ReportingTab organizationId={organization.id} organizationName={organization.name} userRole={userRole} onEditAsset={onEditAsset} />
             </Suspense>
-            <TaxYearsCard organizationId={organization.id} userRole={userRole} />
           </TabsContent>
         </div>
       </Tabs>
