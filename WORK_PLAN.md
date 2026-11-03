@@ -134,6 +134,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **#257 (the fix for #255) tested on dev @ 093edc0 (Docs Lead, 10-10 23:15 UTC):** the full result is on #257.
   - Pass: no per-gig duplicates; the Cedar Hall gig filter is empty; the T58 split shows at both places; the status and location filters work.
   - Fail: a container still gets two headings after a case-only override moves it away from its contents, and one of its items (PDI-1) is hidden. The cause is `LocationExplorer.tsx:289-291`, which turns the first content row into the heading. Prod has this today. Whether it holds the deploy is Cameron's call.
+- **Docs Lead status, 11-03 18:35 UTC:** #331 merged (bb7bf64). The Filed tax years move (#335) is drafted on `claude/docs-335-filed-years` (reporting.md and tax-treatment.md, text only; no shot shows the card). I'll open the PR as "merge after #335 deploys" once #335 merges.
 - **Docs Lead status, 10-12 05:35 UTC (after Cameron's 10-12 deploy):**
   - **PR #277 (merged 10-12 15:23 UTC):** publishes the held drafts: packing list (#267), Undo write-off and the lot note (#270), Delete for Admins only (#271), desktop scanning (#272), phone rows (#263), the update notice (#264), CSV import (#276), and the #269 case warning. Columns persistence and desktop scanning were checked on dev.
   - **PR #280:** publishes Kits (#273 and #270), audited against main, with 2 screenshots. Main merged in after #277 (taken.json); head c1c83b3, builds clean.
