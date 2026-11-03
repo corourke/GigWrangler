@@ -178,6 +178,8 @@ RLS: an organization's Admins and Managers read it; only its Admins add, change 
 - Deleting a gig, or an organization, that has locked gig money is refused too.
 - The app shows the database's message (`lockedYearMessage` in `src/utils/taxTreatment.ts`) instead of a generic "failed to save".
 
+**Depreciation figures** (`tax_year_depreciation` and `tax_year_depreciation_rows`, migration `20261103000000`, #337). Per organization and year, apart from `tax_years`: a filed year's Form 4562 lines 12, 14, 17, 21 and 22 and its line 19 rows, copied by hand, or the open year's planned Section 179, bonus and other depreciation and the convention for its estimate. Admins and Managers read; only Admins write (`save_tax_year_depreciation`), also for a locked year. Who saved and when are recorded. The Schedule C report uses them from #337 PR 3; see [database.md](database.md).
+
 ### 2.6 Attachments
 
 Files live in the `attachments` table and storage bucket, joined through `entity_attachments` (`entity_type`, `entity_id`).
