@@ -99,7 +99,7 @@ describe('the open year\'s estimate', () => {
   it('shows the part of the last filed year\'s line 17 the entered years don\'t explain, and doesn\'t carry it forward', () => {
     const later = { ...y2025, line_17: 2065 };
     const e = estimateOpenYear({ year: 2026, figures: null, filed: [later, y2024], purchases: [], disposals: [] });
-    expect(e.gap).toEqual({ year: 2025, amount: 412 });
+    expect(e.gap).toEqual({ year: 2025, amount: 412, appYears: [] });
     expect(e.total).toBe(1181 + 735);
   });
 });
@@ -149,5 +149,39 @@ describe('suggestedRows: the prefill from the app (§5)', () => {
     expect(suggestedRows(2024, [bought('2024-05-01', 1000, 15)], { line_12: null, line_14: null }, 'HY')[0])
       .toMatchObject({ method: 'SL', deduction: 33 });
     expect(suggestedRows(2022, [bought('2024-05-01', 1000)], { line_12: null, line_14: null }, 'HY')).toEqual([]);
+  });
+});
+
+// #337 PR 3, from the coordinator's review of PR 2.
+describe('earlier years nobody entered, and disposals in the first year', () => {
+  const bought2024: PlacedItem[] = [{ date: '2024-05-01', cost: 10000, recoveryYears: 7 }];
+
+  it('labels line 17 rows built from purchases, for a year with no Form 4562 entered', () => {
+    const e = estimateOpenYear({ year: 2026, figures: null, filed: [], purchases: bought2024, disposals: [] });
+    expect(e.rows).toEqual([{
+      label: 'Line 17: 2024 equipment, 7-year HY ($10,000 × 17.49%)', amount: 1749,
+      note: 'From your purchases; no Form 4562 entered for 2024',
+    }]);
+  });
+
+  it('gives a negative gap, and the years it came from, when purchases explain more than the filed line 17', () => {
+    // Say 2024 took full Section 179 but wasn't entered: its $10,000 of purchases give $2,449 for 2025, against $1,000 filed.
+    const y = { ...blank, year: 2025, line_17: 1000, line_22: 1000, rows: [] };
+    const e = estimateOpenYear({ year: 2026, figures: null, filed: [y], purchases: bought2024, disposals: [] });
+    expect(e.gap).toEqual({ year: 2025, amount: -1449, appYears: [2024] });
+  });
+
+  it('takes part of a lot disposed of in its first year off that year\'s purchases, by class', () => {
+    const gone: DisposedItem[] = [{ bought: '2026-03-10', disposed: '2026-08-01', cost: 1000, recoveryYears: 7 }];
+    const e = estimateOpenYear({ year: 2026, figures: null, filed: [], purchases: bought2026, disposals: gone });
+    expect(e.rows).toEqual([{ label: 'Line 19: 2026 purchases, 7-year HY ($1,000 × 14.29%)', amount: 143 }]);
+  });
+
+  it('rounds each row and totals the rounded rows, so the breakdown adds up when cents round both ways', () => {
+    // $1,233 × 20% = $246.60 → $247; $1,110 × 14.29% = $158.62 → $159. In cents the total would be $405.22 → $405.
+    const bought: PlacedItem[] = [{ date: '2026-02-01', cost: 1233, recoveryYears: 5 }, { date: '2026-02-01', cost: 1110, recoveryYears: 7 }];
+    const e = estimateOpenYear({ year: 2026, figures: null, filed: [], purchases: bought, disposals: [] });
+    expect(e.rows.map(r => r.amount)).toEqual([247, 159]);
+    expect(e.total).toBe(406);
   });
 });

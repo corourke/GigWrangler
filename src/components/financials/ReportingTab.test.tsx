@@ -3,6 +3,7 @@ import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ReportingTab from './ReportingTab';
 import { getTaxReportData } from '../../services/taxReport.service';
+import { getTaxYearDepreciation } from '../../services/taxYearDepreciation.service';
 
 const downloadCsv = vi.fn();
 vi.mock('../../utils/taxReports', async (orig) => ({ ...(await orig<any>()), downloadCsv: (...a: any[]) => downloadCsv(...a) }));
@@ -16,8 +17,13 @@ vi.mock('../ReviewScannedDataDialog', () => ({
   ) : null,
 }));
 vi.mock('../../services/taxYear.service', () => ({ getLockedTaxYears: vi.fn(async () => new Set([2025])) }));
-// The Filed tax years card stands in as its role, so a test can see which role it was given.
-vi.mock('./TaxYearsCard', () => ({ default: ({ userRole }: any) => <div data-testid="tax-years">{userRole}</div> }));
+vi.mock('../../services/taxYearDepreciation.service', () => ({ getTaxYearDepreciation: vi.fn(async () => []) }));
+// The Filed tax years card stands in as its role, so a test can see which role it was given, and can say it saved.
+vi.mock('./TaxYearsCard', () => ({
+  default: ({ userRole, onChanged }: any) => (
+    <div data-testid="tax-years">{userRole}<button type="button" onClick={() => onChanged?.()}>Card saved</button></div>
+  ),
+}));
 
 const asset = { id: 'a1', manufacturer_model: 'Midas M32', category: 'Audio', recovery_period: null, retired_on: null, liquidation_amt: null, status: 'Active' };
 vi.mock('../../services/taxReport.service', () => ({
@@ -189,9 +195,56 @@ describe('ReportingTab (#125)', () => {
       expect(row('Line 22: Supplies')).toHaveTextContent('$40.00');
       expect(row('Total expenses')).toHaveTextContent('$116.00');
       expect(row('Net (before depreciation)')).toHaveTextContent('$1,384.00');
-      expect(screen.getByText('Depreciation and Section 179 are worked out by your tax program from the Assets report.')).toBeInTheDocument();
+      expect(screen.getByText("It's for your reference: the figure your tax program calculates is what gets filed.")).toBeInTheDocument();
       await userEvent.click(screen.getByRole('button', { name: /Download CSV/ }));
       expect(downloadCsv).toHaveBeenCalledWith(expect.stringContaining('Net (before depreciation)'), 'act4-audio-schedule-c-2026.csv');
+    });
+
+    // #337 PR 3: line 13, from this year's purchases (an estimate: 2026 isn't locked).
+    it('shows line 13 estimated from the purchases, and the net after depreciation', async () => {
+      withData({
+        lines: [purchaseLine({ id: 'd1', purchase_date: '2026-03-01', description: 'Console', category: 'Audio', item_cost: 2000, line_cost: 2000,
+          tax_treatment: 'depreciate', asset_id: 'a1', asset: { ...asset, recovery_period: 7 } })],
+        gigRows: [{ ...gigOut({ id: 'in1', amount_settled: 1500, paid_at: '2026-04-02' }), direction: 'in' }],
+      });
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Schedule C' }));
+      const table = screen.getByRole('table', { name: 'Schedule C summary' });
+      const row = (label: string | RegExp) => within(table).getByText(label).closest('tr')!;
+      expect(row('Line 13: Depreciation and section 179')).toHaveTextContent('Estimated');
+      expect(row('Line 13: Depreciation and section 179')).toHaveTextContent('$286.00');
+      expect(row(/Line 19: 2026 purchases, 7-year HY/)).toHaveTextContent('$286.00');
+      expect(row('Net after depreciation')).toHaveTextContent('$1,214.00');
+    });
+
+    it('counts the disposals as the Assets report lists them: part of a lot, and a line with no records', async () => {
+      const piece = (id: string, quantity: number, retired_on: string | null) => ({
+        id, manufacturer_model: 'SM58', description: null, category: 'Audio', acquisition_date: '2025-02-01', item_cost: 100,
+        status: retired_on ? 'Retired' : 'Active', retired_on, recovery_period: 7, purchase_line_id: 'lot', quantity,
+      });
+      withData({
+        lines: [
+          purchaseLine({ id: 'lot', purchase_date: '2025-02-01', description: 'Mics', category: 'Audio', quantity: 4, item_cost: 100, line_cost: 400, tax_treatment: 'depreciate' }),
+          purchaseLine({ id: 'amp', purchase_date: '2024-05-01', description: 'Amp', category: 'Audio', item_cost: 900, line_cost: 900, tax_treatment: 'depreciate',
+            asset_id: 'a7', asset: { ...asset, id: 'a7', manufacturer_model: 'Crown XLS', recovery_period: 7, retired_on: '2026-06-01', status: 'Sold' } }),
+        ],
+        assets: [piece('m1', 3, null), piece('m2', 1, '2026-09-01')],
+      });
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Schedule C' }));
+      expect(screen.getByText('2 items disposed of in 2026: see Assets → Disposals (Form 4797)')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Assets' }));
+      expect(screen.getByText('Disposed of in 2026')).toBeInTheDocument();
+      expect(screen.getByText('Crown XLS')).toBeInTheDocument();
+      expect(screen.getAllByText('SM58').length).toBeGreaterThan(0);
+    });
+
+    it('reads the Form 4562 figures again after the Filed tax years card saves', async () => {
+      render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" userRole="Admin" />);
+      await userEvent.click(await screen.findByRole('button', { name: 'Schedule C' }));
+      await waitFor(() => expect(getTaxYearDepreciation).toHaveBeenCalledTimes(1));
+      await userEvent.click(await screen.findByRole('button', { name: 'Card saved' }));
+      await waitFor(() => expect(getTaxYearDepreciation).toHaveBeenCalledTimes(2));
     });
 
     it('shows the no-category row only when there is one', async () => {
