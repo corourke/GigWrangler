@@ -211,8 +211,9 @@ describe('Needs attention (#125)', () => {
     expect(group('no-recovery-period').rows[2].problem).toMatch(/not tracked as equipment/);
   });
 
-  it('lists equipment bought in the year with no cost', () => {
-    expect(group('no-cost').rows.map(x => [x.id, x.amount, x.assetId])).toEqual([['a5', 0, 'a5'], ['a6', null, 'a6']]);
+  // Cameron, 11-03: a cost entered as $0 is confirmed (a truly free item); only a blank cost is missing.
+  it('lists equipment bought in the year whose cost is blank, not one entered as $0', () => {
+    expect(group('no-cost').rows.map(x => [x.id, x.amount, x.assetId])).toEqual([['a6', null, 'a6']]);
   });
 
   it('lists disposed or returned equipment with no date disposed, from any year', () => {
@@ -230,9 +231,9 @@ describe('Needs attention (#125)', () => {
 
   it('counts every group', () => {
     expect(r.groups.map(g => [g.key, g.rows.length])).toEqual([
-      ['no-category', 2], ['no-recovery-period', 3], ['no-cost', 2], ['no-disposal-date', 2], ['invoice-mismatch', 1],
+      ['no-category', 2], ['no-recovery-period', 3], ['no-cost', 1], ['no-disposal-date', 2], ['invoice-mismatch', 1],
     ]);
-    expect(r.total).toBe(10);
+    expect(r.total).toBe(9);
   });
 
   it('is empty when nothing needs attention', () => {
@@ -249,7 +250,7 @@ describe('Needs attention (#125)', () => {
   it('exports group, item, date, amount and problem', () => {
     const rows = Papa.parse<string[]>(needsAttentionCsv(r)).data;
     expect(rows[0]).toEqual(['Group', 'Item', 'Date', 'Amount', 'Problem']);
-    expect(rows).toHaveLength(11);
+    expect(rows).toHaveLength(10);
     expect(rows).toContainEqual(['Equipment with no cost', 'Gift mic', '2026-06-01', '', 'No cost']);
     expect(rows).toContainEqual(['Invoices that don’t add up', 'Amazon: Cables', '2026-04-01', '100.00', 'Lines total $99.98; the invoice total is $100.00 (off by $0.02)']);
   });
@@ -269,9 +270,10 @@ describe('Needs attention: written-off pieces (#185)', () => {
     rec({ id: 'm1', quantity: 1, status: 'Missing', retired_on: '2026-10-09', written_off_from: 'lot' }),
     // Looks like a split-off piece, but the record doesn't say it came from a lot: it's flagged.
     rec({ id: 'm2', quantity: 1, status: 'Missing', retired_on: '2026-10-09' }),
-    rec({ id: 'free-lot', purchase_line_id: null, equipment_item_id: 'item-box', item_cost: 0, quantity: 4, manufacturer_model: 'Cable box' }),
-    rec({ id: 'free-m', purchase_line_id: null, equipment_item_id: 'item-box', item_cost: 0, quantity: 1, manufacturer_model: 'Cable box', status: 'Missing', retired_on: '2026-10-09', written_off_from: 'free-lot' }),
-    rec({ id: 'gone-unit', tag_number: 'T-1', purchase_line_id: null, equipment_item_id: 'item-mic', item_cost: 0, status: 'Missing', retired_on: '2026-10-09' }),
+    // Blank costs (11-03: $0 counts as confirmed), so the split-off piece rule is what's tested.
+    rec({ id: 'free-lot', purchase_line_id: null, equipment_item_id: 'item-box', item_cost: null, quantity: 4, manufacturer_model: 'Cable box' }),
+    rec({ id: 'free-m', purchase_line_id: null, equipment_item_id: 'item-box', item_cost: null, quantity: 1, manufacturer_model: 'Cable box', status: 'Missing', retired_on: '2026-10-09', written_off_from: 'free-lot' }),
+    rec({ id: 'gone-unit', tag_number: 'T-1', purchase_line_id: null, equipment_item_id: 'item-mic', item_cost: null, status: 'Missing', retired_on: '2026-10-09' }),
   ];
   const r = buildNeedsAttentionReport({ lines, assets, invoices: [], expenses: { rows: [] } as any }, 2026);
   const ids = (k: string) => r.groups.find(g => g.key === k)?.rows.map(x => x.id) ?? [];

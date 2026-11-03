@@ -317,7 +317,7 @@ The reports, each for one tax year with a CSV download:
 - **Needs attention** (`NeedsAttentionView`): rows that would leave the year's reports wrong or incomplete, by group with a count, each linked to its fix (purchase editor, or the equipment form):
   - expensed purchase lines in the year with no category on the list (the Expenses report's flagged purchase rows);
   - depreciated equipment bought in the year with no recovery period, unit by unit (`assets.purchase_line_id` or the line's `asset_id`), plus depreciated lines with no equipment record;
-  - equipment bought in the year (`acquisition_date`) with no `item_cost` (null or 0);
+  - equipment bought in the year (`acquisition_date`) whose `item_cost` is blank (null). A cost entered as $0 counts as confirmed, a free item (Cameron, 11-03); the group says a free item can be set to $0 to clear it. Every path that makes equipment (the equipment form, the CSV asset import, purchases and Track as equipment) leaves an unknown cost null, never 0;
   - equipment **Disposed** or **Returned** with no `retired_on`, any year;
   - invoices dated in the year whose lines don't add up to `total_inv_amount` (the purchase list's Mismatch rule, `getDiscrepancy`, to the cent).
 

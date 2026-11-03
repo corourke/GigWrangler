@@ -25,6 +25,11 @@ export default function NeedsAttentionView({ report, year, onEditPurchase, onEdi
           <h3 className="text-sm font-semibold flex items-center gap-2">
             {g.title}<Badge variant="outline" className="text-amber-700 border-amber-300">{g.rows.length}</Badge>
           </h3>
+          {g.key === 'no-cost' && (
+            <p className="text-xs text-muted-foreground">
+              Their cost is blank. If an item really cost nothing, set its cost to $0 to clear it.
+            </p>
+          )}
           <Table aria-label={g.title}>
             <TableHeader>
               <TableRow>
