@@ -8,15 +8,27 @@ CREATE FUNCTION rls_test.run(p_user text, p_sql text) RETURNS int LANGUAGE sql A
   $$ SELECT rls_test.try(rls_test.u(p_user), p_sql) $$;
 CREATE FUNCTION rls_test.as_user(p_user text) RETURNS void LANGUAGE sql AS
   $$ SELECT set_config('request.jwt.claim.sub', rls_test.u(p_user)::text, true) $$;
--- The save call as SQL text for a user to run: org, year, figures, rows.
+-- The save call as SQL text for a user to run: org, year, figures, rows. rls_test.run rolls back what it
+-- ran (it only reports whether it was allowed), so a save meant to stay is run again as that user with
+-- rls_test.keep, which leaves it in place for the checks after it.
 CREATE FUNCTION rls_test.save(p_org text, p_year int, p_figures jsonb, p_rows jsonb DEFAULT '[]') RETURNS text LANGUAGE sql AS $$
   SELECT format('SELECT public.save_tax_year_depreciation(%L, %s::smallint, %L::jsonb, %L::jsonb)', rls_test.u(p_org), p_year, p_figures, p_rows) $$;
 
 -- Year 1 (invented): Section 179 $4,000, and 7-year mid-quarter equipment of $6,000 → $214; line 22 $4,214.
+CREATE FUNCTION rls_test.keep(p_user text, p_sql text) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM set_config('request.jwt.claim.sub', rls_test.u(p_user)::text, true);
+  SET LOCAL ROLE authenticated;
+  EXECUTE p_sql;
+  RESET ROLE;
+END $$;
+
 INSERT INTO tax_years (organization_id, year, filed_on) VALUES (rls_test.u('org_a'), 2024, '2025-04-08');
 SELECT rls_test.expect('An Admin saves a filed year''s figures and its line 19 rows',
   rls_test.run('a_admin', rls_test.save('org_a', 2024, '{"line_12": 4000, "line_22": 4214}',
     '[{"recovery_years": 7, "basis": 6000, "convention": "MQ", "method": "200DB", "deduction": 214}]')), 1);
+SELECT rls_test.keep('a_admin', rls_test.save('org_a', 2024, '{"line_12": 4000, "line_22": 4214}',
+  '[{"recovery_years": 7, "basis": 6000, "convention": "MQ", "method": "200DB", "deduction": 214}]'));
 SELECT rls_test.expect('The figures are stored',
   (SELECT count(*)::int FROM tax_year_depreciation WHERE organization_id = rls_test.u('org_a') AND year = 2024
      AND line_12 = 4000 AND line_22 = 4214 AND line_14 IS NULL AND line_17 IS NULL AND estimate_convention = 'HY'), 1);
@@ -30,6 +42,8 @@ SELECT rls_test.expect('Who saved it is recorded',
 SELECT rls_test.expect('A locked year''s figures can still be changed by an Admin (Q1)',
   rls_test.run('a_admin', rls_test.save('org_a', 2024, '{"line_12": 4000, "line_22": 4215}',
     '[{"recovery_years": 7, "basis": 6000, "convention": "MQ", "method": "200DB", "deduction": 215}]')), 1);
+SELECT rls_test.keep('a_admin', rls_test.save('org_a', 2024, '{"line_12": 4000, "line_22": 4215}',
+  '[{"recovery_years": 7, "basis": 6000, "convention": "MQ", "method": "200DB", "deduction": 215}]'));
 SELECT rls_test.expect('Saving again replaces the rows, not adds to them',
   (SELECT count(*)::int FROM tax_year_depreciation_rows WHERE organization_id = rls_test.u('org_a') AND year = 2024), 1);
 SELECT rls_test.expect('and the figures',
@@ -39,6 +53,8 @@ SELECT rls_test.expect('and the figures',
 SELECT rls_test.expect('An Admin saves the open year''s planned amounts without a tax year',
   rls_test.run('a_admin', rls_test.save('org_a', 2026,
     '{"planned_179": 1000, "planned_bonus": 0, "other_expected": 250, "estimate_convention": "MQ"}')), 1);
+SELECT rls_test.keep('a_admin', rls_test.save('org_a', 2026,
+  '{"planned_179": 1000, "planned_bonus": 0, "other_expected": 250, "estimate_convention": "MQ"}'));
 SELECT rls_test.expect('Saving the open year adds no tax year',
   (SELECT count(*)::int FROM tax_years WHERE organization_id = rls_test.u('org_a') AND year = 2026), 0);
 SELECT rls_test.expect('The open year''s amounts and convention are stored',

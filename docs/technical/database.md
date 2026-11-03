@@ -1316,6 +1316,38 @@ Filed tax years, per organization (migration 20261006000000, #133). Purchases da
 
 ---
 
+### tax_year_depreciation
+
+Depreciation for the Schedule C report, per organization and year (migration 20261103000000, #337): a filed year's figures copied from its Form 4562, or the open year's planned amounts. Not tied to `tax_years`: the open year needs no `tax_years` row, and deleting a tax year keeps its figures.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| organization_id | UUID | Reference to organizations.id (PK part, ON DELETE CASCADE) |
+| year | SMALLINT | The tax year (PK part, 2000–2100) |
+| line_12, line_14, line_17, line_21, line_22 | NUMERIC(14,2) | Form 4562 lines 12 (Section 179), 14 (bonus), 17 (MACRS on earlier years), 21 (listed property), 22 (total, Schedule C line 13). Nullable, ≥ 0 |
+| planned_179, planned_bonus, other_expected | NUMERIC(14,2) | The open year's optional planned Section 179 and bonus, and other depreciation expected. Nullable, ≥ 0 |
+| estimate_convention | TEXT | `HY` (default) or `MQ`: the convention for the open year's estimate |
+| updated_by | UUID | Reference to users.id (ON DELETE SET NULL); set by trigger `tax_year_depreciation_stamp` |
+| updated_at | TIMESTAMPTZ | Set by the same trigger |
+
+### tax_year_depreciation_rows
+
+A year's Form 4562 line 19 rows, one per class used (#337).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| organization_id, year | UUID, SMALLINT | Reference to tax_year_depreciation (ON DELETE CASCADE) |
+| recovery_years | SMALLINT | Column (d): 3, 5, 7, 10, 15 or 20 |
+| basis | NUMERIC(14,2) | Column (c), already net of Section 179 and bonus. ≥ 0 |
+| convention | TEXT | Column (e): `HY` or `MQ` |
+| method | TEXT | Column (f): `200DB`, `150DB` or `SL` |
+| deduction | NUMERIC(14,2) | Column (g). Nullable, ≥ 0 |
+
+**Notes:** RLS enabled on both, as on `tax_years`: Admins and Managers of the org read; only its Admins write, also for a locked year (#337 Q1: these are a transcription of the filed return). The app writes through `save_tax_year_depreciation(p_org, p_year, p_figures, p_rows)` (SECURITY INVOKER, so the same policies apply), which upserts the figures and replaces the year's rows in one transaction. Tests: `supabase/tests/rls/67_tax_year_depreciation.test.sql`.
+
+---
+
 ### expense_categories
 
 Expense categories per organization (migration 20261008000000, made per organization by 20261010000000, #125). Rows with `organization_id` NULL are the starter set.
