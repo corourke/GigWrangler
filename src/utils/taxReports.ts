@@ -435,6 +435,26 @@ export function placedItemsFrom(lines: readonly ReportPurchaseLine[]): { date: s
   });
 }
 
+/**
+ * Every disposal of depreciated equipment with a recovery period, in any year, for the depreciation
+ * estimate (#337): the same shares of cost the Assets report's Disposals list gives (a record's share
+ * of its line, or a line's linked equipment when it has no records), with when it was bought.
+ */
+export function disposedItemsFrom(
+  lines: readonly ReportPurchaseLine[], assets: readonly ReportAsset[] = [],
+): { bought: string; disposed: string; cost: number; recoveryYears: RecoveryPeriod }[] {
+  const years = new Set<number>();
+  for (const a of assets) { const d = dayOf(a.retired_on); if (d) years.add(Number(d.slice(0, 4))); }
+  for (const l of lines) { const d = dayOf(l.asset?.retired_on ?? null); if (d) years.add(Number(d.slice(0, 4))); }
+  const periodOf = new Map<string, number | null>();
+  for (const l of lines) if (l.asset) periodOf.set(l.asset.id, l.asset.recovery_period);
+  for (const a of assets) if (a.recovery_period != null) periodOf.set(a.id, a.recovery_period);
+  return [...years].sort((a, b) => a - b).flatMap(y => buildAssetReport([...lines], y, assets).disposals.flatMap(d => {
+    const recoveryYears = asRecoveryPeriod(periodOf.get(d.assetId));
+    return d.bought && recoveryYears ? [{ bought: d.bought, disposed: d.disposed, cost: d.cost, recoveryYears }] : [];
+  }));
+}
+
 // ---- Grey zone -------------------------------------------------------------------
 
 export interface GreyZoneRow {

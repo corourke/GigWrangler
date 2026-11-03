@@ -78,7 +78,7 @@ describe('expenses categorized as Depreciation (Q5)', () => {
 });
 
 describe('the Schedule C CSV with line 13', () => {
-  const gig = [gigRow({ id: 'in', direction: 'in', amount_settled: 10000 })];
+  const gig = [gigRow({ id: 'in', direction: 'in', amount_settled: 10000, paid_at: '2025-04-02' })];
   const r = buildScheduleCSummary(buildIncomeReport(gig, 2025), buildExpenseReport([], gig, cats, scheduleC, 2025), gig, scheduleC);
 
   it('adds a Source column, the line 13 row and its breakdown, and the net after depreciation', () => {

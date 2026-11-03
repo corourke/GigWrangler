@@ -183,6 +183,16 @@ describe('TaxYearsCard: Form 4562 figures', () => {
       { ...blank, planned_179: 500, other_expected: 300, estimate_convention: 'MQ' }, open.rows));
   });
 
+  it('tells the Schedule C report after saving figures or locking a year (#337 PR 3)', async () => {
+    const onChanged = vi.fn();
+    render(<TaxYearsCard organizationId="org-1" userRole="Admin" onChanged={onChanged} />);
+    const form = await open(2024);
+    await userEvent.click(within(form).getByRole('button', { name: 'Save Form 4562 figures' }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    await userEvent.click(within(row('2025')).getByRole('button', { name: 'Unlock' }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(2));
+  });
+
   it('is read-only for Managers', async () => {
     render(<TaxYearsCard organizationId="org-1" userRole="Manager" />);
     const form = await open(2024);

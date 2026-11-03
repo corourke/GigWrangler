@@ -103,11 +103,24 @@ export function vintagesFrom(filed: readonly TaxYearDepreciation[], purchases: r
   }));
 }
 
-/** A year's purchases as vintages, for a year with nothing entered: cost as basis, the usual method. */
-function appVintages(purchases: readonly PlacedItem[], year: number, convention: 'HY' | 'MQ', factor = 1): Vintage[] {
+/**
+ * A year's purchases as vintages, for a year with nothing entered: cost as basis, the usual method.
+ * `goneSameYear`: what was disposed of in the year it was bought, taken off its class and quarter
+ * (it gets no deduction), by its share of cost, so part of a lot counts too.
+ */
+function appVintages(
+  purchases: readonly PlacedItem[], year: number, convention: 'HY' | 'MQ', factor = 1, goneSameYear: readonly DisposedItem[] = [],
+): Vintage[] {
   const classes = [...new Set(purchases.filter(p => yearOf(p.date) === year).map(p => p.recoveryYears))].sort((a, b) => a - b);
   return classes.map(years => {
-    const q = costByQuarter(purchases, year, years).map(c => cents(c * factor)) as Quarters;
+    const cost = costByQuarter(purchases, year, years);
+    for (const d of goneSameYear) {
+      if (yearOf(d.bought) === year && yearOf(d.disposed) === year && d.recoveryYears === years) {
+        const i = quarterOf(d.bought) - 1;
+        cost[i] = Math.max(0, cents(cost[i] - d.cost));
+      }
+    }
+    const q = cost.map(c => cents(c * factor)) as Quarters;
     return {
       year, recoveryYears: years, method: appMethod(years), convention, basis: cents(sum(q)),
       quarters: convention === 'MQ' ? q : null, quartersApproximated: false, basisPerCost: factor, source: 'app',
@@ -161,7 +174,8 @@ export function line17For(year: number, vintages: readonly Vintage[], disposals:
     rows.push({
       label: `Line 17: ${v.year} equipment, ${v.recoveryYears}-year ${v.convention} (${describe(v, year, basis, quarters)})`,
       amount,
-      ...(v.quartersApproximated ? { note: 'Quarters approximated from the deduction entered' } : {}),
+      ...(v.source === 'app' ? { note: `From your purchases; no Form 4562 entered for ${v.year}` }
+        : v.quartersApproximated ? { note: 'Quarters approximated from the deduction entered' } : {}),
     });
     // Disposed of this year: the part of the year not taken (HY: half; MQ: to the middle of the quarter of disposal).
     let lost = 0;
@@ -186,8 +200,11 @@ export function line17For(year: number, vintages: readonly Vintage[], disposals:
 export interface OpenYearEstimate {
   rows: BreakdownRow[];
   total: number;
-  /** Line 17 on the latest filed return that the years entered don't explain: shown, not carried forward. */
-  gap: { year: number; amount: number } | null;
+  /**
+   * Line 17 on the latest filed return that the years before it don't explain: shown, not carried
+   * forward. Negative when the purchases of years with nothing entered (`appYears`) explain more.
+   */
+  gap: { year: number; amount: number; appYears: number[] } | null;
 }
 
 /** The open year's estimate of Schedule C line 13. */
@@ -206,15 +223,15 @@ export function estimateOpenYear(args: {
 
   const rows: BreakdownRow[] = [...line17For(year, vintages, disposals).rows];
 
-  // This year's purchases (less any already disposed of), less planned Section 179 and bonus, pro rata.
-  const goneThisYear = (p: PlacedItem) => disposals.some(d => d.bought === p.date && d.cost === p.cost && yearOf(d.disposed) === year);
-  const thisYear = purchases.filter(p => yearOf(p.date) === year && !goneThisYear(p));
+  // This year's purchases (less what's already disposed of), less planned Section 179 and bonus, pro rata.
+  const thisYear = purchases.filter(p => yearOf(p.date) === year);
+  const goneThisYear = disposals.filter(d => yearOf(d.bought) === year && yearOf(d.disposed) === year);
   const planned179 = figures?.planned_179 ?? 0;
   const plannedBonus = figures?.planned_bonus ?? 0;
-  const cost = sum(thisYear.map(p => p.cost));
+  const cost = Math.max(0, sum(thisYear.map(p => p.cost)) - sum(goneThisYear.map(d => d.cost)));
   const factor = cost > 0 ? Math.max(0, 1 - (planned179 + plannedBonus) / cost) : 0;
   const convention = figures?.estimate_convention ?? 'HY';
-  for (const v of appVintages(thisYear, year, convention, factor)) {
+  for (const v of appVintages(thisYear, year, convention, factor, goneThisYear)) {
     const amount = dollars(deduction(v, year, v.basis, v.quarters));
     if (amount === 0) continue;
     rows.push({ label: `Line 19: ${year} purchases, ${v.recoveryYears}-year ${convention} (${describe(v, year, v.basis, v.quarters)})`, amount });
@@ -229,7 +246,8 @@ export function estimateOpenYear(args: {
   if (latest) {
     const explained = line17For(latest.year, vintages.filter(v => v.year < latest.year), disposals).total;
     const diff = dollars(latest.line_17! - explained);
-    if (diff !== 0) gap = { year: latest.year, amount: diff };
+    const appYears = [...new Set(vintages.filter(v => v.source === 'app' && v.year < latest.year).map(v => v.year))].sort((a, b) => a - b);
+    if (diff !== 0) gap = { year: latest.year, amount: diff, appYears };
   }
   return { rows, total: sum(rows.map(r => r.amount)), gap };
 }
