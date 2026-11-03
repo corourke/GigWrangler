@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import Papa from 'papaparse';
 import { buildIncomeReport, buildExpenseReport, type ReportPurchaseLine, type ReportGigRow } from './taxReports';
 import { buildScheduleCSummary, scheduleCCsv } from './taxSummaryReports';
-import { buildLine13 } from './scheduleCDepreciation';
+import { buildLine13, line13Source } from './scheduleCDepreciation';
 import type { TaxYearDepreciation } from '../services/taxYearDepreciation.service';
 
 // #337 PR 3: Schedule C line 13, depreciation and section 179. Every amount is invented.
@@ -19,6 +19,12 @@ const figures = [y2025, y2024];
 const locked = new Set([2024, 2025]);
 
 describe('line 13 on the Schedule C report', () => {
+  it('its state: line 22 entered, else locked and not entered, else estimated', () => {
+    expect(line13Source(2025, figures, new Set())).toBe('Form 4562 line 22');
+    expect(line13Source(2023, figures, new Set([2023]))).toBe('Not entered');
+    expect(line13Source(2026, figures, locked)).toBe('Estimated');
+  });
+
   it('a year with line 22 entered uses it: "Form 4562 line 22", its breakdown and the line 17 check', () => {
     const l = buildLine13({ year: 2025, net: 10000, figures, locked, purchases: [], disposals: [] });
     expect(l).toMatchObject({ source: 'Form 4562 line 22', amount: 2082, netAfter: 7918, line17Check: { entered: 1653, fromYearsEntered: 1653 }, unexplained: 0 });
@@ -69,6 +75,17 @@ describe('expenses categorized as Depreciation (Q5)', () => {
     expect(r.lines.map(l => l.line)).toEqual(['22']);
     expect(r.totalExpenses).toBe(40);
     expect(r.net).toBe(4960);
+  });
+
+  it('when line 13 is "Not entered", stay on line 13, in the totals and the net, labelled as from expenses', () => {
+    const s = buildScheduleCSummary(buildIncomeReport(gig, 2026), buildExpenseReport([line({ line_cost: 40 })], gig, cats, scheduleC, 2026), gig, scheduleC,
+      { line13FromForm4562: false });
+    expect(s.lines.map(l => [l.line, l.label, l.total])).toEqual([
+      ['13', 'Depreciation and section 179 (from expenses categorized Depreciation)', 450.5], ['22', 'Supplies', 40],
+    ]);
+    expect(s.totalExpenses).toBe(490.5);
+    expect(s.net).toBe(4509.5);
+    expect(s.depreciationCategorized.count).toBe(0);
   });
 
   it('none: a zero count', () => {

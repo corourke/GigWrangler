@@ -239,6 +239,32 @@ describe('ReportingTab (#125)', () => {
       expect(screen.getAllByText('SM58').length).toBeGreaterThan(0);
     });
 
+    // Coordinator, 11-03: Depreciation-category expenses leave line 13 only when it has a Form 4562 figure or an estimate.
+    it('keeps Depreciation-category expenses on line 13 for a locked year with no Form 4562 figures, and lists them apart otherwise', async () => {
+      const dep = (id: string, paid_at: string) => gigOut({ id, category: 'Depreciation', description: 'Depreciation', amount_settled: 300, paid_at });
+      const data = { gigRows: [dep('d25', '2025-05-02'), dep('d26', '2026-05-02')] };
+      vi.mocked(getTaxReportData).mockResolvedValueOnce({
+        lines: [], assets: [], invoices: [], ...data,
+        categories: [{ name: 'Supplies', schedule_c_line: '22' }],
+        scheduleC: [{ code: '13', label: 'Depreciation and section 179' }, { code: '22', label: 'Supplies' }], equipmentCategories: ['Audio'],
+      } as any);
+      render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" />);
+      await userEvent.click(await screen.findByRole('button', { name: 'Schedule C' }));
+      const select = await screen.findByRole('combobox', { name: 'Tax year' });
+      await within(select).findByRole('option', { name: '2025' });
+      await userEvent.selectOptions(select, '2025');
+      const table = () => screen.getByRole('table', { name: 'Schedule C summary' });
+      const row = (label: string) => within(table()).getByText(label).closest('tr')!;
+      expect(row('Line 13: Depreciation and section 179 (from expenses categorized Depreciation)')).toHaveTextContent('$300.00');
+      expect(row('Total expenses')).toHaveTextContent('$300.00');
+      expect(row('Line 13: Depreciation and section 179')).toHaveTextContent('Not entered');
+      expect(screen.queryByText(/Also categorized as Depreciation/)).not.toBeInTheDocument();
+      await userEvent.selectOptions(select, '2026');
+      expect(within(table()).queryByText(/from expenses categorized Depreciation/)).not.toBeInTheDocument();
+      expect(row('Total expenses')).toHaveTextContent('$0.00');
+      expect(screen.getByText(/Also categorized as Depreciation: 1 gig expense \(\$300\.00\)/)).toBeInTheDocument();
+    });
+
     it('reads the Form 4562 figures again after the Filed tax years card saves', async () => {
       render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" userRole="Admin" />);
       await userEvent.click(await screen.findByRole('button', { name: 'Schedule C' }));
