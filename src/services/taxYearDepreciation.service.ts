@@ -68,7 +68,7 @@ export async function getTaxYearDepreciation(organizationId: string): Promise<Ta
   try {
     await getCurrentUser();
     const supabase = getSupabase();
-    const { data, error } = await (supabase as any).from('tax_year_depreciation')
+    const { data, error } = await supabase.from('tax_year_depreciation')
       .select(COLUMNS)
       .eq('organization_id', organizationId)
       .order('year', { ascending: false });
@@ -96,7 +96,7 @@ export async function saveTaxYearDepreciation(
   try {
     await getCurrentUser();
     const supabase = getSupabase();
-    const { error } = await (supabase.rpc as any)('save_tax_year_depreciation', {
+    const { error } = await supabase.rpc('save_tax_year_depreciation', {
       p_org: organizationId,
       p_year: year,
       p_figures: {

@@ -1860,6 +1860,110 @@ export type Database = {
         }
         Relationships: []
       }
+      tax_year_depreciation: {
+        Row: {
+          estimate_convention: string
+          line_12: number | null
+          line_14: number | null
+          line_17: number | null
+          line_21: number | null
+          line_22: number | null
+          organization_id: string
+          other_expected: number | null
+          planned_179: number | null
+          planned_bonus: number | null
+          updated_at: string
+          updated_by: string | null
+          year: number
+        }
+        Insert: {
+          estimate_convention?: string
+          line_12?: number | null
+          line_14?: number | null
+          line_17?: number | null
+          line_21?: number | null
+          line_22?: number | null
+          organization_id: string
+          other_expected?: number | null
+          planned_179?: number | null
+          planned_bonus?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          year: number
+        }
+        Update: {
+          estimate_convention?: string
+          line_12?: number | null
+          line_14?: number | null
+          line_17?: number | null
+          line_21?: number | null
+          line_22?: number | null
+          organization_id?: string
+          other_expected?: number | null
+          planned_179?: number | null
+          planned_bonus?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_year_depreciation_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tax_year_depreciation_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tax_year_depreciation_rows: {
+        Row: {
+          basis: number
+          convention: string
+          deduction: number | null
+          id: string
+          method: string
+          organization_id: string
+          recovery_years: number
+          year: number
+        }
+        Insert: {
+          basis: number
+          convention: string
+          deduction?: number | null
+          id?: string
+          method: string
+          organization_id: string
+          recovery_years: number
+          year: number
+        }
+        Update: {
+          basis?: number
+          convention?: string
+          deduction?: number | null
+          id?: string
+          method?: string
+          organization_id?: string
+          recovery_years?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_year_depreciation_rows_organization_id_year_fkey"
+            columns: ["organization_id", "year"]
+            isOneToOne: false
+            referencedRelation: "tax_year_depreciation"
+            referencedColumns: ["organization_id", "year"]
+          },
+        ]
+      }
       tax_years: {
         Row: {
           created_at: string
@@ -2398,6 +2502,10 @@ export type Database = {
         Returns: undefined
       }
       return_to_service: { Args: { p_asset_id: string }; Returns: string }
+      save_tax_year_depreciation: {
+        Args: { p_figures: Json; p_org: string; p_rows: Json; p_year: number }
+        Returns: undefined
+      }
       search_name_rank: {
         Args: { p_name: string; p_query: string }
         Returns: number
