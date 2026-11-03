@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  vintagesFrom, line17For, estimateOpenYear, filedYearView,
+  suggestedRows, vintagesFrom, line17For, estimateOpenYear, filedYearView,
   type PlacedItem, type DisposedItem,
 } from './depreciationEstimate';
 import type { TaxYearDepreciation } from '../services/taxYearDepreciation.service';
@@ -51,6 +51,11 @@ describe('line 17', () => {
 });
 
 describe('the open year\'s estimate', () => {
+  it('depreciates the app\'s 15-year build-out straight line, not 150% declining balance', () => {
+    const e = estimateOpenYear({ year: 2026, figures: null, filed: [], purchases: [{ date: '2026-05-01', cost: 1000, recoveryYears: 15 }], disposals: [] });
+    expect(e.rows).toEqual([{ label: 'Line 19: 2026 purchases, 15-year HY ($1,000 × 3.33%)', amount: 33 }]);
+  });
+
   it('projects line 17 from every year entered, and adds this year\'s purchases; every row in whole dollars, the total their sum', () => {
     const e = estimateOpenYear({ year: 2026, figures: null, filed, purchases: bought2026, disposals: [] });
     expect(e.rows.map(r => [r.label, r.amount])).toEqual([
@@ -119,5 +124,30 @@ describe('a filed year', () => {
 
   it('with no figures, it is not entered', () => {
     expect(filedYearView(null, []).status).toBe('not-entered');
+  });
+});
+
+describe('suggestedRows: the prefill from the app (§5)', () => {
+  const bought = (date: string, cost: number, recoveryYears: 5 | 7 | 15 = 7) => ({ date, cost, recoveryYears });
+
+  it('gives one row per class bought that year, less Section 179 and bonus pro rata by cost', () => {
+    const rows = suggestedRows(2024, [bought('2024-11-15', 10000), bought('2023-06-01', 900)], { line_12: 4000, line_14: null }, 'HY');
+    expect(rows).toEqual([{ recovery_years: 7, cost: 10000, basis: 6000, convention: 'HY', method: '200DB', deduction: 857 }]);
+  });
+
+  it('spreads Section 179 and bonus across classes by cost', () => {
+    const rows = suggestedRows(2024, [bought('2024-02-01', 3000, 5), bought('2024-03-01', 9000)], { line_12: 1000, line_14: 2000 }, 'HY');
+    expect(rows.map(r => [r.recovery_years, r.basis])).toEqual([[5, 2250], [7, 6750]]);
+  });
+
+  it('works out a mid-quarter deduction from purchase dates', () => {
+    const rows = suggestedRows(2024, [bought('2024-11-15', 10000)], { line_12: 4000, line_14: null }, 'MQ');
+    expect(rows[0]).toMatchObject({ basis: 6000, convention: 'MQ', deduction: 214 });
+  });
+
+  it('uses straight line for the 15-year class and suggests nothing for a year with no purchases', () => {
+    expect(suggestedRows(2024, [bought('2024-05-01', 1000, 15)], { line_12: null, line_14: null }, 'HY')[0])
+      .toMatchObject({ method: 'SL', deduction: 33 });
+    expect(suggestedRows(2022, [bought('2024-05-01', 1000)], { line_12: null, line_14: null }, 'HY')).toEqual([]);
   });
 });
