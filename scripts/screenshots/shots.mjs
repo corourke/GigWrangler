@@ -867,6 +867,25 @@ export const shots = [
     clip: { x: 0, y: 0, width: 390, height: 844 },
   },
   {
+    id: 'equipment/inventory-reports-manifest',
+    page: 'equipment/inventory-reports.md',
+    user: 'admin',
+    sources: ['src/components/inventory/InventoryReports.tsx', 'src/components/inventory/LineExtras.tsx', 'src/components/inventory/LocationCombobox.tsx'],
+    viewport: { width: 1200, height: 900 },
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/equipment/locations`);
+      await page.getByRole('button', { name: 'Print manifest' }).click();
+      await page.getByPlaceholder('Select or enter location...').click();
+      await page.getByRole('option', { name: 'Staging Area', exact: true }).click();
+      await page.getByText('XLR Cable, 50 ft').waitFor();
+    },
+    // From the Equipment header through the manifest's table.
+    clip: async (page) => {
+      const t = await box(page.locator('table').first());
+      return { x: 0, y: 56, width: 1200, height: t.y + t.height + 24 - 56 };
+    },
+  },
+  {
     id: 'equipment/inventory-reports-packing-list',
     page: 'equipment/inventory-reports.md',
     user: 'admin',

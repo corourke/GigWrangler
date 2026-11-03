@@ -59,7 +59,7 @@ The words this guide uses for the things in GigWrangler. Statuses and other valu
 : The role that runs gigs, equipment and financials day to day but can't make or change Admins. See [Roles & access](/reference/roles-and-access/).
 
 **Manifest**
-: A printable checklist of gear and where it stands, which you can check off on screen. **Print manifest** on the Locations tab opens one for a location.
+: A printable checklist of gear and where it stands, which you can check off on screen. **Print manifest** on the Locations tab opens one for a location. See [Manifest](/equipment/inventory-reports/#manifest).
 
 **Member**
 : A person on an organization's **Team**, with a role. See [Team](/team/overview/).
