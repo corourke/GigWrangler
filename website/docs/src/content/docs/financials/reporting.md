@@ -126,7 +126,7 @@ The CSV has the columns **Group**, **Item**, **Date**, **Amount** and **Problem*
 
 ## Filing a year
 
-Below the reports, **Filed tax years** shows which years are locked. An Admin locks a year after filing; Managers can see the list. Locking, and what it protects, is explained in [Tax treatment and equipment](/financials/tax-treatment/#filed-years-are-locked).
+Select **Schedule C** to see **Filed tax years**, below the report. It shows which years are locked. An Admin locks a year after filing; Managers can see the list. Locking, and what it protects, is explained in [Tax treatment and equipment](/financials/tax-treatment/#filed-years-are-locked).
 
 ## Related
 
