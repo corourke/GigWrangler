@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-10-30 (coordinator: **Merged 10-29 with Cameron's OK, not yet in prod:** #326 (migration `20261029000000`), #328 (Location box click), #329 (Print manifest rework; closes #327). **Next prod deploy due:** Cameron runs `./deploy_prod.sh` (one migration, frontend). **#135:** Parts 1–3 done (fix verified, 194/194; cost-of-goods category in place). Open: the SHEHDS 06-23 invoice is 6¢ off again because saving it in the app recomputed the 10-head line; Cameron trims the Worry-Free line $46.41 → $46.35; item 10 (filed 2024/2025 totals) later. **Engineering Lead next:** editing a purchase overwrites line costs (Cameron 10-30; plan on a new issue first). **Docs Lead:** manifest section for #329, held for the deploy)
+- **Last updated:** 2026-11-03 (coordinator: **In prod (Cameron's deploy 11-03, verified read-only):** #326 (migration `20261029000000`; `track_purchase_line_as_equipment` gone), #328, #329, #332 (editing a purchase keeps stored line totals; closes #330), #333 ("1 kit" counts), #334 (deploy-gate tests); build 2026-11-03T06:19Z. **Merged, not yet in prod:** nothing. **#135:** Parts 1–3 done; open: Cameron re-spreads the SHEHDS 06-23 invoice in the app (retype its total and save) to clear the few cents, then the coordinator verifies; item 10 (filed 2024/2025 totals) later. **Docs Lead:** #331 (manifest guide) ready to merge on Cameron's OK. **Engineering Lead:** standing by for its next item)
 
 ---
 

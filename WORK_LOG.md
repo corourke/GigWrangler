@@ -5,6 +5,9 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Prod deploy, 11-03** (Cameron): #326 (migration `20261029000000`), #328, #329, #332, #333, #334. Verified read-only: migrations at `20261029000000`, `track_purchase_line_as_equipment` dropped, build 2026-11-03T06:19Z matches main c4d8469.
+- **PR #334, #333, #332** (Engineering Lead; merged 10-30 with Cameron's OK): #334 makes three slow tests fast enough for the deploy gate's 5 s timeout (the 10-29 deploy failed there); #333 adds `plural()` so counts read "1 kit", "1 piece", "1 gig" across 12 labels; #332 (closes #330) keeps each saved line's stored `line_cost` / `line_amount` on edit unless its quantity, price or cost share changed, and the banner, Use $X, Line Amt and gig-ledger check follow the same rule.
+
 - **PR #328 and #329** (Engineering Lead; merged 10-29 with Cameron's OK; #327): the Location box opens on click (Locations filter and manifest); the Print manifest lists what is at the place now (newest row wins, once per item), in the packing list's grouping with Name / Tag # / Qty, "N of M" on lots, case contents, "Manifest · <org>" title, and suggestions read past the 1,000-row cap. Cameron's answers: lot Tag # blank, all statuses, title "Manifest", all places ever scanned; badges stay Container / Items.
 - **#135 on prod** (Cameron, 10-29): Part 2 fix applied (194 changes, verified value for value); cost-of-goods category "Cost of goods sold (resale)" on line 4 with the 10 SHEHDS resale heads. Saving that invoice in the app recomputed the line cost and undid its 6¢ trim (follow-up: Engineering Lead).
 
