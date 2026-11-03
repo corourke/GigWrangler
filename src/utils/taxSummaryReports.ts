@@ -266,12 +266,13 @@ export function buildNeedsAttentionReport(
     }
   }
 
-  // 3. Equipment bought in the year with no cost.
+  // 3. Equipment bought in the year whose cost is blank. A cost entered as $0 is confirmed: a free
+  // item (Cameron, 11-03). Every path that makes equipment leaves an unknown cost blank, never $0.
   const noCost: AttentionRow[] = assets
-    .filter(a => inYear(dayOf(a.acquisition_date), year) && !Number(a.item_cost ?? 0) && !isSplitOffPiece(a, assets))
+    .filter(a => inYear(dayOf(a.acquisition_date), year) && a.item_cost == null && !isSplitOffPiece(a, assets))
     .map(a => ({
       id: a.id, item: assetName(a), date: dayOf(a.acquisition_date)!,
-      amount: a.item_cost != null ? 0 : null, problem: 'No cost', assetId: a.id,
+      amount: null, problem: 'No cost', assetId: a.id,
     }));
 
   // 4. Disposed or returned with no date disposed, whatever year.
