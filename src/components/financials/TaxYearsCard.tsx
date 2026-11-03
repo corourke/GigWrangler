@@ -8,25 +8,46 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { getTaxYears, saveTaxYear, type TaxYear } from '../../services/taxYear.service';
+import {
+  getTaxYearDepreciation, saveTaxYearDepreciation,
+  type DepreciationFigures, type DepreciationRow, type TaxYearDepreciation,
+} from '../../services/taxYearDepreciation.service';
+import type { PlacedItem } from '../../utils/depreciationEstimate';
+import Form4562Form from './Form4562Form';
+import { usd } from './form4562Figures';
+import EstimateInputs from './EstimateInputs';
 import type { UserRole } from '../../utils/supabase/types';
 
 interface TaxYearsCardProps {
   organizationId: string;
   userRole?: UserRole;
+  /** The app's depreciated purchases: the Form 4562 prefill and checks (#337). */
+  purchases?: readonly PlacedItem[];
 }
+
+const NO_PURCHASES: readonly PlacedItem[] = [];
 
 /**
  * Filed tax years (#133). Locking a year keeps its purchases' costs, dates,
  * categories and tax treatment as filed; the database enforces it. Admins lock
  * and unlock; Managers see the list.
+ *
+ * Each year also holds its Form 4562 figures, and this year its estimate inputs, for the Schedule C
+ * depreciation row (#337). Admins enter them, also for a locked year; Managers read them.
  */
-export default function TaxYearsCard({ organizationId, userRole }: TaxYearsCardProps) {
+export default function TaxYearsCard({ organizationId, userRole, purchases = NO_PURCHASES }: TaxYearsCardProps) {
+  const thisYear = new Date().getFullYear();
   const isAdmin = userRole === 'Admin';
   const [years, setYears] = useState<TaxYear[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyYear, setBusyYear] = useState<number | null>(null);
   const [newYear, setNewYear] = useState(String(new Date().getFullYear() - 1));
   const [filedOn, setFiledOn] = useState('');
+  const [depreciation, setDepreciation] = useState<TaxYearDepreciation[] | null>(null);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [savingFigures, setSavingFigures] = useState(false);
+  // Bumped after a save, so the estimate inputs start again from what was saved.
+  const [version, setVersion] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -38,7 +59,33 @@ export default function TaxYearsCard({ organizationId, userRole }: TaxYearsCardP
     }
   }, [organizationId]);
 
-  useEffect(() => { load(); }, [load]);
+  const loadDepreciation = useCallback(async () => {
+    try {
+      setDepreciation(await getTaxYearDepreciation(organizationId));
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load the Form 4562 figures');
+      setDepreciation([]);
+    }
+  }, [organizationId]);
+
+  useEffect(() => { load(); loadDepreciation(); }, [load, loadDepreciation]);
+
+  const figuresFor = (year: number) => depreciation?.find(d => d.year === year) ?? null;
+
+  const saveFigures = async (year: number, figures: DepreciationFigures, rows: DepreciationRow[], done: string, close: boolean) => {
+    setSavingFigures(true);
+    try {
+      await saveTaxYearDepreciation(organizationId, year, figures, rows);
+      toast.success(done);
+      if (close) setEditing(null);
+      await loadDepreciation();
+      setVersion(v => v + 1);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save the figures');
+    } finally {
+      setSavingFigures(false);
+    }
+  };
 
   const save = async (year: number, values: { locked: boolean; filed_on?: string | null }, done: string) => {
     setBusyYear(year);
@@ -63,6 +110,8 @@ export default function TaxYearsCard({ organizationId, userRole }: TaxYearsCardP
         <p className="text-sm text-gray-600 mt-1 max-w-2xl">
           Once you've filed a year's taxes, lock it. Its purchases' costs, dates, categories and tax treatment
           then stay as filed. You can still track items as equipment and edit descriptions. Unlock a year only to amend a return.
+          Under <span className="font-medium">Form 4562</span>, copy in each year's depreciation figures as filed: Schedule C uses
+          line 22 for that year, and estimates this year's from them.
         </p>
       </div>
 
@@ -71,13 +120,14 @@ export default function TaxYearsCard({ organizationId, userRole }: TaxYearsCardP
       ) : years.length === 0 ? (
         <p className="text-sm text-gray-500">No years locked yet.</p>
       ) : (
-        <table className="w-full max-w-xl text-sm">
+        <table className="w-full max-w-2xl text-sm">
           <thead>
             <tr className="text-left text-xs uppercase text-gray-500">
               <th className="py-1 font-semibold">Year</th>
               <th className="py-1 font-semibold">Status</th>
               <th className="py-1 font-semibold">Filed on</th>
-              {isAdmin && <th className="py-1" />}
+              <th className="py-1 font-semibold">Form 4562</th>
+              <th className="py-1" />
             </tr>
           </thead>
           <tbody>
@@ -90,8 +140,16 @@ export default function TaxYearsCard({ organizationId, userRole }: TaxYearsCardP
                     : <Badge variant="outline" className="text-gray-600"><LockOpen className="w-3 h-3 mr-1" />Open</Badge>}
                 </td>
                 <td className="py-2 text-gray-700">{y.filed_on ? format(parseISO(y.filed_on), 'MMM d, yyyy') : '—'}</td>
-                {isAdmin && (
-                  <td className="py-2 text-right">
+                <td className="py-2 text-gray-700">
+                  {figuresFor(y.year)?.line_22 != null ? `Line 22: ${usd(figuresFor(y.year)!.line_22!)}` : <span className="text-gray-500">Not entered</span>}
+                </td>
+                <td className="py-2 text-right space-x-2 whitespace-nowrap">
+                  <Button variant="outline" size="sm" className="h-7 text-xs" disabled={depreciation == null}
+                    aria-expanded={editing === y.year}
+                    onClick={() => setEditing(e => (e === y.year ? null : y.year))}>
+                    Form 4562
+                  </Button>
+                  {isAdmin && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -103,12 +161,38 @@ export default function TaxYearsCard({ organizationId, userRole }: TaxYearsCardP
                     >
                       {y.locked ? 'Unlock' : 'Lock'}
                     </Button>
-                  </td>
-                )}
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+
+      {editing != null && depreciation && (
+        <Form4562Form
+          key={editing}
+          year={editing}
+          saved={figuresFor(editing)}
+          allYears={depreciation}
+          purchases={purchases}
+          locked={!!years.find(y => y.year === editing)?.locked}
+          readOnly={!isAdmin}
+          busy={savingFigures}
+          onClose={() => setEditing(null)}
+          onSave={(figures, rows) => saveFigures(editing, figures, rows, `${editing} Form 4562 figures saved`, true)}
+        />
+      )}
+
+      {depreciation && (
+        <EstimateInputs
+          key={`${thisYear}-${version}`}
+          year={thisYear}
+          saved={figuresFor(thisYear)}
+          readOnly={!isAdmin}
+          busy={savingFigures}
+          onSave={(figures, rows) => saveFigures(thisYear, figures, rows, `${thisYear} estimate inputs saved`, false)}
+        />
       )}
 
       {isAdmin ? (

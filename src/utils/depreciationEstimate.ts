@@ -48,6 +48,9 @@ export interface BreakdownRow {
   note?: string;
 }
 
+/** The method for the app's own purchases: the usual one, except its 15-year class (leasehold build-out, qualified improvement property) is straight line. */
+export const appMethod = (years: RecoveryYears): MacrsMethod => (years === 15 ? 'SL' : defaultMethod(years));
+
 const yearOf = (date: string) => Number(date.slice(0, 4));
 const quarterOf = (date: string): Quarter => (Math.floor((Number(date.slice(5, 7)) - 1) / 3) + 1) as Quarter;
 const cents = (n: number) => Math.round(n * 100) / 100;
@@ -106,7 +109,7 @@ function appVintages(purchases: readonly PlacedItem[], year: number, convention:
   return classes.map(years => {
     const q = costByQuarter(purchases, year, years).map(c => cents(c * factor)) as Quarters;
     return {
-      year, recoveryYears: years, method: defaultMethod(years), convention, basis: cents(sum(q)),
+      year, recoveryYears: years, method: appMethod(years), convention, basis: cents(sum(q)),
       quarters: convention === 'MQ' ? q : null, quartersApproximated: false, basisPerCost: factor, source: 'app',
     };
   });
@@ -263,4 +266,38 @@ export function filedYearView(figures: TaxYearDepreciation | null, vintages: rea
       : null,
     unexplained: figures.line_22 != null ? dollars(figures.line_22) - parts : 0,
   };
+}
+
+/** A suggested Form 4562 line 19 row, from the app's purchases for a year and class. */
+export interface SuggestedRow {
+  recovery_years: RecoveryYears;
+  /** The app's cost for the class, before Section 179 and bonus. */
+  cost: number;
+  basis: number;
+  convention: 'HY' | 'MQ';
+  method: MacrsMethod;
+  deduction: number;
+}
+
+/**
+ * The prefill for a filed year's line 19 (§5): one row per class bought that year, its cost less the
+ * entered Section 179 and bonus pro rata by cost, and the first year's deduction on it (MQ quarters
+ * from purchase dates).
+ */
+export function suggestedRows(
+  year: number,
+  purchases: readonly PlacedItem[],
+  upFront: { line_12: number | null; line_14: number | null },
+  convention: 'HY' | 'MQ',
+): SuggestedRow[] {
+  const cost = sum(purchases.filter(p => yearOf(p.date) === year).map(p => p.cost));
+  const factor = cost > 0 ? Math.max(0, 1 - ((upFront.line_12 ?? 0) + (upFront.line_14 ?? 0)) / cost) : 0;
+  return appVintages(purchases, year, convention, factor).map(v => ({
+    recovery_years: v.recoveryYears,
+    cost: cents(sum(costByQuarter(purchases, year, v.recoveryYears))),
+    basis: v.basis,
+    convention,
+    method: v.method,
+    deduction: dollars(deduction(v, year, v.basis, v.quarters)),
+  }));
 }
