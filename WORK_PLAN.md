@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-11-03 (coordinator: **In prod (Cameron's deploy 11-03, verified read-only):** #326 (migration `20261029000000`; `track_purchase_line_as_equipment` gone), #328, #329, #332 (editing a purchase keeps stored line totals; closes #330), #333 ("1 kit" counts), #334 (deploy-gate tests); build 2026-11-03T06:19Z. **Merged, not yet in prod:** nothing. **#135:** Parts 1–3 done; open: Cameron re-spreads the SHEHDS 06-23 invoice in the app (retype its total and save) to clear the few cents, then the coordinator verifies; item 10 (filed 2024/2025 totals) later. **Docs Lead:** #331 (manifest guide) ready to merge on Cameron's OK. **Engineering Lead:** standing by for its next item)
+- **Last updated:** 2026-11-03 (coordinator: **In prod (Cameron's deploy 11-03, verified read-only):** #326 (migration `20261029000000`), #328, #329, #332, #333, #334. **#331** (manifest guide) merged 11-03 with Cameron's OK. **#135:** Parts 1–3 done; Cameron re-spread the SHEHDS 06-23 invoice in the app 11-03 and it now adds up (verified read-only); open: item 10 (filed 2024/2025 totals). **Engineering Lead:** the Filed tax years card shows only under the Schedule C report (Cameron 11-03, released). **Waiting on Cameron:** a depreciation estimate on Schedule C (needs how the filed returns depreciated), a disposals pointer on Schedule C, and whether a $0 cost entered on purpose stops counting as Needs attention)
 
 ---
 
