@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import Papa from 'papaparse';
 import {
   buildIncomeReport, buildExpenseReport, buildAssetReport, buildGreyZoneReport,
-  incomeCsv, expensesCsv, assetsCsv, disposalsCsv, greyZoneCsv, reportFilename,
+  incomeCsv, expensesCsv, assetsCsv, disposalsCsv, greyZoneCsv, reportFilename, placedItemsFrom, disposedItemsFrom,
   type ReportPurchaseLine, type ReportGigRow,
 } from './taxReports';
 
@@ -265,3 +265,36 @@ describe('Disposals by record (#185)', () => {
   });
 });
 
+
+// #337: the app's depreciated purchases, as the depreciation estimate and the Form 4562 prefill read them.
+describe('placedItemsFrom', () => {
+  it('lists each depreciated line with a recovery period: its date (else its invoice\'s), cost and period', () => {
+    const asset = (recovery_period: number | null) => ({ id: 'a', manufacturer_model: null, category: null, recovery_period, retired_on: null, liquidation_amt: null, status: null });
+    expect(placedItemsFrom([
+      line({ id: '1', tax_treatment: 'depreciate', purchase_date: null, line_cost: 1200, asset: asset(7) }),
+      line({ id: '2', tax_treatment: 'depreciate', purchase_date: '2025-07-04', line_cost: null, item_cost: 300, quantity: 2, asset: asset(5) }),
+      line({ id: '3', tax_treatment: 'depreciate', asset: asset(null) }),
+      line({ id: '4', tax_treatment: 'expense', asset: asset(7) }),
+    ])).toEqual([
+      { date: '2026-03-01', cost: 1200, recoveryYears: 7 },
+      { date: '2025-07-04', cost: 600, recoveryYears: 5 },
+    ]);
+  });
+});
+
+// #337 PR 3: disposals as the depreciation estimate reads them, the same shares the Assets report lists.
+describe('disposedItemsFrom', () => {
+  it('lists every year\'s disposals with their recovery period: a record\'s share of its line, or the line\'s linked equipment', () => {
+    const rec = (id: string, retired_on: string | null, quantity = 1) => ({
+      id, manufacturer_model: 'Mic', description: null, category: 'Audio', acquisition_date: null, item_cost: null, status: 'Retired',
+      retired_on, recovery_period: 7, purchase_line_id: 'lot', quantity,
+    });
+    const lot = line({ id: 'lot', tax_treatment: 'depreciate', purchase_date: '2024-02-01', quantity: 4, line_cost: 400 });
+    const single = line({ id: 'one', tax_treatment: 'depreciate', purchase_date: '2023-07-01', line_cost: 900,
+      asset: { id: 'amp', manufacturer_model: 'Amp', category: 'Audio', recovery_period: 5, retired_on: '2025-03-01', liquidation_amt: null, status: 'Sold' } });
+    expect(disposedItemsFrom([lot, single], [rec('r1', '2026-05-01', 3), rec('r2', null, 1)])).toEqual([
+      { bought: '2023-07-01', disposed: '2025-03-01', cost: 900, recoveryYears: 5 },
+      { bought: '2024-02-01', disposed: '2026-05-01', cost: 300, recoveryYears: 7 },
+    ]);
+  });
+});
