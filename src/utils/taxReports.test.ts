@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import Papa from 'papaparse';
 import {
   buildIncomeReport, buildExpenseReport, buildAssetReport, buildGreyZoneReport,
-  incomeCsv, expensesCsv, assetsCsv, disposalsCsv, greyZoneCsv, reportFilename,
+  incomeCsv, expensesCsv, assetsCsv, disposalsCsv, greyZoneCsv, reportFilename, placedItemsFrom,
   type ReportPurchaseLine, type ReportGigRow,
 } from './taxReports';
 
@@ -265,3 +265,19 @@ describe('Disposals by record (#185)', () => {
   });
 });
 
+
+// #337: the app's depreciated purchases, as the depreciation estimate and the Form 4562 prefill read them.
+describe('placedItemsFrom', () => {
+  it('lists each depreciated line with a recovery period: its date (else its invoice\'s), cost and period', () => {
+    const asset = (recovery_period: number | null) => ({ id: 'a', manufacturer_model: null, category: null, recovery_period, retired_on: null, liquidation_amt: null, status: null });
+    expect(placedItemsFrom([
+      line({ id: '1', tax_treatment: 'depreciate', purchase_date: null, line_cost: 1200, asset: asset(7) }),
+      line({ id: '2', tax_treatment: 'depreciate', purchase_date: '2025-07-04', line_cost: null, item_cost: 300, quantity: 2, asset: asset(5) }),
+      line({ id: '3', tax_treatment: 'depreciate', asset: asset(null) }),
+      line({ id: '4', tax_treatment: 'expense', asset: asset(7) }),
+    ])).toEqual([
+      { date: '2026-03-01', cost: 1200, recoveryYears: 7 },
+      { date: '2025-07-04', cost: 600, recoveryYears: 5 },
+    ]);
+  });
+});

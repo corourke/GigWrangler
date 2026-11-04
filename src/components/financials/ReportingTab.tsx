@@ -14,7 +14,7 @@ import { getLockedTaxYears } from '../../services/taxYear.service';
 import type { UserRole } from '../../utils/supabase/types';
 import {
   buildIncomeReport, buildExpenseReport, buildAssetReport, buildGreyZoneReport,
-  incomeCsv, expensesCsv, assetsCsv, disposalsCsv, greyZoneCsv, reportFilename, downloadCsv, dayOf,
+  incomeCsv, expensesCsv, assetsCsv, disposalsCsv, greyZoneCsv, reportFilename, downloadCsv, dayOf, placedItemsFrom,
 } from '../../utils/taxReports';
 import { buildScheduleCSummary, buildNeedsAttentionReport, scheduleCCsv, needsAttentionCsv, usd } from '../../utils/taxSummaryReports';
 import { recoveryPeriodLabel } from '../../utils/recoveryPeriod';
@@ -85,6 +85,7 @@ export default function ReportingTab({ organizationId, organizationName, userRol
   const income = useMemo(() => data && buildIncomeReport(data.gigRows, year), [data, year]);
   const expenses = useMemo(() => data && buildExpenseReport(data.lines, data.gigRows, data.categories, data.scheduleC, year), [data, year]);
   const assets = useMemo(() => data && buildAssetReport(data.lines, year, data.assets), [data, year]);
+  const placed = useMemo(() => placedItemsFrom(data?.lines ?? []), [data]);
   const greyZone = useMemo(() => data && buildGreyZoneReport(data.lines, data.equipmentCategories ?? [], year), [data, year]);
   const scheduleC = useMemo(() => data && buildScheduleCSummary(income!, expenses!, data.gigRows, data.scheduleC), [data, income, expenses]);
   const attention = useMemo(() => data && buildNeedsAttentionReport(
@@ -156,7 +157,7 @@ export default function ReportingTab({ organizationId, organizationName, userRol
         )}
       </Card>
       {/* Filed tax years go with the Schedule C report only (Cameron, 11-03). */}
-      {kind === 'schedule-c' && <TaxYearsCard organizationId={organizationId} userRole={userRole} />}
+      {kind === 'schedule-c' && <TaxYearsCard organizationId={organizationId} userRole={userRole} purchases={placed} />}
     </>
   );
 }

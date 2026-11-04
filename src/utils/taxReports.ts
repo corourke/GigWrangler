@@ -422,6 +422,19 @@ export function buildAssetReport(lines: ReportPurchaseLine[], year: number, asse
   };
 }
 
+/**
+ * The depreciated purchases with a recovery period, for the depreciation estimate and the Form 4562
+ * prefill (#337): each line's date (else its invoice's), its cost, and its period. A line whose period
+ * isn't chosen yet is left out; the Assets report counts those.
+ */
+export function placedItemsFrom(lines: readonly ReportPurchaseLine[]): { date: string; cost: number; recoveryYears: RecoveryPeriod }[] {
+  return lines.flatMap(l => {
+    const date = lineDay(l);
+    const recoveryYears = asRecoveryPeriod(l.asset?.recovery_period);
+    return l.tax_treatment === 'depreciate' && date && recoveryYears ? [{ date, cost: lineCost(l), recoveryYears }] : [];
+  });
+}
+
 // ---- Grey zone -------------------------------------------------------------------
 
 export interface GreyZoneRow {
