@@ -127,7 +127,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-11-04",
-    "appCommit": "f4c62f9"
+    "appCommit": "a0191e1"
   },
   "financials/reporting-grey-zone": {
     "page": "financials/reporting.md",
@@ -171,7 +171,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-11-04",
-    "appCommit": "f4c62f9"
+    "appCommit": "a0191e1"
   },
   "getting-started/onboarding-edit-profile": {
     "page": "getting-started/onboarding.md",
