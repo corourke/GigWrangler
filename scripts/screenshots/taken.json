@@ -118,6 +118,17 @@
     "taken": "2026-10-10",
     "appCommit": "0122c92"
   },
+  "financials/reporting-form-4562": {
+    "page": "financials/reporting.md",
+    "user": "admin",
+    "sources": [
+      "src/components/financials/TaxYearsCard.tsx",
+      "src/components/financials/Form4562Form.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-11-04",
+    "appCommit": "a0191e1"
+  },
   "financials/reporting-grey-zone": {
     "page": "financials/reporting.md",
     "user": "admin",
@@ -155,11 +166,12 @@
     "user": "admin",
     "sources": [
       "src/components/financials/ScheduleCView.tsx",
-      "src/utils/taxSummaryReports.ts"
+      "src/utils/taxSummaryReports.ts",
+      "src/utils/scheduleCDepreciation.ts"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-29",
-    "appCommit": "128f3d9"
+    "taken": "2026-11-04",
+    "appCommit": "a0191e1"
   },
   "getting-started/onboarding-edit-profile": {
     "page": "getting-started/onboarding.md",
