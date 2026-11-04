@@ -70,6 +70,10 @@ DELETE FROM public.ai_scan_usage
 DELETE FROM public.inventory_tracking WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%';
 DELETE FROM public.notifications WHERE recipient_id::text LIKE 'de000000-0000-4000-8000-%';
 DELETE FROM public.access_requests WHERE requester_id::text LIKE 'de000000-0000-4000-8000-%';
+-- Tax years before purchases: a locked demo year refuses its purchases' deletes. Their
+-- depreciation figures go too (the line 19 rows cascade).
+DELETE FROM public.tax_years WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%';
+DELETE FROM public.tax_year_depreciation WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%';
 -- Purchase lines before headers, and all purchases before assets, so the
 -- "depreciated line must keep its equipment record" check never sees a half-delete.
 DELETE FROM public.purchases
@@ -784,6 +788,27 @@ UPDATE public.activity_log l
   FROM public.gigs g
  WHERE l.id = pg_temp.d(11, 13) AND g.id = l.gig_id;
 
+-- -----------------------------------------------------------------------------
+-- 11. A FILED YEAR (#337): the year before the anchor's, locked, with invented
+--     Form 4562 figures for the Filed tax years screenshot. Section 179 $4,000;
+--     one 7-year mid-quarter line 19 row, $6,000 basis, $214 deduction; line 22
+--     $4,214. That year has no demo purchases or gig money, so the lock blocks
+--     nothing. Saved by Alicia Hale on its filing date: the stamp trigger would
+--     record no one and the real time, so it's off for this insert.
+-- -----------------------------------------------------------------------------
+INSERT INTO public.tax_years (organization_id, year, locked, filed_on)
+VALUES (pg_temp.d(1,1), extract(year FROM pg_temp.anchor())::int - 1, true,
+        LEAST(make_date(extract(year FROM pg_temp.anchor())::int, 4, 10), pg_temp.anchor() - 1));
+
+ALTER TABLE public.tax_year_depreciation DISABLE TRIGGER tax_year_depreciation_stamp;
+INSERT INTO public.tax_year_depreciation (organization_id, year, line_12, line_22, updated_by, updated_at)
+SELECT organization_id, year, 4000, 4214, pg_temp.d(2,1), pg_temp.at(filed_on, 10)
+  FROM public.tax_years WHERE organization_id = pg_temp.d(1,1);
+ALTER TABLE public.tax_year_depreciation ENABLE TRIGGER tax_year_depreciation_stamp;
+INSERT INTO public.tax_year_depreciation_rows (organization_id, year, recovery_years, basis, convention, method, deduction)
+SELECT organization_id, year, 7, 6000, 'MQ', '200DB', 214
+  FROM public.tax_years WHERE organization_id = pg_temp.d(1,1);
+
 COMMIT;
 
 -- Summary (last statement, so the API returns it)
@@ -812,5 +837,7 @@ SELECT jsonb_pretty(jsonb_build_object(
   'purchases_headers',    (SELECT count(*) FROM public.purchases WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%' AND row_type = 'header'),
   'purchases_lines',      (SELECT count(*) FROM public.purchases WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%' AND row_type <> 'header'),
   'gig_financials',       (SELECT count(*) FROM public.gig_financials WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%'),
-  'activity_log',         (SELECT count(*) FROM public.activity_log WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%')
+  'activity_log',         (SELECT count(*) FROM public.activity_log WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%'),
+  'tax_years',            (SELECT count(*) FROM public.tax_years WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%'),
+  'tax_year_depreciation',(SELECT count(*) FROM public.tax_year_depreciation WHERE organization_id::text LIKE 'de000000-0000-4000-8000-%')
 )) AS counts;
