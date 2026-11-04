@@ -5,6 +5,9 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **#337 depreciation on Schedule C** (Engineering Lead; merged 11-03/11-04 with Cameron's OK): #339 (migration `20261103000000`, `tax_year_depreciation` and its rows, RLS 67; applied to dev by the coordinator), #341 (Pub 946 MACRS tables, the estimate engine, Form 4562 entry under Filed tax years), #342 (line 13 row: From Form 4562 / Estimated / Not entered, net after depreciation, disposals pointer, CSV). Plan trimmed by Cameron to an estimate, not a tax program. Prod deploy pending.
+- **PR #338** (Engineering Lead; merged 11-03): Needs attention lists only a blank equipment cost; $0 counts as free. **PR #335** (merged 11-03): Filed tax years card under Schedule C only.
+- **#135 closed** (11-04, Cameron's OK).
 - **PR #331** (Docs Lead; merged 11-03 with Cameron's OK): the guide's Manifest section (#327).
 - **Prod deploy, 11-03** (Cameron): #326 (migration `20261029000000`), #328, #329, #332, #333, #334. Verified read-only: migrations at `20261029000000`, `track_purchase_line_as_equipment` dropped, build 2026-11-03T06:19Z matches main c4d8469.
 - **PR #334, #333, #332** (Engineering Lead; merged 10-30 with Cameron's OK): #334 makes three slow tests fast enough for the deploy gate's 5 s timeout (the 10-29 deploy failed there); #333 adds `plural()` so counts read "1 kit", "1 piece", "1 gig" across 12 labels; #332 (closes #330) keeps each saved line's stored `line_cost` / `line_amount` on edit unless its quantity, price or cost share changed, and the banner, Use $X, Line Amt and gig-ledger check follow the same rule.
