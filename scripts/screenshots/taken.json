@@ -155,11 +155,12 @@
     "user": "admin",
     "sources": [
       "src/components/financials/ScheduleCView.tsx",
-      "src/utils/taxSummaryReports.ts"
+      "src/utils/taxSummaryReports.ts",
+      "src/utils/scheduleCDepreciation.ts"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-29",
-    "appCommit": "128f3d9"
+    "taken": "2026-11-04",
+    "appCommit": "1b1372d"
   },
   "getting-started/onboarding-edit-profile": {
     "page": "getting-started/onboarding.md",

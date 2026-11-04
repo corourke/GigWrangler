@@ -50,7 +50,7 @@ Your gig costs and your tax figures never double-count. A purchase linked to a g
 
 ## Recovery period
 
-Depreciated equipment also needs a recovery period: **5-year** (computers and office machines), **7-year** (most production gear) or **15-year** (building out a leased shop or studio). Your tax program uses it to work out the depreciation, and the [Assets report](/financials/reporting/#the-assets-report) under **Financials → Reporting** lists it for each item.
+Depreciated equipment also needs a recovery period: **5-year** (computers and office machines), **7-year** (most production gear) or **15-year** (building out a leased shop or studio). Your tax program uses it to work out the depreciation, GigWrangler uses it to estimate Schedule C line 13, and the [Assets report](/financials/reporting/#the-assets-report) under **Financials → Reporting** lists it for each item.
 
 Choose it in the equipment details on the purchase line, or in the equipment's own form, in **Recovery period**.
 
@@ -71,3 +71,5 @@ Once you've filed a year's taxes, an Admin locks that year under **Financials �
 Editing a purchase from a locked year shows a note saying so: "The {year} tax year is filed, so this purchase's costs, dates, categories and tax treatment can't change. You can still edit descriptions and track items as equipment."
 
 If you need to amend a return, an Admin can **Unlock** the year. Managers can see which years are locked.
+
+A locked year's Form 4562 figures can still be entered or corrected: see [Entering your Form 4562 figures](/financials/reporting/#entering-your-form-4562-figures).

@@ -678,16 +678,18 @@ export const shots = [
     id: 'financials/reporting-schedule-c',
     page: 'financials/reporting.md',
     user: 'admin',
-    sources: ['src/components/financials/ScheduleCView.tsx', 'src/utils/taxSummaryReports.ts'],
-    viewport: { width: 1200, height: 1800 },
+    sources: ['src/components/financials/ScheduleCView.tsx', 'src/utils/taxSummaryReports.ts', 'src/utils/scheduleCDepreciation.ts'],
+    viewport: { width: 1200, height: 2000 },
     prepare: async (page, ctx) => {
       await page.goto(`${ctx.base}/financials/reporting`);
       await page.getByRole('button', { name: 'Schedule C', exact: true }).click();
       await page.getByRole('table', { name: 'Schedule C summary' }).waitFor();
+      await page.getByText('Net after depreciation', { exact: true }).last().waitFor();
     },
+    // From the header through line 13's notes and the reference note (#337).
     clip: async (page) => {
-      const t = await box(page.getByRole('table', { name: 'Schedule C summary' }));
-      return { x: 0, y: 56, width: 1200, height: Math.min(t.y + t.height + 90, 1750) - 56 };
+      const note = await box(page.getByText("It's for your reference", { exact: false }).first());
+      return { x: 0, y: 56, width: 1200, height: note.y + note.height + 16 - 56 };
     },
   },
   {
