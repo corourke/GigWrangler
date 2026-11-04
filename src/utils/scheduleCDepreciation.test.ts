@@ -110,6 +110,15 @@ describe('the Schedule C CSV with line 13', () => {
     ]);
   });
 
+  it('a year not entered with Depreciation-category expenses: only their line 13 row, not a second, empty one', () => {
+    const gig2 = [...gig, gigRow({ id: 'd1', category: 'Depreciation', amount_settled: 300, paid_at: '2025-05-02' })];
+    const s = buildScheduleCSummary(buildIncomeReport(gig2, 2025), buildExpenseReport([], gig2, cats, scheduleC, 2025), gig2, scheduleC,
+      { line13FromForm4562: false });
+    const l = buildLine13({ year: 2025, net: s.net, figures: [], locked, purchases: [], disposals: [] });
+    const rows = Papa.parse<string[]>(scheduleCCsv(s, l)).data.filter(x => x[0] === '13');
+    expect(rows).toEqual([['13', 'Depreciation and section 179 (from expenses categorized Depreciation)', '300.00', '', '']]);
+  });
+
   it('a year not entered: the row with no amount, and no net after depreciation', () => {
     const l = buildLine13({ year: 2025, net: r.net, figures: [], locked, purchases: [], disposals: [] });
     const rows = Papa.parse<string[]>(scheduleCCsv(r, l)).data;
