@@ -23,6 +23,8 @@ interface TaxYearsCardProps {
   userRole?: UserRole;
   /** The app's depreciated purchases: the Form 4562 prefill and checks (#337). */
   purchases?: readonly PlacedItem[];
+  /** After a year is locked or unlocked, or its figures saved: the Schedule C report reads them again. */
+  onChanged?: () => void;
 }
 
 const NO_PURCHASES: readonly PlacedItem[] = [];
@@ -35,7 +37,7 @@ const NO_PURCHASES: readonly PlacedItem[] = [];
  * Each year also holds its Form 4562 figures, and this year its estimate inputs, for the Schedule C
  * depreciation row (#337). Admins enter them, also for a locked year; Managers read them.
  */
-export default function TaxYearsCard({ organizationId, userRole, purchases = NO_PURCHASES }: TaxYearsCardProps) {
+export default function TaxYearsCard({ organizationId, userRole, purchases = NO_PURCHASES, onChanged }: TaxYearsCardProps) {
   const thisYear = new Date().getFullYear();
   const isAdmin = userRole === 'Admin';
   const [years, setYears] = useState<TaxYear[]>([]);
@@ -80,6 +82,7 @@ export default function TaxYearsCard({ organizationId, userRole, purchases = NO_
       if (close) setEditing(null);
       await loadDepreciation();
       setVersion(v => v + 1);
+      onChanged?.();
     } catch (err: any) {
       toast.error(err.message || 'Failed to save the figures');
     } finally {
@@ -93,6 +96,7 @@ export default function TaxYearsCard({ organizationId, userRole, purchases = NO_
       await saveTaxYear(organizationId, year, values);
       toast.success(done);
       await load();
+      onChanged?.();
     } catch (err: any) {
       toast.error(err.message || 'Failed to save the tax year');
     } finally {

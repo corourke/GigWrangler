@@ -11,10 +11,12 @@ import { Badge } from '../ui/badge';
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '../ui/table';
 import { getTaxReportData, type TaxReportData } from '../../services/taxReport.service';
 import { getLockedTaxYears } from '../../services/taxYear.service';
+import { getTaxYearDepreciation, type TaxYearDepreciation } from '../../services/taxYearDepreciation.service';
+import { buildLine13, line13Source } from '../../utils/scheduleCDepreciation';
 import type { UserRole } from '../../utils/supabase/types';
 import {
   buildIncomeReport, buildExpenseReport, buildAssetReport, buildGreyZoneReport,
-  incomeCsv, expensesCsv, assetsCsv, disposalsCsv, greyZoneCsv, reportFilename, downloadCsv, dayOf, placedItemsFrom,
+  incomeCsv, expensesCsv, assetsCsv, disposalsCsv, greyZoneCsv, reportFilename, downloadCsv, dayOf, placedItemsFrom, disposedItemsFrom,
 } from '../../utils/taxReports';
 import { buildScheduleCSummary, buildNeedsAttentionReport, scheduleCCsv, needsAttentionCsv, usd } from '../../utils/taxSummaryReports';
 import { recoveryPeriodLabel } from '../../utils/recoveryPeriod';
@@ -57,6 +59,18 @@ export default function ReportingTab({ organizationId, organizationName, userRol
   // The purchase open in the editor (Grey zone), and a bump to reload after it's saved.
   const [editPurchaseId, setEditPurchaseId] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  // Each year's Form 4562 figures (#337), read again when the Filed tax years card saves or locks.
+  const [figures, setFigures] = useState<TaxYearDepreciation[]>([]);
+  const [figuresVersion, setFiguresVersion] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    getTaxYearDepreciation(organizationId)
+      .then(f => { if (!cancelled) setFigures(f); })
+      .catch(err => { console.error('Error loading the Form 4562 figures:', err); if (!cancelled) setFigures([]); });
+    if (figuresVersion) getLockedTaxYears(organizationId).then(y => { if (!cancelled) setLocked(y); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [organizationId, figuresVersion]);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,8 +100,13 @@ export default function ReportingTab({ organizationId, organizationName, userRol
   const expenses = useMemo(() => data && buildExpenseReport(data.lines, data.gigRows, data.categories, data.scheduleC, year), [data, year]);
   const assets = useMemo(() => data && buildAssetReport(data.lines, year, data.assets), [data, year]);
   const placed = useMemo(() => placedItemsFrom(data?.lines ?? []), [data]);
+  const disposed = useMemo(() => disposedItemsFrom(data?.lines ?? [], data?.assets ?? []), [data]);
   const greyZone = useMemo(() => data && buildGreyZoneReport(data.lines, data.equipmentCategories ?? [], year), [data, year]);
-  const scheduleC = useMemo(() => data && buildScheduleCSummary(income!, expenses!, data.gigRows, data.scheduleC), [data, income, expenses]);
+  const line13FromForm4562 = line13Source(year, figures, locked) !== 'Not entered';
+  const scheduleC = useMemo(() => data && buildScheduleCSummary(income!, expenses!, data.gigRows, data.scheduleC, { line13FromForm4562 }),
+    [data, income, expenses, line13FromForm4562]);
+  const line13 = useMemo(() => scheduleC && buildLine13({ year, net: scheduleC.net, figures, locked, purchases: placed, disposals: disposed }),
+    [scheduleC, year, figures, locked, placed, disposed]);
   const attention = useMemo(() => data && buildNeedsAttentionReport(
     { lines: data.lines, assets: data.assets ?? [], invoices: data.invoices ?? [], expenses: expenses! }, year), [data, expenses, year]);
 
@@ -95,7 +114,7 @@ export default function ReportingTab({ organizationId, organizationName, userRol
     if (!data) return;
     const csv = kind === 'income' ? incomeCsv(income!) : kind === 'expenses' ? expensesCsv(expenses!, data.scheduleC)
       : kind === 'assets' ? assetsCsv(assets!) : kind === 'grey-zone' ? greyZoneCsv(greyZone!)
-      : kind === 'schedule-c' ? scheduleCCsv(scheduleC!) : needsAttentionCsv(attention!);
+      : kind === 'schedule-c' ? scheduleCCsv(scheduleC!, line13!) : needsAttentionCsv(attention!);
     downloadCsv(csv, reportFilename(organizationName, kind, year));
   };
 
@@ -142,7 +161,7 @@ export default function ReportingTab({ organizationId, organizationName, userRol
         ) : kind === 'grey-zone' ? (
           <GreyZoneView report={greyZone!} year={year} onEditPurchase={locked.has(year) ? undefined : setEditPurchaseId} />
         ) : kind === 'schedule-c' ? (
-          <ScheduleCView report={scheduleC!} year={year} />
+          <ScheduleCView report={scheduleC!} year={year} line13={line13} disposalsCount={assets!.disposals.length} />
         ) : (
           <NeedsAttentionView report={attention!} year={year} onEditAsset={onEditAsset}
             onEditPurchase={locked.has(year) ? undefined : setEditPurchaseId} />
@@ -157,7 +176,8 @@ export default function ReportingTab({ organizationId, organizationName, userRol
         )}
       </Card>
       {/* Filed tax years go with the Schedule C report only (Cameron, 11-03). */}
-      {kind === 'schedule-c' && <TaxYearsCard organizationId={organizationId} userRole={userRole} purchases={placed} />}
+      {kind === 'schedule-c' && <TaxYearsCard organizationId={organizationId} userRole={userRole} purchases={placed}
+        onChanged={() => setFiguresVersion(n => n + 1)} />}
     </>
   );
 }

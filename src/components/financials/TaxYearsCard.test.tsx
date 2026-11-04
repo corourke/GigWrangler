@@ -169,6 +169,30 @@ describe('TaxYearsCard: Form 4562 figures', () => {
     expect(within(form).getByRole('button', { name: 'Save Form 4562 figures' })).toBeDisabled();
   });
 
+  // Coordinator's review of #342: figures without line 22 would be ignored by the Schedule C report.
+  it('needs line 22 to save once any figure is filled in', async () => {
+    vi.mocked(getTaxYearDepreciation).mockResolvedValue([]);
+    render(<TaxYearsCard organizationId="org-1" userRole="Admin" />);
+    const form = await open(2024);
+    const save = () => within(form).getByRole('button', { name: 'Save Form 4562 figures' });
+    await userEvent.type(within(form).getByLabelText(/Line 17/), '1653');
+    expect(within(form).getByText('Line 22 is the total on your form; enter it to save.')).toBeInTheDocument();
+    expect(save()).toBeDisabled();
+    await userEvent.type(within(form).getByLabelText(/Line 22/), '1653');
+    expect(within(form).queryByText(/Line 22 is the total on your form/)).not.toBeInTheDocument();
+    expect(save()).toBeEnabled();
+  });
+
+  it('needs line 22 for line 19 rows too', async () => {
+    vi.mocked(getTaxYearDepreciation).mockResolvedValue([]);
+    render(<TaxYearsCard organizationId="org-1" userRole="Admin" />);
+    const form = await open(2024);
+    await userEvent.click(within(form).getByRole('button', { name: 'Add a line 19 row' }));
+    await userEvent.type(within(form).getByLabelText('Row 1 (c) basis'), '3000');
+    expect(within(form).getByText('Line 22 is the total on your form; enter it to save.')).toBeInTheDocument();
+    expect(within(form).getByRole('button', { name: 'Save Form 4562 figures' })).toBeDisabled();
+  });
+
   it('lets an Admin save the open year\'s estimate inputs, keeping its rows', async () => {
     const open: TaxYearDepreciation = { ...blank, year: thisYear, updated_at: null, updated_by_name: null,
       rows: [{ recovery_years: 7, basis: 100, convention: 'HY', method: '200DB', deduction: null }] };
@@ -181,6 +205,16 @@ describe('TaxYearsCard: Form 4562 figures', () => {
     await userEvent.click(within(est).getByRole('button', { name: 'Save estimate inputs' }));
     await waitFor(() => expect(saveTaxYearDepreciation).toHaveBeenCalledWith('org-1', thisYear,
       { ...blank, planned_179: 500, other_expected: 300, estimate_convention: 'MQ' }, open.rows));
+  });
+
+  it('tells the Schedule C report after saving figures or locking a year (#337 PR 3)', async () => {
+    const onChanged = vi.fn();
+    render(<TaxYearsCard organizationId="org-1" userRole="Admin" onChanged={onChanged} />);
+    const form = await open(2024);
+    await userEvent.click(within(form).getByRole('button', { name: 'Save Form 4562 figures' }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    await userEvent.click(within(row('2025')).getByRole('button', { name: 'Unlock' }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(2));
   });
 
   it('is read-only for Managers', async () => {

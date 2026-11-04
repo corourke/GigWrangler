@@ -21,6 +21,7 @@ import {
   dayOf, money,
   COGS_LINE, type IncomeReport, type ExpenseReport, type ReportGigRow, type ReportPurchaseLine, type ScheduleCLineLabel,
 } from './taxReports';
+import { LINE_13_LABEL, type Line13 } from './scheduleCDepreciation';
 
 export const usd = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 
@@ -34,7 +35,9 @@ const lineCost = (l: ReportPurchaseLine) =>
 export const CAR_AND_TRUCK_LINE = '9';
 export const NO_CATEGORY_LABEL = 'No category (no Schedule C line)';
 export const NOT_DEDUCTED_LABEL = 'Not deducted (category has no Schedule C line; not in total)';
-export const DEPRECIATION_NOTE = 'Depreciation and Section 179 are worked out by your tax program from the Assets report.';
+export const DEPRECIATION_NOTE = "It's for your reference: the figure your tax program calculates is what gets filed.";
+/** Schedule C line 13, depreciation and section 179: from Form 4562 (#337), not from expenses. */
+export const DEPRECIATION_LINE = '13';
 
 export interface ScheduleCLine {
   line: string;
@@ -63,15 +66,27 @@ export interface ScheduleCSummary {
     /** Mileage counted on another line (or none), because of its category. */
     elsewhere: { trips: number; miles: number; recorded: number; lines: string[] };
   };
+  /**
+   * Expenses categorized as Depreciation (line 13), when line 13 comes from Form 4562 or an
+   * estimate: listed as a warning, not counted (Q5, #337). Zero when they stay on line 13.
+   */
+  depreciationCategorized: { count: number; total: number; gigOnly: boolean };
   totalExpenses: number;
+  /** Before depreciation: line 13 comes from Form 4562 (see utils/scheduleCDepreciation). */
   net: number;
 }
 
+/**
+ * `line13FromForm4562`: line 13 has a Form 4562 figure or an estimate, so expenses categorized as
+ * Depreciation come off the lines and are listed apart (Q5). When it's "Not entered" (false), they
+ * stay on line 13 as before, labelled as coming from expenses (coordinator, 11-03).
+ */
 export function buildScheduleCSummary(
   income: IncomeReport,
   expenses: ExpenseReport,
   gigRows: ReportGigRow[],
   scheduleC: ScheduleCLineLabel[],
+  { line13FromForm4562 = true }: { line13FromForm4562?: boolean } = {},
 ): ScheduleCSummary {
   const labels = new Map(scheduleC.map(s => [s.code, s.label] as const));
   const tripDay = new Map(gigRows.map(r => [r.id, dayOf(r.date ?? null)] as const));
@@ -96,10 +111,12 @@ export function buildScheduleCSummary(
   }
 
   const lines: ScheduleCLine[] = expenses.byLine
-    .filter(g => g.line !== null)
+    .filter(g => g.line !== null && !(line13FromForm4562 && g.line === DEPRECIATION_LINE))
     .map(g => ({
       line: g.line!,
-      label: labels.get(g.line!) ?? '',
+      label: g.line === DEPRECIATION_LINE
+        ? `${labels.get(g.line) ?? LINE_13_LABEL} (from expenses categorized Depreciation)`
+        : labels.get(g.line!) ?? '',
       total: g.total,
       miles: g.line === CAR_AND_TRUCK_LINE ? line9.miles : null,
     }));
@@ -108,6 +125,7 @@ export function buildScheduleCSummary(
   const noCategory = money(noLine.filter(r => r.unlisted).reduce((s, r) => s + r.amount, 0));
   const notDeducted = money(noLine.filter(r => !r.unlisted).reduce((s, r) => s + r.amount, 0));
   const totalExpenses = money(lines.reduce((s, l) => s + l.total, 0) + noCategory);
+  const depreciationRows = line13FromForm4562 ? expenses.rows.filter(r => r.line === DEPRECIATION_LINE) : [];
 
   const costOfGoodsSold = expenses.costOfGoodsSold.total;
   const grossProfit = money(income.total - costOfGoodsSold);
@@ -121,16 +139,35 @@ export function buildScheduleCSummary(
     noCategory,
     notDeducted,
     mileage: { line9, elsewhere },
+    depreciationCategorized: {
+      count: depreciationRows.length,
+      total: money(depreciationRows.reduce((s, r) => s + r.amount, 0)),
+      gigOnly: depreciationRows.every(r => r.source === 'Gig'),
+    },
     totalExpenses,
     net: money(grossProfit - totalExpenses),
   };
 }
 
-export function scheduleCCsv(r: ScheduleCSummary): string {
-  const row = (line: string, description: string, amount: number, miles: number | null = null) =>
+/**
+ * With `line13` (#337), a Source column, and line 13 with its breakdown and the net after
+ * depreciation after the net before it.
+ */
+export function scheduleCCsv(r: ScheduleCSummary, line13?: Line13): string {
+  const plain = (line: string, description: string, amount: number, miles: number | null = null) =>
     [line, description, amount.toFixed(2), miles ?? ''];
+  const row = (line: string, description: string, amount: number, miles: number | null = null) =>
+    (line13 ? [...plain(line, description, amount, miles), ''] : plain(line, description, amount, miles));
+  // Not entered, with expenses categorized Depreciation already on line 13: no second, empty line 13 row.
+  const line13FromExpenses = r.lines.some(l => l.line === DEPRECIATION_LINE);
+  const depreciation = line13 ? [
+    ...(line13.source === 'Not entered' && line13FromExpenses ? []
+      : [[DEPRECIATION_LINE, LINE_13_LABEL, line13.amount?.toFixed(2) ?? '', '', line13.source]]),
+    ...line13.rows.map(b => ['', `  ${b.label}`, b.amount.toFixed(2), '', line13.source]),
+    ...(line13.netAfter != null ? [row('', 'Net after depreciation', line13.netAfter)] : []),
+  ] : [];
   return Papa.unparse({
-    fields: ['Line', 'Description', 'Amount', 'Miles'],
+    fields: ['Line', 'Description', 'Amount', 'Miles', ...(line13 ? ['Source'] : [])],
     data: [
       row('', 'Gross receipts', r.receipts),
       row(COGS_LINE, r.costOfGoodsSoldLabel, r.costOfGoodsSold),
@@ -139,6 +176,7 @@ export function scheduleCCsv(r: ScheduleCSummary): string {
       ...(r.noCategory ? [row('', NO_CATEGORY_LABEL, r.noCategory)] : []),
       row('', 'Total expenses', r.totalExpenses),
       row('', 'Net (before depreciation)', r.net),
+      ...depreciation,
       ...(r.notDeducted ? [row('', NOT_DEDUCTED_LABEL, r.notDeducted)] : []),
     ],
   });
