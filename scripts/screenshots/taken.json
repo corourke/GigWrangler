@@ -118,6 +118,17 @@
     "taken": "2026-10-10",
     "appCommit": "0122c92"
   },
+  "financials/reporting-form-4562": {
+    "page": "financials/reporting.md",
+    "user": "admin",
+    "sources": [
+      "src/components/financials/TaxYearsCard.tsx",
+      "src/components/financials/Form4562Form.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-11-04",
+    "appCommit": "f4c62f9"
+  },
   "financials/reporting-grey-zone": {
     "page": "financials/reporting.md",
     "user": "admin",
@@ -160,7 +171,7 @@
     ],
     "anchor": "2026-10-07",
     "taken": "2026-11-04",
-    "appCommit": "1b1372d"
+    "appCommit": "f4c62f9"
   },
   "getting-started/onboarding-edit-profile": {
     "page": "getting-started/onboarding.md",

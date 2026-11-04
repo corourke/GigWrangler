@@ -693,6 +693,27 @@ export const shots = [
     },
   },
   {
+    id: 'financials/reporting-form-4562',
+    page: 'financials/reporting.md',
+    user: 'admin',
+    sources: ['src/components/financials/TaxYearsCard.tsx', 'src/components/financials/Form4562Form.tsx'],
+    viewport: { width: 1200, height: 2600 },
+    // The seed's filed year (the year before the anchor's) with its invented Form 4562 figures.
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/financials/reporting`);
+      await page.getByRole('button', { name: 'Schedule C', exact: true }).click();
+      await page.getByText('Line 22: $4,214').waitFor();
+      await page.getByRole('button', { name: 'Form 4562', exact: true }).first().click();
+      await page.getByText(/matching line 22/).waitFor();
+    },
+    // From the Filed tax years heading through the open form.
+    clip: async (page) => {
+      const card = await box(cardOf(page, 'Filed tax years'));
+      const form = await box(page.getByRole('region', { name: /^Form 4562 for / }));
+      return { x: card.x, y: card.y, width: card.width, height: form.y + form.height + 16 - card.y };
+    },
+  },
+  {
     id: 'financials/reporting-needs-attention',
     page: 'financials/reporting.md',
     user: 'admin',
