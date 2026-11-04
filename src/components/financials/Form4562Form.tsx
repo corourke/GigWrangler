@@ -47,7 +47,10 @@ export default function Form4562Form({ year, saved, allYears, purchases, locked,
   const parsedRows = rows.map(r => ({ ...r, basis: parseAmount(r.basis), deduction: parseAmount(r.deduction) }));
   const badAmount = [...Object.values(parsedLines), ...parsedRows.flatMap(r => [r.basis, r.deduction])].some(n => Number.isNaN(n));
   const missingBasis = parsedRows.findIndex(r => r.basis == null);
-  const valid = !badAmount && missingBasis < 0;
+  // Line 22 is what the Schedule C report uses: figures saved without it would be ignored there.
+  const anyFigure = (['line_12', 'line_14', 'line_17', 'line_21'] as const).some(k => lines[k].trim() !== '') || rows.length > 0;
+  const needsLine22 = anyFigure && lines.line_22.trim() === '';
+  const valid = !badAmount && missingBasis < 0 && !needsLine22;
 
   const ok = (n: number | null) => (n == null || Number.isNaN(n) ? null : n);
   const current: TaxYearDepreciation = {
@@ -222,6 +225,7 @@ export default function Form4562Form({ year, saved, allYears, purchases, locked,
 
       {badAmount && <p className="text-xs text-red-600">Amounts must be 0 or more.</p>}
       {!badAmount && missingBasis >= 0 && <p className="text-xs text-red-600">Row {missingBasis + 1} needs a basis, column (c).</p>}
+      {needsLine22 && <p className="text-xs text-red-600">Line 22 is the total on your form; enter it to save.</p>}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-gray-500">

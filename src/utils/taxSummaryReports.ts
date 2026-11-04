@@ -158,8 +158,11 @@ export function scheduleCCsv(r: ScheduleCSummary, line13?: Line13): string {
     [line, description, amount.toFixed(2), miles ?? ''];
   const row = (line: string, description: string, amount: number, miles: number | null = null) =>
     (line13 ? [...plain(line, description, amount, miles), ''] : plain(line, description, amount, miles));
+  // Not entered, with expenses categorized Depreciation already on line 13: no second, empty line 13 row.
+  const line13FromExpenses = r.lines.some(l => l.line === DEPRECIATION_LINE);
   const depreciation = line13 ? [
-    [DEPRECIATION_LINE, LINE_13_LABEL, line13.amount?.toFixed(2) ?? '', '', line13.source],
+    ...(line13.source === 'Not entered' && line13FromExpenses ? []
+      : [[DEPRECIATION_LINE, LINE_13_LABEL, line13.amount?.toFixed(2) ?? '', '', line13.source]]),
     ...line13.rows.map(b => ['', `  ${b.label}`, b.amount.toFixed(2), '', line13.source]),
     ...(line13.netAfter != null ? [row('', 'Net after depreciation', line13.netAfter)] : []),
   ] : [];
