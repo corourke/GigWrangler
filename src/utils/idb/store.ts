@@ -8,6 +8,10 @@ export interface OutboxItem {
   payload: any;
   timestamp: number;
   attempts: number;
+  /** Who queued it. Older items don't have it; their payload's scanned_by or assigned_by stands in. */
+  actor_id?: string;
+  /** Gave up after the last retry; kept so the count of changes that couldn't sync stays right. */
+  failed?: boolean;
 }
 
 interface GigWranglerDB extends DBSchema {
@@ -105,7 +109,7 @@ export const idbStore = {
     return db.get('packing_lists', gigId);
   },
 
-  async addToOutbox(item: Omit<OutboxItem, 'id' | 'timestamp' | 'attempts'>) {
+  async addToOutbox(item: Omit<OutboxItem, 'id' | 'timestamp' | 'attempts' | 'failed'> & { actor_id: string }) {
     const db = await getDB();
     return db.add('outbox', {
       ...item,
@@ -147,5 +151,30 @@ export const idbStore = {
   async getOrgIndex(orgId: string) {
     const db = await getDB();
     return db.get('org_index', orgId);
+  },
+  /** Stamps queued changes that name no one (queued by the older app) with this person. */
+  async adoptUnownedOutbox(userId: string) {
+    const db = await getDB();
+    const tx = db.transaction('outbox', 'readwrite');
+    for (const item of await tx.store.getAll()) {
+      if (!item.actor_id && !item.payload?.scanned_by && !item.payload?.assigned_by) {
+        await tx.store.put({ ...item, actor_id: userId });
+      }
+    }
+    await tx.done;
+  },
+  /** The cached data (not the queued changes), for a sign-in when no owner was recorded. */
+  async clearCaches() {
+    const db = await getDB();
+    const stores = ['gigs', 'packing_lists', 'staff_assignments', 'org_index'] as const;
+    const tx = db.transaction([...stores], 'readwrite');
+    await Promise.all([...stores.map((s) => tx.objectStore(s).clear()), tx.done]);
+  },
+  /** Everything, for a sign-out or a different person signing in on this device. */
+  async clearAll() {
+    const db = await getDB();
+    const stores = ['gigs', 'packing_lists', 'staff_assignments', 'org_index', 'outbox'] as const;
+    const tx = db.transaction([...stores], 'readwrite');
+    await Promise.all([...stores.map((s) => tx.objectStore(s).clear()), tx.done]);
   },
 };
