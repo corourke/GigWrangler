@@ -11,6 +11,28 @@ import {
 
 const BUCKET_NAME = 'attachments';
 
+/** The attachments bucket's limits (migration 20261107090000): PDFs and images, up to 25 MB. */
+export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+const ATTACHMENT_TYPES: Record<string, string> = {
+  pdf: 'application/pdf',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  heic: 'image/heic',
+  heif: 'image/heif',
+};
+const ALLOWED_ATTACHMENT_TYPES = new Set(Object.values(ATTACHMENT_TYPES));
+
+/** The file's media type if the bucket takes it (from its extension when the browser gives none), else null. */
+export function attachmentContentType(file: File): string | null {
+  if (ALLOWED_ATTACHMENT_TYPES.has(file.type)) return file.type;
+  if (file.type) return null;
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+  return ATTACHMENT_TYPES[ext] ?? null;
+}
+
 /**
  * Upload a file and create an attachment record
  */
@@ -20,6 +42,14 @@ export async function uploadAttachment(
   customFileName?: string
 ) {
   try {
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      throw new Error('Files can be up to 25 MB');
+    }
+    const contentType = attachmentContentType(file);
+    if (!contentType) {
+      throw new Error('Attach a PDF or an image (JPEG, PNG, WebP, GIF or HEIC)');
+    }
+
     const user = await getCurrentUser();
     const supabase = getSupabase();
 
@@ -30,7 +60,7 @@ export async function uploadAttachment(
     // 1. Upload to Storage
     const { data: _storageData, error: storageError } = await supabase.storage
       .from(BUCKET_NAME)
-      .upload(filePath, file);
+      .upload(filePath, file, { contentType });
 
     if (storageError) throw storageError;
 

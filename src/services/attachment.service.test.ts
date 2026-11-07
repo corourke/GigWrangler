@@ -96,7 +96,7 @@ describe('attachment.service', () => {
 
       await uploadAttachment(orgId, file, 'receipt.png');
 
-      expect(mockStorageBucket.upload).toHaveBeenCalledWith(`${orgId}/receipt.png`, file);
+      expect(mockStorageBucket.upload).toHaveBeenCalledWith(`${orgId}/receipt.png`, file, { contentType: 'image/png' });
       expect(mockSupabase.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           organization_id: orgId,
