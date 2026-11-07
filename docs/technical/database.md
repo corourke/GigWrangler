@@ -337,7 +337,7 @@ Companies, venues, acts, and other entities
 | id | UUID | Primary key |
 | name | TEXT | Organization name (NOT NULL) |
 | roles | organization_role[] | Array of organization roles (NOT NULL). Renamed from scalar `type` and converted to an array in migration 20260522000000 |
-| url | TEXT | Organization website URL (nullable) |
+| url | TEXT | Organization website URL (nullable). A full `http://` or `https://` link of 2,048 characters at most, or blank: check constraint `organizations_url_http` (migration 20261107010000, NOT VALID, so older rows aren't checked until they're next updated). The API validates it too, and the app links it only when it's http(s) (`safeHref`, `ExternalLink`). |
 | phone_number | TEXT | Organization phone number (nullable) |
 | address_line1 | TEXT | Street address (nullable) |
 | address_line2 | TEXT | Apartment, suite, etc. (nullable) |

@@ -1,6 +1,7 @@
 import type { Organization } from '../../../utils/supabase/types';
 import { useGigParticipantContacts } from '../useGigParticipantContacts';
 import GigSection from './GigSection';
+import ExternalLink from '../../ExternalLink';
 
 interface GigVenueCardProps {
   gigId: string;
@@ -32,7 +33,7 @@ export default function GigVenueCard({ gigId, venue }: GigVenueCardProps) {
           <span>
             {venue.phone_number && <>Main <a className="text-sky-700 hover:underline" href={`tel:${venue.phone_number}`}>{venue.phone_number}</a></>}
             {venue.phone_number && venue.url && ' · '}
-            {venue.url && <a className="text-sky-700 hover:underline" href={venue.url} target="_blank" rel="noreferrer">{venue.url.replace(/^https?:\/\//, '')}</a>}
+            {venue.url && <ExternalLink url={venue.url} label={venue.url.replace(/^https?:\/\//, '')} />}
           </span>
         )}
       </div>
