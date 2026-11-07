@@ -2010,6 +2010,7 @@ export type Database = {
           id: string
           last_used_at: string
           public_key: string
+          sign_count: number
           user_id: string
         }
         Insert: {
@@ -2019,6 +2020,7 @@ export type Database = {
           id?: string
           last_used_at?: string
           public_key: string
+          sign_count?: number
           user_id: string
         }
         Update: {
@@ -2028,6 +2030,7 @@ export type Database = {
           id?: string
           last_used_at?: string
           public_key?: string
+          sign_count?: number
           user_id?: string
         }
         Relationships: []
@@ -2155,6 +2158,7 @@ export type Database = {
         Args: { p_entity_type: string }
         Returns: boolean
       }
+      auth_user_id_by_email: { Args: { p_email: string }; Returns: string }
       add_gig_participant_contact: {
         Args: {
           p_actor_id?: string

@@ -6,6 +6,19 @@ import * as kv from '../kv_store.ts';
 import {
   RP_NAME, RP_ID, ORIGIN, base64urlEncode, base64urlDecode, reportWebauthnConfigFallback,
 } from '../lib/webauthnConfig.ts';
+import { unlockEmail, UNLOCK_FAILED } from '../lib/pure/webauthnUnlock.ts';
+
+/** The account an unlock request's email belongs to, or null. */
+async function accountForEmail(value: unknown): Promise<string | null> {
+  const email = unlockEmail(value);
+  if (!email) return null;
+  const { data, error } = await supabaseAdmin.rpc('auth_user_id_by_email', { p_email: email });
+  if (error) {
+    console.error('Error looking up an account for unlock:', error);
+    return null;
+  }
+  return (data as string | null) ?? null;
+}
 
 // WebAuthn device enrollment + unlock. register/* require auth (enrolling the
 // caller's device); authenticate/* are public by design (Q-E — the unlock flow,
@@ -71,6 +84,7 @@ export function registerWebauthn(app: App) {
       credential_id: credentialIDBase64url,
       public_key: publicKeyBase64url,
       device_name: deviceName || 'Unknown Device',
+      sign_count: credential.counter ?? 0,
     });
     if (dbError) {
       console.error('DB Error storing device:', dbError);
@@ -81,24 +95,20 @@ export function registerWebauthn(app: App) {
     return c.json({ success: true });
   });
 
-  // Public (Q-E): unlock flow identifies the user by email.
+  // Public (Q-E): unlock flow identifies the user by email. Every failure on these two routes
+  // gives the same answer (UNLOCK_FAILED), so they say nothing about which emails have accounts.
   app.post('/webauthn/authenticate/options', async (c) => {
     reportWebauthnConfigFallback();
-    const { email } = await c.req.json();
-    if (!email) {
-      return c.json({ error: 'Email is required' }, 400);
-    }
-
-    const { data: userData } = await supabaseAdmin.auth.admin.listUsers();
-    const targetUser = userData?.users.find((u: any) => u.email === email);
-    if (!targetUser) {
-      return c.json({ error: 'User not found' }, 404);
+    const body = await c.req.json().catch(() => ({}));
+    const userId = await accountForEmail(body?.email);
+    if (!userId) {
+      return c.json({ error: UNLOCK_FAILED }, 400);
     }
 
     const { data: devices } = await supabaseAdmin
-      .from('user_devices').select('credential_id').eq('user_id', targetUser.id);
+      .from('user_devices').select('credential_id').eq('user_id', userId);
     if (!devices || devices.length === 0) {
-      return c.json({ error: 'No registered devices found' }, 400);
+      return c.json({ error: UNLOCK_FAILED }, 400);
     }
 
     const options = await WebAuthnServer.generateAuthenticationOptions({
@@ -107,34 +117,30 @@ export function registerWebauthn(app: App) {
       userVerification: 'preferred',
     });
 
-    await kv.set(`webauthn:authentication:challenge:${targetUser.id}`, { challenge: options.challenge, timestamp: Date.now() });
+    await kv.set(`webauthn:authentication:challenge:${userId}`, { challenge: options.challenge, timestamp: Date.now() });
     return c.json(options);
   });
 
   // Public (Q-E).
   app.post('/webauthn/authenticate/verify', async (c) => {
     reportWebauthnConfigFallback();
-    const { authenticationResponse, email } = await c.req.json();
-    if (!email || !authenticationResponse) {
-      return c.json({ error: 'Email and response are required' }, 400);
+    const body = await c.req.json().catch(() => ({}));
+    const authenticationResponse = body?.authenticationResponse;
+    const userId = await accountForEmail(body?.email);
+    if (!userId || !authenticationResponse?.id) {
+      return c.json({ error: UNLOCK_FAILED }, 400);
     }
 
-    const { data: userData } = await supabaseAdmin.auth.admin.listUsers();
-    const targetUser = userData?.users.find((u: any) => u.email === email);
-    if (!targetUser) {
-      return c.json({ error: 'User not found' }, 404);
-    }
-
-    const stored = await kv.get(`webauthn:authentication:challenge:${targetUser.id}`);
+    const stored = await kv.get(`webauthn:authentication:challenge:${userId}`);
     if (!stored || Date.now() - stored.timestamp > 300000) {
-      return c.json({ error: 'Challenge expired or not found' }, 400);
+      return c.json({ error: UNLOCK_FAILED }, 400);
     }
 
     const { data: device } = await supabaseAdmin
       .from('user_devices').select('*')
-      .eq('user_id', targetUser.id).eq('credential_id', authenticationResponse.id).single();
+      .eq('user_id', userId).eq('credential_id', authenticationResponse.id).maybeSingle();
     if (!device) {
-      return c.json({ error: 'Device not found' }, 400);
+      return c.json({ error: UNLOCK_FAILED }, 400);
     }
 
     let verification;
@@ -146,23 +152,27 @@ export function registerWebauthn(app: App) {
         expectedRPID: RP_ID,
         requireUserVerification: false,
         // v13: `authenticator` was renamed to `credential`; id is base64url, publicKey is raw bytes.
+        // The stored counter lets the library refuse a response from a copied credential.
         credential: {
           id: device.credential_id,
           publicKey: base64urlDecode(device.public_key),
-          counter: 0,
+          counter: Number(device.sign_count ?? 0),
         },
       });
     } catch (error) {
       console.error('Authentication verification failed:', error);
-      return c.json({ error: 'Verification failed' }, 400);
+      return c.json({ error: UNLOCK_FAILED }, 400);
     }
 
     if (!verification.verified) {
-      return c.json({ error: 'Verification failed' }, 400);
+      return c.json({ error: UNLOCK_FAILED }, 400);
     }
 
-    await supabaseAdmin.from('user_devices').update({ last_used_at: new Date().toISOString() }).eq('id', device.id);
-    await kv.del(`webauthn:authentication:challenge:${targetUser.id}`);
-    return c.json({ success: true, user_id: targetUser.id });
+    await supabaseAdmin.from('user_devices').update({
+      last_used_at: new Date().toISOString(),
+      sign_count: verification.authenticationInfo.newCounter,
+    }).eq('id', device.id);
+    await kv.del(`webauthn:authentication:challenge:${userId}`);
+    return c.json({ success: true, user_id: userId });
   });
 }
