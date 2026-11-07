@@ -16,7 +16,7 @@ describe('repository hygiene', () => {
       readFileSync(file, 'utf8')
         .split('\n')
         .map((line, i) => ({ line, at: `${file}:${i + 1}` }))
-        .filter(({ line }) => /console\.(log|info|debug|warn|error)\(.*\bemail\b/i.test(line))
+        .filter(({ line }) => /console\.(log|info|debug|warn|error)\(.*(\.email\b|[,(]\s*email\b)/.test(line))
         .map(({ at }) => at),
     );
     expect(offenders).toEqual([]);

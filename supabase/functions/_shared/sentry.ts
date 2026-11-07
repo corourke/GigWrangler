@@ -3,6 +3,7 @@
 // Version pinned so `supabase functions deploy` is reproducible (an unpinned
 // URL silently tracks whatever "latest" resolves to at deploy time).
 import * as Sentry from 'https://deno.land/x/sentry@8.55.0/index.mjs';
+import { scrubEvent } from './sentryScrub.ts';
 
 const dsn = Deno.env.get('SENTRY_DSN');
 
@@ -12,6 +13,9 @@ if (dsn) {
     environment: Deno.env.get('SENTRY_ENVIRONMENT') ?? 'development',
     // Error monitoring only — no performance tracing on edge functions
     tracesSampleRate: 0,
+    // Email addresses and tokens are removed from every report.
+    beforeSend: scrubEvent,
+    beforeBreadcrumb: scrubEvent,
   });
 }
 
