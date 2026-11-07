@@ -20,10 +20,10 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 |---|--------|------|---------------------|----------|-------|
 | 1 | GET | `/health` | 🔓 | `index.ts` | Liveness only. The dependency health check is the separate `health-check` function. |
 | 2 | POST | `/users` | 👤 | `requireUser` | Creates the caller's profile row. |
-| 3 | GET | `/users/:id` | 🔑 | `requireUser` | Returns **any** user's full row. Tightening deferred (Q-A). |
+| 3 | GET | `/users/:id` | 👤 | `requireUser` + `users_share_org_or_gig` | Yourself, or someone sharing an organization or a gig with you (orgs on the gig, or staffed on it); 404 otherwise. |
 | 4 | PUT | `/users/:id` | 👤 | `requireUser` + inline `user.id === :id` (403) | |
-| 5 | GET | `/users?search=` | 🔑 | `requireUser` | Searches **all** users; returns PII. Tightening deferred (Q-A). |
-| 6 | GET | `/users/:id/organizations` | 🔑 | `requireUser` | Returns **any** user's org memberships. Tightening deferred (Q-A). |
+| 5 | — | ~~`/users?search=`~~ | — | — | Removed (11-07); the app searches people with `search_people`. |
+| 6 | — | ~~`/users/:id/organizations`~~ | — | — | Removed (11-07); unused. |
 
 ## Organizations & Members
 
@@ -31,16 +31,16 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 |---|--------|------|---------------------|----------|-------|
 | 7 | GET | `/organizations` | 🔑 | `requireUser` | World-readable to authed users by design (org discovery, security-scheme §4). |
 | 8 | POST | `/organizations` | 🔑 | `requireUser` | Any authed user can create an org and becomes its Admin (Q-B). |
-| 9 | PUT | `/organizations/:id` | 👑 | `requireOrgRole({ roles: ['Admin'], allowGlobalAdminIfUnclaimed })` | A global admin (`user_is_admin` RPC) may act only while the org is unclaimed; after that only the org's own Admin. |
+| 9 | PUT | `/organizations/:id` | 👑 | `requireOrgRole({ roles: ['Admin'], allowUnclaimedOrgManagers })` | While the org is unclaimed, also a platform moderator or an Admin/Manager of an org sharing a gig with it (`user_can_manage_unclaimed_org`); after that only the org's own Admin. |
 | 10 | DELETE | `/organizations/:id` | 👑 | Same as #9 | |
-| 11 | POST | `/organizations/:id/members` | 🛡️ to add others (👑 to add an Admin); 🔑 to self-join | `requireUser` + inline `verifyOrgMembership` | Self-join only as Viewer, or as Staff when the email domain is in the org's `allowed_domains`. |
-| 12 | GET | `/organizations/:id/members` | 🏢 (or global admin) | `requireOrgRole({ allowGlobalAdmin: true })` | Lists members. |
+| 11 | POST | `/organizations/:id/members` | 🛡️ to add others (👑 to add an Admin); 🔑 to self-join | `requireUser` + inline `verifyOrgMembership`; `canSelfJoinDirectly` (`lib/pure/authz.ts`) | Self-join only as Staff, when the confirmed sign-in email's domain is in the org's `allowed_domains`. Otherwise 403 "Request to join instead" (#37). |
+| 12 | GET | `/organizations/:id/members` | 🏢 (or platform moderator) | `requireOrgRole({ allowPlatformModerator: true })` | Lists members. |
 | 13 | GET | `/organizations/:id/members/:memberId` | 🏢 | `requireOrgRole()` | Single member detail. |
 | 14 | PUT | `/organizations/:id/members/:memberId` | 🛡️; 👑 to change to/from Admin | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + inline check | Role/profile update. |
 | 15 | DELETE | `/organizations/:id/members/:memberId` | 🛡️; 👑 to remove an Admin | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + inline check | Remove member. |
 | 16 | DELETE | `/invitations/:invitationId` | 🛡️ of the invitation's org | `requireUser` + inline `verifyOrgMembership` | Cancel an invite. |
 | 17 | POST | `/organizations/:id/invitations` | 🛡️ | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + `canAssignRole` | Create invite. Only an Admin may invite an Admin (09-29). |
-| 18 | POST | `/organizations/:id/members/create` | 🛡️ | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + `canAssignRole` | Create-and-add member. Only an Admin may add an Admin (09-29). |
+| 18 | POST | `/organizations/:id/members/create` | 👑 | `requireOrgRole({ roles: ['Admin'] })` + `canAssignRole` | Create-and-add member, Admin only (11-07). The password must be at least 10 characters, and the account must choose its own at first sign-in (`app_metadata.must_change_password`; see `PUT /me/password`). |
 
 ## Gigs
 
@@ -64,36 +64,38 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 
 | # | Method | Path | Enforced | Code | Notes |
 |---|--------|------|---------------------|----------|-------|
-| 27 | POST | `/integrations/google-calendar/exchange-token` | 👤 | `requireUser` | Operates on the caller's own tokens. |
-| 28 | POST | `/integrations/google-calendar/refresh-token` | 👤 | `requireUser` | |
-| 29 | POST | `/integrations/google-calendar/calendars` | 👤 | `requireUser` | Lists the caller's calendars. |
-| 30 | POST | `/integrations/google-calendar/events` | 👤 | `requireUser` | Creates an event on the caller's calendar. |
-| 31 | DELETE | `/integrations/google-calendar/events` | 👤 | `requireUser` | |
-| 32 | POST | `/integrations/google-calendar/sync-gig-all-users` | 🏢 of a participant org of body `gig_id` | `requireGigAccess(undefined, body.gig_id)` | Q-D fix. The sync itself runs fire-and-forget after the response. Every gig goes out as an all-day event in its local dates, with times and venue in the description (#117, `lib/pure/calendarEvent.ts`, shared with the browser's per-user sync). |
+| 27 | POST | `/integrations/google-calendar/connect` | 👤 | `requireUser` | Exchanges the authorization code and stores the caller's connection. The tokens never leave the server: no route accepts or returns one (migration 20261107100000). A reconnect keeps the calendar already chosen. |
+| 28 | DELETE | `/integrations/google-calendar/connection` | 👤 | `requireUser` | Revokes the caller's tokens at Google, then removes the connection. |
+| 29 | POST | `/integrations/google-calendar/calendars` | 👤 | `requireUser` | Lists the caller's calendars with the stored token (refreshed when expired; 409 "Reconnect in settings" when revoked). |
+| 30 | POST | `/integrations/google-calendar/events` | 👤 | `requireUser` | `{event_data, event_id?}`: creates or replaces an event in the caller's chosen calendar. A Google 403 gives our permission advice; other failures a reference (`lib/pure/googleCalendarAuth.ts`). |
+| 31 | DELETE | `/integrations/google-calendar/events` | 👤 | `requireUser` | `{event_id}`; an event already gone counts as deleted. |
+| 32 | POST | `/integrations/google-calendar/sync-gig-all-users` | 🏢 of an **active** participant org of body `gig_id` | `requireGigAccess(undefined, body.gig_id, { activeOnly: true })` | Q-D fix. The sync itself runs fire-and-forget after the response. Every gig goes out as an all-day event in its local dates, with times and venue in the description (#117, `lib/pure/calendarEvent.ts`, shared with the browser's per-user sync). |
 
 ## WebAuthn (mobile device lock)
 
 | # | Method | Path | Enforced | Code | Notes |
 |---|--------|------|---------------------|----------|-------|
 | 33 | POST | `/webauthn/register/options` | 👤 | `requireUser` | Enrolls a device for the caller. |
-| 34 | POST | `/webauthn/register/verify` | 👤 | `requireUser` | |
-| 35 | POST | `/webauthn/authenticate/options` | 🔓 (identifies by email) | none | Unlock flow, public by design (Q-E). |
-| 36 | POST | `/webauthn/authenticate/verify` | 🔓 (identifies by email) | none | Unlock flow, public by design (Q-E). |
+| 34 | POST | `/webauthn/register/verify` | 👤 | `requireUser` | Stores the device with its signature counter. |
+| 35 | POST | `/webauthn/authenticate/options` | 🔓 (identifies by email) | none | Unlock flow, public by design (Q-E). The account is found with `auth_user_id_by_email` (service role only). Every failure returns the same 400 (`UNLOCK_FAILED`, `lib/pure/webauthnUnlock.ts`). |
+| 36 | POST | `/webauthn/authenticate/verify` | 🔓 (identifies by email) | none | Unlock flow, public by design (Q-E). Checks and updates the device's signature counter. Every failure returns the same 400 (`UNLOCK_FAILED`). |
 
 ## Access requests (issue #33)
 
 | # | Method | Path | Enforced | Code | Notes |
 |---|--------|------|----------|------|-------|
-| 37 | POST | `/organizations/:id/access-requests` | Viewer or Staff of the org | `requireOrgRole({ roles: ['Viewer', 'Staff'] })` | Ask for a higher role. Non-members self-join first (#11). |
-| 38 | GET | `/organizations/:id/access-requests` | 👑 | `requireOrgRole({ roles: ['Admin'] })` | Pending requests for the org. |
-| 39 | PUT | `/organizations/:id/access-requests/:requestId` | Platform moderator while the org is unclaimed, else 👑 | `requireUser` + `canDecideAccessRequest` (`lib/pure/authz.ts`) | Approve or reject. |
+| 37 | POST | `/organizations/:id/access-requests` | 🔑 non-member to ask to join; Viewer or Staff of the org to ask for Manager/Admin | `requireUser` + inline membership check; `canRequestToJoin` (`lib/pure/authz.ts`) | A request to join is for Viewer, or Staff with a confirmed email at one of the org's `allowed_domains`. |
+| 38 | GET | `/organizations/:id/access-requests` | 🛡️ | `requireOrgRole({ roles: ['Admin', 'Manager'] })` | Pending requests for the org: all for Admins, requests to join for Managers. |
+| 39 | PUT | `/organizations/:id/access-requests/:requestId` | Platform moderator while the org is unclaimed; 👑; 🛡️ for a request to join | `requireUser` + `canDecideAccessRequest` (`lib/pure/authz.ts`) | Approve or reject. Approving a request to join adds the membership. |
 | 40 | GET | `/moderator/access-requests` | Platform moderator | `requireUser` + inline `isPlatformModerator` | Pending requests across all unclaimed orgs. |
+| 40a | GET | `/me/access-requests` | 👤 | `requireUser`, filtered on `requester_id` | The caller's own pending requests (shown as "Request pending" in the org picker). |
 
 ## Notifications
 
 | # | Method | Path | Enforced | Code | Notes |
 |---|--------|------|----------|------|-------|
 | 41 | GET | `/me/notifications` | 👤 | `requireUser`, filtered on `recipient_id` | Unread notifications for the bell. |
+| 41a | PUT | `/me/password` | 👤 | `requireUser` + `app_metadata.must_change_password` | Replaces the temporary password an Admin set (`members/create`) and clears the flag. Refused (403) unless the flag is set. |
 | 42 | PUT | `/notifications/:id/read` | 👤 | `requireUser`, update filtered on `recipient_id` | 404 when the row is not the caller's. |
 
 ---
@@ -110,7 +112,7 @@ Decisions made for the refactor. The two fixes (Q-C, Q-D) shipped with it.
 
 ## Future Considerations (deferred)
 
-- **User-directory PII scoping (from Q-A).** Tighten `/users/:id`, `/users?search=`, and `/users/:id/organizations` to only return users who share an organization or participating gig with the caller — matching security-scheme §4. Deferred to keep the refactor behavior-preserving; requires a regression pass on the app's people-pickers (team invite, gig staffing) since result sets will narrow.
+- **User-directory scoping (from Q-A): done 11-07.** `/users/:id` returns only yourself or someone sharing an organization or a gig with you; `/users?search=` and `/users/:id/organizations` are removed.
 - **Org-creation abuse controls (from Q-B).** Pair open org creation with rate-limiting and an abuse plan before any public launch.
 
 ---

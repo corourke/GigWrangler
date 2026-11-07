@@ -114,16 +114,16 @@ export async function updateOrganization(organizationId: string, orgData: {
 }
 
 /**
- * Join an organization as a Viewer, or as Staff when the caller's email
- * domain matches the org's allowed_domains (issue #33 point 7) — the server
- * re-validates the domain match regardless of what's passed here.
+ * Join an organization as Staff straight away, when the caller's confirmed
+ * email domain matches the org's allowed_domains (the server checks). Any
+ * other way in is a request to join (createAccessRequest).
  */
-export async function joinOrganization(orgId: string, role?: 'Viewer' | 'Staff'): Promise<{ organization: Organization; role: UserRole }> {
+export async function joinOrganization(orgId: string, role: 'Staff'): Promise<{ organization: Organization; role: UserRole }> {
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase.functions.invoke(`server/organizations/${orgId}/members`, {
       method: 'POST',
-      body: role ? { role } : {} // No role means self-join as Viewer
+      body: { role }
     });
 
     if (error) return await handleFunctionsError(error, 'join organization');
@@ -263,8 +263,9 @@ export async function getOrganizationInvitations(organizationId: string) {
   try {
     const { data, error } = await supabase
       .from('invitations')
+      // Listed columns: members can't read an invitation's token.
       .select(`
-        *,
+        id, organization_id, email, role, invited_by, status, expires_at, accepted_at, accepted_by, created_at, updated_at,
         invited_by_user:users!invitations_invited_by_fkey(
           first_name,
           last_name,

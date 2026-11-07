@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, afterEach } from 'vitest';
 import UserProfileCompletionScreen from './UserProfileCompletionScreen';
 import type { User } from '../utils/supabase/types';
@@ -20,5 +20,15 @@ describe('UserProfileCompletionScreen — read-only email (#325)', () => {
     render(<UserProfileCompletionScreen user={user(null)} onProfileCompleted={vi.fn()} />);
     expect(screen.getByLabelText('Email')).toHaveValue('');
     expect(consoleError).not.toHaveBeenCalled();
+  });
+});
+
+describe('UserProfileCompletionScreen — password', () => {
+  it('refuses a password under 10 characters', async () => {
+    render(<UserProfileCompletionScreen user={user('sam@example.com')} onProfileCompleted={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText('Set Password'), { target: { value: 'hunter222' } });
+    fireEvent.change(screen.getByLabelText('Confirm Password'), { target: { value: 'hunter222' } });
+    fireEvent.submit(screen.getByLabelText('Set Password').closest('form')!);
+    expect(await screen.findByText('Password must be at least 10 characters')).toBeInTheDocument();
   });
 });

@@ -64,11 +64,11 @@ but not the slot org's other assignments, rates or fees.
 - `user_is_admin_of_org(org_id, user_id)`
 - `user_is_admin_or_manager_of_org(org_id, user_id)`
 - `user_has_access_to_gig(gig_id, user_id)`
-- `get_user_role_in_org(org_id, user_id)`: Returns the `user_role` enum.
+- `get_user_role_in_org(org_id, user_id)`: Returns the `user_role` enum. Service role only.
 
 ## 6. Storage (Attachments Bucket)
 
-Files (invoices, receipts, photos) live in the private `attachments` storage bucket and are served exclusively via short-lived signed URLs (1-hour expiry, created in `attachment.service.ts`).
+Files (invoices, receipts, photos) live in the private `attachments` storage bucket and are served exclusively via short-lived signed URLs (1-hour expiry, created in `attachment.service.ts`). The bucket accepts only PDFs, images, Word/Excel/PowerPoint documents and CSV (no HTML, SVG or macro-enabled Office files), up to 25 MB each.
 
 ### Path Convention
 Every object is stored as `{organization_id}/{filename}`. The org-id prefix is the unit of isolation: storage policies derive the owning organization from the first path segment with `(storage.foldername(name))[1]::uuid`. Uploads that do not carry a valid org-id prefix are rejected by policy.
@@ -88,10 +88,11 @@ This mirrors the table-level RBAC: any member of the org can view its files; onl
 The `ai-scan` function makes paid Anthropic API calls, so it enforces its own gate chain (it cannot rely on RLS — the file never touches the database):
 
 1. **Authentication**: requires a valid Bearer token (`auth.getUser()`); no unauthenticated code path exists. The pre-auth `x-diagnostic` mode (which made a live Anthropic call and disclosed the API key prefix) was removed in June 2026.
-2. **Org membership**: the request must include an `organization_id` form field; the function verifies the caller's membership against `organization_members` (service-role client) and rejects with 403 otherwise.
+2. **Org role**: the caller must be an **Admin or Manager** of the organization, on both paths: the `organization_id` form field for a direct upload, or the queued invoice's organization (`queue_item_id`). Checked against `organization_members` (service-role client); otherwise 403. `canScanInvoices` in `ai-scan/scanLimits.ts`.
 3. **File limits**: 10 MB max (413) and a media-type allowlist — PDF, JPEG, PNG, WebP, GIF (415).
-4. **Rate limit**: 20 scans per user per hour, tracked in the service-role-only `ai_scan_usage` table; exceeded → 429. Usage is recorded *before* the Anthropic call so failed/aborted calls still count toward the quota.
-5. **CORS**: pinned origin allowlist (production domains + `localhost:3000`); unknown origins receive no `Access-Control-Allow-Origin` header.
+4. **Rate limits**: 60 scans per user in any trailing hour, and 200 per organization in any trailing 24 hours, tracked in the service-role-only `ai_scan_usage` table; exceeded → 429 ("Scan limit reached (60/hour)…" or "Daily scan limit reached for this organization…"). Usage is recorded *before* the Anthropic call so failed/aborted calls still count toward the quota. `scanLimitError` in `ai-scan/scanLimits.ts`.
+5. **Errors**: an unexpected failure returns a generic "The scan failed. Reference: <id>" (500); the details go to the function log and Sentry under that reference. Anthropic's own error text is never returned.
+6. **CORS**: pinned origin allowlist (production domains + `localhost:3000`); unknown origins receive no `Access-Control-Allow-Origin` header.
 
 ## 8. Edge Function: server (Hono)
 
@@ -100,7 +101,7 @@ The `server` function runs with the service-role key (RLS bypassed), so it autho
 Middleware:
 - **CORS** — pinned-origin allowlist (shared `_shared/cors.ts` with `ai-scan`); no `Access-Control-Allow-Credentials` reflection.
 - **`requireUser`** — validates the Bearer token once; 401 otherwise.
-- **`requireOrgRole({ roles, allowGlobalAdmin })`** — org membership + optional role allow-list; optional global-admin (`user_is_admin`) bypass for the cross-org admin endpoints.
+- **`requireOrgRole({ roles, allowPlatformModerator, allowUnclaimedOrgManagers })`** — org membership + optional role allow-list; optionally lets a platform moderator through (the member list), or, while the org is unclaimed, a moderator or an Admin/Manager of an org sharing a gig with it (`user_can_manage_unclaimed_org`; org edit and delete).
 - **`requireGigAccess(roles?)`** — the intersection model (caller's orgs ∩ the gig's participant orgs), with an optional role filter for mutations.
 
 Two authorization gaps the refactor closed (both had failing tests written first):

@@ -56,6 +56,41 @@ describe('attachment.service', () => {
   });
 
   describe('uploadAttachment', () => {
+    it('refuses a file over 25 MB before uploading', async () => {
+      const file = new File(['x'], 'big.pdf', { type: 'application/pdf' });
+      Object.defineProperty(file, 'size', { value: 25 * 1024 * 1024 + 1 });
+      await expect(uploadAttachment(orgId, file)).rejects.toThrow('Files can be up to 25 MB');
+      expect(mockStorageBucket.upload).not.toHaveBeenCalled();
+    });
+
+    it('refuses a file of another type before uploading', async () => {
+      for (const [name, type] of [
+        ['logo.svg', 'image/svg+xml'],
+        ['page.html', 'text/html'],
+        ['rider.docm', 'application/vnd.ms-word.document.macroEnabled.12'],
+        ['setup.exe', 'application/x-msdownload'],
+      ]) {
+        await expect(uploadAttachment(orgId, new File(['x'], name, { type }))).rejects.toThrow('Attach a PDF, an image, an Office document or a CSV');
+      }
+      expect(mockStorageBucket.upload).not.toHaveBeenCalled();
+    });
+
+    it('accepts Word, Excel, PowerPoint and CSV, sending a standard content type', async () => {
+      mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: { id: 'att-1' }, error: null }));
+      const cases: [string, string, string][] = [
+        ['rider.docx', '', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        ['settlement.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        ['plot.pptx', '', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+        // Windows browsers often report CSV as an Excel type
+        ['crew.csv', 'application/vnd.ms-excel', 'text/csv'],
+      ];
+      for (const [name, type, expected] of cases) {
+        mockStorageBucket.upload.mockClear();
+        await uploadAttachment(orgId, new File(['x'], name, { type }));
+        expect(mockStorageBucket.upload.mock.calls[0][2]).toEqual({ contentType: expected });
+      }
+    });
+
     it('uploads under the organization-id prefix (storage RLS path convention)', async () => {
       const file = new File(['data'], 'invoice.pdf', { type: 'application/pdf' });
       mockSupabase.then.mockImplementation((onFulfilled: any) =>
@@ -81,7 +116,7 @@ describe('attachment.service', () => {
 
       await uploadAttachment(orgId, file, 'receipt.png');
 
-      expect(mockStorageBucket.upload).toHaveBeenCalledWith(`${orgId}/receipt.png`, file);
+      expect(mockStorageBucket.upload).toHaveBeenCalledWith(`${orgId}/receipt.png`, file, { contentType: 'image/png' });
       expect(mockSupabase.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           organization_id: orgId,
@@ -122,6 +157,12 @@ describe('attachment.service', () => {
       });
 
       await expect(getAttachmentUrl(`${orgId}/missing.pdf`)).rejects.toThrow('Object not found');
+    });
+
+    it('refuses a link that is not http(s)', async () => {
+      mockStorageBucket.createSignedUrl.mockResolvedValue({ data: { signedUrl: 'javascript:alert(1)' }, error: null });
+
+      await expect(getAttachmentUrl(`${orgId}/invoice.pdf`)).rejects.toThrow('Unexpected attachment link');
     });
   });
 

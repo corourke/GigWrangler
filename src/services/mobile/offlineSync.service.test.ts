@@ -5,11 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // at module scope (not inside a function).
 const mockFrom = vi.hoisted(() => vi.fn())
 const mockRpc = vi.hoisted(() => vi.fn())
+const mockGetSession = vi.hoisted(() => vi.fn().mockResolvedValue({ data: { session: { user: { id: 'user-1' } } } }))
 
 vi.mock('../../utils/supabase/client', () => ({
   createClient: vi.fn(() => ({
     from: mockFrom,
     rpc: mockRpc,
+    auth: { getSession: mockGetSession },
   })),
 }))
 
@@ -23,6 +25,8 @@ vi.mock('../../utils/idb/store', () => ({
 }))
 
 import { offlineSyncService } from './offlineSync.service'
+import { idbStore } from '../../utils/idb/store'
+import { toast } from 'sonner'
 import type { OutboxItem } from '../../utils/idb/store'
 
 // Build a chainable query builder that resolves to `result` when awaited.
@@ -41,7 +45,7 @@ function makeChain(result: { data: any; error: any }) {
 }
 
 function outboxItem(type: OutboxItem['type'], payload: any): OutboxItem {
-  return { type, payload, timestamp: Date.now(), attempts: 0 }
+  return { type, payload, timestamp: Date.now(), attempts: 0, actor_id: 'user-1' }
 }
 
 describe('offlineSyncService — INVENTORY_SCAN handler', () => {
@@ -73,6 +77,7 @@ describe('offlineSyncService — INVENTORY_SCAN handler', () => {
       status: 'In Warehouse',
       scanned_at: '2026-03-15T12:00:00Z',
       scanned_by: 'user-1',
+      client_id: null,
       notes: 'test note',
       location: null,
       quantity: 1,
@@ -406,12 +411,89 @@ describe('offlineSyncService: maintenance (#186 step 3)', () => {
 
   it('an ASSET_STATUS_UPDATE queued by the older app still syncs after the update, through update_asset_status', async () => {
     const { idbStore } = await import('../../utils/idb/store')
-    // Queued before the app updated: the old payload shape, as the old app wrote it.
-    const queued = { type: 'ASSET_STATUS_UPDATE' as const, payload: { asset_id: 'u-1', status: 'Maintenance' }, timestamp: Date.now() - 86_400_000, attempts: 0, id: 23 }
+    // Queued before the app updated: the old payload shape, as the old app wrote it, adopted by the
+    // person signed in at the first sign-in after the update (offlineOwner.claimOfflineStore).
+    const queued = { type: 'ASSET_STATUS_UPDATE' as const, payload: { asset_id: 'u-1', status: 'Maintenance' }, timestamp: Date.now() - 86_400_000, attempts: 0, id: 23, actor_id: 'user-1' }
     vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([queued])
     mockRpc.mockResolvedValue({ data: null, error: null })
     await offlineSyncService.processOutbox()
     expect(mockRpc).toHaveBeenCalledWith('update_asset_status', { p_asset_id: 'u-1', p_status: 'Maintenance' })
     expect(idbStore.removeFromOutbox).toHaveBeenCalledWith(23)
+  })
+})
+
+// Only the signed-in person's own changes sync, a change that keeps failing stops, and a scan
+// that is retried can't be recorded twice.
+describe('offlineSyncService: whose changes sync, and how often', () => {
+  const item = (o: Partial<OutboxItem>): OutboxItem => ({
+    id: 31, type: 'INVENTORY_SCAN', timestamp: 1, attempts: 0, actor_id: 'user-1',
+    payload: { organization_id: 'o1', gig_id: 'g1', kit_id: 'k1', status: 'Loaded', scanned_at: 't', scanned_by: 'user-1', client_id: 'c-1' },
+    ...o,
+  } as OutboxItem)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetSession.mockResolvedValue({ data: { session: { user: { id: 'user-1' } } } })
+    mockFrom.mockReturnValue(makeChain({ data: null, error: null }))
+  })
+
+  it('drops a change someone else queued on this device, without sending it', async () => {
+    vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([item({ actor_id: 'user-2' })])
+    await offlineSyncService.processOutbox()
+    expect(mockFrom).not.toHaveBeenCalled()
+    expect(idbStore.removeFromOutbox).toHaveBeenCalledWith(31)
+  })
+
+  it('reads an older change\'s owner from its payload', async () => {
+    vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([
+      item({ id: 32, actor_id: undefined }),
+      item({ id: 33, actor_id: undefined, payload: { scanned_by: 'user-2' } }),
+      item({ id: 34, actor_id: undefined, type: 'MAINTENANCE_RETURN', payload: { asset_id: 'a1' } }),
+    ])
+    mockRpc.mockResolvedValue({ error: null })
+    await offlineSyncService.processOutbox()
+    expect(mockFrom).toHaveBeenCalledTimes(1)
+    expect(mockRpc).not.toHaveBeenCalled()
+    expect(vi.mocked(idbStore.removeFromOutbox).mock.calls.map(c => c[0]).sort()).toEqual([32, 33, 34])
+  })
+
+  it('sends nothing while no one is signed in', async () => {
+    mockGetSession.mockResolvedValueOnce({ data: { session: null } })
+    vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([item({})])
+    await offlineSyncService.processOutbox()
+    expect(mockFrom).not.toHaveBeenCalled()
+    expect(idbStore.removeFromOutbox).not.toHaveBeenCalled()
+  })
+
+  it('stops retrying after the fifth failure, and says how many changes couldn\'t sync', async () => {
+    mockFrom.mockReturnValue(makeChain({ data: null, error: { message: 'network' } }))
+    vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([item({ attempts: 4 })])
+    await offlineSyncService.processOutbox()
+    expect(idbStore.updateOutboxItem).toHaveBeenCalledWith(expect.objectContaining({ id: 31, attempts: 5, failed: true }))
+    expect(toast.error).toHaveBeenCalledWith("1 change couldn't sync")
+  })
+
+  it('leaves a failed change alone afterwards', async () => {
+    vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([item({ attempts: 5, failed: true })])
+    await offlineSyncService.processOutbox()
+    expect(mockFrom).not.toHaveBeenCalled()
+    expect(idbStore.removeFromOutbox).not.toHaveBeenCalled()
+  })
+
+  it('stamps a queued change with who queued it, and a scan with its own id', async () => {
+    await offlineSyncService.queueTrackingUpdate({ gig_id: 'g1', scanned_by: 'user-1' }, 'INVENTORY_SCAN')
+    expect(idbStore.addToOutbox).toHaveBeenCalledWith({
+      type: 'INVENTORY_SCAN', actor_id: 'user-1',
+      payload: expect.objectContaining({ gig_id: 'g1', client_id: expect.stringMatching(/^[0-9a-f-]{36}$/) }),
+    })
+  })
+
+  it('sends the scan\'s id, and a scan already recorded counts as done', async () => {
+    const chain = makeChain({ data: null, error: { code: '23505', message: 'duplicate key' } })
+    mockFrom.mockReturnValue(chain)
+    vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([item({})])
+    await offlineSyncService.processOutbox()
+    expect(chain.insert).toHaveBeenCalledWith(expect.objectContaining({ client_id: 'c-1' }))
+    expect(idbStore.removeFromOutbox).toHaveBeenCalledWith(31)
   })
 })

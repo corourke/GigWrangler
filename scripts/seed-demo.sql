@@ -25,7 +25,7 @@
 -- Manager = M, Staff = S, Viewer = V), so a screenshot shows who is who.
 -- Nothing is timestamped later than 8 AM on the anchor day: on the day itself a
 -- later seeded row would outrank what a reviewer does in the app (latest scan wins).
--- Demo logins (all password demo1pass):
+-- Demo logins (all password demo-pass-2026):
 --   demo-admin@gigwrangler.test    Alicia Hale      Admin
 --   demo-manager@gigwrangler.test  Marcus Reyes     Manager
 --   demo-staff@gigwrangler.test    Sofia Lindqvist  Staff
@@ -159,7 +159,7 @@ INSERT INTO auth.users
    raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, last_sign_in_at,
    email_change_confirm_status, is_sso_user, is_anonymous)
 SELECT '00000000-0000-0000-0000-000000000000', pg_temp.d(2, u.n), 'authenticated', 'authenticated', u.email,
-       crypt('demo1pass', gen_salt('bf')), pg_temp.at(pg_temp.anchor() - 400, 10),
+       crypt('demo-pass-2026', gen_salt('bf')), pg_temp.at(pg_temp.anchor() - 400, 10),
        '', '', '', '', '', '', '', '',
        '{"provider":"email","providers":["email"]}'::jsonb,
        jsonb_build_object('first_name', u.first_name, 'last_name', u.last_name, 'email_verified', true),

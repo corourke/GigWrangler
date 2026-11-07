@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import ExternalLink from '../ExternalLink';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -666,9 +667,7 @@ export default function GigParticipantsSection({
               {viewingParticipant.organization.url && (
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Website</p>
-                  <a href={viewingParticipant.organization.url} target="_blank" rel="noopener noreferrer" className="text-sm text-sky-600 hover:underline">
-                    {viewingParticipant.organization.url}
-                  </a>
+                  <span className="text-sm"><ExternalLink url={viewingParticipant.organization.url} className="text-sky-600 hover:underline" /></span>
                 </div>
               )}
               {viewingParticipant.organization.description && (

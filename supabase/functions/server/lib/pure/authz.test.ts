@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  canAssignRole,
+  takesLastAdmin, canAssignRole,
   parseBearer,
   isRoleAllowed,
   orgsIntersect,
@@ -11,6 +11,10 @@ import {
   canDecideAccessRequest,
   accessRequestNotificationAudience,
   shouldClaimOrgOnApproval,
+  isJoinRequest,
+  confirmedEmail,
+  canRequestToJoin,
+  canSelfJoinDirectly,
   describeOrganizationDeleteBlockers,
   ORGANIZATION_DELETE_REFERENCES,
 } from './authz';
@@ -102,29 +106,83 @@ describe('emailDomainMatches (issue #33 point 7 — self-join Staff option)', ()
 
 describe('canDecideAccessRequest (issue #33, point 6)', () => {
   it('lets a platform moderator decide while the org is unclaimed', () => {
-    expect(canDecideAccessRequest(false, true, null)).toBe(true);
-    expect(canDecideAccessRequest(false, true, undefined)).toBe(true);
+    expect(canDecideAccessRequest(false, true, null, 'Manager')).toBe(true);
+    expect(canDecideAccessRequest(false, true, undefined, 'Manager')).toBe(true);
   });
   it('does not let a moderator decide once the org has an Admin', () => {
-    expect(canDecideAccessRequest(true, true, null)).toBe(false);
+    expect(canDecideAccessRequest(true, true, null, 'Manager')).toBe(false);
   });
   it('lets that org\'s own Admin decide regardless of claimed status', () => {
-    expect(canDecideAccessRequest(true, false, 'Admin')).toBe(true);
-    expect(canDecideAccessRequest(false, false, 'Admin')).toBe(true);
+    expect(canDecideAccessRequest(true, false, 'Admin', 'Manager')).toBe(true);
+    expect(canDecideAccessRequest(false, false, 'Admin', 'Manager')).toBe(true);
   });
   it('rejects a Manager or Viewer of the org, and a non-moderator non-Admin outsider', () => {
-    expect(canDecideAccessRequest(true, false, 'Manager')).toBe(false);
-    expect(canDecideAccessRequest(false, false, 'Viewer')).toBe(false);
-    expect(canDecideAccessRequest(false, false, null)).toBe(false);
+    expect(canDecideAccessRequest(true, false, 'Manager', 'Manager')).toBe(false);
+    expect(canDecideAccessRequest(false, false, 'Viewer', 'Manager')).toBe(false);
+    expect(canDecideAccessRequest(false, false, null, 'Manager')).toBe(false);
   });
 });
 
 describe('accessRequestNotificationAudience (issue #52)', () => {
   it('routes to platform moderators while the org is unclaimed', () => {
-    expect(accessRequestNotificationAudience(false)).toBe('platform_moderators');
+    expect(accessRequestNotificationAudience(false, 'Manager')).toBe('platform_moderators');
+    expect(accessRequestNotificationAudience(false, 'Viewer')).toBe('platform_moderators');
   });
   it('routes to the org\'s own Admins once claimed', () => {
-    expect(accessRequestNotificationAudience(true)).toBe('org_admins');
+    expect(accessRequestNotificationAudience(true, 'Manager')).toBe('org_admins');
+    expect(accessRequestNotificationAudience(true, 'Admin')).toBe('org_admins');
+  });
+  it('routes a request to join to the org\'s Admins and Managers once claimed', () => {
+    expect(accessRequestNotificationAudience(true, 'Viewer')).toBe('org_admins_and_managers');
+    expect(accessRequestNotificationAudience(true, 'Staff')).toBe('org_admins_and_managers');
+  });
+});
+
+describe('requests to join', () => {
+  it('a request for Viewer or Staff is a request to join', () => {
+    expect(isJoinRequest('Viewer')).toBe(true);
+    expect(isJoinRequest('Staff')).toBe(true);
+    expect(isJoinRequest('Manager')).toBe(false);
+    expect(isJoinRequest('Admin')).toBe(false);
+    expect(isJoinRequest(undefined)).toBe(false);
+  });
+
+  it('uses the sign-in email only once it is confirmed', () => {
+    expect(confirmedEmail({ email: 'pat@example.com', email_confirmed_at: '2026-01-01T00:00:00Z' })).toBe('pat@example.com');
+    expect(confirmedEmail({ email: 'pat@example.com', email_confirmed_at: null })).toBeNull();
+    expect(confirmedEmail({ email: 'pat@example.com' })).toBeNull();
+    expect(confirmedEmail({ email_confirmed_at: '2026-01-01T00:00:00Z' })).toBeNull();
+  });
+
+  it('anyone may ask to join as Viewer; as Staff only with a matching confirmed email', () => {
+    expect(canRequestToJoin('Viewer', null, null)).toBe(true);
+    expect(canRequestToJoin('Viewer', 'pat@other.com', 'example.com')).toBe(true);
+    expect(canRequestToJoin('Staff', 'pat@example.com', 'example.com')).toBe(true);
+    expect(canRequestToJoin('Staff', 'pat@other.com', 'example.com')).toBe(false);
+    expect(canRequestToJoin('Staff', null, 'example.com')).toBe(false);
+    expect(canRequestToJoin('Manager', 'pat@example.com', 'example.com')).toBe(false);
+    expect(canRequestToJoin('Admin', null, null)).toBe(false);
+  });
+
+  it('joins directly only as Staff with a matching confirmed email', () => {
+    expect(canSelfJoinDirectly('Staff', 'pat@example.com', 'example.com')).toBe(true);
+    expect(canSelfJoinDirectly('Staff', 'pat@EXAMPLE.com', 'example.com, other.org')).toBe(true);
+    expect(canSelfJoinDirectly('Staff', null, 'example.com')).toBe(false);
+    expect(canSelfJoinDirectly('Staff', 'pat@other.com', 'example.com')).toBe(false);
+    expect(canSelfJoinDirectly('Viewer', 'pat@example.com', 'example.com')).toBe(false);
+    expect(canSelfJoinDirectly('Manager', 'pat@example.com', 'example.com')).toBe(false);
+  });
+
+  it('the org\'s Managers decide requests to join, but not requests for Manager or Admin', () => {
+    expect(canDecideAccessRequest(true, false, 'Manager', 'Viewer')).toBe(true);
+    expect(canDecideAccessRequest(true, false, 'Manager', 'Staff')).toBe(true);
+    expect(canDecideAccessRequest(false, false, 'Manager', 'Viewer')).toBe(true);
+    expect(canDecideAccessRequest(true, false, 'Manager', 'Admin')).toBe(false);
+    expect(canDecideAccessRequest(true, false, 'Admin', 'Viewer')).toBe(true);
+    expect(canDecideAccessRequest(false, true, null, 'Viewer')).toBe(true);
+    expect(canDecideAccessRequest(true, true, null, 'Viewer')).toBe(false);
+    expect(canDecideAccessRequest(true, false, 'Staff', 'Viewer')).toBe(false);
+    expect(canDecideAccessRequest(true, false, null, 'Viewer')).toBe(false);
   });
 });
 
@@ -242,4 +300,18 @@ describe('ORGANIZATION_DELETE_REFERENCES', () => {
       expect(tables.get(table), `column ${table}.${column}`).toContain(column);
     }
   );
+});
+
+// An organization keeps at least one Admin (the database enforces it too).
+describe('takesLastAdmin', () => {
+  it('is true when the only Admin would be removed or given another role', () => {
+    expect(takesLastAdmin({ adminCount: 1, currentRole: 'Admin', newRole: null })).toBe(true);
+    expect(takesLastAdmin({ adminCount: 1, currentRole: 'Admin', newRole: 'Manager' })).toBe(true);
+  });
+
+  it('is false with another Admin, for a non-Admin, or when the role stays Admin', () => {
+    expect(takesLastAdmin({ adminCount: 2, currentRole: 'Admin', newRole: null })).toBe(false);
+    expect(takesLastAdmin({ adminCount: 1, currentRole: 'Staff', newRole: null })).toBe(false);
+    expect(takesLastAdmin({ adminCount: 1, currentRole: 'Admin', newRole: 'Admin' })).toBe(false);
+  });
 });

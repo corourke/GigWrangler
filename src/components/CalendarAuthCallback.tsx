@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 import { Alert, AlertDescription } from './ui/alert';
 
-import { exchangeCodeForTokens, saveUserGoogleCalendarSettings } from '../services/googleCalendar.service';
+import { connectGoogleCalendar } from '../services/googleCalendar.service';
 
 interface CalendarAuthCallbackProps {
   userId: string;
@@ -41,19 +41,9 @@ export default function CalendarAuthCallback({
         throw new Error('No authorization code received');
       }
 
-      // Exchange code for tokens
-      const tokens = await exchangeCodeForTokens(code);
-
-      // Save initial settings with first available calendar
-      // We'll let the user choose the calendar later in the settings
-      await saveUserGoogleCalendarSettings(userId, {
-        calendar_id: '', // Will be set by user later
-        calendar_name: '',
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        token_expires_at: tokens.expires_at.toISOString(),
-        is_enabled: false, // User needs to choose calendar and enable
-      });
+      // The server exchanges the code and keeps the connection. A new connection has no
+      // calendar chosen yet; the person chooses one, and turns sync on, in settings.
+      await connectGoogleCalendar(code);
 
       setStatus('success');
 

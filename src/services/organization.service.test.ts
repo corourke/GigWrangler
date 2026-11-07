@@ -5,6 +5,7 @@ import {
   addOrganizationContact,
   linkExistingPersonToOrganization,
   getOrganizationContacts,
+  getOrganizationInvitations,
 } from './organization.service';
 import { createClient } from '../utils/supabase/client';
 import { OrganizationRole } from '../utils/supabase/types';
@@ -234,6 +235,24 @@ describe('organization.service', () => {
         p_title: undefined,
         p_is_primary: false,
       });
+    });
+  });
+  describe('getOrganizationInvitations', () => {
+    it('lists the columns it shows, never the invitation token', async () => {
+      const chain: any = {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        order: vi.fn().mockResolvedValue({ data: [], error: null }),
+      };
+      mockSupabase.from.mockReturnValue(chain);
+
+      await getOrganizationInvitations('org-1');
+
+      const columns: string = chain.select.mock.calls[0][0];
+      expect(columns).not.toMatch(/(^|[\s,])\*/);
+      expect(columns).not.toMatch(/\btoken\b/);
+      expect(columns).toMatch(/\bemail\b/);
+      expect(columns).toMatch(/\bexpires_at\b/);
     });
   });
 });

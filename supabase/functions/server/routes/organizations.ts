@@ -1,8 +1,10 @@
 import type { App } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { requireOrgRole, verifyOrgMembership } from '../lib/orgRole.ts';
-import { canAssignRole, emailDomainMatches, ORGANIZATION_DELETE_REFERENCES, describeOrganizationDeleteBlockers } from '../lib/pure/authz.ts';
+import { canAssignRole, canSelfJoinDirectly, confirmedEmail, ORGANIZATION_DELETE_REFERENCES, describeOrganizationDeleteBlockers, takesLastAdmin, LAST_ADMIN_MESSAGE } from '../lib/pure/authz.ts';
 import { pickProfileUpdates } from '../lib/pure/memberUpdate.ts';
+import { newPasswordError } from '../lib/pure/password.ts';
+import { normalizeWebsiteUrl } from '../lib/pure/websiteUrl.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
 
 const ORG_UPDATE_FIELDS = [
@@ -10,6 +12,14 @@ const ORG_UPDATE_FIELDS = [
   'address_line1', 'address_line2', 'city', 'state',
   'postal_code', 'country', 'allowed_domains',
 ];
+
+/** How many Admins an organization has. */
+async function adminCount(orgId: string): Promise<number> {
+  const { count } = await supabaseAdmin
+    .from('organization_members').select('id', { count: 'exact', head: true })
+    .eq('organization_id', orgId).eq('role', 'Admin');
+  return count ?? 0;
+}
 
 const MEMBER_USER_SELECT = `
   *,
@@ -49,6 +59,11 @@ export function registerOrganizations(app: App) {
     if (!orgData.roles || !Array.isArray(orgData.roles) || orgData.roles.length === 0) {
       return c.json({ error: 'At least one role is required' }, 400);
     }
+    if (orgData.url !== undefined) {
+      const website = normalizeWebsiteUrl(orgData.url);
+      if (!website.ok) return c.json({ error: website.error }, 400);
+      orgData.url = website.value;
+    }
 
     const { data: org, error: orgError } = await supabaseAdmin
       .from('organizations').insert({ ...orgData, claimed: auto_join }).select().single();
@@ -71,8 +86,8 @@ export function registerOrganizations(app: App) {
     return c.json(org);
   });
 
-  // Update organization — Admin of this org, or (while unclaimed) an Admin of any org
-  app.put('/organizations/:id', requireUser, requireOrgRole({ roles: ['Admin'], allowGlobalAdminIfUnclaimed: true }), async (c) => {
+  // Update organization — Admin of this org, or (while unclaimed) a moderator or an Admin/Manager of an org sharing a gig
+  app.put('/organizations/:id', requireUser, requireOrgRole({ roles: ['Admin'], allowUnclaimedOrgManagers: true }), async (c) => {
     const orgId = c.req.param('id');
 
     const { data: org, error: orgError } = await supabaseAdmin
@@ -92,6 +107,11 @@ export function registerOrganizations(app: App) {
     if (updateData.roles !== undefined && (!Array.isArray(updateData.roles) || updateData.roles.length === 0)) {
       return c.json({ error: 'At least one role is required' }, 400);
     }
+    if (updateData.url !== undefined) {
+      const website = normalizeWebsiteUrl(updateData.url);
+      if (!website.ok) return c.json({ error: website.error }, 400);
+      updateData.url = website.value;
+    }
     if (Object.keys(updateData).length === 0) {
       return c.json({ error: 'No fields provided for update' }, 400);
     }
@@ -106,8 +126,8 @@ export function registerOrganizations(app: App) {
     return c.json(updatedOrg);
   });
 
-  // Delete organization — Admin of this org, or (while unclaimed) an Admin of any org
-  app.delete('/organizations/:id', requireUser, requireOrgRole({ roles: ['Admin'], allowGlobalAdminIfUnclaimed: true }), async (c) => {
+  // Delete organization — Admin of this org, or (while unclaimed) a moderator or an Admin/Manager of an org sharing a gig
+  app.delete('/organizations/:id', requireUser, requireOrgRole({ roles: ['Admin'], allowUnclaimedOrgManagers: true }), async (c) => {
     const orgId = c.req.param('id');
 
     const { data: org, error: orgError } = await supabaseAdmin
@@ -140,7 +160,8 @@ export function registerOrganizations(app: App) {
     return c.json({ success: true });
   });
 
-  // Add member (self-join as Viewer, or Admin/Manager adds others) — conditional auth
+  // Add a member: an Admin or Manager adds someone else; a person adds themselves only as Staff
+  // when their confirmed email domain matches the org's allowed domains (otherwise they ask to join).
   app.post('/organizations/:id/members', requireUser, async (c) => {
     const orgId = c.req.param('id');
     const user = c.get('user');
@@ -170,12 +191,8 @@ export function registerOrganizations(app: App) {
       if (targetRole === 'Admin' && currentUserMembership.role !== 'Admin') {
         return c.json({ error: 'Only Admins can add other Admins' }, 403);
       }
-    } else if (targetRole === 'Staff') {
-      if (!emailDomainMatches(user.email, org.allowed_domains)) {
-        return c.json({ error: 'Self-joining as Staff requires a matching email domain' }, 400);
-      }
-    } else if (targetRole !== 'Viewer') {
-      return c.json({ error: 'Self-joining can only be as Viewer, or Staff with a matching email domain' }, 400);
+    } else if (!canSelfJoinDirectly(targetRole, confirmedEmail(user), org.allowed_domains)) {
+      return c.json({ error: 'Request to join instead' }, 403);
     }
 
     const { data: existingMember } = await supabaseAdmin
@@ -196,8 +213,8 @@ export function registerOrganizations(app: App) {
     return c.json({ organization: org, role: membership.role, member: membership });
   });
 
-  // List members (any member, or global admin)
-  app.get('/organizations/:id/members', requireUser, requireOrgRole({ allowGlobalAdmin: true }), async (c) => {
+  // List members (any member, or a platform moderator)
+  app.get('/organizations/:id/members', requireUser, requireOrgRole({ allowPlatformModerator: true }), async (c) => {
     const orgId = c.req.param('id');
     const { data: members, error } = await supabaseAdmin
       .from('organization_members').select(MEMBER_USER_SELECT)
@@ -255,6 +272,9 @@ export function registerOrganizations(app: App) {
       if ((body.role === 'Admin' || targetMember.role === 'Admin') && currentUserMembership.role !== 'Admin') {
         return c.json({ error: 'Only Admins can change Admin roles' }, 403);
       }
+      if (takesLastAdmin({ adminCount: await adminCount(orgId), currentRole: targetMember.role, newRole: body.role })) {
+        return c.json({ error: LAST_ADMIN_MESSAGE }, 400);
+      }
       memberUpdates.role = body.role;
       hasMemberUpdates = true;
     }
@@ -297,6 +317,9 @@ export function registerOrganizations(app: App) {
     }
     if (targetMember.role === 'Admin' && currentUserMembership.role !== 'Admin') {
       return c.json({ error: 'Only Admins can remove other Admins' }, 403);
+    }
+    if (takesLastAdmin({ adminCount: await adminCount(orgId), currentRole: targetMember.role, newRole: null })) {
+      return c.json({ error: LAST_ADMIN_MESSAGE }, 400);
     }
 
     const { error: deleteError } = await supabaseAdmin
@@ -381,7 +404,9 @@ export function registerOrganizations(app: App) {
   });
 
   // Create a user and add to org (Admin/Manager)
-  app.post('/organizations/:id/members/create', requireUser, requireOrgRole({ roles: ['Admin', 'Manager'] }), async (c) => {
+  // Create an account with a password and add it (Admin only). Its owner must choose their own
+  // password at first sign-in (app_metadata.must_change_password; PUT /me/password clears it).
+  app.post('/organizations/:id/members/create', requireUser, requireOrgRole({ roles: ['Admin'] }), async (c) => {
     const orgId = c.req.param('id');
     const body = await c.req.json();
     const { email, first_name, last_name, password, role } = body;
@@ -392,8 +417,14 @@ export function registerOrganizations(app: App) {
       return c.json({ error: 'Only Admins can add an Admin' }, 403);
     }
 
+    const passwordError = newPasswordError(password);
+    if (passwordError) {
+      return c.json({ error: passwordError }, 400);
+    }
+
     const { data: authData, error: createAuthError } = await supabaseAdmin.auth.admin.createUser({
       email, password, email_confirm: true, user_metadata: { first_name, last_name },
+      app_metadata: { must_change_password: true },
     });
     if (createAuthError || !authData.user) {
       console.error('Error creating auth user:', createAuthError);

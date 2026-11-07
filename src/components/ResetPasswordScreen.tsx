@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Building2, Lock, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { createClient } from '../utils/supabase/client';
-import { validatePassword } from '../utils/passwordValidation';
+import { validatePassword, MIN_PASSWORD_LENGTH } from '../utils/passwordValidation';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -91,11 +91,11 @@ export default function ResetPasswordScreen({ onComplete }: ResetPasswordScreenP
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-10"
                     required
-                    minLength={6}
+                    minLength={MIN_PASSWORD_LENGTH}
                     disabled={isSubmitting}
                   />
                 </div>
-                <p className="text-xs text-gray-500">Minimum 6 characters</p>
+                <p className="text-xs text-gray-500">Minimum {MIN_PASSWORD_LENGTH} characters</p>
               </div>
 
               <div className="space-y-2">

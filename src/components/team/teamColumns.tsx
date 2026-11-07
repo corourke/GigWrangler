@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { safeHref } from '../../utils/safeHref';
 import { Crown, Shield, User as UserIcon, Mail, Clock, Check, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { Badge } from '../ui/badge';
@@ -65,8 +66,8 @@ export function useMemberColumns({
         const isCurrentUser = row.user?.id === currentUserId;
         return (
           <div className="flex items-center gap-3">
-            {row.user.avatar_url ? (
-              <img src={row.user.avatar_url} alt="" className="w-8 h-8 rounded-full border" />
+            {safeHref(row.user.avatar_url) ? (
+              <img src={safeHref(row.user.avatar_url)} alt="" className="w-8 h-8 rounded-full border" />
             ) : (
               <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 border">
                 <UserIcon className="w-4 h-4" />
@@ -229,7 +230,12 @@ export function useAccessRequestColumns(): ColumnDef<AccessRequestWithRelations>
       accessor: 'requested_role',
       sortable: true,
       filterable: true,
-      render: (val) => <Badge className={getRoleBadgeColor(val as UserRole)}>{val}</Badge>,
+      // Viewer or Staff is a request to join; Manager or Admin, a member asking for a higher role.
+      render: (val) => (
+        <Badge className={getRoleBadgeColor(val as UserRole)}>
+          {val === 'Viewer' || val === 'Staff' ? `Join as ${val}` : val}
+        </Badge>
+      ),
     },
     {
       id: 'message',

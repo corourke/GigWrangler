@@ -67,9 +67,10 @@ export default function TeamScreen({
   const invitationsQuery = useInvitations(orgId);
   const { updateMember, removeMember, cancelInvitation } = useTeamMutations(orgId);
 
-  const isOrgAdmin = userRole === 'Admin';
   const canRequestAccess = userRole === 'Viewer' || userRole === 'Staff';
-  const accessRequestsQuery = useOrgAccessRequests(orgId, isOrgAdmin);
+  // Admins decide every request; Managers decide requests to join (the server lists only those for them).
+  const canDecideRequests = userRole === 'Admin' || userRole === 'Manager';
+  const accessRequestsQuery = useOrgAccessRequests(orgId, canDecideRequests);
   const decideAccessRequest = useDecideAccessRequest();
 
   const members = membersQuery.data ?? [];
@@ -331,8 +332,8 @@ export default function TeamScreen({
           </Card>
         )}
 
-        {/* Pending Access Requests — this org's Admins only (issue #33) */}
-        {isOrgAdmin && accessRequests.length > 0 && (
+        {/* Pending Access Requests: requests to join (Admins and Managers) and for a higher role (Admins) */}
+        {canDecideRequests && accessRequests.length > 0 && (
           <Card className="p-6">
             <h2 className="mb-4 text-gray-900">Pending Access Requests</h2>
             <SmartDataTable

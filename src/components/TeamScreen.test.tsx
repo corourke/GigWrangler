@@ -81,3 +81,28 @@ describe('TeamScreen', () => {
     expect(onViewMember).toHaveBeenCalledWith('member-1');
   });
 });
+
+describe('TeamScreen: requests to join', () => {
+  const joinRequest = {
+    id: 'req-1',
+    organization_id: 'org-1',
+    requester_id: 'user-3',
+    requested_role: 'Viewer',
+    message: null,
+    status: 'pending',
+    created_at: '2026-01-02T00:00:00Z',
+    requester: { id: 'user-3', first_name: 'Robin', last_name: 'Park', email: 'robin@example.com', avatar_url: null },
+    organization: { id: 'org-1', name: 'Test Org', claimed: true },
+    handler: null,
+  };
+
+  it('shows a Manager the requests to join, labelled as such', async () => {
+    const { getOrgAccessRequests } = await import('../services/accessRequest.service');
+    vi.mocked(getOrgAccessRequests).mockResolvedValue([joinRequest] as any);
+    render(<TeamScreen {...mockProps} userRole="Manager" onViewMember={vi.fn()} />);
+
+    expect(await screen.findByText('Robin Park')).toBeInTheDocument();
+    expect(screen.getByText('Join as Viewer')).toBeInTheDocument();
+    expect(getOrgAccessRequests).toHaveBeenCalledWith(mockProps.organization.id);
+  });
+});

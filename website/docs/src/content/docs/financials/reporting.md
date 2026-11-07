@@ -128,7 +128,7 @@ The Needs attention report lists what would leave the year's reports wrong or in
 
 - **Expensed with no expense category:** purchases with no category, or one that isn't on your expense list.
 - **Depreciated with no recovery period:** depreciated equipment bought in the year with no recovery period, and depreciated purchases that aren't tracked as equipment.
-- **Equipment with no cost:** equipment bought in the year with no cost.
+- **Equipment with no cost:** equipment bought in the year whose cost is blank. A cost of $0 counts as free and isn't listed, so if something really cost nothing, set its cost to $0 to clear it.
 - **Disposed or returned with no date disposed:** equipment marked Disposed or Returned with no date, whatever year it was bought.
 - **Invoices that don't add up:** invoices dated in the year whose lines don't add up to the invoice total, with how far off they are.
 

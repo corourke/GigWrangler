@@ -1,21 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { validatePassword, getPasswordStrength } from './passwordValidation';
+import { validatePassword, getPasswordStrength, MIN_PASSWORD_LENGTH } from './passwordValidation';
 
 describe('validatePassword', () => {
   it('returns null for a valid, matching password', () => {
-    expect(validatePassword('hunter2', 'hunter2')).toBeNull();
+    expect(validatePassword('hunter2222', 'hunter2222')).toBeNull();
   });
 
   it('requires a password', () => {
     expect(validatePassword('', '')).toBe('Password is required');
   });
 
-  it('enforces a 6-character minimum', () => {
-    expect(validatePassword('abc', 'abc')).toBe('Password must be at least 6 characters');
+  it('enforces a 10-character minimum', () => {
+    expect(MIN_PASSWORD_LENGTH).toBe(10);
+    expect(validatePassword('abc', 'abc')).toBe('Password must be at least 10 characters');
+    expect(validatePassword('hunter222', 'hunter222')).toBe('Password must be at least 10 characters');
   });
 
   it('requires the confirmation to match', () => {
-    expect(validatePassword('hunter2', 'hunter3')).toBe('Passwords do not match');
+    expect(validatePassword('hunter2222', 'hunter3333')).toBe('Passwords do not match');
   });
 });
 

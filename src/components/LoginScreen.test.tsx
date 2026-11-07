@@ -192,7 +192,7 @@ describe('LoginScreen', () => {
 
     it('calls signUp when the passwords match', async () => {
       const fields = openSignUp()
-      fillSignUp(fields, 'hunter22', 'hunter22')
+      fillSignUp(fields, 'hunter2222', 'hunter2222')
 
       expect(screen.queryByText('Passwords do not match')).toBeNull()
 
@@ -200,7 +200,7 @@ describe('LoginScreen', () => {
 
       await waitFor(() => {
         expect(mockAuth.signUp).toHaveBeenCalledWith(
-          expect.objectContaining({ email: 'ada@example.com', password: 'hunter22' })
+          expect.objectContaining({ email: 'ada@example.com', password: 'hunter2222' })
         )
       })
     })
@@ -219,9 +219,26 @@ describe('LoginScreen', () => {
       expect(screen.getByText(/password strength: strong/i)).toBeTruthy()
     })
 
-    it('does not block submit on a weak (but 6+ character) password', async () => {
+    it('says the minimum is 10 characters', () => {
+      openSignUp()
+      expect(screen.getByText(/minimum 10 characters/i)).toBeTruthy()
+    })
+
+    it('refuses a password under 10 characters and does not call signUp', async () => {
       const fields = openSignUp()
-      fillSignUp(fields, 'abcdef', 'abcdef')
+      fillSignUp(fields, 'hunter222', 'hunter222')
+
+      fireEvent.submit(fields.confirm.closest('form')!)
+
+      await waitFor(() => {
+        expect(screen.getByText('Password must be at least 10 characters')).toBeTruthy()
+      })
+      expect(mockAuth.signUp).not.toHaveBeenCalled()
+    })
+
+    it('does not block submit on a weak (but 10+ character) password', async () => {
+      const fields = openSignUp()
+      fillSignUp(fields, 'abcdefghij', 'abcdefghij')
       expect(screen.getByText(/password strength: weak/i)).toBeTruthy()
 
       fireEvent.submit(fields.confirm.closest('form')!)

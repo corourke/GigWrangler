@@ -79,7 +79,7 @@ describe('AddPersonDialog', () => {
 
   it('searches system-wide for a match — not scoped to the current organization', async () => {
     vi.mocked(userService.searchPeople).mockResolvedValue([
-      { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', email_hint: 'jane@example.com', organization_names: [], matched_on: 'name' },
+      { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', matched_on: 'name' },
     ]);
     vi.mocked(organizationService.linkExistingPersonToOrganization).mockResolvedValue({ user_id: 'existing-user-1', member: {} } as any);
 
@@ -102,10 +102,9 @@ describe('AddPersonDialog', () => {
     expect(organizationService.addOrganizationContact).not.toHaveBeenCalled();
   });
 
-  it('also looks for a match by phone, and shows the masked email and organizations, never the full email (#178)', async () => {
+  it('also looks for a match by phone, and says why it matched (#178)', async () => {
     vi.mocked(userService.searchPeople).mockResolvedValue([
-      { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', email_hint: 'j***@example.com',
-        organization_names: ['Hotel Del', 'Act4 Audio'], matched_on: 'phone' },
+      { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', matched_on: 'phone' },
     ]);
 
     render(<AddPersonDialog {...defaultProps} />);
@@ -113,12 +112,13 @@ describe('AddPersonDialog', () => {
     fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '(555) 123-4567' } });
 
     await waitFor(() => expect(userService.searchPeople).toHaveBeenCalledWith('', { email: '', phone: '(555) 123-4567' }));
-    expect(await screen.findByText('j***@example.com · Hotel Del, Act4 Audio · same phone')).toBeInTheDocument();
+    expect(await screen.findByText('same phone')).toBeInTheDocument();
+    expect(screen.queryByText(/@/)).not.toBeInTheDocument();
   });
 
   it('creates a new person anyway when the user ignores a suggested match', async () => {
     vi.mocked(userService.searchPeople).mockResolvedValue([
-      { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', email_hint: null, organization_names: [], matched_on: 'name' },
+      { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', matched_on: 'name' },
     ]);
     vi.mocked(organizationService.addOrganizationContact).mockResolvedValue({ user_id: 'new-user-1', member: {} } as any);
 
@@ -176,7 +176,7 @@ describe('AddPersonDialog', () => {
 
     it('links an existing match via addGigParticipantContact, not addOrganizationContact/linkExistingPersonToOrganization', async () => {
       vi.mocked(userService.searchPeople).mockResolvedValue([
-        { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', email_hint: 'jane@example.com', organization_names: [], matched_on: 'name' },
+        { id: 'existing-user-1', first_name: 'Jane', last_name: 'Doe', matched_on: 'name' },
       ]);
       vi.mocked(gigParticipantContactsService.addGigParticipantContact).mockResolvedValue({ id: 'gpc-1', user_id: 'existing-user-1' } as any);
 

@@ -68,29 +68,66 @@ export function emailDomainMatches(
     .includes(domain);
 }
 
+/** A request for Viewer or Staff is a request to join; Manager or Admin, for a higher role. */
+export function isJoinRequest(requestedRole: string | null | undefined): boolean {
+  return requestedRole === 'Viewer' || requestedRole === 'Staff';
+}
+
 /**
- * Who may decide an access request (issue #33, point 6): a platform
- * moderator while the target org is unclaimed, or that org's own Admin once
- * it isn't. A moderator does NOT get a say once the org has an Admin, and an
- * Admin of a *different* org never does regardless of claimed status.
+ * The email to check against an organization's allowed_domains: the sign-in
+ * email, and only once it is confirmed.
+ */
+export function confirmedEmail(user: { email?: string | null; email_confirmed_at?: string | null }): string | null {
+  return user.email && user.email_confirmed_at ? user.email : null;
+}
+
+/** What a non-member may ask for: to join as Viewer, or as Staff when their confirmed email domain matches. */
+export function canRequestToJoin(
+  requestedRole: string | null | undefined,
+  confirmed: string | null,
+  allowedDomains: string | null | undefined
+): boolean {
+  if (requestedRole === 'Viewer') return true;
+  if (requestedRole === 'Staff') return emailDomainMatches(confirmed, allowedDomains);
+  return false;
+}
+
+/** Whether someone may add themselves without asking: only as Staff, when their confirmed email domain matches. */
+export function canSelfJoinDirectly(
+  role: string | null | undefined,
+  confirmed: string | null,
+  allowedDomains: string | null | undefined
+): boolean {
+  return role === 'Staff' && emailDomainMatches(confirmed, allowedDomains);
+}
+
+/**
+ * Who may decide an access request: a platform moderator while the org is
+ * unclaimed; that org's own Admin; and that org's Managers for a request to
+ * join. A request for Manager or Admin stays with the Admins (or moderators).
  */
 export function canDecideAccessRequest(
   orgClaimed: boolean,
   isPlatformModerator: boolean,
-  callerOrgRole: string | null | undefined
+  callerOrgRole: string | null | undefined,
+  requestedRole: string
 ): boolean {
   if (!orgClaimed && isPlatformModerator) return true;
-  return callerOrgRole === 'Admin';
+  if (callerOrgRole === 'Admin') return true;
+  return callerOrgRole === 'Manager' && isJoinRequest(requestedRole);
 }
 
 /**
- * Who should be notified that an access request was created (issue #52):
- * platform moderators while the target org is unclaimed (mirrors
- * canDecideAccessRequest — nobody else can act on it yet), that org's own
- * Admins once it isn't.
+ * Who should be notified that an access request was created: platform
+ * moderators while the org is unclaimed; once claimed, its Admins, and its
+ * Managers too for a request to join.
  */
-export function accessRequestNotificationAudience(orgClaimed: boolean): 'platform_moderators' | 'org_admins' {
-  return orgClaimed ? 'org_admins' : 'platform_moderators';
+export function accessRequestNotificationAudience(
+  orgClaimed: boolean,
+  requestedRole: string
+): 'platform_moderators' | 'org_admins' | 'org_admins_and_managers' {
+  if (!orgClaimed) return 'platform_moderators';
+  return isJoinRequest(requestedRole) ? 'org_admins_and_managers' : 'org_admins';
 }
 
 /**
@@ -157,4 +194,18 @@ export function describeOrganizationDeleteBlockers(counts: Record<string, number
     .map(([label]) => label);
   if (blockers.length === 0) return null;
   return `Cannot delete an organization that still has ${blockers.join(', ')}. Remove them first.`;
+}
+
+/** The message for a change that would leave an organization without an Admin. */
+export const LAST_ADMIN_MESSAGE = 'An organization needs at least one Admin. Make someone else an Admin first.';
+
+/**
+ * Whether removing a member (newRole null) or changing their role would take the organization's
+ * last Admin. The database refuses it too (trigger keep_an_admin); this gives the route a clear
+ * message first.
+ */
+export function takesLastAdmin({ adminCount, currentRole, newRole }: {
+  adminCount: number; currentRole: string; newRole: string | null;
+}): boolean {
+  return currentRole === 'Admin' && newRole !== 'Admin' && adminCount <= 1;
 }

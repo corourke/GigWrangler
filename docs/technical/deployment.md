@@ -16,9 +16,10 @@
 4. [Continuous Integration](#continuous-integration)
 5. [Service Reference](#service-reference)
 6. [Configuration Inventory](#configuration-inventory)
-7. [Rollback and Recovery](#rollback-and-recovery)
-8. [Rebuilding Production From Scratch](#rebuilding-production-from-scratch)
-9. [Known Gaps](#known-gaps)
+7. [Backups and restore](#backups-and-restore)
+8. [Rollback and Recovery](#rollback-and-recovery)
+9. [Rebuilding Production From Scratch](#rebuilding-production-from-scratch)
+10. [Known Gaps](#known-gaps)
 
 ---
 
@@ -227,6 +228,39 @@ Chosen over Vercel and Netlify during the original production bring-up:
 
 **Vercel is not part of this stack.** It appears in the repo only as a rejected alternative.
 
+#### Security headers
+
+[`public/_headers`](../../public/_headers) is copied into `build/` and applied by Pages to every response (`/*`):
+
+| Header | Value | Why |
+|---|---|---|
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | HTTPS only, for a year, on every subdomain. No `preload` yet: that's hard to undo. |
+| `X-Frame-Options` | `DENY` | The app can't be framed (older browsers). |
+| `Content-Security-Policy` | `frame-ancestors 'none'` | The same for current browsers. It's enforced on its own because `frame-ancestors` is ignored in a report-only policy. |
+| `X-Content-Type-Options` | `nosniff` | Files are only used as their declared type. |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Other sites see only the origin, never the path. |
+| `Permissions-Policy` | `camera=(self), geolocation=(), microphone=()` | The camera for scanning receipts; no location or microphone. |
+| `Content-Security-Policy-Report-Only` | see the file | Reports, without blocking, anything outside the app's own sources and services. |
+
+**The report-only policy** allows:
+- **Scripts:** `'self'` only. The build has no inline script: `registerSW.js` and the chunks are files.
+- **Styles:** `'self' 'unsafe-inline'`, for the style attributes React and Radix set.
+- **Connections:** `'self'`, both Supabase projects (`https://` and `wss://` for realtime; dev `qcrzwsazasaojqoqxwnr`, prod `hqnnhtxcxedisasvtbqv`) and Sentry ingest (`*.ingest.sentry.io`, `*.ingest.us.sentry.io`, `*.ingest.de.sentry.io`).
+- **Images:** `'self' data: blob:`, the two Supabase hosts (storage) and `*.googleusercontent.com` (Google profile pictures).
+- **Frames:** `'self' blob:` and the Supabase hosts, for PDF previews.
+- **Workers:** `'self' blob:`, for the service worker and the PDF worker.
+- **Everything else:** `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`.
+
+Google sign-in and calendar authorization are navigations, not requests, so they need no entry.
+
+**Checked on 11-07 (PR "Add security headers"):** the dev build was served with this policy **enforced** and loaded in Chromium (Playwright). The app rendered with no violations. Requests to both Supabase hosts (`https` and `wss`), a Sentry ingest host and a storage image were allowed; a request to an unlisted host was blocked.
+
+**Switching to enforce.** After a deploy, open the browser console on prod and use the app: sign in, gigs, purchases with a document preview, the mobile view. Any line saying "[Report Only] Refused to …" names a source the policy would block. Once there are none, rename the header to `Content-Security-Policy`. Keep `frame-ancestors 'none'` in it, and drop the separate one.
+
+**Caching:** `/` and `/index.html` are sent with `Cache-Control: no-cache`, like `sw.js`, `registerSW.js` and `version.json`, so a deploy is picked up on the next load. A client-side route such as `/gigs/123` is served `index.html` by the SPA fallback with Pages' default caching for HTML.
+
+**Check after a deploy:** `curl -sI https://gigwrangler.com/ | grep -iE 'strict-transport|x-frame|content-security|referrer|permissions|nosniff|cache-control'`.
+
 ### Supabase
 
 Provides Postgres, Auth, Storage, and Edge Functions. Two projects, no staging:
@@ -250,9 +284,10 @@ Provides Postgres, Auth, Storage, and Edge Functions. Two projects, no staging:
 
 **Edge functions** deployed to prod: `server` (the consolidated API — users, organizations, gigs, dashboard, Google integrations, WebAuthn, email), `ai-scan` (receipt/invoice extraction), and `health-check` (the daily API health check, called only by `pg_cron`; see [below](#daily-health-check--one-time-setup-issue-52)). `_shared/` holds CORS and Sentry helpers and is not itself a function.
 
-**Backups** are two-layered:
+**Backups** are three-layered:
 - Supabase-managed: automated daily backups, and optionally PITR, configured in dashboard → Database → Backups
 - Deploy-time: schema and data dumps into `./backups/` before every prod migration, taken by `deploy_prod.sh`
+- Nightly: `scripts/backup-prod.sh` on Cameron's Mac, into Dropbox (see [Backups and restore](#backups-and-restore))
 
 ### Vite
 
@@ -496,6 +531,79 @@ Three further observations from the same audit:
 
 ---
 
+## Backups and restore
+
+A nightly backup of production runs on Cameron's Mac and lands in Dropbox, so a copy exists outside Supabase. A restore drill checks that the newest backup is usable, and only ever restores to a local database.
+
+### What it backs up
+
+`scripts/backup-prod.sh` writes `~/Dropbox/GigWrangler-backups/YYYY-MM-DD/`:
+
+| File | What |
+|---|---|
+| `gigwrangler-prod.dump` | `pg_dump -Fc` of the `public`, `auth` and `supabase_migrations` schemas, schema and data (`--no-owner --no-privileges`) |
+| `schema.sql` | The same schemas, schema only, as plain SQL, for diffing |
+
+Each run then:
+- checks the dump is at least 100 KB (`MIN_DUMP_BYTES`) and readable by `pg_restore --list`;
+- warns in the log when it is under half the size of the previous backup;
+- deletes dated folders older than 30 days (`--keep-days`);
+- appends one line per step to `~/Dropbox/GigWrangler-backups/backup.log`.
+
+**Storage files** (attachments) are not in the dump. They live in the `attachments` bucket and are covered only by Supabase's own storage durability.
+
+### One-time setup (Mac)
+
+1. Install PostgreSQL 17 client tools: `brew install libpq` (or `postgresql@17`). The script refuses an older `pg_dump`.
+2. Store the production database URL in the keychain, never in the repository:
+   ```bash
+   security add-generic-password -a "$USER" -s gigwrangler-prod-db -w 'postgresql://postgres.hqnnhtxcxedisasvtbqv:<password>@<pooler-host>:5432/postgres'
+   ```
+   Use the **Session pooler** connection string (dashboard → Connect). Its user name carries the project ref, which the script checks. It refuses the dev ref, any other ref, or a missing URL. `GIGWRANGLER_PROD_DB_URL` overrides the keychain for a one-off run.
+3. Try it: `scripts/backup-prod.sh --dry-run`, then `scripts/backup-prod.sh`.
+4. Install the nightly job (02:30, `scripts/com.gigwrangler.backup.plist`):
+   ```bash
+   sed "s|__REPO__|$(pwd)|" scripts/com.gigwrangler.backup.plist > ~/Library/LaunchAgents/com.gigwrangler.backup.plist
+   launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.gigwrangler.backup.plist
+   launchctl kickstart -k "gui/$(id -u)/com.gigwrangler.backup"   # run once now to check
+   ```
+   Output goes to `/tmp/com.gigwrangler.backup.{out,err}.log` as well as `backup.log`. If the Mac is asleep at 02:30, launchd runs the job when it wakes. The first run may ask to allow `security` to read the keychain item: choose **Always Allow**.
+5. To uninstall:
+   ```bash
+   launchctl bootout "gui/$(id -u)/com.gigwrangler.backup"
+   rm ~/Library/LaunchAgents/com.gigwrangler.backup.plist
+   ```
+
+### Restore drill (local only)
+
+`scripts/restore-drill.sh` restores the newest backup (or `--dump FILE`) into a local database, `gw_restore_drill` by default, which it drops and recreates. It then prints row counts for the main tables and the latest migration. It refuses any `PGHOST` that isn't local, and refuses to run while `DATABASE_URL`, `GIGWRANGLER_PROD_DB_URL` or `PGSERVICE` is set. It needs a local PostgreSQL 17 server (`brew install postgresql@17`, `brew services start postgresql@17`).
+
+```bash
+scripts/restore-drill.sh --dry-run
+scripts/restore-drill.sh
+psql -d postgres -c 'DROP DATABASE gw_restore_drill'   # afterwards
+```
+
+A few Supabase-only objects may not restore locally; the drill counts those errors and lists the most common ones. Run it monthly, and after any change to the backup script.
+
+### Emergency: restoring production (manual, never automated)
+
+Only after Cameron decides to, and only when rolling forward or Supabase's own backups (PITR or daily) can't do the job. Nothing in the repository does this automatically.
+
+1. Stop writes: announce the outage, and pause the app if needed (Cloudflare Pages → roll back to a maintenance build).
+2. Take a fresh backup of the current state first: `scripts/backup-prod.sh`. Keep that folder.
+3. Run the restore drill on the chosen dump and check the counts and the latest migration.
+4. Restore to production by hand, in a session that is visibly targeting prod:
+   ```bash
+   cat supabase/.temp/project-ref          # must print hqnnhtxcxedisasvtbqv
+   pg_restore --no-owner --no-privileges --clean --if-exists --single-transaction \
+     --schema=public --dbname="$GIGWRANGLER_PROD_DB_URL" ~/Dropbox/GigWrangler-backups/<date>/gigwrangler-prod.dump
+   ```
+   Restore `auth` only if the accounts themselves were damaged, and with Supabase support's guidance: Supabase owns that schema.
+5. Redeploy the edge functions and frontend from the commit matching the restored migration (`supabase_migrations.schema_migrations`), then smoke-check.
+
+---
+
 ## Rollback and Recovery
 
 ### Frontend rollback
@@ -618,6 +726,7 @@ Tracked here rather than lost. None of these block a deploy today; all of them w
 | **Single-account blast radius** — hosting, DNS, and TLS all live in one Cloudflare account | Loss of access to that account takes the site down with no independent recovery path |
 | **No staging environment** | Migrations are first exercised against production data during the prod deploy itself. Dev is the only rehearsal, and its data is not representative. |
 | **No automated CD** | Every production release depends on one person with a working local toolchain, Docker running, and `gh` authenticated |
+| **Storage files are not in the nightly backup** | `scripts/backup-prod.sh` dumps the database only; attachments in the `attachments` bucket rely on Supabase's storage alone |
 | **Prod PITR and retention not confirmed** | The rollback procedure offers PITR as an option without anyone having verified it is switched on. PITR is a paid add-on, so the default answer is "off". |
 
 ---

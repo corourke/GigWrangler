@@ -2,12 +2,12 @@ import { getSupabase } from './base/dataAccess';
 import { AccessRequestWithRelations } from '../utils/supabase/types';
 import { handleFunctionsError } from '../utils/api-error-utils';
 
-export type RequestableRole = 'Manager' | 'Admin';
+/** Viewer or Staff: a request to join. Manager or Admin: a member's request for a higher role. */
+export type RequestableRole = 'Viewer' | 'Staff' | 'Manager' | 'Admin';
 
 /**
- * Request an elevated role (Manager or Admin) for an org the caller is
- * already a Viewer or Staff member of — issue #33's recovery path for an
- * org stuck with no Admin, and a general elevation path for claimed orgs too.
+ * Ask to join an org (Viewer, or Staff with a confirmed email at one of its
+ * domains), or, as a Viewer or Staff member, ask for Manager or Admin.
  */
 export async function createAccessRequest(
   organizationId: string,
@@ -27,7 +27,19 @@ export async function createAccessRequest(
   }
 }
 
-/** Pending access requests for an org — Admins of that org only. */
+/** The caller's own pending requests: the org picker shows them as pending. */
+export async function getMyPendingAccessRequests(): Promise<{ id?: string; organization_id: string; requested_role: RequestableRole }[]> {
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.functions.invoke('server/me/access-requests', { method: 'GET' });
+    if (error) return await handleFunctionsError(error, 'fetch your access requests');
+    return data || [];
+  } catch (err) {
+    return await handleFunctionsError(err, 'fetch your access requests');
+  }
+}
+
+/** Pending access requests for an org: all of them for its Admins, the requests to join for its Managers. */
 export async function getOrgAccessRequests(organizationId: string): Promise<AccessRequestWithRelations[]> {
   try {
     const supabase = getSupabase();

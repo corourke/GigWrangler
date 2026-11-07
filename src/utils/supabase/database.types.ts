@@ -2010,6 +2010,7 @@ export type Database = {
           id: string
           last_used_at: string
           public_key: string
+          sign_count: number
           user_id: string
         }
         Insert: {
@@ -2019,6 +2020,7 @@ export type Database = {
           id?: string
           last_used_at?: string
           public_key: string
+          sign_count?: number
           user_id: string
         }
         Update: {
@@ -2028,6 +2030,7 @@ export type Database = {
           id?: string
           last_used_at?: string
           public_key?: string
+          sign_count?: number
           user_id?: string
         }
         Relationships: []
@@ -2155,6 +2158,7 @@ export type Database = {
         Args: { p_entity_type: string }
         Returns: boolean
       }
+      auth_user_id_by_email: { Args: { p_email: string }; Returns: string }
       add_gig_participant_contact: {
         Args: {
           p_actor_id?: string
@@ -2543,12 +2547,10 @@ export type Database = {
       search_people: {
         Args: { p_email?: string; p_phone?: string; p_query: string }
         Returns: {
-          email_hint: string
           first_name: string
           id: string
           last_name: string
           matched_on: string
-          organization_names: string[]
         }[]
       }
       send_to_maintenance: {
@@ -2624,6 +2626,10 @@ export type Database = {
         Returns: boolean
       }
       user_can_manage_org_contacts: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      user_can_manage_unclaimed_org: {
         Args: { p_organization_id: string; p_user_id: string }
         Returns: boolean
       }

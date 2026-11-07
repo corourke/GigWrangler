@@ -2,7 +2,14 @@ import type { App, AppContext } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { requireOrgRole } from '../lib/orgRole.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
-import { canDecideAccessRequest, shouldClaimOrgOnApproval, accessRequestNotificationAudience } from '../lib/pure/authz.ts';
+import {
+  canDecideAccessRequest,
+  shouldClaimOrgOnApproval,
+  accessRequestNotificationAudience,
+  isJoinRequest,
+  canRequestToJoin,
+  confirmedEmail,
+} from '../lib/pure/authz.ts';
 import { sendEmail } from '../lib/email.ts';
 
 /**
@@ -20,7 +27,8 @@ async function notify(recipientIds: string[], type: string, payload: Record<stri
   }
 }
 
-const REQUESTABLE_ROLES = ['Manager', 'Admin'];
+const ELEVATION_ROLES = ['Manager', 'Admin'];
+const JOIN_ROLES = ['Viewer', 'Staff'];
 
 const REQUEST_SELECT = `
   *,
@@ -36,12 +44,11 @@ async function isPlatformModerator(userId: string): Promise<boolean> {
 }
 
 export function registerAccessRequests(app: App) {
-  // Create a request — caller must already be a Viewer or Staff member of the
-  // org (issue #33: no non-member path — self-join first, then request).
+  // Create a request: a non-member asks to join (as Viewer, or as Staff when their confirmed
+  // email domain matches), or a Viewer or Staff member asks for Manager or Admin.
   app.post(
     '/organizations/:id/access-requests',
     requireUser,
-    requireOrgRole({ roles: ['Viewer', 'Staff'] }),
     async (c: AppContext) => {
       const orgId = c.req.param('id');
       const user = c.get('user');
@@ -53,8 +60,28 @@ export function registerAccessRequests(app: App) {
         return c.json({ error: 'Invalid JSON body' }, 400);
       }
       const { requested_role, message } = body;
-      if (!REQUESTABLE_ROLES.includes(requested_role)) {
-        return c.json({ error: `requested_role must be one of: ${REQUESTABLE_ROLES.join(', ')}` }, 400);
+      if (!ELEVATION_ROLES.includes(requested_role) && !JOIN_ROLES.includes(requested_role)) {
+        return c.json({ error: `requested_role must be one of: ${[...JOIN_ROLES, ...ELEVATION_ROLES].join(', ')}` }, 400);
+      }
+
+      const { data: org } = await supabaseAdmin
+        .from('organizations').select('id, allowed_domains').eq('id', orgId).maybeSingle();
+      if (!org) {
+        return c.json({ error: 'Organization not found' }, 404);
+      }
+      const { data: membership } = await supabaseAdmin
+        .from('organization_members').select('role')
+        .eq('organization_id', orgId).eq('user_id', user.id).maybeSingle();
+
+      if (isJoinRequest(requested_role)) {
+        if (membership) {
+          return c.json({ error: 'You are already a member of this organization' }, 400);
+        }
+        if (!canRequestToJoin(requested_role, confirmedEmail(user), org.allowed_domains)) {
+          return c.json({ error: 'You can ask to join as Staff only with a confirmed email at one of this organization\'s domains' }, 400);
+        }
+      } else if (membership?.role !== 'Viewer' && membership?.role !== 'Staff') {
+        return c.json({ error: 'Only Viewers and Staff of this organization can ask for Manager or Admin' }, 403);
       }
 
       const { data: existing } = await supabaseAdmin
@@ -74,13 +101,14 @@ export function registerAccessRequests(app: App) {
         return c.json({ error: error.message }, 400);
       }
 
-      const audience = accessRequestNotificationAudience(request.organization?.claimed ?? true);
+      const audience = accessRequestNotificationAudience(request.organization?.claimed ?? true, requested_role);
       const { data: recipients } =
-        audience === 'org_admins'
-          ? await supabaseAdmin
+        audience === 'platform_moderators'
+          ? await supabaseAdmin.from('users').select('id').eq('platform_moderator', true)
+          : await supabaseAdmin
               .from('organization_members').select('user_id')
-              .eq('organization_id', orgId).eq('role', 'Admin')
-          : await supabaseAdmin.from('users').select('id').eq('platform_moderator', true);
+              .eq('organization_id', orgId)
+              .in('role', audience === 'org_admins_and_managers' ? ['Admin', 'Manager'] : ['Admin']);
       const recipientIds = (recipients || []).map((r: any) => r.user_id ?? r.id);
       const requesterName = [request.requester?.first_name, request.requester?.last_name]
         .filter(Boolean).join(' ') || request.requester?.email || 'A user';
@@ -96,17 +124,20 @@ export function registerAccessRequests(app: App) {
     }
   );
 
-  // List pending requests for an org — its own Admins only.
+  // List pending requests for an org: all of them for its Admins, the requests to join for its Managers.
   app.get(
     '/organizations/:id/access-requests',
     requireUser,
-    requireOrgRole({ roles: ['Admin'] }),
+    requireOrgRole({ roles: ['Admin', 'Manager'] }),
     async (c: AppContext) => {
       const orgId = c.req.param('id');
-      const { data, error } = await supabaseAdmin
+      let query = supabaseAdmin
         .from('access_requests').select(REQUEST_SELECT)
-        .eq('organization_id', orgId).eq('status', 'pending')
-        .order('created_at', { ascending: true });
+        .eq('organization_id', orgId).eq('status', 'pending');
+      if (c.get('membership')?.role !== 'Admin') {
+        query = query.in('requested_role', JOIN_ROLES);
+      }
+      const { data, error } = await query.order('created_at', { ascending: true });
       if (error) {
         console.error('Error fetching org access requests:', error);
         return c.json({ error: error.message }, 400);
@@ -115,8 +146,8 @@ export function registerAccessRequests(app: App) {
     }
   );
 
-  // Approve or reject a request — a platform moderator while the org is
-  // unclaimed, or that org's own Admin once it isn't (issue #33, point 6).
+  // Approve or reject a request: a platform moderator while the org is unclaimed, that org's
+  // Admin, or for a request to join, that org's Manager.
   app.put('/organizations/:id/access-requests/:requestId', requireUser, async (c: AppContext) => {
     const orgId = c.req.param('id');
     const requestId = c.req.param('requestId');
@@ -146,13 +177,13 @@ export function registerAccessRequests(app: App) {
         .eq('organization_id', orgId).eq('user_id', user.id).maybeSingle()
         .then(({ data }) => data),
     ]);
-    if (!canDecideAccessRequest(org.claimed, callerIsModerator, callerMembership?.role)) {
-      return c.json({ error: 'Only a platform moderator (for an unclaimed org) or that org\'s Admin may decide this request' }, 403);
-    }
-
     const { data: request, error: requestError } = await supabaseAdmin
       .from('access_requests').select('*')
       .eq('id', requestId).eq('organization_id', orgId).maybeSingle();
+    // Checked as for a request for Admin when there is no such request, so a missing one reads the same.
+    if (!canDecideAccessRequest(org.claimed, callerIsModerator, callerMembership?.role, request?.requested_role ?? 'Admin')) {
+      return c.json({ error: 'You can\'t decide this request' }, 403);
+    }
     if (requestError || !request) {
       return c.json({ error: 'Access request not found' }, 404);
     }
@@ -160,7 +191,20 @@ export function registerAccessRequests(app: App) {
       return c.json({ error: 'This request has already been handled' }, 400);
     }
 
-    if (decision === 'approved') {
+    if (decision === 'approved' && isJoinRequest(request.requested_role)) {
+      const { data: existing } = await supabaseAdmin
+        .from('organization_members').select('id')
+        .eq('organization_id', orgId).eq('user_id', request.requester_id).maybeSingle();
+      if (!existing) {
+        const { error: joinError } = await supabaseAdmin
+          .from('organization_members')
+          .insert({ organization_id: orgId, user_id: request.requester_id, role: request.requested_role });
+        if (joinError) {
+          console.error('Error adding member on join-request approval:', joinError);
+          return c.json({ error: joinError.message }, 400);
+        }
+      }
+    } else if (decision === 'approved') {
       const { error: memberError } = await supabaseAdmin
         .from('organization_members')
         .update({ role: request.requested_role })
@@ -209,12 +253,17 @@ export function registerAccessRequests(app: App) {
     if (requesterEmail) {
       const orgName = updatedRequest.organization?.name || 'the organization';
       const verb = decision === 'approved' ? 'approved' : 'rejected';
+      const joining = isJoinRequest(request.requested_role);
       const emailResult = await sendEmail({
         to: requesterEmail,
-        subject: `Your ${request.requested_role} request for ${orgName} was ${verb}`,
+        subject: joining
+          ? `Your request to join ${orgName} was ${verb}`
+          : `Your ${request.requested_role} request for ${orgName} was ${verb}`,
         html: `
           <p>Hi ${updatedRequest.requester.first_name || ''},</p>
-          <p>Your request for <strong>${request.requested_role}</strong> access on <strong>${orgName}</strong> was <strong>${verb}</strong>.</p>
+          <p>${joining
+            ? `Your request to join <strong>${orgName}</strong> as <strong>${request.requested_role}</strong> was <strong>${verb}</strong>.`
+            : `Your request for <strong>${request.requested_role}</strong> access on <strong>${orgName}</strong> was <strong>${verb}</strong>.`}</p>
           ${response_message ? `<p>${response_message}</p>` : ''}
         `.trim(),
       });
@@ -224,6 +273,20 @@ export function registerAccessRequests(app: App) {
     }
 
     return c.json(updatedRequest);
+  });
+
+  // The caller's own pending requests (the org picker shows them as pending).
+  app.get('/me/access-requests', requireUser, async (c: AppContext) => {
+    const user = c.get('user');
+    const { data, error } = await supabaseAdmin
+      .from('access_requests').select('id, organization_id, requested_role, created_at')
+      .eq('requester_id', user.id).eq('status', 'pending')
+      .order('created_at', { ascending: true });
+    if (error) {
+      console.error('Error fetching own access requests:', error);
+      return c.json({ error: 'Could not load your requests' }, 400);
+    }
+    return c.json(data || []);
   });
 
   // Platform moderator queue — pending requests across all unclaimed orgs.

@@ -337,7 +337,7 @@ Companies, venues, acts, and other entities
 | id | UUID | Primary key |
 | name | TEXT | Organization name (NOT NULL) |
 | roles | organization_role[] | Array of organization roles (NOT NULL). Renamed from scalar `type` and converted to an array in migration 20260522000000 |
-| url | TEXT | Organization website URL (nullable) |
+| url | TEXT | Organization website URL (nullable). A full `http://` or `https://` link of 2,048 characters at most, or blank: check constraint `organizations_url_http` (migration 20261107010000, NOT VALID, so older rows aren't checked until they're next updated). The API validates it too, and the app links it only when it's http(s) (`safeHref`, `ExternalLink`). |
 | phone_number | TEXT | Organization phone number (nullable) |
 | address_line1 | TEXT | Street address (nullable) |
 | address_line2 | TEXT | Apartment, suite, etc. (nullable) |
@@ -380,6 +380,7 @@ User memberships in organizations with roles
 - Unique constraint on (organization_id, user_id) ensures a user can only be a member of an organization once
 - Partial unique index `organization_members_one_primary_contact_per_org` on (organization_id) WHERE `is_primary_contact` — at most one primary contact per org
 - `default_staff_role_id` allows pre-filling staff assignments for this member
+- Trigger `keep_an_admin` (migration 20261107030000): an UPDATE or DELETE that would take an organization's last Admin is refused ("An organization needs at least one Admin. Make someone else an Admin first."), by any path, including a cascade from deleting a profile. Deleting the organization itself still removes all its memberships. The server's member routes check first and return the same message.
 - Contact rows are written via SECURITY DEFINER RPCs (`add_organization_contact`, `link_existing_person_to_organization`, `update_organization_contact`, `set_organization_primary_contact`, `unset_organization_primary_contact`, `remove_organization_contact`), gated by `user_can_manage_org_contacts`.
 - RLS is **ENABLED** on this table. Users can view members of their own organizations and members of any org they can manage contacts for ("Users can view members of organizations they can manage contacts for", migration 20260907000000); Admins can manage membership.
 
@@ -406,6 +407,7 @@ Tracks pending and completed invitations to join organizations
 
 **Notes:**
 - RLS is **ENABLED** on this table. Users can view invitations for their organizations.
+- `authenticated` may SELECT every column except `token` (column grants, migration 20261107090000); `anon` has no access. The invitation functions are SECURITY DEFINER and the server uses the service role, so neither needs the grant.
 - Composite unique constraint on (organization_id, email, status) prevents duplicate pending invitations.
 
 ---
@@ -423,9 +425,11 @@ WebAuthn/passkey device registrations for users
 | device_name | TEXT | Human-readable device name (nullable) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
 | last_used_at | TIMESTAMPTZ | Last authentication timestamp (NOT NULL) |
+| sign_count | BIGINT | The authenticator's signature counter at its last use; a response that doesn't advance it is refused (NOT NULL, default 0; migration 20261107080000) |
 
 **Notes:**
-- RLS is **ENABLED** on this table. Users can only manage their own devices.
+- RLS is **ENABLED** on this table. Users read and remove their own devices; enrolling and recording use go through the `server` function (service role). `authenticated` has no INSERT or UPDATE (migration 20261107080000).
+- `auth_user_id_by_email(p_email)` (SECURITY DEFINER, service role only) finds the account for the unlock flow's email, ignoring case and surrounding spaces.
 
 ---
 
@@ -782,6 +786,7 @@ Metadata for files stored in Supabase Storage.
 - Files are stored in Supabase Storage; this table tracks metadata only.
 - Scoped to organization via `organization_id` for tenant isolation.
 - RLS is **ENABLED** on this table. Users can view attachments for their organization; Admins/Managers can manage.
+- The `attachments` bucket takes PDFs, images (JPEG, PNG, WebP, GIF, HEIC, HEIF), Word, Excel and PowerPoint documents (`.docx`, `.xlsx`, `.pptx`) and CSV, up to 25 MB (`file_size_limit`, `allowed_mime_types`; migration 20261107090000). Not HTML, SVG, macro-enabled Office files or anything else. `uploadAttachment` checks both first and takes the type from a known extension, since browsers disagree on Office and CSV types.
 - `file_path` MUST follow the `{organization_id}/{filename}` convention: the storage policies on the `attachments` bucket derive the owning org from the first path segment (org members can read; Admins/Managers can write — see `docs/technical/security-scheme.md` §6 and migration `20260612000000_scope_attachment_storage_policies.sql`).
 
 ---
@@ -852,7 +857,7 @@ Global staff role choices (FOH, Lighting, etc.)
 **Notes:**
 - Staff roles are enumerated in this table to support future staffing template functionality
 - Templates can be created for different gig types based on gig tags
-- RLS is **ENABLED** on this table. Anyone can view staff roles.
+- RLS is **ENABLED** on this table. Signed-in users can view staff roles.
 
 ---
 
@@ -1164,12 +1169,14 @@ Tracks equipment check-in/check-out status at gigs.
 | status | TEXT | Tracking status (NOT NULL) |
 | scanned_at | TIMESTAMPTZ | When the scan occurred (NOT NULL) |
 | scanned_by | UUID | Reference to public.users(id) (nullable, SET NULL on delete; re-pointed from auth.users in migration 20260530000000) |
+| client_id | UUID | Id the phone gave a scan when it queued it (nullable; unique when set, `inventory_tracking_client_id_key`, migration 20261107040000). A retried scan is a no-op instead of a second row. |
 | quantity | INTEGER | State, not a delta: how many of this unit or lot are at this gig under this kit as of this row. 1 for a unit, N of a lot (default 1, CHECK > 0). Migration 20261014000000 |
 | notes | TEXT | Notes about this tracking event (nullable) |
 | location | TEXT | Free-text location for the tracking event (nullable; migration 20260529000000) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
 
 **Notes:**
+- **Offline queue on the phone (11-07).** Changes made offline wait in the phone's IndexedDB outbox, each stamped with who queued it (`actor_id`). Only the signed-in person's changes are sent; anyone else's are dropped unsent. A change that fails 5 times is marked failed and left alone, and the person is told how many changes couldn't sync. The whole offline copy (gigs, packing lists, staff assignments, kits and equipment, and the outbox) is cleared at sign-out and when a different person signs in (`offlineOwner.ts`); at the first sign-in after that release, only the cached data is cleared, and queued changes that name no one are adopted by the person signed in.
 - Composite index on (gig_id, kit_id, asset_id, scanned_at DESC) for efficient lookups.
 - **Append-only history.** The unique index from 20260305000000 was dropped in 20260309000000. Every scan or manual move inserts a row. Undo deletes the newest row.
 - **Notes (#246, Cameron 10-10).** Saving a note on the phone appends a new row; no row is ever edited. The new row is always written at this gig and carries the item's last status forward unchanged: the newer of its newest row at this gig and kit (status, count, location) and its last record at any gig (a unit's newest row, or a container's own newest row; status and location), or, with neither, `In Warehouse`. So a unit out at another gig keeps that status, and where the unit is never blocks a note or Send to Maintenance. A note on a whole kit (container or not) is exactly one kit-level row (`asset_id` null) and nothing else: never a cascade, and no rows for its units or lots. On the phone, a unit or lot line reads only its own rows, never its kit's: a kit scan always writes a row for every unit and lot it covers, so a kit-level row is never a scan of a line. The packing list keeps each unit's and container's last record as `last_records` (gig and its name, status, location, notes, who, when). The note popup shows that last record (or the row here, if newer): when, who, status / location, the gig, and its notes when not blank. Ticking **Send to Maintenance** adds "Sent to Maintenance." to the end of the note in that same row, then sets the status through `update_asset_status` (Staff or above), which since migration 20261022000000 sends the whole record through `send_to_maintenance`; unticking sets it back to Active and adds nothing (the phone's own Maintenance step is #186 step 3). "Scanned by" shows a name: the row's, the signed-in person's, or the organization's members', else "Unknown".
@@ -1252,6 +1259,7 @@ Stores user OAuth tokens and calendar preferences for Google Calendar integratio
 **Notes:**
 - Unique constraint on (user_id) — one calendar integration per user (replaced the former (user_id, calendar_id) constraint in migration 20260528000000).
 - RLS is **ENABLED**. Users can only access their own calendar settings.
+- The tokens stay on the server (migration 20261107100000): `authenticated` may SELECT every column except `access_token` and `refresh_token`, and UPDATE only `calendar_id`, `calendar_name`, `is_enabled`, `sync_filters` and `updated_at`. Connecting (insert) and disconnecting (delete, after revoking at Google) go through the `server` function; `anon` has no access.
 
 ---
 
@@ -1282,7 +1290,7 @@ Tracks sync status of gigs to Google Calendar per user.
 
 ### ai_scan_usage
 
-Usage log for the `ai-scan` edge function, used for per-user rate limiting (60 scans/hour since 10-02; it was 20).
+Usage log for the `ai-scan` edge function, used for its rate limits: 60 scans per user per hour (since 10-02; it was 20) and 200 per organization per 24 hours (migration 20261107070000).
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -1294,7 +1302,7 @@ Usage log for the `ai-scan` edge function, used for per-user rate limiting (60 s
 **Notes:**
 - RLS is **ENABLED with no policies** — only the edge function's service-role client can read or write.
 - Not a long-term audit log: the edge function opportunistically deletes rows older than 24 hours.
-- Indexed on (user_id, created_at) (`idx_ai_scan_usage_user_time`) for the trailing-hour quota query.
+- Indexed on (user_id, created_at) (`idx_ai_scan_usage_user_time`) for the trailing-hour quota query, and on (organization_id, created_at) (`idx_ai_scan_usage_org_time`) for the organization's trailing-24-hour count.
 - No foreign keys on `user_id` / `organization_id` (migration 20260612000001).
 
 ---
@@ -1438,14 +1446,14 @@ Unified, append-only activity/audit log for gigs, assets and other entities (mig
 
 ### access_requests
 
-Viewer/Staff → Manager/Admin elevation requests (migration 20260908000000). Routed to platform moderators while the target org is unclaimed, and to the org's own Admins once it is claimed.
+Requests to join an organization (Viewer, Staff; migration 20261107060000) and Viewer/Staff → Manager/Admin elevation requests (migration 20260908000000). Routed to platform moderators while the target org is unclaimed; once it is claimed, requests to join go to its Admins and Managers, elevation requests to its Admins.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | id | UUID | Primary key |
 | organization_id | UUID | Reference to organizations.id (NOT NULL, CASCADE delete) |
 | requester_id | UUID | Reference to users.id (NOT NULL, CASCADE delete) |
-| requested_role | user_role | Role requested — CHECK limits to `Manager` or `Admin` (NOT NULL) |
+| requested_role | user_role | Role requested — `Viewer` or `Staff` (a request to join), `Manager` or `Admin` (CHECK; NOT NULL) |
 | message | TEXT | Requester's message (nullable) |
 | status | TEXT | `pending`, `approved`, or `rejected` (CHECK; default 'pending', NOT NULL) |
 | handled_by | UUID | Reference to users.id — who approved/rejected (nullable) |
@@ -1456,7 +1464,7 @@ Viewer/Staff → Manager/Admin elevation requests (migration 20260908000000). Ro
 **Notes:**
 - `requester_seen_at` existed originally but was dropped in migration 20260916000000 (outcome notices now come from `notifications`).
 - Partial unique index `access_requests_one_pending_per_requester` on (organization_id, requester_id) WHERE `status = 'pending'`; plus indexes `access_requests_org_status_idx` (organization_id, status) and `access_requests_requester_idx` (requester_id, status).
-- All app reads/writes go through the `server` edge function (service role). RLS is **ENABLED** with SELECT-only policies as a backstop / for realtime: requester sees own requests; org Admins see their org's requests; platform moderators see requests for unclaimed orgs. `authenticated` is granted SELECT only.
+- All app reads/writes go through the `server` edge function (service role). RLS is **ENABLED** with SELECT-only policies as a backstop / for realtime: requester sees own requests; org Admins see their org's requests; org Managers see their org's requests to join; platform moderators see requests for unclaimed orgs. `authenticated` is granted SELECT only.
 
 ---
 
@@ -1508,23 +1516,25 @@ These functions are defined with `SECURITY DEFINER` to bypass RLS when necessary
 - `user_has_access_to_gig(gig_id, user_uuid)`: Returns true if the user belongs to any organization participating in the gig.
 - `user_can_manage_gig(gig_id, user_uuid)`: Returns true if the user is Admin or Manager in a participating organization.
 - `user_is_admin_of_gig(gig_id, user_uuid)`: Returns true if the user is Admin in a participating organization.
-- `get_user_email(user_uuid)`: Returns the email address from `auth.users`.
-- `get_user_ids_in_same_orgs(user_uuid)`: Returns all user IDs that share an organization with the given user.
-- `get_user_role_in_org(org_id, user_uuid)`: Returns the user's role in the specified organization.
-- `get_complete_user_data(user_uuid)`: Returns user profile and organization memberships as JSONB.
-- `get_user_profile_secure(user_uuid)`: Returns user profile row securely.
-- `get_user_organizations_secure(user_uuid)`: Returns user's organization memberships securely.
-- `search_people(p_query, p_email, p_phone)`: System-wide search for an existing person before adding a new one (#178). Every word of `p_query` must match the name, in any order, with one typo forgiven per word (two in words of 7+ letters); `p_email` matches as typed; `p_phone` matches ignoring formatting (last 10 digits, or 7 for a local number). Any one match is enough; inactive people are left out. Returns only `id`, `first_name`, `last_name`, `email_hint` (masked, e.g. `j***@crew.example`), `organization_names` and `matched_on`. Signed-in callers only.
+- `get_user_email(user_uuid)`: Returns the email address from `auth.users`. For the signed-in user's own id only.
+- `get_user_ids_in_same_orgs(user_uuid)`: Returns all user IDs that share an organization with the given user. For the signed-in user's own id only.
+- `get_user_role_in_org(org_id, user_uuid)`: Returns the user's role in the specified organization. Service role only.
+- `get_complete_user_data(user_uuid)`: Returns user profile and organization memberships as JSONB. For the signed-in user's own id only.
+- `get_user_profile_secure(user_uuid)`: Returns user profile row securely. For the signed-in user's own id only.
+- `get_user_organizations_secure(user_uuid)`: Returns user's organization memberships securely. Service role only.
+- `search_people(p_query, p_email, p_phone)`: System-wide search for an existing person before adding a new one (#178). Every word of `p_query` must match the name, in any order, with one typo forgiven per word (two in words of 7+ letters); `p_email` matches as typed; `p_phone` matches ignoring formatting (last 10 digits, or 7 for a local number). Any one match is enough; inactive people are left out. Returns only `id`, `first_name`, `last_name` and `matched_on` (migration 20261107020000). Signed-in callers only.
 - `search_organizations(p_query, p_type)`: The same word matching for organization names, optionally by type. Runs as the caller.
 - `search_name_rank(p_name, p_query)`: Helper for both: 0 = every word is part of the name, 1 = a typo was forgiven, NULL = no match.
-- `convert_pending_user_to_active(p_email, p_auth_user_id)`: Converts a pending user to active on first login.
+- `convert_pending_user_to_active(p_email, p_auth_user_id)`: On first login, takes over the profile of a pending invitee or a contact (no login) with the same email, memberships and all, and makes it active (contacts included from migration 20261107050000). An active profile with that email is taken over only if no login owns it.
 - `invite_user_to_organization(...)`: Creates an invitation and pending user record.
 - `create_gig_complex(p_gig_data, p_participants, p_staff_slots)`: Transactionally creates a gig with participants and staff slots. Since migration 20260613000000 it requires `p_gig_data.primary_organization_id` and that the caller is Admin/Manager of that org; it is the only gig-creation path (no gigs INSERT policy).
 - `create_purchase_transaction_v2(p_header, p_items, p_units)`: Transactionally creates a purchase header, its lines, and each tracked line's units or lot (`line_index` names the line). Replaced `create_purchase_transaction_v1`, which was dropped by 20261025000000 (#317).
 - `reclassify_expense_as_asset(p_purchase_item_id)`: Retired (dropped by migration 20261011000000, which also dropped `purchases.sub_category` and `assets.sub_category`).
 - `update_asset_status(p_asset_id, p_status)`: Updates asset status. **Equipment status changes take Staff or above** (migration 20261019000000): Admins, Managers and Staff of the asset's org can move it between Active, Maintenance and Inactive; a Viewer can't change it (the app hides the controls). A status must be one of the known statuses (Active, Inactive, Maintenance, Disposed, Returned). **Status changes into or out of retired statuses follow the write-off rules:** Disposed and Returned, in or out, take an Admin or Manager; Missing is set only by `write_off_pieces` and left only by `undo_write_off`. **Maintenance** (migration 20261022000000): to Maintenance sends the whole record through the same rules (no gig, wherever its pieces are); out of Maintenance clears its details without merging a split-off piece; Active or Inactive on a flagged record cancels the flag; Disposed or Returned clears it. The phone drops a queued status change the database refuses as not allowed (42501) or not possible for the record as it is (22023), with a message.
 - `user_is_admin(user_uuid)`: Returns true if the user is Admin of **at least one** organization (not a global admin; migration 20260522000000).
-- `user_can_manage_org_contacts(p_organization_id, p_user_id)`: True if the user is `user_is_admin`, Admin/Manager of the org, or Admin/Manager of an org sharing a gig with it. Gates all contact RPCs and the broadened member/user read policies.
+- `user_can_manage_org_contacts(p_organization_id, p_user_id)`: True if the user is Admin/Manager of the org, Admin/Manager of an org sharing a gig with it, or (while the org is unclaimed) a platform moderator (migration 20261107020000).
+- `user_can_manage_unclaimed_org(p_organization_id, p_user_id)`: True while the org is unclaimed, for a platform moderator or an Admin/Manager of an org sharing a gig with it. Used by the organizations UPDATE policy and the server's org edit and delete. Only for the caller's own id.
+- `users_share_org_or_gig(p_viewer_id, p_target_id)`: True for yourself, someone in one of your organizations, or someone on one of your gigs (through a participating org or a staff assignment). Service role only; used by the server's `GET /users/:id`. Gates all contact RPCs and the broadened member/user read policies.
 - `user_is_contact_status(p_user_id)`: True if the user's `user_status = 'contact'` (breaks RLS recursion between `users` and `organization_members`).
 - Organization-contact RPCs: `add_organization_contact`, `link_existing_person_to_organization`, `update_organization_contact`, `set_organization_primary_contact`, `unset_organization_primary_contact`, `remove_organization_contact`.
 - Gig-contact RPCs: `create_contact_person`, `add_gig_participant_contact`, `set_gig_participant_contact_primary`, `remove_gig_participant_contact` (the only write path for `gig_participant_contacts`).
@@ -1624,11 +1634,11 @@ All tables have RLS **ENABLED**. Access is controlled through a combination of R
 | Table | SELECT | INSERT | UPDATE | DELETE |
 |-------|--------|--------|--------|--------|
 | `users` | Own profile + same-org members + users of orgs you can manage contacts for + gig participant contacts on accessible gigs | Own record (auth) | Own record | — |
-| `organizations` | All (public) | Authenticated | Admin of this org; any org's Admin only while `claimed = false` | — |
-| `organization_members` | Own orgs + orgs you can manage contacts for | Self-join as Viewer; Admin manages | Admin only | Admin only |
+| `organizations` | Signed in | Authenticated | Admin of this org; while `claimed = false`, a platform moderator or an Admin/Manager of an org sharing a gig (`user_can_manage_unclaimed_org`) | — |
+| `organization_members` | Own orgs + orgs you can manage contacts for | Admin manages (joining is a request, approved through the server) | Admin only | Admin only |
 | `invitations` | Own org members | Admin/Manager | Admin/Manager + invitee accept | Admin/Manager |
 | `user_devices` | Own devices | Own | Own | Own |
-| `access_requests` | Own requests; org Admins; platform moderators (unclaimed orgs) | — (service role) | — (service role) | — (service role) |
+| `access_requests` | Own requests; org Admins; org Managers (requests to join); platform moderators (unclaimed orgs) | — (service role) | — (service role) | — (service role) |
 | `notifications` | Own | — (service role / SECURITY DEFINER) | Own (mark read) | — |
 | `gigs` | Participating orgs | — (only via `create_gig_complex`) | Admin/Manager of participant | Admin of participant |
 | `gig_participants` | Accessible gigs | Gig managers | Gig managers | Gig managers |
