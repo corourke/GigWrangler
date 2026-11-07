@@ -263,8 +263,9 @@ export async function getOrganizationInvitations(organizationId: string) {
   try {
     const { data, error } = await supabase
       .from('invitations')
+      // Listed columns: members can't read an invitation's token.
       .select(`
-        *,
+        id, organization_id, email, role, invited_by, status, expires_at, accepted_at, accepted_by, created_at, updated_at,
         invited_by_user:users!invitations_invited_by_fkey(
           first_name,
           last_name,

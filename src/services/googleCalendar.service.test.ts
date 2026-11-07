@@ -31,15 +31,13 @@ describe('googleCalendar.service', () => {
 
     expect(typeof service.getGoogleAuthUrl).toBe('function');
     expect(typeof service.getUserGoogleCalendarSettings).toBe('function');
-    expect(typeof service.saveUserGoogleCalendarSettings).toBe('function');
-    expect(typeof service.deleteUserGoogleCalendarSettings).toBe('function');
+    expect(typeof service.connectGoogleCalendar).toBe('function');
+    expect(typeof service.disconnectGoogleCalendar).toBe('function');
     expect(typeof service.getGigSyncStatus).toBe('function');
     expect(typeof service.updateGigSyncStatus).toBe('function');
     expect(typeof service.syncGigToCalendar).toBe('function');
     expect(typeof service.deleteGigFromCalendar).toBe('function');
     expect(typeof service.getUserCalendars).toBe('function');
-    expect(typeof service.exchangeCodeForTokens).toBe('function');
-    expect(typeof service.refreshAccessToken).toBe('function');
     expect(typeof service.getSyncLogs).toBe('function');
     expect(typeof service.getSyncStatusSummary).toBe('function');
   });
@@ -54,8 +52,6 @@ describe('googleCalendar.service', () => {
         user_id: 'user-123',
         calendar_id: 'cal-123',
         calendar_name: 'Primary',
-        access_token: 'token-abc',
-        refresh_token: 'refresh-xyz',
         token_expires_at: new Date(Date.now() + 3600000).toISOString(),
         is_enabled: true,
         sync_filters: {},
@@ -117,8 +113,6 @@ describe('googleCalendar.service', () => {
         user_id: 'user-123',
         calendar_id: 'cal-123',
         calendar_name: 'Primary',
-        access_token: 'token-abc',
-        refresh_token: 'refresh-xyz',
         token_expires_at: new Date(Date.now() + 3600000).toISOString(),
         is_enabled: true,
         sync_filters: {},
@@ -179,8 +173,6 @@ describe('googleCalendar.service', () => {
       user_id: 'user-123',
       calendar_id: 'cal-123',
       calendar_name: 'Act4Audio',
-      access_token: 'token-abc',
-      refresh_token: 'refresh-xyz',
       token_expires_at: new Date(Date.now() + 3600000).toISOString(),
       is_enabled: true,
       sync_filters: {},
@@ -268,7 +260,7 @@ describe('googleCalendar.service', () => {
 
         expect(mockSupabase.functions.invoke).toHaveBeenCalledWith(
           'server/integrations/google-calendar/events',
-          expect.objectContaining({ method: 'DELETE', body: expect.objectContaining({ calendar_id: 'cal-123', event_id: 'ev-9' }) }),
+          { method: 'DELETE', body: { event_id: 'ev-9' } },
         );
         expect(mockSupabase.upsert).not.toHaveBeenCalled();
       });
@@ -301,7 +293,7 @@ describe('googleCalendar.service', () => {
     it('removes a gig the organization is Inactive on instead of syncing it', async () => {
       const service = await import('./googleCalendar.service');
       const settings = {
-        id: 's-1', user_id: 'user-123', calendar_id: 'cal-123', access_token: 'token-abc', refresh_token: 'r',
+        id: 's-1', user_id: 'user-123', calendar_id: 'cal-123',
         token_expires_at: new Date(Date.now() + 3600000).toISOString(), is_enabled: true, sync_filters: {},
       };
       const gigs = [

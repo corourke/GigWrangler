@@ -5,6 +5,7 @@ import App from "./App.tsx";
 import "./styles/globals.css";
 import { AuthProvider } from "./contexts/AuthContext";
 import { queryClient } from "./lib/queryClient";
+import { scrubEvent } from "../supabase/functions/_shared/sentryScrub";
 
 // Error monitoring — no-op unless VITE_SENTRY_DSN is set (dev/test unaffected)
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
@@ -14,6 +15,9 @@ if (sentryDsn) {
     environment: import.meta.env.MODE,
     release: `gigwrangler@${__BUILD_TIMESTAMP__}`,
     sendDefaultPii: false,
+    // Email addresses and tokens never leave the browser in an error report.
+    beforeSend: scrubEvent,
+    beforeBreadcrumb: scrubEvent,
   });
 }
 

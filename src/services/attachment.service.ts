@@ -11,6 +11,36 @@ import {
 
 const BUCKET_NAME = 'attachments';
 
+/** The attachments bucket's limits (migration 20261107090000): PDFs, images, Office documents and CSV, up to 25 MB. */
+export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+const ATTACHMENT_TYPES: Record<string, string> = {
+  pdf: 'application/pdf',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  csv: 'text/csv',
+};
+const ALLOWED_ATTACHMENT_TYPES = new Set(Object.values(ATTACHMENT_TYPES));
+
+/**
+ * The media type to store the file under if the bucket takes it, else null. A known extension
+ * decides it (browsers disagree on Office and CSV types, and send none for some files);
+ * otherwise the browser's type, if allowed. A macro-enabled file (.docm, .xlsm) is refused.
+ */
+export function attachmentContentType(file: File): string | null {
+  const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
+  if (ATTACHMENT_TYPES[ext]) return ATTACHMENT_TYPES[ext];
+  if (ext && !ALLOWED_ATTACHMENT_TYPES.has(file.type)) return null;
+  return ALLOWED_ATTACHMENT_TYPES.has(file.type) ? file.type : null;
+}
+
 /**
  * Upload a file and create an attachment record
  */
@@ -20,6 +50,14 @@ export async function uploadAttachment(
   customFileName?: string
 ) {
   try {
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      throw new Error('Files can be up to 25 MB');
+    }
+    const contentType = attachmentContentType(file);
+    if (!contentType) {
+      throw new Error('Attach a PDF, an image, an Office document or a CSV (Word, Excel, PowerPoint)');
+    }
+
     const user = await getCurrentUser();
     const supabase = getSupabase();
 
@@ -30,7 +68,7 @@ export async function uploadAttachment(
     // 1. Upload to Storage
     const { data: _storageData, error: storageError } = await supabase.storage
       .from(BUCKET_NAME)
-      .upload(filePath, file);
+      .upload(filePath, file, { contentType });
 
     if (storageError) throw storageError;
 

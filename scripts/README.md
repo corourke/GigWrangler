@@ -87,3 +87,7 @@ The `ai-scan` Edge Function requires an Anthropic API key to process PDFs.
   The `.test` addresses receive no mail, so flows that send email (invitations, sign-up confirmation, password reset) can't be completed with them yet. Screenshotting those needs a way to simulate email delivery (noted in WORK_PLAN.md §5).
 - **Run:** `./scripts/seed-demo.sh` (prints per-table row counts on success).
 - The SQL targets the live dev schema. If dev gains new required columns or constraints (for example migration `20261012000000` renaming `purchases.row_type` `item`/`asset` to `line`), update `seed-demo.sql` to match.
+
+## Production backups (`backup-prod.sh`, `restore-drill.sh`)
+
+`backup-prod.sh` dumps production nightly into `~/Dropbox/GigWrangler-backups/YYYY-MM-DD/` (launchd job `com.gigwrangler.backup.plist`, 02:30). `restore-drill.sh` restores the newest dump into a local throwaway database and prints row counts and the latest migration. Both take `--dry-run`. Setup, the drill and the manual emergency restore are in [docs/technical/deployment.md](../docs/technical/deployment.md#backups-and-restore).

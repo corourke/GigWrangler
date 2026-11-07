@@ -14,7 +14,8 @@ const SCOPES = [
 
 const REDIRECT_URI = () => `${window.location.origin}/auth/google-calendar/callback`;
 
-const SETTINGS_COLS = 'id, user_id, calendar_id, calendar_name, access_token, refresh_token, token_expires_at, is_enabled, sync_filters, created_at, updated_at';
+// The Google tokens stay on the server: the browser can't read them (migration 20261107100000).
+const SETTINGS_COLS = 'id, user_id, calendar_id, calendar_name, token_expires_at, is_enabled, sync_filters, created_at, updated_at';
 
 export async function getGoogleAuthUrl(): Promise<string> {
   const params = new URLSearchParams({
@@ -28,151 +29,35 @@ export async function getGoogleAuthUrl(): Promise<string> {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
-export async function exchangeCodeForTokens(code: string): Promise<{
-  access_token: string;
-  refresh_token: string;
-  expires_at: Date;
-}> {
-  const supabase = getSupabase();
-
+/**
+ * Connect Google Calendar: the server exchanges the authorization code and stores the
+ * connection. A new connection has no calendar chosen and sync off; a reconnect keeps the
+ * calendar already chosen.
+ */
+export async function connectGoogleCalendar(code: string): Promise<void> {
   try {
-    const { data, error } = await supabase.functions.invoke(
-      'server/integrations/google-calendar/exchange-token',
-      {
-        method: 'POST',
-        body: { code, redirect_uri: REDIRECT_URI() },
-      }
+    const { data, error } = await getSupabase().functions.invoke(
+      'server/integrations/google-calendar/connect',
+      { method: 'POST', body: { code, redirect_uri: REDIRECT_URI() } },
     );
-
     if (error) throw error;
-    if (data?.error) throw new Error(data.details || data.error);
-
-    if (!data.access_token || !data.refresh_token) {
-      throw new Error('Failed to obtain required tokens');
-    }
-
-    return {
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-      expires_at: new Date(Date.now() + (data.expires_in || 3600) * 1000),
-    };
+    if (data?.error) throw new Error(data.error);
   } catch (error) {
-    throw await handleFunctionsError(error, 'exchange authorization code for tokens');
+    throw await handleFunctionsError(error, 'connect Google Calendar');
   }
 }
 
-export async function refreshAccessToken(refreshToken: string): Promise<{
-  access_token: string;
-  expires_at: Date;
-}> {
-  console.log('[TRACE] refreshAccessToken called');
-  if (!refreshToken) {
-    throw new Error('No refresh token available');
-  }
-
-  const supabase = getSupabase();
+/** Disconnect Google Calendar: the server revokes the connection at Google and removes it. */
+export async function disconnectGoogleCalendar(): Promise<void> {
   try {
-    const { data, error } = await supabase.functions.invoke(
-      'server/integrations/google-calendar/refresh-token',
-      {
-        method: 'POST',
-        body: { refresh_token: refreshToken },
-      }
+    const { error } = await getSupabase().functions.invoke(
+      'server/integrations/google-calendar/connection',
+      { method: 'DELETE' },
     );
-
-    if (error) {
-      console.error('[TRACE] refreshAccessToken function error:', error);
-      throw error;
-    }
-    
-    if (data?.error) {
-      console.error('[TRACE] refreshAccessToken data error:', data);
-      throw new Error(data.details || data.error);
-    }
-
-    if (!data.access_token) {
-      throw new Error('Failed to refresh access token');
-    }
-
-    console.log('[TRACE] refreshAccessToken success');
-    return {
-      access_token: data.access_token,
-      expires_at: new Date(Date.now() + (data.expires_in || 3600) * 1000),
-    };
+    if (error) throw error;
   } catch (error) {
-    console.error('[TRACE] refreshAccessToken catch:', error);
-    throw await handleFunctionsError(error, 'refresh access token');
+    throw await handleFunctionsError(error, 'disconnect Google Calendar');
   }
-}
-
-async function getValidAccessToken(userId: string): Promise<{ accessToken: string; settings: UserGoogleCalendarSettings }> {
-  console.log('[TRACE] getValidAccessToken called for user:', userId);
-  const settings = await getUserGoogleCalendarSettings(userId);
-
-  if (!settings) {
-    throw new Error('Google Calendar integration not configured');
-  }
-
-  let accessToken = settings.access_token;
-  try {
-    const now = new Date();
-    const expiresAt = new Date(settings.token_expires_at);
-    
-    if (expiresAt <= now) {
-      console.log('[TRACE] getValidAccessToken: Token expired, attempting refresh', {
-        now: now.toISOString(),
-        expiresAt: expiresAt.toISOString(),
-        hasRefreshToken: !!settings.refresh_token
-      });
-
-      // If we don't even have a refresh token, we can't refresh
-      if (!settings.refresh_token) {
-        throw { details: 'invalid_grant', message: 'No refresh token' };
-      }
-
-      const refreshed = await refreshAccessToken(settings.refresh_token);
-      accessToken = refreshed.access_token;
-
-      console.log('[TRACE] getValidAccessToken: Refresh successful, updating settings');
-      await updateUserGoogleCalendarSettings(userId, {
-        access_token: refreshed.access_token,
-        token_expires_at: refreshed.expires_at.toISOString(),
-      });
-    } else {
-      console.log('[TRACE] getValidAccessToken: Token still valid');
-    }
-  } catch (error: any) {
-    const errorDetails = error.details || (typeof error === 'string' ? error : '');
-    const errorMessage = error.message || '';
-    
-    console.error('[TRACE] getValidAccessToken error catch:', { 
-      status: error.status, 
-      details: errorDetails, 
-      message: errorMessage,
-      name: error.name 
-    });
-
-    // If refresh token is invalid, disable the integration
-    if (
-      error.code === 'invalid_grant' ||
-      errorDetails === 'invalid_grant' || 
-      errorMessage.includes('invalid_grant') ||
-      errorMessage.includes('expired') ||
-      errorMessage.includes('revoked') ||
-      error.status === 400 // Often 400 from Google is invalid_grant
-    ) {
-      console.warn('[TRACE] getValidAccessToken: Invalid grant detected, disabling integration');
-      try {
-        await updateUserGoogleCalendarSettings(userId, { is_enabled: false });
-      } catch (updateError) {
-        console.error('[TRACE] getValidAccessToken: Failed to disable invalid integration:', updateError);
-      }
-      throw new Error('Google Calendar connection has expired or been revoked. Please reconnect in settings.');
-    }
-    throw error;
-  }
-
-  return { accessToken, settings };
 }
 
 /**
@@ -193,42 +78,6 @@ export async function getUserGoogleCalendarSettings(userId: string): Promise<Use
     return data || null;
   } catch (error) {
     return handleApiError(error, 'get user Google Calendar settings');
-  }
-}
-
-/**
- * Save or update user's Google Calendar settings
- */
-export async function saveUserGoogleCalendarSettings(
-  userId: string,
-  settings: {
-    calendar_id: string;
-    calendar_name?: string | null;
-    access_token: string;
-    refresh_token: string;
-    token_expires_at: string;
-    is_enabled?: boolean;
-    sync_filters?: Json | null;
-  }
-): Promise<UserGoogleCalendarSettings> {
-  const supabase = getSupabase();
-
-  try {
-    const { data, error } = await supabase
-      .from('user_google_calendar_settings')
-      .upsert({
-        user_id: userId,
-        ...settings,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' })
-      .select(SETTINGS_COLS)
-      .single();
-
-    if (error) throw error;
-    if (!data) throw new Error('Failed to save settings');
-    return data;
-  } catch (error) {
-    return handleApiError(error, 'save user Google Calendar settings');
   }
 }
 
@@ -260,24 +109,6 @@ export async function updateUserGoogleCalendarSettings(
   }
 }
 
-/**
- * Delete user's Google Calendar settings
- */
-export async function deleteUserGoogleCalendarSettings(userId: string): Promise<void> {
-  const supabase = getSupabase();
-
-  try {
-    const { error } = await supabase
-      .from('user_google_calendar_settings')
-      .delete()
-      .eq('user_id', userId);
-
-    if (error) throw error;
-  } catch (error) {
-    return handleApiError(error, 'delete user Google Calendar settings');
-  }
-}
-
 export async function getUserCalendars(userId: string): Promise<Array<{
   id: string;
   name: string;
@@ -285,15 +116,11 @@ export async function getUserCalendars(userId: string): Promise<Array<{
   accessRole: string;
 }>> {
   const supabase = getSupabase();
-  const { accessToken } = await getValidAccessToken(userId);
 
   try {
     const { data, error } = await supabase.functions.invoke(
       'server/integrations/google-calendar/calendars',
-      {
-        method: 'POST',
-        body: { access_token: accessToken },
-      }
+      { method: 'POST', body: {} },
     );
 
     if (error) throw error;
@@ -317,8 +144,9 @@ export async function syncGigToCalendar(
     venue?: CalendarVenue | null;
   }
 ): Promise<{ eventId: string; syncedAt: Date }> {
-  const { accessToken, settings } = await getValidAccessToken(userId);
-  return syncGigToCalendarWithToken(userId, accessToken, settings, gigId, gigData);
+  const settings = await getUserGoogleCalendarSettings(userId);
+  if (!settings) throw new Error('Google Calendar integration not configured');
+  return syncGigWithSettings(userId, settings, gigId, gigData);
 }
 
 export async function deleteGigFromCalendar(userId: string, gigId: string): Promise<void> {
@@ -330,20 +158,10 @@ export async function deleteGigFromCalendar(userId: string, gigId: string): Prom
   }
 
   try {
-    const { accessToken, settings } = await getValidAccessToken(userId);
-
-    if (!settings.calendar_id) return;
-
-    const { data: _data, error } = await supabase.functions.invoke(
+    // The server uses the stored connection and calendar; an event already gone counts as removed.
+    const { error } = await supabase.functions.invoke(
       'server/integrations/google-calendar/events',
-      {
-        method: 'DELETE',
-        body: {
-          access_token: accessToken,
-          calendar_id: settings.calendar_id,
-          event_id: syncStatus.google_event_id,
-        },
-      }
+      { method: 'DELETE', body: { event_id: syncStatus.google_event_id } },
     );
 
     if (error) throw error;
@@ -389,19 +207,9 @@ export async function deleteGigFromCalendar(userId: string, gigId: string): Prom
 export async function deleteCalendarEvent(userId: string, eventId: string): Promise<void> {
   const supabase = getSupabase();
   try {
-    const { accessToken, settings } = await getValidAccessToken(userId);
-    if (!settings.calendar_id) return;
-
     const { error } = await supabase.functions.invoke(
       'server/integrations/google-calendar/events',
-      {
-        method: 'DELETE',
-        body: {
-          access_token: accessToken,
-          calendar_id: settings.calendar_id,
-          event_id: eventId,
-        },
-      }
+      { method: 'DELETE', body: { event_id: eventId } },
     );
     if (error) throw error;
   } catch (error) {
@@ -541,7 +349,8 @@ export async function syncAllGigsForUser(
 ): Promise<{ synced: number; failed: number; total: number }> {
   const supabase = getSupabase();
 
-  const { accessToken, settings } = await getValidAccessToken(userId);
+  const settings = await getUserGoogleCalendarSettings(userId);
+  if (!settings) throw new Error('Google Calendar integration not configured');
   const allowedStatuses = getFilteredStatuses(settings?.sync_filters);
 
   const { data: participatingGigs, error: partError } = await supabase
@@ -597,8 +406,7 @@ export async function syncAllGigsForUser(
     try {
       const venue = (gig.participants as any[])?.find((p: any) => p.role === 'Venue')?.organization;
 
-      // Pass the already fetched accessToken to syncGigToCalendar to avoid redundant lookups
-      await syncGigToCalendarWithToken(userId, accessToken, settings, gig.id, {
+      await syncGigWithSettings(userId, settings, gig.id, {
         title: gig.title,
         start: gig.start,
         end: gig.end,
@@ -619,11 +427,10 @@ export async function syncAllGigsForUser(
 }
 
 /**
- * Internal version of syncGigToCalendar that takes an already validated token
+ * Internal version of syncGigToCalendar that takes already loaded settings
  */
-async function syncGigToCalendarWithToken(
+async function syncGigWithSettings(
   userId: string,
-  accessToken: string,
   settings: UserGoogleCalendarSettings,
   gigId: string,
   gigData: {
@@ -656,9 +463,8 @@ async function syncGigToCalendarWithToken(
       'server/integrations/google-calendar/events',
       {
         method: 'POST',
+        // The server writes to the stored connection's chosen calendar.
         body: {
-          access_token: accessToken,
-          calendar_id: settings.calendar_id,
           event_data: eventData,
           event_id: existingSync?.google_event_id || undefined,
         },

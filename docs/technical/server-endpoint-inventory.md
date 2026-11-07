@@ -64,12 +64,12 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 
 | # | Method | Path | Enforced | Code | Notes |
 |---|--------|------|---------------------|----------|-------|
-| 27 | POST | `/integrations/google-calendar/exchange-token` | 👤 | `requireUser` | Operates on the caller's own tokens. |
-| 28 | POST | `/integrations/google-calendar/refresh-token` | 👤 | `requireUser` | |
-| 29 | POST | `/integrations/google-calendar/calendars` | 👤 | `requireUser` | Lists the caller's calendars. |
-| 30 | POST | `/integrations/google-calendar/events` | 👤 | `requireUser` | Creates an event on the caller's calendar. |
-| 31 | DELETE | `/integrations/google-calendar/events` | 👤 | `requireUser` | |
-| 32 | POST | `/integrations/google-calendar/sync-gig-all-users` | 🏢 of a participant org of body `gig_id` | `requireGigAccess(undefined, body.gig_id)` | Q-D fix. The sync itself runs fire-and-forget after the response. Every gig goes out as an all-day event in its local dates, with times and venue in the description (#117, `lib/pure/calendarEvent.ts`, shared with the browser's per-user sync). |
+| 27 | POST | `/integrations/google-calendar/connect` | 👤 | `requireUser` | Exchanges the authorization code and stores the caller's connection. The tokens never leave the server: no route accepts or returns one (migration 20261107100000). A reconnect keeps the calendar already chosen. |
+| 28 | DELETE | `/integrations/google-calendar/connection` | 👤 | `requireUser` | Revokes the caller's tokens at Google, then removes the connection. |
+| 29 | POST | `/integrations/google-calendar/calendars` | 👤 | `requireUser` | Lists the caller's calendars with the stored token (refreshed when expired; 409 "Reconnect in settings" when revoked). |
+| 30 | POST | `/integrations/google-calendar/events` | 👤 | `requireUser` | `{event_data, event_id?}`: creates or replaces an event in the caller's chosen calendar. A Google 403 gives our permission advice; other failures a reference (`lib/pure/googleCalendarAuth.ts`). |
+| 31 | DELETE | `/integrations/google-calendar/events` | 👤 | `requireUser` | `{event_id}`; an event already gone counts as deleted. |
+| 32 | POST | `/integrations/google-calendar/sync-gig-all-users` | 🏢 of an **active** participant org of body `gig_id` | `requireGigAccess(undefined, body.gig_id, { activeOnly: true })` | Q-D fix. The sync itself runs fire-and-forget after the response. Every gig goes out as an all-day event in its local dates, with times and venue in the description (#117, `lib/pure/calendarEvent.ts`, shared with the browser's per-user sync). |
 
 ## WebAuthn (mobile device lock)
 

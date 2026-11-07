@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from '../deps.ts';
 import type { OrgIdSource } from './types.ts';
 import { supabaseAdmin } from './supabaseAdmin.ts';
+import { gigAccessOrgIds } from './pure/googleCalendarAuth.ts';
 
 /**
  * Enforces the gig intersection access model: the caller must belong to an
@@ -12,7 +13,8 @@ import { supabaseAdmin } from './supabaseAdmin.ts';
  */
 export function requireGigAccess(
   allowedRoles?: string[],
-  getGigId: OrgIdSource = (c) => c.req.param('id')
+  getGigId: OrgIdSource = (c) => c.req.param('id'),
+  options: { activeOnly?: boolean } = {}
 ): MiddlewareHandler {
   return async (c, next) => {
     const gigId = await getGigId(c);
@@ -24,14 +26,14 @@ export function requireGigAccess(
 
     const { data: participants } = await supabaseAdmin
       .from('gig_participants')
-      .select('organization_id')
+      .select('organization_id, inactive')
       .eq('gig_id', gigId);
 
-    if (!participants || participants.length === 0) {
+    // With activeOnly, an organization that is Inactive on the gig doesn't count (#175).
+    const participantOrgIds = gigAccessOrgIds(participants || [], options);
+    if (participantOrgIds.length === 0) {
       return c.json({ error: 'Access denied' }, 403);
     }
-
-    const participantOrgIds = participants.map((p: { organization_id: string }) => p.organization_id);
 
     let query = supabaseAdmin
       .from('organization_members')
