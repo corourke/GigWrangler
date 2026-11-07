@@ -29,7 +29,7 @@ import {
   Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { searchOrganizations, joinOrganization } from '../services/organization.service';
+import { searchOrganizations, joinOrganization, signedInEmailConfirmed } from '../services/organization.service';
 import { createAccessRequest, getMyPendingAccessRequests } from '../services/accessRequest.service';
 import { emailDomainMatches } from '../utils/validation-utils';
 import { 
@@ -70,6 +70,14 @@ export default function OrganizationSelectionScreen({
   const [joiningOrg, setJoiningOrg] = useState<string | null>(null);
   // Orgs the user has already asked to join (or asked for a higher role in).
   const [pendingOrgIds, setPendingOrgIds] = useState<Set<string>>(new Set());
+
+  // Join as Staff needs a confirmed email; until it's known, only Request to join is offered.
+  const [emailConfirmed, setEmailConfirmed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    signedInEmailConfirmed().then((confirmed) => { if (!cancelled) setEmailConfirmed(confirmed); });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,8 +127,8 @@ export default function OrganizationSelectionScreen({
   }, [searchQuery]);
 
   // Joining as Staff straight away is only offered (see the render below) when
-  // the user's email domain matches the org's allowed_domains; the server
-  // checks it against the confirmed sign-in email.
+  // the user's email domain matches the org's allowed_domains and that email is
+  // confirmed; the server checks the same against the sign-in email.
   const handleJoinAsStaff = async (org: Organization) => {
     setJoiningOrg(org.id);
 
@@ -376,7 +384,7 @@ export default function OrganizationSelectionScreen({
                           </Button>
                         ) : (
                           <div className="flex gap-1.5">
-                            {emailDomainMatches(user.email, organization.allowed_domains) && (
+                            {emailConfirmed && emailDomainMatches(user.email, organization.allowed_domains) && (
                               <Button
                                 size="sm"
                                 variant="outline"

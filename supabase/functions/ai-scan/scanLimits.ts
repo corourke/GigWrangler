@@ -10,10 +10,10 @@ export function canScanInvoices(role: string | null | undefined): boolean {
   return role === 'Admin' || role === 'Manager';
 }
 
-/** Why a scan can't start now, or null if it can. The organization's daily limit is reported first. */
+/** Why a scan can't start now, or null if it can. The organization's limit (a rolling 24 hours) is reported first. */
 export function scanLimitError(usage: { userScansLastHour: number; orgScansLastDay: number }): string | null {
   if (usage.orgScansLastDay >= SCANS_PER_ORG_PER_DAY) {
-    return `Daily scan limit reached for this organization (${SCANS_PER_ORG_PER_DAY} a day). Try again tomorrow.`;
+    return `Scan limit reached for this organization (${SCANS_PER_ORG_PER_DAY} scans in the last 24 hours). Try again later.`;
   }
   if (usage.userScansLastHour >= SCANS_PER_USER_PER_HOUR) {
     return `Scan limit reached (${SCANS_PER_USER_PER_HOUR}/hour). Try again later.`;

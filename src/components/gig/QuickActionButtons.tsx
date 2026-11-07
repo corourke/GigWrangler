@@ -29,6 +29,7 @@ import { STAGE_LABELS, stageLabel, stagePickerLabel } from '../../utils/moneyFlo
 import { formatMoney } from './financials/format';
 import { calculateMileageAmount, formatMileageNotes, getMileageRateForDate } from '../../utils/financials.utils';
 import { lockedYearMessage } from '../../utils/taxTreatment';
+import { ATTACHMENT_FILE_ACCEPT } from '../../utils/fileAccept';
 
 const commonSchema = {
   date: z.string().min(1, 'Date is required'),
@@ -757,7 +758,7 @@ export default function QuickActionButtons({
               <Input
                 id="exp-receipt"
                 type="file"
-                accept=".pdf,image/*"
+                accept={ATTACHMENT_FILE_ACCEPT}
                 onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
               />
               {receiptFile && (
