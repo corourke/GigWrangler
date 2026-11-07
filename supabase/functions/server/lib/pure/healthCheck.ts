@@ -48,5 +48,17 @@ export function isAuthorizedCronRequest(
   expected: string | null | undefined
 ): boolean {
   if (!expected || !authHeader?.startsWith('Bearer ')) return false;
-  return authHeader.slice('Bearer '.length) === expected;
+  return timingSafeEqual(authHeader.slice('Bearer '.length), expected);
+}
+
+/**
+ * String equality whose running time doesn't depend on where the strings first differ
+ * (it always walks the expected string), for comparing secrets.
+ */
+export function timingSafeEqual(given: string, expected: string): boolean {
+  let diff = given.length ^ expected.length;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= (given.charCodeAt(i) || 0) ^ expected.charCodeAt(i);
+  }
+  return diff === 0;
 }
