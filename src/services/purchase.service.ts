@@ -6,6 +6,7 @@ import type { PurchaseToSave } from '../utils/csvAssetImportPlan';
 import { itemMatchKey } from '../utils/equipmentItems';
 import { toFinCategory } from '../utils/supabase/constants';
 import { toDateInTimeZone } from '../utils/dateUtils';
+import { toDateKey } from '../utils/moneyFlow';
 import { lineTaxTreatment } from '../utils/taxTreatment';
 import {
   createGigFinancial,
@@ -355,7 +356,8 @@ export function buildPurchaseLineLedgerPayload(
     category: toFinCategory(item.category) ?? ('Other expenses' as const),
     description: item.description || `Expense: ${item.vendor || ''}`.trim(),
     purchase_id: item.id,
-    paid_at: new Date().toISOString(),
+    // A calendar day (B1): stored as midnight UTC of the day the user sees.
+    paid_at: toDateKey(new Date()),
   };
 }
 

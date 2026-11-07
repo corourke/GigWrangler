@@ -657,7 +657,8 @@ Every amount of money a gig brings in or costs, one row each, with its stage.
 | currency | TEXT | Currency code (default 'USD') (NOT NULL) |
 | date | DATE | When the item started (NOT NULL) |
 | due_date | DATE | Payment due date; NULL means due once the gig is over (nullable) |
-| paid_at | TIMESTAMPTZ | When payment was made; required when `stage = 'paid'` |
+| paid_at | TIMESTAMPTZ | The day payment was made, a calendar day stored as midnight UTC; required when `stage = 'paid'` |
+| tax_date | DATE | Generated (migration 20261107120000): `gig_financial_tax_date(paid_at, date)`, i.e. `paid_at`'s UTC date when paid, else `date`. The tax reports and the filed-year lock both go by it. Read only. |
 | reference_number| TEXT | Invoice, PO, or check number (nullable) |
 | counterparty_id | UUID | Reference to organizations.id for the other party in transaction (nullable) |
 | external_entity_name | TEXT | Name of counterparty if not in organizations table (nullable) |

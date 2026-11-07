@@ -92,7 +92,7 @@ export default function ReportingTab({ organizationId, organizationName, userRol
       const d = dayOf(l.purchase_date ?? l.parent?.purchase_date); if (d) ys.add(Number(d.slice(0, 4)));
       const gone = l.tax_treatment === 'depreciate' ? dayOf(l.asset?.retired_on) : null; if (gone) ys.add(Number(gone.slice(0, 4)));
     }
-    for (const r of data?.gigRows ?? []) { const d = dayOf(r.paid_at); if (d) ys.add(Number(d.slice(0, 4))); }
+    for (const r of data?.gigRows ?? []) { const d = r.tax_date; if (d) ys.add(Number(d.slice(0, 4))); }
     return [...ys].sort((a, b) => b - a);
   }, [data, thisYear]);
 

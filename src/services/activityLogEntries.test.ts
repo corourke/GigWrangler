@@ -368,7 +368,7 @@ describe('gig financial activity entries', () => {
     await updateGigFinancial('f1', { stage: 'paid' });
     expect(logged()).toMatchInlineSnapshot(`
       [
-        "{"organization_id":"o1","event_type":"financial.paid","entity_type":"financial","entity_id":"f1","gig_id":"g1","context":{"context_version":1,"actor_display_name":"Sam Ruiz","actor_org_name":"Acme Audio","gig_title":"Spring Gala","direction":"in","stage":"paid","amount":500,"amount_settled":500,"description":"Deposit","field_changes":[{"field":"stage","from":"invoiced","to":"paid"},{"field":"amount_settled","from":null,"to":500},{"field":"paid_at","from":null,"to":"2026-01-15T12:00:00.000Z"}]}}",
+        "{"organization_id":"o1","event_type":"financial.paid","entity_type":"financial","entity_id":"f1","gig_id":"g1","context":{"context_version":1,"actor_display_name":"Sam Ruiz","actor_org_name":"Acme Audio","gig_title":"Spring Gala","direction":"in","stage":"paid","amount":500,"amount_settled":500,"description":"Deposit","field_changes":[{"field":"stage","from":"invoiced","to":"paid"},{"field":"amount_settled","from":null,"to":500},{"field":"paid_at","from":null,"to":"2026-01-15"}]}}",
       ]
     `);
   });

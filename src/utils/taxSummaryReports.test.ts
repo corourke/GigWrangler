@@ -11,12 +11,16 @@ const line = (o: Partial<ReportPurchaseLine>): ReportPurchaseLine => ({
   quantity: 1, item_cost: 10, line_cost: 10, tax_treatment: 'expense', asset_id: null, parent_id: 'h1',
   parent: { purchase_date: '2026-03-01', vendor: 'Sweetwater' }, asset: null, ...o,
 });
-const gigRow = (o: Partial<ReportGigRow>): ReportGigRow => ({
-  id: 'g', gig_id: 'gig1', direction: 'in', stage: 'paid', amount_settled: 100, paid_at: '2026-04-02',
-  description: null, category: null, mileage: null, purchase_id: null, staff_assignment_id: null,
-  external_entity_name: null, reference_number: null, counterparty: null,
-  gig: { title: 'Spring Gala', start: '2026-04-01' }, ...o,
-});
+const gigRow = (o: Partial<ReportGigRow>): ReportGigRow => {
+  const r = {
+    id: 'g', gig_id: 'gig1', direction: 'in', stage: 'paid', amount_settled: 100, paid_at: '2026-04-02',
+    description: null, category: null, mileage: null, purchase_id: null, staff_assignment_id: null,
+    external_entity_name: null, reference_number: null, counterparty: null,
+    gig: { title: 'Spring Gala', start: '2026-04-01' }, ...o,
+  } as ReportGigRow;
+  // As the database computes it: the paid day (UTC), else the row's date.
+  return { ...r, tax_date: 'tax_date' in o ? o.tax_date ?? null : r.paid_at ? r.paid_at.slice(0, 10) : r.date ?? null };
+};
 const trip = (o: Partial<ReportGigRow>) => gigRow({ direction: 'out', category: 'Car and truck expenses', ...o });
 const scheduleC = [
   { code: '9', label: 'Car and truck expenses' }, { code: '11', label: 'Contract labor' },

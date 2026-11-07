@@ -20,7 +20,7 @@ const gigRow = (o: Partial<ReportGigRow>): ReportGigRow => {
     gig: { title: 'Spring Gala', start: '2026-04-01' }, ...o,
   } as ReportGigRow;
   // As the database computes it: the paid day (UTC), else the row's date.
-  return { tax_date: r.paid_at ? r.paid_at.slice(0, 10) : r.date ?? null, ...r };
+  return { ...r, tax_date: 'tax_date' in o ? o.tax_date ?? null : r.paid_at ? r.paid_at.slice(0, 10) : r.date ?? null };
 };
 const scheduleC = [
   { code: '9', label: 'Car and truck expenses' }, { code: '11', label: 'Contract labor' },
