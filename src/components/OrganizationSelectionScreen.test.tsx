@@ -81,10 +81,10 @@ describe('OrganizationSelectionScreen: joining an organization', () => {
     renderScreen();
     await search([domainOrg]);
 
+    expect(screen.getByRole('button', { name: /request to join/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /join as staff/i }));
     await waitFor(() => expect(joinOrganization).toHaveBeenCalledWith('org-2', 'Staff'));
-
-    fireEvent.click(screen.getByRole('button', { name: /request to join/i }));
-    await waitFor(() => expect(createAccessRequest).toHaveBeenCalledWith('org-2', 'Viewer'));
+    expect(reload).toHaveBeenCalled();
+    expect(createAccessRequest).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,7 @@
 import type { App } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { requireOrgRole, verifyOrgMembership } from '../lib/orgRole.ts';
-import { canAssignRole, emailDomainMatches, ORGANIZATION_DELETE_REFERENCES, describeOrganizationDeleteBlockers } from '../lib/pure/authz.ts';
+import { canAssignRole, canSelfJoinDirectly, confirmedEmail, ORGANIZATION_DELETE_REFERENCES, describeOrganizationDeleteBlockers } from '../lib/pure/authz.ts';
 import { pickProfileUpdates } from '../lib/pure/memberUpdate.ts';
 import { normalizeWebsiteUrl } from '../lib/pure/websiteUrl.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
@@ -151,7 +151,8 @@ export function registerOrganizations(app: App) {
     return c.json({ success: true });
   });
 
-  // Add member (self-join as Viewer, or Admin/Manager adds others) — conditional auth
+  // Add a member: an Admin or Manager adds someone else; a person adds themselves only as Staff
+  // when their confirmed email domain matches the org's allowed domains (otherwise they ask to join).
   app.post('/organizations/:id/members', requireUser, async (c) => {
     const orgId = c.req.param('id');
     const user = c.get('user');
@@ -181,12 +182,8 @@ export function registerOrganizations(app: App) {
       if (targetRole === 'Admin' && currentUserMembership.role !== 'Admin') {
         return c.json({ error: 'Only Admins can add other Admins' }, 403);
       }
-    } else if (targetRole === 'Staff') {
-      if (!emailDomainMatches(user.email, org.allowed_domains)) {
-        return c.json({ error: 'Self-joining as Staff requires a matching email domain' }, 400);
-      }
-    } else if (targetRole !== 'Viewer') {
-      return c.json({ error: 'Self-joining can only be as Viewer, or Staff with a matching email domain' }, 400);
+    } else if (!canSelfJoinDirectly(targetRole, confirmedEmail(user), org.allowed_domains)) {
+      return c.json({ error: 'Request to join instead' }, 403);
     }
 
     const { data: existingMember } = await supabaseAdmin
