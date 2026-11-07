@@ -4,8 +4,7 @@ import CalendarIntegrationSettings from './CalendarIntegrationSettings';
 
 vi.mock('../services/googleCalendar.service', () => ({
   getUserGoogleCalendarSettings: vi.fn(),
-  saveUserGoogleCalendarSettings: vi.fn(),
-  deleteUserGoogleCalendarSettings: vi.fn(),
+  disconnectGoogleCalendar: vi.fn(),
   getUserCalendars: vi.fn(),
   getGoogleAuthUrl: vi.fn(),
   getSyncLogs: vi.fn(),
@@ -31,8 +30,6 @@ const mockSettings = {
   user_id: 'user-1',
   calendar_id: 'cal-1',
   calendar_name: 'My Calendar',
-  access_token: 'token',
-  refresh_token: 'refresh',
   token_expires_at: '2026-12-31T00:00:00Z',
   is_enabled: true,
   sync_filters: { frequency: 'realtime', sync_confirmed: true, sync_tentative: true },
@@ -193,7 +190,7 @@ describe('CalendarIntegrationSettings', () => {
     (calService.getUserCalendars as ReturnType<typeof vi.fn>).mockResolvedValue(mockCalendars);
     (calService.getSyncLogs as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (calService.getSyncStatusSummary as ReturnType<typeof vi.fn>).mockResolvedValue({ total: 0, synced: 0, pending: 0, failed: 0, lastSyncedAt: null });
-    (calService.deleteUserGoogleCalendarSettings as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (calService.disconnectGoogleCalendar as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 
     const onSettingsChanged = vi.fn();
     render(<CalendarIntegrationSettings userId="user-1" onSettingsChanged={onSettingsChanged} />);
@@ -205,7 +202,7 @@ describe('CalendarIntegrationSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: /disconnect/i }));
 
     await waitFor(() => {
-      expect(calService.deleteUserGoogleCalendarSettings).toHaveBeenCalledWith('user-1');
+      expect(calService.disconnectGoogleCalendar).toHaveBeenCalled();
     });
 
     await waitFor(() => {

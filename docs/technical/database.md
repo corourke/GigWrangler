@@ -1252,6 +1252,7 @@ Stores user OAuth tokens and calendar preferences for Google Calendar integratio
 **Notes:**
 - Unique constraint on (user_id) — one calendar integration per user (replaced the former (user_id, calendar_id) constraint in migration 20260528000000).
 - RLS is **ENABLED**. Users can only access their own calendar settings.
+- The tokens stay on the server (migration 20261107100000): `authenticated` may SELECT every column except `access_token` and `refresh_token`, and UPDATE only `calendar_id`, `calendar_name`, `is_enabled`, `sync_filters` and `updated_at`. Connecting (insert) and disconnecting (delete, after revoking at Google) go through the `server` function; `anon` has no access.
 
 ---
 
