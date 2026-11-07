@@ -380,6 +380,7 @@ User memberships in organizations with roles
 - Unique constraint on (organization_id, user_id) ensures a user can only be a member of an organization once
 - Partial unique index `organization_members_one_primary_contact_per_org` on (organization_id) WHERE `is_primary_contact` — at most one primary contact per org
 - `default_staff_role_id` allows pre-filling staff assignments for this member
+- Trigger `keep_an_admin` (migration 20261107030000): an UPDATE or DELETE that would take an organization's last Admin is refused ("An organization needs at least one Admin. Make someone else an Admin first."), by any path, including a cascade from deleting a profile. Deleting the organization itself still removes all its memberships. The server's member routes check first and return the same message.
 - Contact rows are written via SECURITY DEFINER RPCs (`add_organization_contact`, `link_existing_person_to_organization`, `update_organization_contact`, `set_organization_primary_contact`, `unset_organization_primary_contact`, `remove_organization_contact`), gated by `user_can_manage_org_contacts`.
 - RLS is **ENABLED** on this table. Users can view members of their own organizations and members of any org they can manage contacts for ("Users can view members of organizations they can manage contacts for", migration 20260907000000); Admins can manage membership.
 

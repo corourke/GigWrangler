@@ -1,7 +1,7 @@
 import type { App } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { requireOrgRole, verifyOrgMembership } from '../lib/orgRole.ts';
-import { canAssignRole, emailDomainMatches, ORGANIZATION_DELETE_REFERENCES, describeOrganizationDeleteBlockers } from '../lib/pure/authz.ts';
+import { canAssignRole, emailDomainMatches, ORGANIZATION_DELETE_REFERENCES, describeOrganizationDeleteBlockers, takesLastAdmin, LAST_ADMIN_MESSAGE } from '../lib/pure/authz.ts';
 import { pickProfileUpdates } from '../lib/pure/memberUpdate.ts';
 import { normalizeWebsiteUrl } from '../lib/pure/websiteUrl.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
@@ -11,6 +11,14 @@ const ORG_UPDATE_FIELDS = [
   'address_line1', 'address_line2', 'city', 'state',
   'postal_code', 'country', 'allowed_domains',
 ];
+
+/** How many Admins an organization has. */
+async function adminCount(orgId: string): Promise<number> {
+  const { count } = await supabaseAdmin
+    .from('organization_members').select('id', { count: 'exact', head: true })
+    .eq('organization_id', orgId).eq('role', 'Admin');
+  return count ?? 0;
+}
 
 const MEMBER_USER_SELECT = `
   *,
@@ -266,6 +274,9 @@ export function registerOrganizations(app: App) {
       if ((body.role === 'Admin' || targetMember.role === 'Admin') && currentUserMembership.role !== 'Admin') {
         return c.json({ error: 'Only Admins can change Admin roles' }, 403);
       }
+      if (takesLastAdmin({ adminCount: await adminCount(orgId), currentRole: targetMember.role, newRole: body.role })) {
+        return c.json({ error: LAST_ADMIN_MESSAGE }, 400);
+      }
       memberUpdates.role = body.role;
       hasMemberUpdates = true;
     }
@@ -308,6 +319,9 @@ export function registerOrganizations(app: App) {
     }
     if (targetMember.role === 'Admin' && currentUserMembership.role !== 'Admin') {
       return c.json({ error: 'Only Admins can remove other Admins' }, 403);
+    }
+    if (takesLastAdmin({ adminCount: await adminCount(orgId), currentRole: targetMember.role, newRole: null })) {
+      return c.json({ error: LAST_ADMIN_MESSAGE }, 400);
     }
 
     const { error: deleteError } = await supabaseAdmin
