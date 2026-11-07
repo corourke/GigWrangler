@@ -16,6 +16,9 @@ vi.mock('../services/mobile/offlineOwner', () => ({
 }));
 import { claimOfflineStore, releaseOfflineStore } from '../services/mobile/offlineOwner';
 
+const getTwoFactorStatus = vi.fn().mockResolvedValue({ factors: [], needsCode: false, signedInWithGoogle: false });
+vi.mock('../services/twoFactor.service', () => ({ getTwoFactorStatus: (...a: unknown[]) => getTwoFactorStatus(...a) }));
+
 // Mock user service to simulate database hang
 vi.mock('../services/user.service', () => ({
   getUserProfile: vi.fn(),
@@ -353,6 +356,15 @@ describe('AuthContext: a temporary password', () => {
     await vi.waitFor(() => expect(result.current.mustChangePassword).toBe(true), { timeout: 1000 });
     act(() => result.current.passwordChanged());
     expect(result.current.mustChangePassword).toBe(false);
+  });
+
+  it('asks for the two-factor code when the session still needs it, and stops once it is entered (#361)', async () => {
+    getTwoFactorStatus.mockResolvedValueOnce({ factors: [{ id: 'f1' }], needsCode: true, signedInWithGoogle: false });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => { authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } }); });
+    await vi.waitFor(() => expect(result.current.twoFactorPending).toBe(true), { timeout: 1000 });
+    act(() => result.current.twoFactorVerified());
+    expect(result.current.twoFactorPending).toBe(false);
   });
 
   it('doesn\'t without the flag', async () => {

@@ -16,6 +16,10 @@ vi.mock('../components/TemporaryPasswordScreen', () => ({
   default: ({ onComplete }: any) => <button type="button" onClick={onComplete}>Temporary password screen</button>,
 }));
 
+vi.mock('../components/security/TwoFactorChallengeScreen', () => ({
+  default: ({ onVerified }: any) => <button type="button" onClick={onVerified}>Two-factor code screen</button>,
+}));
+
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
@@ -244,5 +248,33 @@ describe('RequireAuth: a temporary password', () => {
     mockUseAuth.mockReturnValue({ isLoading: false, user, mustChangePassword: false });
     renderGuard();
     expect(screen.getByText('Gigs')).toBeInTheDocument();
+  });
+});
+
+describe('RequireAuth: two-factor sign-in (#361)', () => {
+  const user = { id: 'user-1', first_name: 'Pat', last_name: 'Lee', email: 'pat@example.com' };
+  const renderGuard = () => render(
+    <MemoryRouter initialEntries={['/gigs']}>
+      <Routes>
+        <Route element={<RequireAuth />}>
+          <Route path="/gigs" element={<div>Gigs</div>} />
+        </Route>
+      </Routes>
+    </MemoryRouter>
+  );
+
+  it('asks for the code before the app when the session still needs it', () => {
+    mockUseAuth.mockReturnValue({ isLoading: false, user, mustChangePassword: false, twoFactorPending: true, twoFactorVerified: vi.fn() });
+    renderGuard();
+    expect(screen.getByRole('button', { name: 'Two-factor code screen' })).toBeInTheDocument();
+    expect(screen.queryByText('Gigs')).not.toBeInTheDocument();
+  });
+
+  it('goes on once the code is entered', () => {
+    const twoFactorVerified = vi.fn();
+    mockUseAuth.mockReturnValue({ isLoading: false, user, mustChangePassword: false, twoFactorPending: true, twoFactorVerified });
+    renderGuard();
+    fireEvent.click(screen.getByRole('button', { name: 'Two-factor code screen' }));
+    expect(twoFactorVerified).toHaveBeenCalled();
   });
 });
