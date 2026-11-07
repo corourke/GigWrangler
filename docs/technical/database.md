@@ -423,9 +423,11 @@ WebAuthn/passkey device registrations for users
 | device_name | TEXT | Human-readable device name (nullable) |
 | created_at | TIMESTAMPTZ | Record creation timestamp (NOT NULL) |
 | last_used_at | TIMESTAMPTZ | Last authentication timestamp (NOT NULL) |
+| sign_count | BIGINT | The authenticator's signature counter at its last use; a response that doesn't advance it is refused (NOT NULL, default 0; migration 20261107080000) |
 
 **Notes:**
-- RLS is **ENABLED** on this table. Users can only manage their own devices.
+- RLS is **ENABLED** on this table. Users read and remove their own devices; enrolling and recording use go through the `server` function (service role). `authenticated` has no INSERT or UPDATE (migration 20261107080000).
+- `auth_user_id_by_email(p_email)` (SECURITY DEFINER, service role only) finds the account for the unlock flow's email, ignoring case and surrounding spaces.
 
 ---
 
