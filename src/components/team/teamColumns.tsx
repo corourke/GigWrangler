@@ -230,7 +230,12 @@ export function useAccessRequestColumns(): ColumnDef<AccessRequestWithRelations>
       accessor: 'requested_role',
       sortable: true,
       filterable: true,
-      render: (val) => <Badge className={getRoleBadgeColor(val as UserRole)}>{val}</Badge>,
+      // Viewer or Staff is a request to join; Manager or Admin, a member asking for a higher role.
+      render: (val) => (
+        <Badge className={getRoleBadgeColor(val as UserRole)}>
+          {val === 'Viewer' || val === 'Staff' ? `Join as ${val}` : val}
+        </Badge>
+      ),
     },
     {
       id: 'message',

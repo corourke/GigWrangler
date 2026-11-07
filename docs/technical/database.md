@@ -1438,14 +1438,14 @@ Unified, append-only activity/audit log for gigs, assets and other entities (mig
 
 ### access_requests
 
-Viewer/Staff → Manager/Admin elevation requests (migration 20260908000000). Routed to platform moderators while the target org is unclaimed, and to the org's own Admins once it is claimed.
+Requests to join an organization (Viewer, Staff; migration 20261107060000) and Viewer/Staff → Manager/Admin elevation requests (migration 20260908000000). Routed to platform moderators while the target org is unclaimed; once it is claimed, requests to join go to its Admins and Managers, elevation requests to its Admins.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | id | UUID | Primary key |
 | organization_id | UUID | Reference to organizations.id (NOT NULL, CASCADE delete) |
 | requester_id | UUID | Reference to users.id (NOT NULL, CASCADE delete) |
-| requested_role | user_role | Role requested — CHECK limits to `Manager` or `Admin` (NOT NULL) |
+| requested_role | user_role | Role requested — `Viewer` or `Staff` (a request to join), `Manager` or `Admin` (CHECK; NOT NULL) |
 | message | TEXT | Requester's message (nullable) |
 | status | TEXT | `pending`, `approved`, or `rejected` (CHECK; default 'pending', NOT NULL) |
 | handled_by | UUID | Reference to users.id — who approved/rejected (nullable) |
@@ -1456,7 +1456,7 @@ Viewer/Staff → Manager/Admin elevation requests (migration 20260908000000). Ro
 **Notes:**
 - `requester_seen_at` existed originally but was dropped in migration 20260916000000 (outcome notices now come from `notifications`).
 - Partial unique index `access_requests_one_pending_per_requester` on (organization_id, requester_id) WHERE `status = 'pending'`; plus indexes `access_requests_org_status_idx` (organization_id, status) and `access_requests_requester_idx` (requester_id, status).
-- All app reads/writes go through the `server` edge function (service role). RLS is **ENABLED** with SELECT-only policies as a backstop / for realtime: requester sees own requests; org Admins see their org's requests; platform moderators see requests for unclaimed orgs. `authenticated` is granted SELECT only.
+- All app reads/writes go through the `server` edge function (service role). RLS is **ENABLED** with SELECT-only policies as a backstop / for realtime: requester sees own requests; org Admins see their org's requests; org Managers see their org's requests to join; platform moderators see requests for unclaimed orgs. `authenticated` is granted SELECT only.
 
 ---
 
@@ -1625,10 +1625,10 @@ All tables have RLS **ENABLED**. Access is controlled through a combination of R
 |-------|--------|--------|--------|--------|
 | `users` | Own profile + same-org members + users of orgs you can manage contacts for + gig participant contacts on accessible gigs | Own record (auth) | Own record | — |
 | `organizations` | All (public) | Authenticated | Admin of this org; any org's Admin only while `claimed = false` | — |
-| `organization_members` | Own orgs + orgs you can manage contacts for | Self-join as Viewer; Admin manages | Admin only | Admin only |
+| `organization_members` | Own orgs + orgs you can manage contacts for | Admin manages (joining is a request, approved through the server) | Admin only | Admin only |
 | `invitations` | Own org members | Admin/Manager | Admin/Manager + invitee accept | Admin/Manager |
 | `user_devices` | Own devices | Own | Own | Own |
-| `access_requests` | Own requests; org Admins; platform moderators (unclaimed orgs) | — (service role) | — (service role) | — (service role) |
+| `access_requests` | Own requests; org Admins; org Managers (requests to join); platform moderators (unclaimed orgs) | — (service role) | — (service role) | — (service role) |
 | `notifications` | Own | — (service role / SECURITY DEFINER) | Own (mark read) | — |
 | `gigs` | Participating orgs | — (only via `create_gig_complex`) | Admin/Manager of participant | Admin of participant |
 | `gig_participants` | Accessible gigs | Gig managers | Gig managers | Gig managers |

@@ -35,6 +35,9 @@ const HEALTH_CHECK_LABELS: Record<HealthCheckFailurePayload['check'], string> = 
  * resolved. Clicking through and resolving it, or dismissing the notice
  * directly, both mark it read.
  */
+/** A request for Viewer or Staff is a request to join the organization. */
+const isJoinRole = (role: string) => role === 'Viewer' || role === 'Staff';
+
 export default function NotificationBell() {
   const { user, organizations, selectOrganization } = useAuth();
   const nav = useNav();
@@ -45,10 +48,11 @@ export default function NotificationBell() {
   const notifications = notificationsQuery.data ?? [];
   const totalCount = notifications.length;
 
-  const adminMemberships = organizations.filter((m) => m.role === 'Admin');
+  // Admins decide every request and Managers decide requests to join, on the Team screen.
+  const decidingMemberships = organizations.filter((m) => m.role === 'Admin' || m.role === 'Manager');
 
   const goToAccessRequest = (organizationId: string) => {
-    const membership = adminMemberships.find((m) => m.organization.id === organizationId);
+    const membership = decidingMemberships.find((m) => m.organization.id === organizationId);
     if (membership) {
       selectOrganization(membership.organization);
       nav.toTeam();
@@ -114,8 +118,17 @@ export default function NotificationBell() {
               >
                 <div className="flex-1">
                   <p className="text-sm">
-                    <strong>{payload.requester_name}</strong> requested <strong>{payload.requested_role}</strong>{' '}
-                    on {payload.organization_name}.
+                    {isJoinRole(payload.requested_role) ? (
+                      <>
+                        <strong>{payload.requester_name}</strong> asked to join {payload.organization_name} as{' '}
+                        <strong>{payload.requested_role}</strong>.
+                      </>
+                    ) : (
+                      <>
+                        <strong>{payload.requester_name}</strong> requested <strong>{payload.requested_role}</strong>{' '}
+                        on {payload.organization_name}.
+                      </>
+                    )}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
@@ -144,8 +157,14 @@ export default function NotificationBell() {
                 )}
                 <div className="flex-1">
                   <p className="text-sm">
-                    Your request for <strong>{payload.requested_role}</strong> on {payload.organization_name} was{' '}
-                    {payload.status}.
+                    {isJoinRole(payload.requested_role) ? (
+                      <>Your request to join {payload.organization_name} was {payload.status}.</>
+                    ) : (
+                      <>
+                        Your request for <strong>{payload.requested_role}</strong> on {payload.organization_name} was{' '}
+                        {payload.status}.
+                      </>
+                    )}
                   </p>
                   {payload.response_message && (
                     <p className="text-xs text-muted-foreground mt-1">{payload.response_message}</p>
