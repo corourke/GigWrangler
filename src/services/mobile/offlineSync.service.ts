@@ -42,12 +42,15 @@ registerSyncHandler('INVENTORY_SCAN', async (payload: any) => {
       status: payload.status,
       scanned_at: payload.scanned_at,
       scanned_by: payload.scanned_by,
+      client_id: payload.client_id ?? null,
       notes: payload.notes ?? null,
       location: payload.location ?? null,
       // How many of the unit or lot are there as of this scan (#185); 1 for a unit.
       quantity: Math.max(1, Math.floor(Number(payload.quantity ?? 1)) || 1),
     });
 
+  // Already recorded: an earlier try got through but its reply was lost.
+  if ((error as any)?.code === '23505' && payload.client_id) return;
   if (error) {
     throw error;
   }
@@ -227,20 +230,58 @@ registerSyncHandler('STAFF_ASSIGNMENT_UPDATE', async (payload: any) => {
   }
 });
 
+/** After this many failed tries a change stops retrying and counts as one that couldn't sync. */
+export const MAX_SYNC_ATTEMPTS = 5;
+
+async function currentUserId(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data?.session?.user?.id ?? null;
+}
+
+/** Who queued a change: stamped on it, or for an older one, its payload's scanner or adder. */
+const actorOf = (item: OutboxItem): string | null =>
+  item.actor_id ?? item.payload?.scanned_by ?? item.payload?.assigned_by ?? null;
+
 export const offlineSyncService = {
+  /**
+   * Sends the signed-in person's queued changes. A change someone else queued on this device (or
+   * one whose owner can't be told) is dropped without being sent. A change that fails
+   * MAX_SYNC_ATTEMPTS times is marked failed and left alone, and the person is told how many
+   * couldn't sync.
+   */
   async processOutbox() {
     const outbox = await idbStore.getOutbox();
     if (outbox.length === 0) return;
+    const me = await currentUserId();
+    if (!me) return;
 
+    let newlyFailed = 0;
+    let failed = 0;
     for (const item of outbox) {
+      if (actorOf(item) !== me) {
+        await idbStore.removeFromOutbox(item.id!);
+        continue;
+      }
+      if (item.failed) {
+        failed += 1;
+        continue;
+      }
       try {
         await this.syncItem(item);
         await idbStore.removeFromOutbox(item.id!);
       } catch (error) {
         console.error('Sync failed for item:', item, error);
         item.attempts = (item.attempts || 0) + 1;
+        if (item.attempts >= MAX_SYNC_ATTEMPTS) {
+          item.failed = true;
+          newlyFailed += 1;
+          failed += 1;
+        }
         await idbStore.updateOutboxItem(item);
       }
+    }
+    if (newlyFailed > 0) {
+      toast.error(`${failed} change${failed === 1 ? '' : 's'} couldn't sync`);
     }
   },
 
@@ -253,8 +294,14 @@ export const offlineSyncService = {
     await handler(item.payload);
   },
 
+  /** Queues a change for the signed-in person; a scan gets its own id, so a retry can't record it twice. */
   async queueTrackingUpdate(payload: any, type: OutboxItem['type']) {
-    return idbStore.addToOutbox({ type, payload });
+    const me = await currentUserId();
+    if (!me) throw new Error('Sign in again to save this change');
+    const stamped = type === 'INVENTORY_SCAN' && !payload?.client_id
+      ? { ...payload, client_id: crypto.randomUUID() }
+      : payload;
+    return idbStore.addToOutbox({ type, payload: stamped, actor_id: me });
   }
 };
 

@@ -16,6 +16,7 @@ import { format, parseISO } from 'date-fns';
 import { fetchMyUpcomingAssignments, type StaffDashboardGig } from '../../services/mobile/staffDashboard.service';
 import { updateStaffAssignmentStatus } from '../../services/gig.service';
 import { idbStore } from '../../utils/idb/store';
+import { offlineSyncService } from '../../services/mobile/offlineSync.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -108,10 +109,7 @@ export default function MobileDashboard({ onViewGigDetail, onViewAllGigs }: Mobi
       if (navigator.onLine) {
         await updateStaffAssignmentStatus(assignmentId, 'Confirmed');
       } else {
-        await idbStore.addToOutbox({
-          type: 'STAFF_ASSIGNMENT_UPDATE',
-          payload: { assignmentId, status: 'Confirmed' },
-        });
+        await offlineSyncService.queueTrackingUpdate({ assignmentId, status: 'Confirmed' }, 'STAFF_ASSIGNMENT_UPDATE');
       }
       toast.success('Assignment confirmed');
     } catch (err: any) {
@@ -136,10 +134,7 @@ export default function MobileDashboard({ onViewGigDetail, onViewAllGigs }: Mobi
       if (navigator.onLine) {
         await updateStaffAssignmentStatus(assignmentId, 'Declined');
       } else {
-        await idbStore.addToOutbox({
-          type: 'STAFF_ASSIGNMENT_UPDATE',
-          payload: { assignmentId, status: 'Declined' },
-        });
+        await offlineSyncService.queueTrackingUpdate({ assignmentId, status: 'Declined' }, 'STAFF_ASSIGNMENT_UPDATE');
       }
       toast.success('Assignment declined');
     } catch (err: any) {
