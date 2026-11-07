@@ -16,6 +16,13 @@ vi.mock('../components/TemporaryPasswordScreen', () => ({
   default: ({ onComplete }: any) => <button type="button" onClick={onComplete}>Temporary password screen</button>,
 }));
 
+vi.mock('../components/security/TwoFactorSetupRequiredScreen', () => ({
+  default: ({ onDone }: any) => <button type="button" onClick={onDone}>Two-factor setup screen</button>,
+}));
+vi.mock('../components/security/TwoFactorReminder', () => ({
+  default: ({ requiredAfter }: any) => <div>Reminder until {requiredAfter}</div>,
+}));
+
 vi.mock('../components/security/TwoFactorChallengeScreen', () => ({
   default: ({ onVerified }: any) => <button type="button" onClick={onVerified}>Two-factor code screen</button>,
 }));
@@ -276,5 +283,27 @@ describe('RequireAuth: two-factor sign-in (#361)', () => {
     renderGuard();
     fireEvent.click(screen.getByRole('button', { name: 'Two-factor code screen' }));
     expect(twoFactorVerified).toHaveBeenCalled();
+  });
+
+  it('asks an Admin past the grace period to set it up before the app, even before the profile loads', () => {
+    const twoFactorVerified = vi.fn();
+    mockUseAuth.mockReturnValue({ isLoading: false, user: null, mustChangePassword: false, twoFactorPending: false, twoFactorSetupRequired: true, twoFactorVerified });
+    renderGuard();
+    fireEvent.click(screen.getByRole('button', { name: 'Two-factor setup screen' }));
+    expect(twoFactorVerified).toHaveBeenCalled();
+    expect(screen.queryByText('Gigs')).not.toBeInTheDocument();
+  });
+
+  it('asks for the code before the profile loads too', () => {
+    mockUseAuth.mockReturnValue({ isLoading: false, user: null, mustChangePassword: false, twoFactorPending: true, twoFactorVerified: vi.fn() });
+    renderGuard();
+    expect(screen.getByRole('button', { name: 'Two-factor code screen' })).toBeInTheDocument();
+  });
+
+  it('reminds an Admin in the grace period, above the app', () => {
+    mockUseAuth.mockReturnValue({ isLoading: false, user, mustChangePassword: false, twoFactorPending: false, twoFactorReminderUntil: '2026-12-01T00:00:00Z' });
+    renderGuard();
+    expect(screen.getByText('Reminder until 2026-12-01T00:00:00Z')).toBeInTheDocument();
+    expect(screen.getByText('Gigs')).toBeInTheDocument();
   });
 });

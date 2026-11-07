@@ -6,11 +6,14 @@ import {
   confirmTwoFactorSetup,
   verifyTwoFactorCode,
   removeTwoFactor,
+  resetTwoFactorForAccount,
 } from './twoFactor.service';
 
 vi.mock('../utils/supabase/client', () => ({ createClient: vi.fn() }));
 
 let mfa: any;
+let rpc: any;
+const invoke = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
   mfa = {
@@ -20,7 +23,8 @@ beforeEach(() => {
     challengeAndVerify: vi.fn(),
     unenroll: vi.fn(),
   };
-  (createClient as any).mockReturnValue({ auth: { mfa } });
+  rpc = vi.fn().mockResolvedValue({ data: { required: false, required_after: null, satisfied: true }, error: null });
+  (createClient as any).mockReturnValue({ auth: { mfa }, rpc, functions: { invoke } });
 });
 
 const verified = { id: 'f1', factor_type: 'totp', status: 'verified', friendly_name: 'Phone' };
@@ -32,7 +36,9 @@ describe('getTwoFactorStatus', () => {
     mfa.getAuthenticatorAssuranceLevel.mockResolvedValue({
       data: { currentLevel: 'aal1', nextLevel: 'aal2', currentAuthenticationMethods: [{ method: 'password' }] }, error: null,
     });
-    expect(await getTwoFactorStatus()).toEqual({ factors: [verified], needsCode: true, signedInWithGoogle: false });
+    expect(await getTwoFactorStatus()).toEqual({
+      factors: [verified], needsCode: true, signedInWithGoogle: false, required: false, requiredAfter: null, setupRequired: false,
+    });
   });
 
   it('does not ask for the code after a Google sign-in (Cameron: trust Google)', async () => {
@@ -50,6 +56,23 @@ describe('getTwoFactorStatus', () => {
     mfa.listFactors.mockResolvedValue({ data: { totp: [] }, error: null });
     mfa.getAuthenticatorAssuranceLevel.mockResolvedValue({ data: { currentLevel: 'aal1', nextLevel: 'aal1', currentAuthenticationMethods: [] }, error: null });
     expect((await getTwoFactorStatus()).needsCode).toBe(false);
+  });
+});
+
+describe('the Admin requirement', () => {
+  it('asks an Admin past the grace date with no authenticator to set one up', async () => {
+    mfa.listFactors.mockResolvedValue({ data: { totp: [] }, error: null });
+    mfa.getAuthenticatorAssuranceLevel.mockResolvedValue({ data: { currentLevel: 'aal1', nextLevel: 'aal1', currentAuthenticationMethods: [{ method: 'password' }] }, error: null });
+    rpc.mockResolvedValue({ data: { required: true, required_after: '2026-11-01T00:00:00Z', satisfied: false }, error: null });
+    expect(await getTwoFactorStatus()).toMatchObject({ required: true, requiredAfter: '2026-11-01T00:00:00Z', setupRequired: true, needsCode: false });
+    expect(rpc).toHaveBeenCalledWith('two_factor_requirement');
+  });
+
+  it('gives an Admin in the grace period the date, without making them set it up yet', async () => {
+    mfa.listFactors.mockResolvedValue({ data: { totp: [] }, error: null });
+    mfa.getAuthenticatorAssuranceLevel.mockResolvedValue({ data: { currentLevel: 'aal1', nextLevel: 'aal1', currentAuthenticationMethods: [] }, error: null });
+    rpc.mockResolvedValue({ data: { required: true, required_after: '2026-12-01T00:00:00Z', satisfied: true }, error: null });
+    expect(await getTwoFactorStatus()).toMatchObject({ required: true, requiredAfter: '2026-12-01T00:00:00Z', setupRequired: false });
   });
 });
 
@@ -90,5 +113,13 @@ describe('removing', () => {
     mfa.unenroll.mockResolvedValue({ error: null });
     await removeTwoFactor('f1');
     expect(mfa.unenroll).toHaveBeenCalledWith({ factorId: 'f1' });
+  });
+});
+
+describe('a lost device', () => {
+  it('a platform moderator resets an account by its email, through the server', async () => {
+    invoke.mockResolvedValue({ data: { success: true }, error: null });
+    await resetTwoFactorForAccount(' pat@example.com ');
+    expect(invoke).toHaveBeenCalledWith('server/moderator/two-factor/reset', { method: 'POST', body: { email: 'pat@example.com' } });
   });
 });
