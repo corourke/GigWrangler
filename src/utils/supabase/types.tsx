@@ -204,7 +204,8 @@ export interface OrganizationMemberWithUser extends DbOrganizationMember {
   user: User;
 }
 
-export interface InvitationWithInviter extends Invitation {
+/** As the Team screen lists it: members can't read an invitation's token. */
+export interface InvitationWithInviter extends Omit<Invitation, 'token'> {
   invited_by_user: {
     first_name: string;
     last_name: string;

@@ -407,6 +407,7 @@ Tracks pending and completed invitations to join organizations
 
 **Notes:**
 - RLS is **ENABLED** on this table. Users can view invitations for their organizations.
+- `authenticated` may SELECT every column except `token` (column grants, migration 20261107090000); `anon` has no access. The invitation functions are SECURITY DEFINER and the server uses the service role, so neither needs the grant.
 - Composite unique constraint on (organization_id, email, status) prevents duplicate pending invitations.
 
 ---
@@ -785,6 +786,7 @@ Metadata for files stored in Supabase Storage.
 - Files are stored in Supabase Storage; this table tracks metadata only.
 - Scoped to organization via `organization_id` for tenant isolation.
 - RLS is **ENABLED** on this table. Users can view attachments for their organization; Admins/Managers can manage.
+- The `attachments` bucket takes PDFs, images (JPEG, PNG, WebP, GIF, HEIC, HEIF), Word, Excel and PowerPoint documents (`.docx`, `.xlsx`, `.pptx`) and CSV, up to 25 MB (`file_size_limit`, `allowed_mime_types`; migration 20261107090000). Not HTML, SVG, macro-enabled Office files or anything else. `uploadAttachment` checks both first and takes the type from a known extension, since browsers disagree on Office and CSV types.
 - `file_path` MUST follow the `{organization_id}/{filename}` convention: the storage policies on the `attachments` bucket derive the owning org from the first path segment (org members can read; Admins/Managers can write — see `docs/technical/security-scheme.md` §6 and migration `20260612000000_scope_attachment_storage_policies.sql`).
 
 ---

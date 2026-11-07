@@ -39,7 +39,8 @@ SELECT rls_test.expect('Users: not someone outside the org',
   rls_test.visible(rls_test.u('a_staff'), 'public.users', format('id = %L', rls_test.u('c_admin'))), 0);
 -- Signed out, those tables read and change nothing, without an error.
 SELECT rls_test.expect('Users: signed out', rls_test.try_anon('SELECT 1 FROM public.users'), 0);
-SELECT rls_test.expect('Invitations update: signed out', rls_test.try_anon('UPDATE public.invitations SET status = status'), 0);
+-- Invitations: signed out has no access at all since 20261107090000 (76_attachments_bucket_and_invitations).
+SELECT rls_test.expect('Invitations update: signed out', rls_test.try_anon('UPDATE public.invitations SET status = status'), -1);
 
 -- Directory reads: signed-in users see every organization and staff role; signed out, nothing.
 SELECT rls_test.expect('Organizations: signed in',
