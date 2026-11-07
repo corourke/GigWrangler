@@ -1282,7 +1282,7 @@ Tracks sync status of gigs to Google Calendar per user.
 
 ### ai_scan_usage
 
-Usage log for the `ai-scan` edge function, used for per-user rate limiting (60 scans/hour since 10-02; it was 20).
+Usage log for the `ai-scan` edge function, used for its rate limits: 60 scans per user per hour (since 10-02; it was 20) and 200 per organization per 24 hours (migration 20261107070000).
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -1294,7 +1294,7 @@ Usage log for the `ai-scan` edge function, used for per-user rate limiting (60 s
 **Notes:**
 - RLS is **ENABLED with no policies** — only the edge function's service-role client can read or write.
 - Not a long-term audit log: the edge function opportunistically deletes rows older than 24 hours.
-- Indexed on (user_id, created_at) (`idx_ai_scan_usage_user_time`) for the trailing-hour quota query.
+- Indexed on (user_id, created_at) (`idx_ai_scan_usage_user_time`) for the trailing-hour quota query, and on (organization_id, created_at) (`idx_ai_scan_usage_org_time`) for the organization's trailing-24-hour count.
 - No foreign keys on `user_id` / `organization_id` (migration 20260612000001).
 
 ---
