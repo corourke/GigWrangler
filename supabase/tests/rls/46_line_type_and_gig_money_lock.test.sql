@@ -85,8 +85,9 @@ SELECT rls_test.expect('Locked: a gig expense amount cannot change',
   rls_test.run('a_admin', format('UPDATE gig_financials SET amount = 45 WHERE id = %s', rls_test.id('gout25'))), -1);
 SELECT rls_test.expect('Locked: a gig expense cannot move out of the year',
   rls_test.run('a_admin', format('UPDATE gig_financials SET date = %L WHERE id = %s', '2026-01-05', rls_test.id('gout25'))), -1);
+-- A paid row's year is its paid day (B1, test 79), so moving into 2025 means moving that day.
 SELECT rls_test.expect('Locked: a 2026 gig expense cannot move into it',
-  rls_test.run('a_admin', format('UPDATE gig_financials SET date = %L WHERE id = %s', '2025-12-30', rls_test.id('gout26'))), -1);
+  rls_test.run('a_admin', format('UPDATE gig_financials SET paid_at = %L WHERE id = %s', '2025-12-30', rls_test.id('gout26'))), -1);
 SELECT rls_test.expect('Locked: gig income status cannot change',
   rls_test.run('a_admin', format('UPDATE gig_financials SET stage = %L WHERE id = %s', 'invoiced', rls_test.id('gin25'))), -1);
 SELECT rls_test.expect('Locked: no new gig income',

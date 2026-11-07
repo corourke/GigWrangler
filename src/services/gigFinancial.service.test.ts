@@ -254,7 +254,7 @@ describe('gig financial row writes', () => {
     const inserted = finChains[0].insert.mock.calls[0][0];
     expect(inserted.amount_settled).toBe(51.3);
     expect(inserted.stage).toBe('paid');
-    expect(inserted.paid_at).toEqual(expect.any(String));
+    expect(inserted.paid_at).toMatch(/^\d{4}-\d{2}-\d{2}$/); // a calendar day (B1)
     expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({
       event_type: 'financial.added',
       entity_type: 'financial',

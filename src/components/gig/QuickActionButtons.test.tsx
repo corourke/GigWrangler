@@ -312,7 +312,7 @@ describe('QuickActionButtons', () => {
 
     await waitFor(() => {
       expect(gigService.createGigFinancial).toHaveBeenCalledWith(
-        expect.objectContaining({ direction: 'out', stage: 'paid', amount: 40, paid_at: expect.any(String) }),
+        expect.objectContaining({ direction: 'out', stage: 'paid', amount: 40, paid_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }),
       );
     });
     expect(attachmentService.uploadAttachment).not.toHaveBeenCalled();

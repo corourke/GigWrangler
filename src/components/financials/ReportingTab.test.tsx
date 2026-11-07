@@ -41,7 +41,7 @@ vi.mock('../../services/taxReport.service', () => ({
         tax_treatment: 'depreciate', asset_id: null, parent_id: 'h6', parent: null, asset: null },
     ],
     gigRows: [
-      { id: 'g1', gig_id: 'x', direction: 'in', stage: 'paid', amount_settled: 1500, paid_at: '2026-04-02', description: 'Balance', category: null,
+      { id: 'g1', gig_id: 'x', direction: 'in', stage: 'paid', amount_settled: 1500, paid_at: '2026-04-02', tax_date: '2026-04-02', description: 'Balance', category: null,
         mileage: null, purchase_id: null, staff_assignment_id: null, external_entity_name: null, reference_number: 'INV-7',
         counterparty: { name: 'Hotel Del' }, gig: { title: 'Spring Gala', start: '2026-04-01' } },
     ],
@@ -53,7 +53,9 @@ vi.mock('../../services/taxReport.service', () => ({
 
 const purchaseLine = (o: Record<string, unknown>) => ({ vendor: 'Sweetwater', quantity: 1, asset_id: null, parent: null, asset: null, ...o });
 const gigOut = (o: Record<string, unknown>) => ({ gig_id: 'x', direction: 'out', stage: 'paid', description: 'Parking', mileage: null, purchase_id: null,
-  staff_assignment_id: null, external_entity_name: 'City lot', reference_number: null, counterparty: null, gig: { title: 'Spring Gala', start: '2026-04-01' }, ...o });
+  staff_assignment_id: null, external_entity_name: 'City lot', reference_number: null, counterparty: null, gig: { title: 'Spring Gala', start: '2026-04-01' },
+  // As the database computes it: the paid day (UTC).
+  tax_date: typeof o.paid_at === 'string' ? o.paid_at.slice(0, 10) : null, ...o });
 /** Only these rows, with the default category lists (issue #194). */
 const onlyRows = (lines: unknown[], gigRows: unknown[] = []) => vi.mocked(getTaxReportData).mockResolvedValueOnce({
   lines, gigRows, categories: [{ name: 'Supplies', schedule_c_line: '22' }], scheduleC: [{ code: '22', label: 'Supplies' }], equipmentCategories: ['Audio'],
@@ -81,6 +83,20 @@ describe('ReportingTab (#125)', () => {
     await open();
     const years = within(screen.getByRole('combobox', { name: 'Tax year' })).getAllByRole('option').map(o => o.textContent);
     expect(years).toEqual(expect.arrayContaining(['2026', '2025', year]));
+  });
+
+  it('lists the year a payment was made on Jan 1, wherever the viewer is (B1)', async () => {
+    const originalTZ = process.env.TZ;
+    process.env.TZ = 'America/Los_Angeles';
+    try {
+      onlyRows([], [gigOut({ id: 'j1', direction: 'in', amount_settled: 10, paid_at: '2024-01-01T00:00:00+00:00', tax_date: '2024-01-01' })]);
+      render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" />);
+      const select = await screen.findByRole('combobox', { name: 'Tax year' });
+      await within(select).findByRole('option', { name: '2024' });
+      expect(within(select).queryByRole('option', { name: '2023' })).not.toBeInTheDocument();
+    } finally {
+      process.env.TZ = originalTZ;
+    }
   });
 
   it('shows income received in the year and downloads it as CSV', async () => {
