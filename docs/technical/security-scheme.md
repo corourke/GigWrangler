@@ -88,10 +88,11 @@ This mirrors the table-level RBAC: any member of the org can view its files; onl
 The `ai-scan` function makes paid Anthropic API calls, so it enforces its own gate chain (it cannot rely on RLS — the file never touches the database):
 
 1. **Authentication**: requires a valid Bearer token (`auth.getUser()`); no unauthenticated code path exists. The pre-auth `x-diagnostic` mode (which made a live Anthropic call and disclosed the API key prefix) was removed in June 2026.
-2. **Org membership**: the request must include an `organization_id` form field; the function verifies the caller's membership against `organization_members` (service-role client) and rejects with 403 otherwise.
+2. **Org role**: the caller must be an **Admin or Manager** of the organization, on both paths: the `organization_id` form field for a direct upload, or the queued invoice's organization (`queue_item_id`). Checked against `organization_members` (service-role client); otherwise 403. `canScanInvoices` in `ai-scan/scanLimits.ts`.
 3. **File limits**: 10 MB max (413) and a media-type allowlist — PDF, JPEG, PNG, WebP, GIF (415).
-4. **Rate limit**: 20 scans per user per hour, tracked in the service-role-only `ai_scan_usage` table; exceeded → 429. Usage is recorded *before* the Anthropic call so failed/aborted calls still count toward the quota.
-5. **CORS**: pinned origin allowlist (production domains + `localhost:3000`); unknown origins receive no `Access-Control-Allow-Origin` header.
+4. **Rate limits**: 60 scans per user in any trailing hour, and 200 per organization in any trailing 24 hours, tracked in the service-role-only `ai_scan_usage` table; exceeded → 429 ("Scan limit reached (60/hour)…" or "Daily scan limit reached for this organization…"). Usage is recorded *before* the Anthropic call so failed/aborted calls still count toward the quota. `scanLimitError` in `ai-scan/scanLimits.ts`.
+5. **Errors**: an unexpected failure returns a generic "The scan failed. Reference: <id>" (500); the details go to the function log and Sentry under that reference. Anthropic's own error text is never returned.
+6. **CORS**: pinned origin allowlist (production domains + `localhost:3000`); unknown origins receive no `Access-Control-Allow-Origin` header.
 
 ## 8. Edge Function: server (Hono)
 
