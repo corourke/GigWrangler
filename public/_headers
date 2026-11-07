@@ -1,17 +1,15 @@
 # Cloudflare Pages response headers. See docs/technical/deployment.md, "Security headers".
 #
-# Security headers on every response. The Content-Security-Policy-Report-Only only reports, in the
-# browser console, what a policy would block; it is switched to enforcing once the console on prod
-# shows nothing it would break. frame-ancestors is ignored in a report-only policy, so it is sent in
-# its own enforced Content-Security-Policy.
+# Security headers on every response. The Content-Security-Policy is enforced: it allows only the
+# app's own files and its services (Supabase, Sentry), and refuses framing. It has no 'unsafe-eval':
+# zod runs without eval (src/lib/zodConfig.ts).
 /*
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Frame-Options: DENY
-  Content-Security-Policy: frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://qcrzwsazasaojqoqxwnr.supabase.co https://hqnnhtxcxedisasvtbqv.supabase.co https://*.googleusercontent.com; font-src 'self' data:; connect-src 'self' https://qcrzwsazasaojqoqxwnr.supabase.co wss://qcrzwsazasaojqoqxwnr.supabase.co https://hqnnhtxcxedisasvtbqv.supabase.co wss://hqnnhtxcxedisasvtbqv.supabase.co https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io; frame-src 'self' blob: https://qcrzwsazasaojqoqxwnr.supabase.co https://hqnnhtxcxedisasvtbqv.supabase.co; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(self), geolocation=(), microphone=()
-  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://qcrzwsazasaojqoqxwnr.supabase.co https://hqnnhtxcxedisasvtbqv.supabase.co https://*.googleusercontent.com; font-src 'self' data:; connect-src 'self' https://qcrzwsazasaojqoqxwnr.supabase.co wss://qcrzwsazasaojqoqxwnr.supabase.co https://hqnnhtxcxedisasvtbqv.supabase.co wss://hqnnhtxcxedisasvtbqv.supabase.co https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io; frame-src 'self' blob: https://qcrzwsazasaojqoqxwnr.supabase.co https://hqnnhtxcxedisasvtbqv.supabase.co; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'
 
 # The page itself, so a deploy is picked up on the next load.
 /
