@@ -337,7 +337,7 @@ Companies, venues, acts, and other entities
 | id | UUID | Primary key |
 | name | TEXT | Organization name (NOT NULL) |
 | roles | organization_role[] | Array of organization roles (NOT NULL). Renamed from scalar `type` and converted to an array in migration 20260522000000 |
-| url | TEXT | Organization website URL (nullable) |
+| url | TEXT | Organization website URL (nullable). A full `http://` or `https://` link of 2,048 characters at most, or blank: check constraint `organizations_url_http` (migration 20261107010000, NOT VALID, so older rows aren't checked until they're next updated). The API validates it too, and the app links it only when it's http(s) (`safeHref`, `ExternalLink`). |
 | phone_number | TEXT | Organization phone number (nullable) |
 | address_line1 | TEXT | Street address (nullable) |
 | address_line2 | TEXT | Apartment, suite, etc. (nullable) |
@@ -852,7 +852,7 @@ Global staff role choices (FOH, Lighting, etc.)
 **Notes:**
 - Staff roles are enumerated in this table to support future staffing template functionality
 - Templates can be created for different gig types based on gig tags
-- RLS is **ENABLED** on this table. Anyone can view staff roles.
+- RLS is **ENABLED** on this table. Signed-in users can view staff roles.
 
 ---
 
@@ -1508,12 +1508,12 @@ These functions are defined with `SECURITY DEFINER` to bypass RLS when necessary
 - `user_has_access_to_gig(gig_id, user_uuid)`: Returns true if the user belongs to any organization participating in the gig.
 - `user_can_manage_gig(gig_id, user_uuid)`: Returns true if the user is Admin or Manager in a participating organization.
 - `user_is_admin_of_gig(gig_id, user_uuid)`: Returns true if the user is Admin in a participating organization.
-- `get_user_email(user_uuid)`: Returns the email address from `auth.users`.
-- `get_user_ids_in_same_orgs(user_uuid)`: Returns all user IDs that share an organization with the given user.
-- `get_user_role_in_org(org_id, user_uuid)`: Returns the user's role in the specified organization.
-- `get_complete_user_data(user_uuid)`: Returns user profile and organization memberships as JSONB.
-- `get_user_profile_secure(user_uuid)`: Returns user profile row securely.
-- `get_user_organizations_secure(user_uuid)`: Returns user's organization memberships securely.
+- `get_user_email(user_uuid)`: Returns the email address from `auth.users`. For the signed-in user's own id only.
+- `get_user_ids_in_same_orgs(user_uuid)`: Returns all user IDs that share an organization with the given user. For the signed-in user's own id only.
+- `get_user_role_in_org(org_id, user_uuid)`: Returns the user's role in the specified organization. Service role only.
+- `get_complete_user_data(user_uuid)`: Returns user profile and organization memberships as JSONB. For the signed-in user's own id only.
+- `get_user_profile_secure(user_uuid)`: Returns user profile row securely. For the signed-in user's own id only.
+- `get_user_organizations_secure(user_uuid)`: Returns user's organization memberships securely. Service role only.
 - `search_people(p_query, p_email, p_phone)`: System-wide search for an existing person before adding a new one (#178). Every word of `p_query` must match the name, in any order, with one typo forgiven per word (two in words of 7+ letters); `p_email` matches as typed; `p_phone` matches ignoring formatting (last 10 digits, or 7 for a local number). Any one match is enough; inactive people are left out. Returns only `id`, `first_name`, `last_name` and `matched_on` (migration 20261107020000). Signed-in callers only.
 - `search_organizations(p_query, p_type)`: The same word matching for organization names, optionally by type. Runs as the caller.
 - `search_name_rank(p_name, p_query)`: Helper for both: 0 = every word is part of the name, 1 = a typo was forgiven, NULL = no match.

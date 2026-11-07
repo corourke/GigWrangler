@@ -14,7 +14,7 @@
  *
  * Needs attention lists what would leave the year's reports wrong or incomplete.
  */
-import Papa from 'papaparse';
+import { toCsv } from './csv';
 import { calculateMileageAmount } from './financials.utils';
 import { getDiscrepancy } from '../components/financials/purchases/reconciliation';
 import {
@@ -166,7 +166,7 @@ export function scheduleCCsv(r: ScheduleCSummary, line13?: Line13): string {
     ...line13.rows.map(b => ['', `  ${b.label}`, b.amount.toFixed(2), '', line13.source]),
     ...(line13.netAfter != null ? [row('', 'Net after depreciation', line13.netAfter)] : []),
   ] : [];
-  return Papa.unparse({
+  return toCsv({
     fields: ['Line', 'Description', 'Amount', 'Miles', ...(line13 ? ['Source'] : [])],
     data: [
       row('', 'Gross receipts', r.receipts),
@@ -355,7 +355,7 @@ export function buildNeedsAttentionReport(
 }
 
 export function needsAttentionCsv(r: NeedsAttentionReport): string {
-  return Papa.unparse({
+  return toCsv({
     fields: ['Group', 'Item', 'Date', 'Amount', 'Problem'],
     data: r.groups.flatMap(g => g.rows.map(x => [g.title, x.item, x.date, x.amount?.toFixed(2) ?? '', x.problem])),
   });

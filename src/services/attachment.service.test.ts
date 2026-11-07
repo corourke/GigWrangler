@@ -123,6 +123,12 @@ describe('attachment.service', () => {
 
       await expect(getAttachmentUrl(`${orgId}/missing.pdf`)).rejects.toThrow('Object not found');
     });
+
+    it('refuses a link that is not http(s)', async () => {
+      mockStorageBucket.createSignedUrl.mockResolvedValue({ data: { signedUrl: 'javascript:alert(1)' }, error: null });
+
+      await expect(getAttachmentUrl(`${orgId}/invoice.pdf`)).rejects.toThrow('Unexpected attachment link');
+    });
   });
 
   describe('deleteAttachment', () => {
