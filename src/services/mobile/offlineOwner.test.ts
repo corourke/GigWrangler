@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../utils/idb/store', () => ({ idbStore: { clearAll: vi.fn().mockResolvedValue(undefined) } }));
+vi.mock('../../utils/idb/store', () => ({ idbStore: { clearAll: vi.fn().mockResolvedValue(undefined), clearCaches: vi.fn().mockResolvedValue(undefined), adoptUnownedOutbox: vi.fn().mockResolvedValue(undefined) } }));
 
 import { idbStore } from '../../utils/idb/store';
 import { claimOfflineStore, releaseOfflineStore, OFFLINE_OWNER_KEY } from './offlineOwner';
@@ -13,10 +13,24 @@ describe('offline store owner', () => {
     localStorage.clear();
   });
 
-  it('clears the store the first time someone signs in on this device, and remembers them', async () => {
+  it('the first time (no owner recorded, as after this update), clears the cached data but keeps queued changes', async () => {
+    // Queued changes that aren't this person's are dropped when the outbox is processed.
     await claimOfflineStore('user-1');
-    expect(idbStore.clearAll).toHaveBeenCalledTimes(1);
+    expect(idbStore.clearCaches).toHaveBeenCalledTimes(1);
+    expect(idbStore.clearAll).not.toHaveBeenCalled();
     expect(localStorage.getItem(OFFLINE_OWNER_KEY)).toBe('user-1');
+  });
+
+  it('the first time, also adopts queued changes that name no one (queued by the older app on this phone)', async () => {
+    await claimOfflineStore('user-1');
+    expect(idbStore.adoptUnownedOutbox).toHaveBeenCalledWith('user-1');
+  });
+
+  it('never adopts anything once an owner is recorded', async () => {
+    localStorage.setItem(OFFLINE_OWNER_KEY, 'user-1');
+    await claimOfflineStore('user-2');
+    await claimOfflineStore('user-2');
+    expect(idbStore.adoptUnownedOutbox).not.toHaveBeenCalled();
   });
 
   it('keeps the store when the same person signs in again', async () => {
@@ -39,10 +53,10 @@ describe('offline store owner', () => {
     expect(localStorage.getItem(OFFLINE_OWNER_KEY)).toBeNull();
   });
 
-  it('still clears when the browser blocks storage', async () => {
+  it('still clears the cached data when the browser blocks storage', async () => {
     const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
     await claimOfflineStore('user-1');
-    expect(idbStore.clearAll).toHaveBeenCalledTimes(1);
+    expect(idbStore.clearCaches).toHaveBeenCalledTimes(1);
     get.mockRestore();
   });
 });

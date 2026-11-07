@@ -8,6 +8,12 @@ import {
 } from '../utils/supabase/types';
 import { getCompleteUserData, createUserProfile } from '../services/user.service';
 import { convertPendingToActive } from '../services/organization.service';
+import { claimOfflineStore, releaseOfflineStore } from '../services/mobile/offlineOwner';
+
+/** Clearing the phone's offline copy must never block signing in or out. */
+const quietly = (p: Promise<unknown>) => p.catch((err) => {
+  if (import.meta.env.DEV) console.warn('[TRACE] AuthContext: offline store', err);
+});
 
 interface AuthContextType {
   user: User | null;
@@ -86,6 +92,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (import.meta.env.DEV) console.warn('[TRACE] AuthContext: Error converting pending user:', e);
           }
         }
+
+        // The phone's offline copy is this person's: cleared first if someone else had it.
+        await quietly(claimOfflineStore(session.user.id));
 
         // Fetch complete user data in one single secure RPC call
         if (import.meta.env.DEV) console.log('[TRACE] AuthContext: Fetching complete user data...');
@@ -197,6 +206,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }, 0);
         } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
           if (import.meta.env.DEV) console.log(`[TRACE] AuthContext: Handling ${event} (no session)`);
+          if (event === 'SIGNED_OUT') void quietly(releaseOfflineStore());
           setProfileLoadError(null);
           setUser(null);
           setOrganizations([]);
@@ -270,6 +280,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     const supabase = createClient();
+    await quietly(releaseOfflineStore());
     await supabase.auth.signOut();
     setUser(null);
     setOrganizations([]);

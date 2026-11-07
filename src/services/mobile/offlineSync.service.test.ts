@@ -45,7 +45,7 @@ function makeChain(result: { data: any; error: any }) {
 }
 
 function outboxItem(type: OutboxItem['type'], payload: any): OutboxItem {
-  return { type, payload, timestamp: Date.now(), attempts: 0 }
+  return { type, payload, timestamp: Date.now(), attempts: 0, actor_id: 'user-1' }
 }
 
 describe('offlineSyncService — INVENTORY_SCAN handler', () => {
@@ -77,6 +77,7 @@ describe('offlineSyncService — INVENTORY_SCAN handler', () => {
       status: 'In Warehouse',
       scanned_at: '2026-03-15T12:00:00Z',
       scanned_by: 'user-1',
+      client_id: null,
       notes: 'test note',
       location: null,
       quantity: 1,
@@ -410,8 +411,9 @@ describe('offlineSyncService: maintenance (#186 step 3)', () => {
 
   it('an ASSET_STATUS_UPDATE queued by the older app still syncs after the update, through update_asset_status', async () => {
     const { idbStore } = await import('../../utils/idb/store')
-    // Queued before the app updated: the old payload shape, as the old app wrote it.
-    const queued = { type: 'ASSET_STATUS_UPDATE' as const, payload: { asset_id: 'u-1', status: 'Maintenance' }, timestamp: Date.now() - 86_400_000, attempts: 0, id: 23 }
+    // Queued before the app updated: the old payload shape, as the old app wrote it, adopted by the
+    // person signed in at the first sign-in after the update (offlineOwner.claimOfflineStore).
+    const queued = { type: 'ASSET_STATUS_UPDATE' as const, payload: { asset_id: 'u-1', status: 'Maintenance' }, timestamp: Date.now() - 86_400_000, attempts: 0, id: 23, actor_id: 'user-1' }
     vi.mocked(idbStore.getOutbox).mockResolvedValueOnce([queued])
     mockRpc.mockResolvedValue({ data: null, error: null })
     await offlineSyncService.processOutbox()
