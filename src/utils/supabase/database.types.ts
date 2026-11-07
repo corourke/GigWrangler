@@ -2543,12 +2543,10 @@ export type Database = {
       search_people: {
         Args: { p_email?: string; p_phone?: string; p_query: string }
         Returns: {
-          email_hint: string
           first_name: string
           id: string
           last_name: string
           matched_on: string
-          organization_names: string[]
         }[]
       }
       send_to_maintenance: {
@@ -2624,6 +2622,10 @@ export type Database = {
         Returns: boolean
       }
       user_can_manage_org_contacts: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      user_can_manage_unclaimed_org: {
         Args: { p_organization_id: string; p_user_id: string }
         Returns: boolean
       }

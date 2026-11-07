@@ -10,6 +10,12 @@ vi.mock('../utils/supabase/client', () => ({
   createClient: vi.fn(),
 }));
 
+vi.mock('../services/mobile/offlineOwner', () => ({
+  claimOfflineStore: vi.fn().mockResolvedValue(undefined),
+  releaseOfflineStore: vi.fn().mockResolvedValue(undefined),
+}));
+import { claimOfflineStore, releaseOfflineStore } from '../services/mobile/offlineOwner';
+
 // Mock user service to simulate database hang
 vi.mock('../services/user.service', () => ({
   getUserProfile: vi.fn(),
@@ -266,5 +272,50 @@ describe('AuthContext Hang Reproduction', () => {
       expect(result.current.user).toEqual({ id: 'user-1', email: 'new@example.com' });
       expect(result.current.profileLoadError).toBeNull();
     });
+  });
+});
+
+// The phone's offline copy belongs to the signed-in person: claimed at sign-in, cleared at sign-out.
+describe('AuthContext: offline store', () => {
+  let mockSupabase: any;
+  let authChangeHandler: any;
+  const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    mockSupabase = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+        getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+        signOut: vi.fn().mockResolvedValue({ error: null }),
+        onAuthStateChange: vi.fn().mockImplementation((handler: any) => {
+          authChangeHandler = handler;
+          return { data: { subscription: { unsubscribe: vi.fn() } } };
+        }),
+      },
+      channel: vi.fn().mockReturnValue({ on: vi.fn().mockReturnThis(), subscribe: vi.fn().mockReturnThis() }),
+      removeChannel: vi.fn().mockResolvedValue({}),
+    };
+    (createClient as any).mockReturnValue(mockSupabase);
+    (userService.getCompleteUserData as any).mockResolvedValue({ profile: { id: 'user-1', email: 'a@example.com' }, organizations: [] });
+  });
+
+  it('claims it for whoever signs in', async () => {
+    renderHook(() => useAuth(), { wrapper });
+    await act(async () => { authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } }); });
+    await vi.waitFor(() => expect(claimOfflineStore).toHaveBeenCalledWith('user-1'), { timeout: 1000 });
+  });
+
+  it('clears it on logout', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => { await result.current.logout(); });
+    expect(releaseOfflineStore).toHaveBeenCalled();
+  });
+
+  it('clears it when the session ends elsewhere', async () => {
+    renderHook(() => useAuth(), { wrapper });
+    await act(async () => { authChangeHandler('SIGNED_OUT', null); });
+    expect(releaseOfflineStore).toHaveBeenCalled();
   });
 });

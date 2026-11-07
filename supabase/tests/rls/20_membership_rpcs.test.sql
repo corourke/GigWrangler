@@ -83,8 +83,12 @@ SELECT rls_test.expect('A manager invites an Admin', rls_test.try(rls_test.u('a_
 SELECT rls_test.expect('A manager invites Staff', rls_test.try(rls_test.u('a_manager'), format(
   'SELECT public.invite_user_to_organization(%L, ''crew@example.test'', ''Staff'', NULL, NULL, NULL::uuid)', rls_test.u('org_a'))), 1);
 
--- An unclaimed org (no Admin yet) stays manageable by any org's Admin, but only for contacts.
-SELECT rls_test.expect('C admin adds a contact to unclaimed U', rls_test.add_contact('c_admin', 'org_u', 'Viewer'), 1);
+-- An unclaimed org (no Admin yet) is managed by platform moderators and by the Admins and
+-- Managers of orgs that share a gig with it, and only for contacts; not by any org's Admin.
+SELECT rls_test.expect('C admin adds a contact to unclaimed U', rls_test.add_contact('c_admin', 'org_u', 'Viewer'), -1);
+UPDATE users SET platform_moderator = true WHERE id = rls_test.u('c_viewer');
+SELECT rls_test.expect('A moderator adds a contact to unclaimed U', rls_test.add_contact('c_viewer', 'org_u', 'Viewer'), 1);
+UPDATE users SET platform_moderator = false WHERE id = rls_test.u('c_viewer');
 SELECT rls_test.expect('C admin links self to unclaimed U as Admin', rls_test.link('c_admin', 'org_u', 'c_admin', 'Admin'), -1);
 SELECT rls_test.expect('C admin links a contact to U as Admin', rls_test.link('c_admin', 'org_u', 'k2', 'Admin'), -1);
 

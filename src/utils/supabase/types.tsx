@@ -26,8 +26,6 @@ export type PersonMatch = {
   id: string;
   first_name: string;
   last_name: string;
-  email_hint: string | null;
-  organization_names: string[];
   matched_on: 'email' | 'phone' | 'name' | 'similar name';
 };
 

@@ -106,7 +106,7 @@ describe('GigParticipantContactsList', () => {
   it('re-adding a person already linked as a gig contact does not error (upsert, not duplicate)', async () => {
     vi.mocked(gigParticipantContactsService.getGigParticipantContacts).mockResolvedValue([]);
     vi.mocked(userService.searchPeople).mockResolvedValue([
-      { id: 'user-1', first_name: 'Cameron', last_name: 'Orourke', email_hint: 'cam@example.com', organization_names: [], matched_on: 'name' },
+      { id: 'user-1', first_name: 'Cameron', last_name: 'Orourke', matched_on: 'name' },
     ]);
     vi.mocked(gigParticipantContactsService.addGigParticipantContact).mockResolvedValue({ id: 'gpc-1', user_id: 'user-1' } as any);
 

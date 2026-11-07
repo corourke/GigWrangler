@@ -195,3 +195,17 @@ export function describeOrganizationDeleteBlockers(counts: Record<string, number
   if (blockers.length === 0) return null;
   return `Cannot delete an organization that still has ${blockers.join(', ')}. Remove them first.`;
 }
+
+/** The message for a change that would leave an organization without an Admin. */
+export const LAST_ADMIN_MESSAGE = 'An organization needs at least one Admin. Make someone else an Admin first.';
+
+/**
+ * Whether removing a member (newRole null) or changing their role would take the organization's
+ * last Admin. The database refuses it too (trigger keep_an_admin); this gives the route a clear
+ * message first.
+ */
+export function takesLastAdmin({ adminCount, currentRole, newRole }: {
+  adminCount: number; currentRole: string; newRole: string | null;
+}): boolean {
+  return currentRole === 'Admin' && newRole !== 'Admin' && adminCount <= 1;
+}

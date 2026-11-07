@@ -20,10 +20,10 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 |---|--------|------|---------------------|----------|-------|
 | 1 | GET | `/health` | 🔓 | `index.ts` | Liveness only. The dependency health check is the separate `health-check` function. |
 | 2 | POST | `/users` | 👤 | `requireUser` | Creates the caller's profile row. |
-| 3 | GET | `/users/:id` | 🔑 | `requireUser` | Returns **any** user's full row. Tightening deferred (Q-A). |
+| 3 | GET | `/users/:id` | 👤 | `requireUser` + `users_share_org_or_gig` | Yourself, or someone sharing an organization or a gig with you (orgs on the gig, or staffed on it); 404 otherwise. |
 | 4 | PUT | `/users/:id` | 👤 | `requireUser` + inline `user.id === :id` (403) | |
-| 5 | GET | `/users?search=` | 🔑 | `requireUser` | Searches **all** users; returns PII. Tightening deferred (Q-A). |
-| 6 | GET | `/users/:id/organizations` | 🔑 | `requireUser` | Returns **any** user's org memberships. Tightening deferred (Q-A). |
+| 5 | — | ~~`/users?search=`~~ | — | — | Removed (11-07); the app searches people with `search_people`. |
+| 6 | — | ~~`/users/:id/organizations`~~ | — | — | Removed (11-07); unused. |
 
 ## Organizations & Members
 
@@ -31,10 +31,10 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 |---|--------|------|---------------------|----------|-------|
 | 7 | GET | `/organizations` | 🔑 | `requireUser` | World-readable to authed users by design (org discovery, security-scheme §4). |
 | 8 | POST | `/organizations` | 🔑 | `requireUser` | Any authed user can create an org and becomes its Admin (Q-B). |
-| 9 | PUT | `/organizations/:id` | 👑 | `requireOrgRole({ roles: ['Admin'], allowGlobalAdminIfUnclaimed })` | A global admin (`user_is_admin` RPC) may act only while the org is unclaimed; after that only the org's own Admin. |
+| 9 | PUT | `/organizations/:id` | 👑 | `requireOrgRole({ roles: ['Admin'], allowUnclaimedOrgManagers })` | While the org is unclaimed, also a platform moderator or an Admin/Manager of an org sharing a gig with it (`user_can_manage_unclaimed_org`); after that only the org's own Admin. |
 | 10 | DELETE | `/organizations/:id` | 👑 | Same as #9 | |
 | 11 | POST | `/organizations/:id/members` | 🛡️ to add others (👑 to add an Admin); 🔑 to self-join | `requireUser` + inline `verifyOrgMembership`; `canSelfJoinDirectly` (`lib/pure/authz.ts`) | Self-join only as Staff, when the confirmed sign-in email's domain is in the org's `allowed_domains`. Otherwise 403 "Request to join instead" (#37). |
-| 12 | GET | `/organizations/:id/members` | 🏢 (or global admin) | `requireOrgRole({ allowGlobalAdmin: true })` | Lists members. |
+| 12 | GET | `/organizations/:id/members` | 🏢 (or platform moderator) | `requireOrgRole({ allowPlatformModerator: true })` | Lists members. |
 | 13 | GET | `/organizations/:id/members/:memberId` | 🏢 | `requireOrgRole()` | Single member detail. |
 | 14 | PUT | `/organizations/:id/members/:memberId` | 🛡️; 👑 to change to/from Admin | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + inline check | Role/profile update. |
 | 15 | DELETE | `/organizations/:id/members/:memberId` | 🛡️; 👑 to remove an Admin | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + inline check | Remove member. |
@@ -111,7 +111,7 @@ Decisions made for the refactor. The two fixes (Q-C, Q-D) shipped with it.
 
 ## Future Considerations (deferred)
 
-- **User-directory PII scoping (from Q-A).** Tighten `/users/:id`, `/users?search=`, and `/users/:id/organizations` to only return users who share an organization or participating gig with the caller — matching security-scheme §4. Deferred to keep the refactor behavior-preserving; requires a regression pass on the app's people-pickers (team invite, gig staffing) since result sets will narrow.
+- **User-directory scoping (from Q-A): done 11-07.** `/users/:id` returns only yourself or someone sharing an organization or a gig with you; `/users?search=` and `/users/:id/organizations` are removed.
 - **Org-creation abuse controls (from Q-B).** Pair open org creation with rate-limiting and an abuse plan before any public launch.
 
 ---
