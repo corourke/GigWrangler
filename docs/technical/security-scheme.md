@@ -100,7 +100,7 @@ The `server` function runs with the service-role key (RLS bypassed), so it autho
 Middleware:
 - **CORS** — pinned-origin allowlist (shared `_shared/cors.ts` with `ai-scan`); no `Access-Control-Allow-Credentials` reflection.
 - **`requireUser`** — validates the Bearer token once; 401 otherwise.
-- **`requireOrgRole({ roles, allowGlobalAdmin })`** — org membership + optional role allow-list; optional global-admin (`user_is_admin`) bypass for the cross-org admin endpoints.
+- **`requireOrgRole({ roles, allowPlatformModerator, allowUnclaimedOrgManagers })`** — org membership + optional role allow-list; optionally lets a platform moderator through (the member list), or, while the org is unclaimed, a moderator or an Admin/Manager of an org sharing a gig with it (`user_can_manage_unclaimed_org`; org edit and delete).
 - **`requireGigAccess(roles?)`** — the intersection model (caller's orgs ∩ the gig's participant orgs), with an optional role filter for mutations.
 
 Two authorization gaps the refactor closed (both had failing tests written first):

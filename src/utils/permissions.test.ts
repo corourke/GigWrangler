@@ -20,10 +20,10 @@ describe('canEditOrganization (issue #24/#33)', () => {
     expect(canEditOrganization({ claimed: true }, true, false)).toBe(true);
     expect(canEditOrganization({ claimed: false }, true, false)).toBe(true);
   });
-  it('lets any org\'s Admin edit an unclaimed org', () => {
+  it('lets someone who may manage an unclaimed org edit it (a moderator, or an Admin/Manager of an org on a shared gig)', () => {
     expect(canEditOrganization({ claimed: false }, false, true)).toBe(true);
   });
-  it('denies any org\'s Admin from editing a claimed org they are not Admin of', () => {
+  it('denies them a claimed org they are not Admin of', () => {
     expect(canEditOrganization({ claimed: true }, false, true)).toBe(false);
   });
   it('denies a non-Admin entirely', () => {

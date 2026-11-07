@@ -105,7 +105,7 @@ describe('AddTeamMemberDialog', () => {
     // are only members of a DIFFERENT organization — the same searchPeople path
     // the Existing User tab already uses must find them too.
     vi.mocked(userService.searchPeople).mockResolvedValue([
-      { id: 'existing-1', first_name: 'Cameron', last_name: 'Orourke', email_hint: 'cam@example.com', organization_names: [], matched_on: 'name' },
+      { id: 'existing-1', first_name: 'Cameron', last_name: 'Orourke', matched_on: 'name' },
     ]);
     vi.mocked(organizationService.linkExistingPersonToOrganization).mockResolvedValue({ user_id: 'existing-1', member: {} } as any);
 
@@ -128,7 +128,7 @@ describe('AddTeamMemberDialog', () => {
   describe('role options', () => {
     const selectExistingUser = async () => {
       vi.mocked(userService.searchPeople).mockResolvedValue([
-        { id: 'existing-1', first_name: 'Cameron', last_name: 'Orourke', email_hint: 'cam@example.com', organization_names: [], matched_on: 'name' },
+        { id: 'existing-1', first_name: 'Cameron', last_name: 'Orourke', matched_on: 'name' },
       ]);
       fireEvent.change(screen.getByLabelText('Search Users'), { target: { value: 'Cam' } });
       fireEvent.click(await screen.findByText('Cameron Orourke'));

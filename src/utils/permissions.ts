@@ -29,17 +29,18 @@ export function canDeleteGig(role: UserRole | undefined | null): boolean {
 
 /**
  * Whether the caller may edit/delete a given organization's details (issue
- * #24/#33): an Admin of THAT org always can; an Admin of ANY org can only
- * while it's unclaimed. Mirrors the server's "Admins can update per claimed
- * status" rule (organizations RLS + requireOrgRole) at the UI layer.
+ * #24/#33): an Admin of THAT org always can; while it's unclaimed, so can someone
+ * the server says may manage it (user_can_manage_unclaimed_org: a moderator, or an
+ * Admin/Manager of an org on a shared gig). Mirrors the server's "Admins can update
+ * per claimed status" rule (organizations RLS + requireOrgRole) at the UI layer.
  */
 export function canEditOrganization(
   org: { claimed: boolean },
   isAdminOfThisOrg: boolean,
-  isAdminOfAnyOrg: boolean
+  canManageWhileUnclaimed: boolean
 ): boolean {
   if (isAdminOfThisOrg) return true;
-  return !org.claimed && isAdminOfAnyOrg;
+  return !org.claimed && canManageWhileUnclaimed;
 }
 
 /**
