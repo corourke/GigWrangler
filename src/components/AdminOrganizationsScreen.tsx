@@ -39,7 +39,10 @@ import {
 } from './ui/alert-dialog';
 
 interface OrganizationWithMembers extends Organization {
-  member_count?: number;
+  /** Null where the member list isn't yours to see (you aren't a member or a moderator). */
+  member_count?: number | null;
+  /** An unclaimed org you may manage: as a moderator, or an Admin/Manager of an org on a shared gig. */
+  can_manage_unclaimed?: boolean;
 }
 
 interface AdminOrganizationsScreenProps {
@@ -61,7 +64,6 @@ export default function AdminOrganizationsScreen({
   onLogout,
   onEditProfile,
 }: AdminOrganizationsScreenProps) {
-  const isAdminOfAnyOrg = userMemberships.some((m) => m.role === 'Admin');
   const adminOrgIds = new Set(userMemberships.filter((m) => m.role === 'Admin').map((m) => m.organization.id));
   const [organizations, setOrganizations] = useState<OrganizationWithMembers[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,8 +71,10 @@ export default function AdminOrganizationsScreen({
   const [deleteOrgId, setDeleteOrgId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Loads once on mount; the memberships it reads don't change while this screen is open.
   useEffect(() => {
     loadOrganizations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadOrganizations = async () => {
@@ -97,13 +101,17 @@ export default function AdminOrganizationsScreen({
               method: 'GET'
             });
 
-            if (!membersError && members) {
-              return { ...org, member_count: members.length };
+            const member_count = !membersError && members ? members.length : null;
+            let can_manage_unclaimed = false;
+            if (!org.claimed && !adminOrgIds.has(org.id)) {
+              const { data: canManage } = await supabase.rpc('user_can_manage_unclaimed_org', {
+                p_organization_id: org.id, p_user_id: user.id,
+              });
+              can_manage_unclaimed = canManage === true;
             }
-            
-            return { ...org, member_count: 0 };
+            return { ...org, member_count, can_manage_unclaimed };
           } catch {
-            return { ...org, member_count: 0 };
+            return { ...org, member_count: null, can_manage_unclaimed: false };
           }
         })
       );
@@ -256,7 +264,7 @@ export default function AdminOrganizationsScreen({
                         <div className="flex items-center gap-2">
                           <Users className="w-4 h-4 text-gray-400" />
                           <span className="text-gray-900">
-                            {org.member_count ?? 0}
+                            {org.member_count ?? '—'}
                           </span>
                         </div>
                       </TableCell>
@@ -277,7 +285,7 @@ export default function AdminOrganizationsScreen({
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        {canEditOrganization(org, adminOrgIds.has(org.id), isAdminOfAnyOrg) ? (
+                        {canEditOrganization(org, adminOrgIds.has(org.id), !!org.can_manage_unclaimed) ? (
                           <div className="flex items-center justify-end gap-2">
                             <Button
                               variant="ghost"

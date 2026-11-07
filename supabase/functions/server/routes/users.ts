@@ -7,8 +7,7 @@ const PROFILE_UPDATE_FIELDS = [
   'city', 'state', 'postal_code', 'country', 'timezone',
 ];
 
-// User profile + directory. Per Q-A, the directory reads (#3, #5, #6) remain
-// authenticated-only for now (tightening tracked in the inventory doc).
+// User profiles: create and update your own; read your own or one sharing an organization or a gig.
 export function registerUsers(app: App) {
   // Create caller's own profile
   app.post('/users', requireUser, async (c) => {
@@ -47,24 +46,20 @@ export function registerUsers(app: App) {
     return c.json(data);
   });
 
-  // Search users (Q-A: authed-only)
-  app.get('/users', requireUser, async (c) => {
-    const search = c.req.query('search');
-    let query = supabaseAdmin.from('users').select('*').order('first_name');
-    if (search) {
-      query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`);
-    }
-    const { data, error } = await query.limit(20);
-    if (error) {
-      console.error('Error searching users:', error);
-      return c.json({ error: error.message }, 400);
-    }
-    return c.json(data);
-  });
-
-  // Get a user profile (Q-A: authed-only)
+  // Get a user profile: yourself, or someone sharing an organization or a gig with you
   app.get('/users/:id', requireUser, async (c) => {
     const userId = c.req.param('id');
+    const viewer = c.get('user');
+    const { data: allowed, error: accessError } = await supabaseAdmin.rpc('users_share_org_or_gig', {
+      p_viewer_id: viewer.id, p_target_id: userId,
+    });
+    if (accessError) {
+      console.error('Error checking profile access:', accessError);
+      return c.json({ error: 'Could not load the profile' }, 500);
+    }
+    if (allowed !== true) {
+      return c.json({ error: 'User profile not found' }, 404);
+    }
     const { data, error } = await supabaseAdmin
       .from('users').select('*').eq('id', userId).maybeSingle();
     if (error) {
@@ -99,20 +94,6 @@ export function registerUsers(app: App) {
       .from('users').update(updateData).eq('id', userId).select().single();
     if (error) {
       console.error('Error updating user profile:', error);
-      return c.json({ error: error.message }, 400);
-    }
-    return c.json(data);
-  });
-
-  // Get a user's organizations (Q-A: authed-only)
-  app.get('/users/:id/organizations', requireUser, async (c) => {
-    const userId = c.req.param('id');
-    const { data, error } = await supabaseAdmin
-      .from('organization_members')
-      .select('*, organization:organizations(*)')
-      .eq('user_id', userId);
-    if (error) {
-      console.error('Error fetching user organizations:', error);
       return c.json({ error: error.message }, 400);
     }
     return c.json(data);

@@ -77,8 +77,8 @@ export function registerOrganizations(app: App) {
     return c.json(org);
   });
 
-  // Update organization — Admin of this org, or (while unclaimed) an Admin of any org
-  app.put('/organizations/:id', requireUser, requireOrgRole({ roles: ['Admin'], allowGlobalAdminIfUnclaimed: true }), async (c) => {
+  // Update organization — Admin of this org, or (while unclaimed) a moderator or an Admin/Manager of an org sharing a gig
+  app.put('/organizations/:id', requireUser, requireOrgRole({ roles: ['Admin'], allowUnclaimedOrgManagers: true }), async (c) => {
     const orgId = c.req.param('id');
 
     const { data: org, error: orgError } = await supabaseAdmin
@@ -117,8 +117,8 @@ export function registerOrganizations(app: App) {
     return c.json(updatedOrg);
   });
 
-  // Delete organization — Admin of this org, or (while unclaimed) an Admin of any org
-  app.delete('/organizations/:id', requireUser, requireOrgRole({ roles: ['Admin'], allowGlobalAdminIfUnclaimed: true }), async (c) => {
+  // Delete organization — Admin of this org, or (while unclaimed) a moderator or an Admin/Manager of an org sharing a gig
+  app.delete('/organizations/:id', requireUser, requireOrgRole({ roles: ['Admin'], allowUnclaimedOrgManagers: true }), async (c) => {
     const orgId = c.req.param('id');
 
     const { data: org, error: orgError } = await supabaseAdmin
@@ -207,8 +207,8 @@ export function registerOrganizations(app: App) {
     return c.json({ organization: org, role: membership.role, member: membership });
   });
 
-  // List members (any member, or global admin)
-  app.get('/organizations/:id/members', requireUser, requireOrgRole({ allowGlobalAdmin: true }), async (c) => {
+  // List members (any member, or a platform moderator)
+  app.get('/organizations/:id/members', requireUser, requireOrgRole({ allowPlatformModerator: true }), async (c) => {
     const orgId = c.req.param('id');
     const { data: members, error } = await supabaseAdmin
       .from('organization_members').select(MEMBER_USER_SELECT)
