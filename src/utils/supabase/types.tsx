@@ -224,7 +224,8 @@ export type DbUserGoogleCalendarSettings = Tables['user_google_calendar_settings
 
 export type DbGigSyncStatus = Tables['gig_sync_status']['Row'];
 
-export type UserGoogleCalendarSettings = DbUserGoogleCalendarSettings;
+/** A person's Google Calendar connection as the app reads it: the tokens stay on the server. */
+export type UserGoogleCalendarSettings = Omit<DbUserGoogleCalendarSettings, 'access_token' | 'refresh_token'>;
 export type GigSyncStatus = DbGigSyncStatus;
 
 export type PaymentHealth = 'all-clear' | 'revenue-outstanding' | 'payments-due' | 'both';
