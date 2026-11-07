@@ -1,4 +1,4 @@
--- The attachments bucket takes PDFs and images up to 25 MB; organization members read
+-- The attachments bucket takes PDFs, images, Office documents and CSV up to 25 MB; organization members read
 -- invitations without their token.
 -- Checks read as: rls_test.expect(label, <rows seen or affected, -1 = rejected>, expected).
 
@@ -18,10 +18,22 @@ SELECT rls_test.expect('Attachments: PDF allowed',
 SELECT rls_test.expect('Attachments: JPEG, PNG, WebP, GIF, HEIC allowed',
   rls_test.n($$SELECT count(*)::int FROM storage.buckets WHERE id = 'attachments'
                AND allowed_mime_types @> ARRAY['image/jpeg','image/png','image/webp','image/gif','image/heic']$$), 1);
+SELECT rls_test.expect('Attachments: Word, Excel, PowerPoint and CSV allowed',
+  rls_test.n($$SELECT count(*)::int FROM storage.buckets WHERE id = 'attachments'
+               AND allowed_mime_types @> ARRAY[
+                 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                 'text/csv']$$), 1);
+SELECT rls_test.expect('Attachments: macro-enabled Office not allowed',
+  rls_test.n($$SELECT count(*)::int FROM storage.buckets WHERE id = 'attachments'
+               AND allowed_mime_types && ARRAY['application/vnd.ms-word.document.macroEnabled.12', 'application/vnd.ms-excel.sheet.macroEnabled.12']$$), 0);
+SELECT rls_test.expect('Attachments: HTML not allowed',
+  rls_test.n($$SELECT count(*)::int FROM storage.buckets WHERE id = 'attachments' AND 'text/html' = ANY (allowed_mime_types)$$), 0);
 SELECT rls_test.expect('Attachments: SVG not allowed',
   rls_test.n($$SELECT count(*)::int FROM storage.buckets WHERE id = 'attachments' AND 'image/svg+xml' = ANY (allowed_mime_types)$$), 0);
 SELECT rls_test.expect('Attachments: no other types',
-  rls_test.n($$SELECT count(*)::int FROM storage.buckets WHERE id = 'attachments' AND cardinality(allowed_mime_types) = 7$$), 1);
+  rls_test.n($$SELECT count(*)::int FROM storage.buckets WHERE id = 'attachments' AND cardinality(allowed_mime_types) = 11$$), 1);
 
 INSERT INTO public.invitations (organization_id, email, role, invited_by, token, expires_at)
 VALUES (rls_test.u('org_a'), 'new.person@example.test', 'Staff', rls_test.u('a_admin'), 'secret-invitation-token', now() + interval '7 days');
