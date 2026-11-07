@@ -29,6 +29,10 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>;
   setOrganizations: (organizations: OrganizationMembership[]) => void;
   setUser: (user: User | null) => void;
+  /** An account an Admin created with a password: its owner must choose their own first. */
+  mustChangePassword: boolean;
+  /** Call once the temporary password has been replaced. */
+  passwordChanged: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,6 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [selectedOrganization, setSelectedOrganizationState] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   const selectOrganization = useCallback((org: Organization | null) => {
     setSelectedOrganizationState(org);
@@ -84,6 +89,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         if (import.meta.env.DEV) console.log('[TRACE] AuthContext: Session found for user', session.user.id);
         
+        setMustChangePassword((session.user as any).app_metadata?.must_change_password === true);
+
         // Ensure pending user is converted to active (e.g. after accepting invitation)
         if (session.user.email) {
           try {
@@ -282,6 +289,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const supabase = createClient();
     await quietly(releaseOfflineStore());
     await supabase.auth.signOut();
+    setMustChangePassword(false);
     setUser(null);
     setOrganizations([]);
     selectOrganization(null);
@@ -306,6 +314,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshProfile,
     setOrganizations,
     setUser,
+    mustChangePassword,
+    passwordChanged: () => setMustChangePassword(false),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

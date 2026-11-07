@@ -1,6 +1,7 @@
 import type { App } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
+import { newPasswordError } from '../lib/pure/password.ts';
 
 const PROFILE_UPDATE_FIELDS = [
   'first_name', 'last_name', 'phone', 'address_line1', 'address_line2',
@@ -70,6 +71,34 @@ export function registerUsers(app: App) {
       return c.json({ error: 'User profile not found' }, 404);
     }
     return c.json(data);
+  });
+
+  // Replace a temporary password: an account an Admin created with a password chooses its own at
+  // first sign-in. Only while that is pending (app_metadata.must_change_password), and it clears it.
+  app.put('/me/password', requireUser, async (c) => {
+    const user = c.get('user');
+    if ((user as any).app_metadata?.must_change_password !== true) {
+      return c.json({ error: 'Change your password from your account settings' }, 403);
+    }
+    let body: any;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'Invalid JSON body' }, 400);
+    }
+    const passwordError = newPasswordError(body?.password);
+    if (passwordError) {
+      return c.json({ error: passwordError }, 400);
+    }
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+      password: body.password,
+      app_metadata: { ...(user as any).app_metadata, must_change_password: false },
+    });
+    if (error) {
+      console.error('Error replacing a temporary password:', error);
+      return c.json({ error: 'Could not set the password' }, 400);
+    }
+    return c.json({ success: true });
   });
 
   // Update a user profile — self only

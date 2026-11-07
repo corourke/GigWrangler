@@ -5,7 +5,7 @@ import {
   UserRole,
   DbOrganization,
 } from '../utils/supabase/types';
-import { handleApiError } from '../utils/api-error-utils';
+import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
 import { sanitizeLikeInput } from '../utils/validation-utils';
 import { getSupabase, getCurrentUser, createRecord, updateRecord } from './base/dataAccess';
 
@@ -207,4 +207,17 @@ export async function getUserOrganizations(userId: string): Promise<Organization
   } catch (err) {
     return handleApiError(err, 'fetch user organizations');
   }
+}
+
+/**
+ * Replaces the password an Admin set when creating this account (first sign-in), then refreshes
+ * the session so it no longer carries the must_change_password flag.
+ */
+export async function replaceTemporaryPassword(password: string): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase.functions.invoke('server/me/password', { method: 'PUT', body: { password } });
+  if (error) {
+    await handleFunctionsError(error, 'set the password');
+  }
+  await supabase.auth.refreshSession();
 }
