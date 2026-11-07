@@ -14,7 +14,7 @@
  *
  * A gig row with a purchase_id is skipped: its purchase line already counts.
  */
-import Papa from 'papaparse';
+import { toCsv } from './csv';
 import { TAX_DEPRECIATE_ABOVE, lineTaxTreatment, suggestedTaxTreatment, taxTreatmentLabel, type TaxTreatment } from './taxTreatment';
 import { tidyAssetCategory } from './purchaseCategories';
 import { asRecoveryPeriod, type RecoveryPeriod } from './recoveryPeriod';
@@ -527,7 +527,7 @@ export function buildGreyZoneReport(lines: ReportPurchaseLine[], equipmentCatego
 // ---- CSV -------------------------------------------------------------------------
 
 export function incomeCsv(r: IncomeReport): string {
-  return Papa.unparse({
+  return toCsv({
     fields: ['Date received', 'Gig', 'Gig date', 'From', 'Description', 'Reference', 'Amount'],
     data: r.rows.map(x => [x.date, x.gig, x.gigDate, x.from, x.description, x.reference, x.amount.toFixed(2)]),
   });
@@ -535,7 +535,7 @@ export function incomeCsv(r: IncomeReport): string {
 
 export function expensesCsv(r: ExpenseReport, scheduleC: ScheduleCLineLabel[]): string {
   const labels = new Map(scheduleC.map(s => [s.code, s.label] as const));
-  return Papa.unparse({
+  return toCsv({
     fields: ['Date paid', 'Source', 'Payee', 'Description', 'Category', 'Schedule C line', 'Line name', 'Gig', 'Miles', 'Amount'],
     data: r.rows.map(x => [
       x.date, x.source, x.payee, x.description, x.category, x.line ?? '', x.line ? labels.get(x.line) ?? '' : '',
@@ -545,7 +545,7 @@ export function expensesCsv(r: ExpenseReport, scheduleC: ScheduleCLineLabel[]): 
 }
 
 export function assetsCsv(r: AssetReport): string {
-  return Papa.unparse({
+  return toCsv({
     fields: ['Date placed in service', 'Description', 'Vendor', 'Category', 'Quantity', 'Cost per item', 'Cost (basis)', 'Recovery period (years)', 'De minimis candidate'],
     data: r.rows.map(x => [
       x.date, x.description, x.vendor, x.category, x.quantity, x.itemCost.toFixed(2), x.cost.toFixed(2),
@@ -555,14 +555,14 @@ export function assetsCsv(r: AssetReport): string {
 }
 
 export function disposalsCsv(r: AssetReport): string {
-  return Papa.unparse({
+  return toCsv({
     fields: ['Description', 'Date placed in service', 'Cost (basis)', 'Date disposed', 'Sale proceeds', 'Status'],
     data: r.disposals.map(x => [x.description, x.bought, x.cost.toFixed(2), x.disposed, x.proceeds?.toFixed(2) ?? '', x.status]),
   });
 }
 
 export function greyZoneCsv(r: GreyZoneReport): string {
-  return Papa.unparse({
+  return toCsv({
     fields: ['Date bought', 'Description', 'Vendor', 'Category', 'Quantity', 'Cost per item', 'Cost', 'Treatment', 'Tracked as equipment'],
     data: r.rows.map(x => [
       x.date, x.description, x.vendor, x.category, x.quantity, x.itemCost.toFixed(2), x.cost.toFixed(2),

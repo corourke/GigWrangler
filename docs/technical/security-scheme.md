@@ -64,7 +64,7 @@ but not the slot org's other assignments, rates or fees.
 - `user_is_admin_of_org(org_id, user_id)`
 - `user_is_admin_or_manager_of_org(org_id, user_id)`
 - `user_has_access_to_gig(gig_id, user_id)`
-- `get_user_role_in_org(org_id, user_id)`: Returns the `user_role` enum.
+- `get_user_role_in_org(org_id, user_id)`: Returns the `user_role` enum. Service role only.
 
 ## 6. Storage (Attachments Bucket)
 

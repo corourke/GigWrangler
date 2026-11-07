@@ -4,6 +4,7 @@ import { requireOrgRole, verifyOrgMembership } from '../lib/orgRole.ts';
 import { canAssignRole, emailDomainMatches, ORGANIZATION_DELETE_REFERENCES, describeOrganizationDeleteBlockers } from '../lib/pure/authz.ts';
 import { pickProfileUpdates } from '../lib/pure/memberUpdate.ts';
 import { newPasswordError } from '../lib/pure/password.ts';
+import { normalizeWebsiteUrl } from '../lib/pure/websiteUrl.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
 
 const ORG_UPDATE_FIELDS = [
@@ -50,6 +51,11 @@ export function registerOrganizations(app: App) {
     if (!orgData.roles || !Array.isArray(orgData.roles) || orgData.roles.length === 0) {
       return c.json({ error: 'At least one role is required' }, 400);
     }
+    if (orgData.url !== undefined) {
+      const website = normalizeWebsiteUrl(orgData.url);
+      if (!website.ok) return c.json({ error: website.error }, 400);
+      orgData.url = website.value;
+    }
 
     const { data: org, error: orgError } = await supabaseAdmin
       .from('organizations').insert({ ...orgData, claimed: auto_join }).select().single();
@@ -92,6 +98,11 @@ export function registerOrganizations(app: App) {
     }
     if (updateData.roles !== undefined && (!Array.isArray(updateData.roles) || updateData.roles.length === 0)) {
       return c.json({ error: 'At least one role is required' }, 400);
+    }
+    if (updateData.url !== undefined) {
+      const website = normalizeWebsiteUrl(updateData.url);
+      if (!website.ok) return c.json({ error: website.error }, 400);
+      updateData.url = website.value;
     }
     if (Object.keys(updateData).length === 0) {
       return c.json({ error: 'No fields provided for update' }, 400);
