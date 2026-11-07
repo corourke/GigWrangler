@@ -50,13 +50,11 @@ SELECT rls_test.expect('An exact email ranks first',
 SELECT rls_test.expect('Only the picker''s columns',
   (SELECT count(*)::int FROM (
      SELECT unnest(proargnames) a, unnest(proargmodes) m FROM pg_proc WHERE proname = 'search_people') x
-   WHERE m = 't' AND a NOT IN ('id', 'first_name', 'last_name', 'email_hint', 'organization_names', 'matched_on')), 0);
-SELECT rls_test.expect('Email is masked',
-  rls_test.people($$SELECT * FROM search_people('John Smith') WHERE email_hint = 'j***@crew.example'$$), 1);
-SELECT rls_test.expect('No email, no hint',
-  rls_test.people($$SELECT * FROM search_people('Mary') WHERE email_hint IS NULL$$), 1);
-SELECT rls_test.expect('The person''s organizations, by name',
-  rls_test.people($$SELECT * FROM search_people('John Smith') WHERE organization_names = ARRAY['Org B', 'Org C']$$), 1);
+   WHERE m = 't' AND a NOT IN ('id', 'first_name', 'last_name', 'matched_on')), 0);
+SELECT rls_test.expect('The picker''s columns are all there',
+  (SELECT count(*)::int FROM (
+     SELECT unnest(proargnames) a, unnest(proargmodes) m FROM pg_proc WHERE proname = 'search_people') x
+   WHERE m = 't'), 4);
 
 -- 3. People: who may search -----------------------------------------------------------
 SELECT rls_test.expect('Not signed in: refused', rls_test.try_anon($$SELECT * FROM search_people('John Smith')$$), -1);
