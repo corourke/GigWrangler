@@ -21,6 +21,24 @@ CREATE FUNCTION rls_test.run(p_user text, p_sql text) RETURNS int LANGUAGE sql A
   $$ SELECT rls_test.try(rls_test.u(p_user), p_sql) $$;
 CREATE FUNCTION rls_test.fin(p text) RETURNS int LANGUAGE sql AS
   $$ SELECT count(*)::int FROM public.gig_financials WHERE id = rls_test.u(p) $$;
+-- As p_user, delete a purchase, then count which of these gig money rows are left. Rolled back;
+-- -1 if the delete is refused or deletes nothing.
+CREATE FUNCTION rls_test.left_after_delete(p_user text, p_purchase text, p_fins text[]) RETURNS int LANGUAGE plpgsql AS $$
+DECLARE n int; v_left int; v_purchase uuid := rls_test.u(p_purchase);
+BEGIN
+  BEGIN
+    PERFORM set_config('request.jwt.claim.sub', rls_test.u(p_user)::text, true);
+    SET LOCAL ROLE authenticated;
+    DELETE FROM public.purchases WHERE id = v_purchase;
+    GET DIAGNOSTICS n = ROW_COUNT;
+    RESET ROLE;
+    SELECT count(*)::int INTO v_left FROM public.gig_financials WHERE id IN (SELECT rls_test.u(f) FROM unnest(p_fins) f);
+    RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = CASE WHEN n = 0 THEN -1 ELSE v_left END::text;
+  EXCEPTION
+    WHEN SQLSTATE 'P0099' THEN RESET ROLE; RETURN SQLERRM::int;
+    WHEN OTHERS THEN RESET ROLE; RETURN -1;
+  END;
+END $$;
 
 -- Purchase P (two lines) and Q (one line) in 2026; O in 2025, which gets filed.
 INSERT INTO purchases (id, organization_id, parent_id, row_type, purchase_date, vendor, total_inv_amount) VALUES
@@ -40,18 +58,12 @@ INSERT INTO gig_financials (id, gig_id, organization_id, direction, stage, amoun
   (rls_test.u('f_own'), rls_test.u('gig'), rls_test.u('org_a'), 'out', 'paid', 40, 40, '2026-04-03', '2026-04-03', NULL,              'parking',   rls_test.u('a_admin'));
 INSERT INTO tax_years (organization_id, year, filed_on) VALUES (rls_test.u('org_a'), 2025, '2026-03-25');
 
-SELECT rls_test.expect('Deleting a line removes its gig expense, in the same statement',
-  rls_test.run('a_admin', format('DELETE FROM purchases WHERE id = %s', rls_test.id('ql'))), 1);
-SELECT rls_test.expect('  ...the line''s gig expense is gone', rls_test.fin('f_ql'), 0);
-
-SELECT rls_test.expect('Deleting a whole purchase removes it and its lines',
-  rls_test.run('a_admin', format('DELETE FROM purchases WHERE id = %s', rls_test.id('ph'))), 1);
-SELECT rls_test.expect('  ...and the gig expenses of all its lines',
-  rls_test.fin('f_pl1') + rls_test.fin('f_pl2'), 0);
-SELECT rls_test.expect('  ...but no other gig money', rls_test.fin('f_own'), 1);
-
+SELECT rls_test.expect('Deleting a line (as an Admin) removes its gig expense',
+  rls_test.left_after_delete('a_admin', 'ql', ARRAY['f_ql']), 0);
+SELECT rls_test.expect('Deleting a whole purchase removes the gig expenses of all its lines, and no other gig money',
+  rls_test.left_after_delete('a_admin', 'ph', ARRAY['f_pl1', 'f_pl2', 'f_own']), 1);
 SELECT rls_test.expect('A purchase in a filed year still cannot be deleted',
-  rls_test.run('a_admin', format('DELETE FROM purchases WHERE id = %s', rls_test.id('oh'))), -1);
+  rls_test.left_after_delete('a_admin', 'oh', ARRAY['f_ol']), -1);
 SELECT rls_test.expect('  ...and its gig expense stays', rls_test.fin('f_ol'), 1);
 
 SELECT rls_test.expect('The link deletes with the purchase (ON DELETE CASCADE)',

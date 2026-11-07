@@ -124,7 +124,7 @@ Each row is **money in** (`direction = 'in'`: fees, deposits, reimbursements) or
 - `paid_at`: when it was paid.
 - `category` (`fin_category`, IRS Schedule C): what a row is for. Money out only in the UI.
 - `counterparty_id` / `external_entity_name`: the other party.
-- `purchase_id`: the purchase line this cost came from. Old scan-from-gig rows that pointed at a header were moved to its line by migration 20261009000000 when it had one expensed line.
+- `purchase_id`: the purchase line this cost came from. Deleting the line, or its whole purchase, deletes this row too (ON DELETE CASCADE, migration `20261107130000`, tests in `80_purchase_delete.test.sql`); the delete confirm says how much expense, on how many gigs, goes with it. A purchase in a filed year can't be deleted. Old scan-from-gig rows that pointed at a header were moved to its line by migration 20261009000000 when it had one expensed line.
 - `staff_assignment_id`: the staff assignment that produced this row.
 - `legacy_type`: the pre-2026-10 type, kept for audit.
 
