@@ -9,6 +9,7 @@ import {
 import { getCompleteUserData, createUserProfile } from '../services/user.service';
 import { convertPendingToActive } from '../services/organization.service';
 import { claimOfflineStore, releaseOfflineStore } from '../services/mobile/offlineOwner';
+import { getTwoFactorStatus } from '../services/twoFactor.service';
 
 /** Clearing the phone's offline copy must never block signing in or out. */
 const quietly = (p: Promise<unknown>) => p.catch((err) => {
@@ -33,6 +34,10 @@ interface AuthContextType {
   mustChangePassword: boolean;
   /** Call once the temporary password has been replaced. */
   passwordChanged: () => void;
+  /** Two-factor sign-in (#361): this session still needs the authenticator code. */
+  twoFactorPending: boolean;
+  /** Call once the code has been verified. */
+  twoFactorVerified: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -48,6 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [twoFactorPending, setTwoFactorPending] = useState(false);
 
   const selectOrganization = useCallback((org: Organization | null) => {
     setSelectedOrganizationState(org);
@@ -90,6 +96,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (import.meta.env.DEV) console.log('[TRACE] AuthContext: Session found for user', session.user.id);
         
         setMustChangePassword((session.user as any).app_metadata?.must_change_password === true);
+
+        // Two-factor sign-in: a session that hasn't entered the code yet asks for it first.
+        try {
+          setTwoFactorPending((await getTwoFactorStatus()).needsCode);
+        } catch (e) {
+          if (import.meta.env.DEV) console.warn('[TRACE] AuthContext: Error reading two-factor status:', e);
+        }
 
         // Ensure pending user is converted to active (e.g. after accepting invitation)
         if (session.user.email) {
@@ -290,6 +303,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await quietly(releaseOfflineStore());
     await supabase.auth.signOut();
     setMustChangePassword(false);
+    setTwoFactorPending(false);
     setUser(null);
     setOrganizations([]);
     selectOrganization(null);
@@ -316,6 +330,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser,
     mustChangePassword,
     passwordChanged: () => setMustChangePassword(false),
+    twoFactorPending,
+    // Reload what the session couldn't read before the code was entered.
+    twoFactorVerified: () => { setTwoFactorPending(false); void refreshProfile(); },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

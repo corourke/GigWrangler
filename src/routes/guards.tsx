@@ -6,6 +6,7 @@ import { prefetchLandingScreen } from './prefetch';
 import LoginScreen from '../components/LoginScreen';
 import UserProfileCompletionScreen from '../components/UserProfileCompletionScreen';
 import TemporaryPasswordScreen from '../components/TemporaryPasswordScreen';
+import TwoFactorChallengeScreen from '../components/security/TwoFactorChallengeScreen';
 import AcceptInvitationScreen from '../components/AcceptInvitationScreen';
 import ResetPasswordScreen from '../components/ResetPasswordScreen';
 import InvitationErrorScreen from '../components/InvitationErrorScreen';
@@ -67,7 +68,10 @@ function profileIncomplete(user: User): boolean {
  * an auth round-trip: after signing in, the originally requested route renders.
  */
 export function RequireAuth() {
-  const { isLoading, user, setUser, profileLoadError, refreshProfile, mustChangePassword, passwordChanged } = useAuth();
+  const {
+    isLoading, user, setUser, profileLoadError, refreshProfile, mustChangePassword, passwordChanged,
+    twoFactorPending, twoFactorVerified, logout,
+  } = useAuth();
   const signedIn = !!user;
 
   // Fetch the landing screen's code while the org is being picked, so it is
@@ -79,6 +83,11 @@ export function RequireAuth() {
   if (isLoading) return <LoadingSpinner />;
   if (!user && profileLoadError) return <ProfileLoadErrorScreen onRetry={() => refreshProfile()} />;
   if (!user) return <LoginScreen />;
+
+  // Two-factor sign-in (#361): the code from the authenticator app comes before anything else.
+  if (twoFactorPending) {
+    return <TwoFactorChallengeScreen onVerified={twoFactorVerified} onSignOut={() => { void logout(); }} />;
+  }
 
   // An account an Admin created with a password: its owner chooses their own before anything else.
   if (mustChangePassword) return <TemporaryPasswordScreen onComplete={passwordChanged} />;

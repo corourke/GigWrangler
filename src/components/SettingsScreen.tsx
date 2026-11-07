@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Calendar, Tags, Building2 } from 'lucide-react';
+import { Settings, Calendar, Tags, Building2, ShieldCheck } from 'lucide-react';
 
 import AppHeader from './AppHeader';
 import { PageHeader } from './layout/PageHeader';
@@ -7,16 +7,17 @@ import { PageTabsList, PageTabsTrigger } from './layout/PageTabs';
 import { Tabs, TabsContent } from './ui/tabs';
 import CalendarIntegrationSettings from './CalendarIntegrationSettings';
 import CategoriesSettings from './settings/CategoriesSettings';
+import TwoFactorSettings from './security/TwoFactorSettings';
 import { Button } from './ui/button';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 
-export type SettingsTab = 'calendar' | 'categories';
+export type SettingsTab = 'calendar' | 'categories' | 'security';
 
 interface SettingsScreenProps {
   organization: Organization;
   user: User;
   userRole?: UserRole;
-  /** The open tab (from the URL: /settings/calendar, /settings/categories). */
+  /** The open tab (from the URL: /settings/calendar, /settings/categories, /settings/security). */
   tab?: SettingsTab;
   onTabChange?: (tab: SettingsTab) => void;
   onBack: () => void;
@@ -46,7 +47,8 @@ export default function SettingsScreen({
   // An Admin of this organization can always edit it (see canEditOrganization),
   // so Settings offers them a direct path to Edit Organization (#176).
   const showEditOrganization = !!onEditOrganization && userRole === 'Admin';
-  const active: SettingsTab = tab === 'categories' && showCategories ? 'categories' : 'calendar';
+  const active: SettingsTab =
+    tab === 'security' ? 'security' : tab === 'categories' && showCategories ? 'categories' : 'calendar';
 
   return (
     <div className="min-h-screen bg-background">
@@ -83,6 +85,10 @@ export default function SettingsScreen({
                   Categories
                 </PageTabsTrigger>
               )}
+              <PageTabsTrigger value="security">
+                <ShieldCheck />
+                Security
+              </PageTabsTrigger>
             </PageTabsList>
           }
         />
@@ -95,6 +101,9 @@ export default function SettingsScreen({
               organizationId={organization.id}
               onSettingsChanged={() => {}}
             />
+          </TabsContent>
+          <TabsContent value="security" className="max-w-3xl">
+            <TwoFactorSettings />
           </TabsContent>
           {showCategories && (
             <TabsContent value="categories">
