@@ -171,6 +171,16 @@
     "taken": "2026-10-10",
     "appCommit": "0122c92"
   },
+  "getting-started/onboarding-reset-password": {
+    "page": "getting-started/onboarding.md",
+    "user": null,
+    "sources": [
+      "src/components/ResetPasswordScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-11-07",
+    "appCommit": "be62c11"
+  },
   "getting-started/onboarding-select-organization": {
     "page": "getting-started/onboarding.md",
     "user": "newuser",
@@ -188,8 +198,8 @@
       "src/components/LoginScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-10",
-    "appCommit": "0122c92"
+    "taken": "2026-11-07",
+    "appCommit": "be62c11"
   },
   "getting-started/organizations-create-form": {
     "page": "getting-started/organizations.md",
@@ -229,8 +239,8 @@
       "src/components/OrganizationSelectionScreen.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-10",
-    "appCommit": "0122c92"
+    "taken": "2026-11-07",
+    "appCommit": "be62c11"
   },
   "getting-started/the-dashboard-avatar-menu": {
     "page": "getting-started/the-dashboard.md",

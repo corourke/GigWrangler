@@ -53,7 +53,7 @@ different organizations. See [Roles & access](/reference/roles-and-access/).
 
 1. [Signing up](/getting-started/onboarding/) — create your account.
 2. [Getting into an organization](/getting-started/organizations/) — create your
-   own, claim an existing one, request access, or accept an invitation.
+   own, ask to join an existing one, or accept an invitation.
 3. [The dashboard](/getting-started/the-dashboard/) — what you see once you're in.
 
 <!-- TODO
