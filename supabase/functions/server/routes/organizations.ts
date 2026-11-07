@@ -3,6 +3,7 @@ import { requireUser } from '../lib/auth.ts';
 import { requireOrgRole, verifyOrgMembership } from '../lib/orgRole.ts';
 import { canAssignRole, emailDomainMatches, ORGANIZATION_DELETE_REFERENCES, describeOrganizationDeleteBlockers } from '../lib/pure/authz.ts';
 import { pickProfileUpdates } from '../lib/pure/memberUpdate.ts';
+import { newPasswordError } from '../lib/pure/password.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
 
 const ORG_UPDATE_FIELDS = [
@@ -381,7 +382,9 @@ export function registerOrganizations(app: App) {
   });
 
   // Create a user and add to org (Admin/Manager)
-  app.post('/organizations/:id/members/create', requireUser, requireOrgRole({ roles: ['Admin', 'Manager'] }), async (c) => {
+  // Create an account with a password and add it (Admin only). Its owner must choose their own
+  // password at first sign-in (app_metadata.must_change_password; PUT /me/password clears it).
+  app.post('/organizations/:id/members/create', requireUser, requireOrgRole({ roles: ['Admin'] }), async (c) => {
     const orgId = c.req.param('id');
     const body = await c.req.json();
     const { email, first_name, last_name, password, role } = body;
@@ -392,8 +395,14 @@ export function registerOrganizations(app: App) {
       return c.json({ error: 'Only Admins can add an Admin' }, 403);
     }
 
+    const passwordError = newPasswordError(password);
+    if (passwordError) {
+      return c.json({ error: passwordError }, 400);
+    }
+
     const { data: authData, error: createAuthError } = await supabaseAdmin.auth.admin.createUser({
       email, password, email_confirm: true, user_metadata: { first_name, last_name },
+      app_metadata: { must_change_password: true },
     });
     if (createAuthError || !authData.user) {
       console.error('Error creating auth user:', createAuthError);
