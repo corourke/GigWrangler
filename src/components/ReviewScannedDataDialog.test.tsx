@@ -1104,10 +1104,12 @@ describe('ReviewScannedDataDialog: editing keeps stored line totals (#330)', () 
     const c = sent(svc, 'l2');
     expect(h.quantity).toBe(11);
     expect(h.item_cost).not.toBe(23.921);
-    expect(h.line_cost).toBe(Number((11 * h.item_cost).toFixed(4)));
+    // In cents, adding up to the $300 total; the last line takes the rounding pennies (B8).
+    expect(h.line_cost).toBe(Math.round(11 * h.item_cost * 100) / 100);
     expect(h.line_amount).toBe(Number((11 * 23.899).toFixed(4)));
     expect(c.item_cost).not.toBe(30.425);
-    expect(c.line_cost).toBe(Number((2 * c.item_cost).toFixed(4)));
+    expect(Math.abs(c.line_cost - 2 * c.item_cost)).toBeLessThanOrEqual(0.01);
+    expect(Math.round((h.line_cost + c.line_cost) * 100) / 100).toBe(300);
     expect(c.line_amount).toBe(60);
   });
 
