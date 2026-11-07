@@ -24,8 +24,7 @@ import { Separator } from './ui/separator';
 
 import {
   getUserGoogleCalendarSettings,
-  saveUserGoogleCalendarSettings,
-  deleteUserGoogleCalendarSettings,
+  disconnectGoogleCalendar,
   getUserCalendars,
   getGoogleAuthUrl,
   getSyncLogs,
@@ -128,7 +127,7 @@ export default function CalendarIntegrationSettings({
       const userSettings = await getUserGoogleCalendarSettings(userId);
       setSettings(userSettings);
 
-      if (userSettings?.access_token) {
+      if (userSettings) {
         // Only load data from Google if we are enabled or if the token is not expired.
         // If it is expired and disabled, we don't proactively try to refresh (to avoid errors),
         // but we show the existing settings.
@@ -187,7 +186,7 @@ export default function CalendarIntegrationSettings({
     try {
       setDisconnecting(true);
       setReconnectRequired(false);
-      await deleteUserGoogleCalendarSettings(userId);
+      await disconnectGoogleCalendar();
       setSettings(null);
       setAvailableCalendars([]);
       setSyncLogs([]);
@@ -209,8 +208,7 @@ export default function CalendarIntegrationSettings({
       const selectedCalendar = availableCalendars.find(cal => cal.id === calendarId);
       if (!selectedCalendar) return;
 
-      const updatedSettings = await saveUserGoogleCalendarSettings(userId, {
-        ...settings,
+      const updatedSettings = await updateUserGoogleCalendarSettings(userId, {
         calendar_id: calendarId,
         calendar_name: selectedCalendar.name,
       });
@@ -228,8 +226,7 @@ export default function CalendarIntegrationSettings({
     if (!settings) return;
 
     try {
-      const updatedSettings = await saveUserGoogleCalendarSettings(userId, {
-        ...settings,
+      const updatedSettings = await updateUserGoogleCalendarSettings(userId, {
         is_enabled: enabled,
       });
 
@@ -377,7 +374,7 @@ export default function CalendarIntegrationSettings({
     );
   }
 
-  const isConnected = !!(settings?.access_token);
+  const isConnected = !!settings;
   const displayedLogs = showAllLogs ? syncLogs : syncLogs.slice(0, 5);
   const writableCalendars = availableCalendars.filter((cal) => WRITABLE_ACCESS_ROLES.has(cal.accessRole));
   const selectedCalendar = availableCalendars.find((cal) => cal.id === settings?.calendar_id);
