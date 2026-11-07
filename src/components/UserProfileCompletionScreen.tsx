@@ -11,6 +11,7 @@ import { Building2, AlertCircle, Loader2, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { User as UserType } from '../utils/supabase/types';
 import { useAuth } from '../contexts/AuthContext';
+import { passwordLengthError } from '../utils/passwordValidation';
 
 interface UserProfileCompletionScreenProps {
   user: UserType;
@@ -105,8 +106,8 @@ export default function UserProfileCompletionScreen({
       // Password is mandatory for invitation acceptance flow
       if (!formData.password) {
         validationErrors.password = 'Password is required';
-      } else if (formData.password.length < 6) {
-        validationErrors.password = 'Password must be at least 6 characters';
+      } else if (passwordLengthError(formData.password)) {
+        validationErrors.password = passwordLengthError(formData.password)!;
       }
       
       if (formData.password !== formData.confirm_password) {
