@@ -5,6 +5,7 @@ import { useAppShell } from './appShell';
 import { prefetchLandingScreen } from './prefetch';
 import LoginScreen from '../components/LoginScreen';
 import UserProfileCompletionScreen from '../components/UserProfileCompletionScreen';
+import TemporaryPasswordScreen from '../components/TemporaryPasswordScreen';
 import AcceptInvitationScreen from '../components/AcceptInvitationScreen';
 import ResetPasswordScreen from '../components/ResetPasswordScreen';
 import InvitationErrorScreen from '../components/InvitationErrorScreen';
@@ -66,7 +67,7 @@ function profileIncomplete(user: User): boolean {
  * an auth round-trip: after signing in, the originally requested route renders.
  */
 export function RequireAuth() {
-  const { isLoading, user, setUser, profileLoadError, refreshProfile } = useAuth();
+  const { isLoading, user, setUser, profileLoadError, refreshProfile, mustChangePassword, passwordChanged } = useAuth();
   const signedIn = !!user;
 
   // Fetch the landing screen's code while the org is being picked, so it is
@@ -78,6 +79,9 @@ export function RequireAuth() {
   if (isLoading) return <LoadingSpinner />;
   if (!user && profileLoadError) return <ProfileLoadErrorScreen onRetry={() => refreshProfile()} />;
   if (!user) return <LoginScreen />;
+
+  // An account an Admin created with a password: its owner chooses their own before anything else.
+  if (mustChangePassword) return <TemporaryPasswordScreen onComplete={passwordChanged} />;
 
   if (profileIncomplete(user)) {
     return (

@@ -268,3 +268,46 @@ describe('AuthContext Hang Reproduction', () => {
     });
   });
 });
+
+// An account an Admin created with a password must choose its own at first sign-in.
+describe('AuthContext: a temporary password', () => {
+  let authChangeHandler: any;
+  const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    const mockSupabase: any = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+        getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+        signOut: vi.fn().mockResolvedValue({ error: null }),
+        onAuthStateChange: vi.fn().mockImplementation((handler: any) => {
+          authChangeHandler = handler;
+          return { data: { subscription: { unsubscribe: vi.fn() } } };
+        }),
+      },
+      channel: vi.fn().mockReturnValue({ on: vi.fn().mockReturnThis(), subscribe: vi.fn().mockReturnThis() }),
+      removeChannel: vi.fn().mockResolvedValue({}),
+    };
+    (createClient as any).mockReturnValue(mockSupabase);
+    (userService.getCompleteUserData as any).mockResolvedValue({ profile: { id: 'user-1', email: 'a@example.com' }, organizations: [] });
+  });
+
+  it('says so when the session carries the flag, and clears it once the password is set', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => {
+      authChangeHandler('SIGNED_IN', { user: { id: 'user-1', app_metadata: { must_change_password: true } } });
+    });
+    await vi.waitFor(() => expect(result.current.mustChangePassword).toBe(true), { timeout: 1000 });
+    act(() => result.current.passwordChanged());
+    expect(result.current.mustChangePassword).toBe(false);
+  });
+
+  it('doesn\'t without the flag', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => { authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } }); });
+    await vi.waitFor(() => expect(result.current.isLoading).toBe(false), { timeout: 1000 });
+    expect(result.current.mustChangePassword).toBe(false);
+  });
+});

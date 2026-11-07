@@ -12,6 +12,9 @@ vi.mock('./appShell', () => ({
 }));
 
 vi.mock('./prefetch', () => ({ prefetchLandingScreen: vi.fn() }));
+vi.mock('../components/TemporaryPasswordScreen', () => ({
+  default: ({ onComplete }: any) => <button type="button" onClick={onComplete}>Temporary password screen</button>,
+}));
 
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
@@ -204,5 +207,42 @@ describe('RequireOrg', () => {
     );
     expect(screen.getByTestId('picker')).toBeInTheDocument();
     expect(from).toBe('/financials/gig-accounting?x=1');
+  });
+});
+
+// An account an Admin created with a password must choose its own before anything else.
+describe('RequireAuth: a temporary password', () => {
+  const user = { id: 'u1', first_name: 'Ann', last_name: 'Lee', email: 'ann@example.com' };
+  function renderGuard() {
+    render(
+      <MemoryRouter initialEntries={['/gigs']}>
+        <Routes>
+          <Route element={<RequireAuth />}>
+            <Route path="/gigs" element={<div>Gigs</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+  }
+
+  it('shows the password screen instead of the app', () => {
+    mockUseAuth.mockReturnValue({ isLoading: false, user, mustChangePassword: true, passwordChanged: vi.fn() });
+    renderGuard();
+    expect(screen.getByRole('button', { name: 'Temporary password screen' })).toBeInTheDocument();
+    expect(screen.queryByText('Gigs')).not.toBeInTheDocument();
+  });
+
+  it('goes on once it is set', () => {
+    const passwordChanged = vi.fn();
+    mockUseAuth.mockReturnValue({ isLoading: false, user, mustChangePassword: true, passwordChanged });
+    renderGuard();
+    fireEvent.click(screen.getByRole('button', { name: 'Temporary password screen' }));
+    expect(passwordChanged).toHaveBeenCalled();
+  });
+
+  it('shows the app when no change is needed', () => {
+    mockUseAuth.mockReturnValue({ isLoading: false, user, mustChangePassword: false });
+    renderGuard();
+    expect(screen.getByText('Gigs')).toBeInTheDocument();
   });
 });

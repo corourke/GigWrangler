@@ -40,7 +40,7 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 | 15 | DELETE | `/organizations/:id/members/:memberId` | 🛡️; 👑 to remove an Admin | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + inline check | Remove member. |
 | 16 | DELETE | `/invitations/:invitationId` | 🛡️ of the invitation's org | `requireUser` + inline `verifyOrgMembership` | Cancel an invite. |
 | 17 | POST | `/organizations/:id/invitations` | 🛡️ | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + `canAssignRole` | Create invite. Only an Admin may invite an Admin (09-29). |
-| 18 | POST | `/organizations/:id/members/create` | 🛡️ | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + `canAssignRole` | Create-and-add member. Only an Admin may add an Admin (09-29). |
+| 18 | POST | `/organizations/:id/members/create` | 👑 | `requireOrgRole({ roles: ['Admin'] })` + `canAssignRole` | Create-and-add member, Admin only (11-07). The password must be at least 10 characters, and the account must choose its own at first sign-in (`app_metadata.must_change_password`; see `PUT /me/password`). |
 
 ## Gigs
 
@@ -94,6 +94,7 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 | # | Method | Path | Enforced | Code | Notes |
 |---|--------|------|----------|------|-------|
 | 41 | GET | `/me/notifications` | 👤 | `requireUser`, filtered on `recipient_id` | Unread notifications for the bell. |
+| 41a | PUT | `/me/password` | 👤 | `requireUser` + `app_metadata.must_change_password` | Replaces the temporary password an Admin set (`members/create`) and clears the flag. Refused (403) unless the flag is set. |
 | 42 | PUT | `/notifications/:id/read` | 👤 | `requireUser`, update filtered on `recipient_id` | 404 when the row is not the caller's. |
 
 ---
