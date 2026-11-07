@@ -1,4 +1,5 @@
 import Papa from 'papaparse';
+import { toCsv } from './csv';
 import { Organization, OrganizationRole } from './supabase/types';
 import { isValidTimezone, getDefaultTimezone } from './timezones';
 import { GIG_STATUS_CONFIG } from './supabase/constants';
@@ -946,7 +947,7 @@ export function generateGigTemplate(): string {
     '5000.00'
   ];
 
-  return Papa.unparse([headers, example], { header: false });
+  return toCsv([headers, example], { header: false });
 }
 
 /**
@@ -1035,7 +1036,7 @@ export function generateAssetTemplate(): string {
     quantity: '1', ...line, source: '2-Expense', line_amount: '9.99', item_price: '9.99',
   });
 
-  return Papa.unparse([headers, exampleInvoice, exampleUnits, exampleLot, exampleExpense], { header: false });
+  return toCsv([headers, exampleInvoice, exampleUnits, exampleLot, exampleExpense], { header: false });
 }
 
 function downloadCsv(csv: string, fileName: string): void {
