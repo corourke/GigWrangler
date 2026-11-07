@@ -1131,3 +1131,46 @@ describe('ReviewScannedDataDialog: editing keeps stored line totals (#330)', () 
     expect(await screen.findByRole('button', { name: 'Use $300.00' })).toBeInTheDocument();
   });
 });
+
+describe('ReviewScannedDataDialog: totals and scanned prices', () => {
+  beforeEach(() => vi.clearAllMocks());
+  const saveNew = async (data: any) => {
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" scannedData={data} file={null} />);
+    const save = await screen.findByRole('button', { name: 'Save Purchase' });
+    await userEvent.click(save);
+    await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalled());
+    return vi.mocked(createPurchaseWithUnits).mock.calls[0][1] as any[];
+  };
+
+  // B8: as the importer does, the last line takes the rounding pennies, so the lines add up to what was paid.
+  it('saves line costs in cents that add up to the invoice total, the last line taking the pennies', async () => {
+    const items = await saveNew({
+      vendor: 'Amazon', purchase_date: '2026-07-05', total_inv_amount: 10,
+      items: [1, 2, 3].map(n => ({ description: `Tape ${n}`, quantity: 1, item_price: 1, item_cost: 1, category: 'Supplies', is_asset: false })),
+    });
+    expect(items.map(i => i.line_cost)).toEqual([3.33, 3.33, 3.34]);
+    expect(items.reduce((s, i) => s + i.line_cost, 0)).toBeCloseTo(10, 10);
+  });
+
+  it('leaves a real difference alone (the warning is for that), only rounding pennies move', async () => {
+    const items = await saveNew({
+      vendor: 'Amazon', purchase_date: '2026-07-05', total_inv_amount: 25,
+      items: [{ description: 'Gaffer tape', quantity: 1, item_price: 25, item_cost: 25, category: 'Supplies', is_asset: false }],
+    });
+    expect(items.map(i => i.line_cost)).toEqual([25]);
+  });
+
+  // B-new: the scan can return a null price for a line.
+  it('shows a scanned line with no price as $0, never "null", and spreads the total over the priced lines', async () => {
+    const items = await saveNew({
+      vendor: 'Amazon', purchase_date: '2026-07-05', total_inv_amount: 30,
+      items: [
+        { description: 'Cable', quantity: 1, item_price: 30, item_cost: null, category: 'Supplies', is_asset: false },
+        { description: 'Free sample', quantity: 1, item_price: null, item_cost: null, category: 'Supplies', is_asset: false },
+      ],
+    });
+    expect(screen.queryByDisplayValue('null')).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('NaN')).not.toBeInTheDocument();
+    expect(items.map(i => [i.item_price, i.line_cost])).toEqual([[30, 30], [0, 0]]);
+  });
+});
