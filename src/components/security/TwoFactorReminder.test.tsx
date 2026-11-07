@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import TwoFactorReminder, { daysLeft } from './TwoFactorReminder';
+import TwoFactorReminder from './TwoFactorReminder';
+import { daysLeft } from './daysLeft';
 
 afterEach(() => vi.useRealTimers());
 

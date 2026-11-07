@@ -11,7 +11,7 @@ import {
 } from '../../services/twoFactor.service';
 
 /** Settings → Security: set up or turn off two-factor sign-in with an authenticator app (#361). */
-export default function TwoFactorSettings() {
+export default function TwoFactorSettings({ onEnabled }: { onEnabled?: () => void } = {}) {
   const [status, setStatus] = useState<TwoFactorStatus | null>(null);
   const [setup, setSetup] = useState<{ factorId: string; qrCode: string; secret: string } | null>(null);
   const [code, setCode] = useState('');
@@ -52,6 +52,7 @@ export default function TwoFactorSettings() {
       setSetup(null);
       toast.success('Two-factor sign-in is on');
       await load();
+      onEnabled?.();
     } catch (err: any) {
       setError(err?.message || "That code didn't work.");
     } finally {

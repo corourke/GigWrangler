@@ -9,6 +9,7 @@ import { SmartDataTable } from './tables/SmartDataTable';
 import { useAccessRequestColumns, AccessRequestActions } from './team/teamColumns';
 import { useModeratorAccessRequests, useDecideAccessRequest } from '../hooks/useAccessRequests';
 import type { AccessRequestWithRelations, User } from '../utils/supabase/types';
+import TwoFactorResetCard from './security/TwoFactorResetCard';
 
 interface ModeratorAccessRequestsScreenProps {
   user: User;
@@ -101,6 +102,8 @@ export default function ModeratorAccessRequestsScreen({
             />
           </Card>
         )}
+
+        <TwoFactorResetCard />
       </div>
     </div>
   );

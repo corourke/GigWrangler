@@ -66,6 +66,9 @@ but not the slot org's other assignments, rates or fees.
 - `user_has_access_to_gig(gig_id, user_id)`
 - `get_user_role_in_org(org_id, user_id)`: Returns the `user_role` enum. Service role only.
 
+### Two-factor sign-in (#361)
+Authenticator apps (Supabase Auth TOTP). A session must have entered its code (`aal2`) when the person has a verified authenticator, or is an Admin of any organization past a 14-day grace period. A Google sign-in counts as done. Managers and everyone else may turn it on in Settings → Security. Until then the session reads and changes nothing: every RLS table and `storage.objects` carry the restrictive policy "Two-factor sign-in when required" (`mfa_satisfied()`), and the `server` function's `requireUser` returns 403 `TWO_FACTOR_REQUIRED` under the same rule. A person who loses their phone asks a platform moderator, who resets it from the moderator screen (`POST /moderator/two-factor/reset`, logged in `activity_log` as `two_factor.reset`). Details in database.md (`user_mfa_requirements`).
+
 ## 6. Storage (Attachments Bucket)
 
 Files (invoices, receipts, photos) live in the private `attachments` storage bucket and are served exclusively via short-lived signed URLs (1-hour expiry, created in `attachment.service.ts`). The bucket accepts only PDFs, images, Word/Excel/PowerPoint documents and CSV (no HTML, SVG or macro-enabled Office files), up to 25 MB each.

@@ -7,6 +7,8 @@ import LoginScreen from '../components/LoginScreen';
 import UserProfileCompletionScreen from '../components/UserProfileCompletionScreen';
 import TemporaryPasswordScreen from '../components/TemporaryPasswordScreen';
 import TwoFactorChallengeScreen from '../components/security/TwoFactorChallengeScreen';
+import TwoFactorSetupRequiredScreen from '../components/security/TwoFactorSetupRequiredScreen';
+import TwoFactorReminder from '../components/security/TwoFactorReminder';
 import AcceptInvitationScreen from '../components/AcceptInvitationScreen';
 import ResetPasswordScreen from '../components/ResetPasswordScreen';
 import InvitationErrorScreen from '../components/InvitationErrorScreen';
@@ -70,7 +72,7 @@ function profileIncomplete(user: User): boolean {
 export function RequireAuth() {
   const {
     isLoading, user, setUser, profileLoadError, refreshProfile, mustChangePassword, passwordChanged,
-    twoFactorPending, twoFactorVerified, logout,
+    twoFactorPending, twoFactorSetupRequired, twoFactorReminderUntil, twoFactorVerified, logout,
   } = useAuth();
   const signedIn = !!user;
 
@@ -81,13 +83,17 @@ export function RequireAuth() {
   }, [signedIn]);
 
   if (isLoading) return <LoadingSpinner />;
-  if (!user && profileLoadError) return <ProfileLoadErrorScreen onRetry={() => refreshProfile()} />;
-  if (!user) return <LoginScreen />;
 
-  // Two-factor sign-in (#361): the code from the authenticator app comes before anything else.
+  // Two-factor sign-in (#361) comes before anything else: the session reads nothing until it's done.
   if (twoFactorPending) {
     return <TwoFactorChallengeScreen onVerified={twoFactorVerified} onSignOut={() => { void logout(); }} />;
   }
+  if (twoFactorSetupRequired) {
+    return <TwoFactorSetupRequiredScreen onDone={twoFactorVerified} onSignOut={() => { void logout(); }} />;
+  }
+
+  if (!user && profileLoadError) return <ProfileLoadErrorScreen onRetry={() => refreshProfile()} />;
+  if (!user) return <LoginScreen />;
 
   // An account an Admin created with a password: its owner chooses their own before anything else.
   if (mustChangePassword) return <TemporaryPasswordScreen onComplete={passwordChanged} />;
@@ -104,7 +110,12 @@ export function RequireAuth() {
     );
   }
 
-  return <Outlet />;
+  return (
+    <>
+      {twoFactorReminderUntil && <TwoFactorReminder requiredAfter={twoFactorReminderUntil} />}
+      <Outlet />
+    </>
+  );
 }
 
 /**

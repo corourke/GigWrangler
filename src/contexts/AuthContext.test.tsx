@@ -364,6 +364,8 @@ describe('AuthContext: a temporary password', () => {
     await act(async () => { authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } }); });
     await vi.waitFor(() => expect(result.current.twoFactorPending).toBe(true), { timeout: 1000 });
     expect(userService.getCompleteUserData).not.toHaveBeenCalled();
+    // The code is in: the client now holds the code-verified session, which the reload reads.
+    (createClient as any)().auth.getSession.mockResolvedValue({ data: { session: { user: { id: 'user-1' } } }, error: null });
     await act(async () => { result.current.twoFactorVerified(); });
     expect(result.current.twoFactorPending).toBe(false);
     await vi.waitFor(() => expect(userService.getCompleteUserData).toHaveBeenCalled(), { timeout: 1000 });

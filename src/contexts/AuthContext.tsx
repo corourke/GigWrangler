@@ -36,7 +36,11 @@ interface AuthContextType {
   passwordChanged: () => void;
   /** Two-factor sign-in (#361): this session still needs the authenticator code. */
   twoFactorPending: boolean;
-  /** Call once the code has been verified. */
+  /** An Admin past the grace period with no authenticator: they set one up first. */
+  twoFactorSetupRequired: boolean;
+  /** An Admin in the grace period without an authenticator: when it becomes required. */
+  twoFactorReminderUntil: string | null;
+  /** Call once the code has been verified (or the authenticator set up). */
   twoFactorVerified: () => void;
 }
 
@@ -54,6 +58,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [twoFactorPending, setTwoFactorPending] = useState(false);
+  const [twoFactorSetupRequired, setTwoFactorSetupRequired] = useState(false);
+  const [twoFactorReminderUntil, setTwoFactorReminderUntil] = useState<string | null>(null);
 
   const selectOrganization = useCallback((org: Organization | null) => {
     setSelectedOrganizationState(org);
@@ -97,9 +103,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         setMustChangePassword((session.user as any).app_metadata?.must_change_password === true);
 
-        // Two-factor sign-in: a session that hasn't entered the code yet asks for it first.
+        // Two-factor sign-in (#361): a session that hasn't entered the code, or an Admin past the
+        // grace period with no authenticator, does that first. Until then the database returns
+        // nothing to this session, so nothing else is loaded.
         try {
-          setTwoFactorPending((await getTwoFactorStatus()).needsCode);
+          const twoFactor = await getTwoFactorStatus();
+          setTwoFactorPending(twoFactor.needsCode);
+          setTwoFactorSetupRequired(twoFactor.setupRequired);
+          setTwoFactorReminderUntil(
+            twoFactor.required && twoFactor.factors.length === 0 && !twoFactor.setupRequired ? twoFactor.requiredAfter : null,
+          );
+          if (twoFactor.needsCode || twoFactor.setupRequired) return;
         } catch (e) {
           if (import.meta.env.DEV) console.warn('[TRACE] AuthContext: Error reading two-factor status:', e);
         }
@@ -304,6 +318,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
     setMustChangePassword(false);
     setTwoFactorPending(false);
+    setTwoFactorSetupRequired(false);
+    setTwoFactorReminderUntil(null);
     setUser(null);
     setOrganizations([]);
     selectOrganization(null);
@@ -331,8 +347,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     mustChangePassword,
     passwordChanged: () => setMustChangePassword(false),
     twoFactorPending,
-    // Reload what the session couldn't read before the code was entered.
-    twoFactorVerified: () => { setTwoFactorPending(false); void refreshProfile(); },
+    twoFactorSetupRequired,
+    twoFactorReminderUntil,
+    // The code is in: the client's session is now aal2 (challengeAndVerify stores it), so
+    // refreshProfile reads it and loads what this session couldn't before.
+    twoFactorVerified: () => {
+      setTwoFactorPending(false);
+      setTwoFactorSetupRequired(false);
+      void refreshProfile();
+    },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
