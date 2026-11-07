@@ -1,4 +1,5 @@
 import { Badge } from './ui/badge';
+import { safeHref } from '../utils/safeHref';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import {
   DropdownMenu,
@@ -94,7 +95,7 @@ const AppHeader = React.memo(function AppHeader({
               <DropdownMenuTrigger asChild>
                 <button aria-label="Account menu" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                   <Avatar className="w-9 h-9">
-                    <AvatarImage src={user.avatar_url ?? undefined} alt={`${user.first_name} ${user.last_name}`} />
+                    <AvatarImage src={safeHref(user.avatar_url)} alt={`${user.first_name} ${user.last_name}`} />
                     <AvatarFallback className="bg-primary/10 text-primary">
                       {getInitials(user.first_name, user.last_name)}
                     </AvatarFallback>

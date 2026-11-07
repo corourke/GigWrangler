@@ -1,4 +1,5 @@
 import { handleApiError } from '../utils/api-error-utils';
+import { safeHref } from '../utils/safeHref';
 import type { DbAttachment, EntityType } from '../utils/supabase/types';
 import {
   getSupabase,
@@ -167,7 +168,9 @@ export async function getAttachmentUrl(filePath: string) {
       .createSignedUrl(filePath, 3600); // 1 hour
 
     if (error) throw error;
-    return data.signedUrl;
+    const url = safeHref(data.signedUrl);
+    if (!url) throw new Error('Unexpected attachment link');
+    return url;
   } catch (err) {
     return handleApiError(err, 'get attachment url');
   }

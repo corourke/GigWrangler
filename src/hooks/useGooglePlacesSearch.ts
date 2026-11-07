@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '../utils/supabase/client';
 import { handleFunctionsError } from '../utils/api-error-utils';
+import { safeHref } from '../utils/safeHref';
 
 export interface GooglePlace {
   place_id: string;
@@ -73,7 +74,7 @@ export function placeToOrganizationFields(place: GooglePlace): PlaceOrganization
   const addressParts = parseAddressComponents(place.address_components);
   return {
     name: place.name || '',
-    url: place.website || '',
+    url: safeHref(place.website) ? place.website!.trim() : '',
     phone_number: place.formatted_phone_number || '',
     description: place.editorial_summary || '',
     address_line1: [addressParts.street_number, addressParts.route].filter(Boolean).join(' '),

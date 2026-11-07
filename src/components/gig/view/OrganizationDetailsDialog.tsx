@@ -2,6 +2,7 @@ import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import type { Organization } from '../../../utils/supabase/types';
+import ExternalLink from '../../ExternalLink';
 
 interface OrganizationDetailsDialogProps {
   organization: Partial<Organization> | null;
@@ -40,7 +41,7 @@ export default function OrganizationDetailsDialog({ organization: org, onClose }
             {address && <Field label="Address">{address}</Field>}
             {org.url && (
               <Field label="Website">
-                <a href={org.url} target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">{org.url}</a>
+                <ExternalLink url={org.url} />
               </Field>
             )}
             {org.description && <Field label="Description"><span className="whitespace-pre-wrap">{org.description}</span></Field>}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { safeHref } from '../../utils/safeHref';
 import {Barcode, Settings, Building2, List, LayoutDashboard } from 'lucide-react';
 import type { UserRole } from '../../utils/supabase/types';
 import { useAuth } from '../../contexts/AuthContext';
@@ -105,7 +106,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
             <DropdownMenuTrigger asChild>
               <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                 <Avatar className="w-8 h-8">
-                  <AvatarImage src={user?.avatar_url ?? undefined} alt={user ? `${user.first_name} ${user.last_name}` : ''} />
+                  <AvatarImage src={safeHref(user?.avatar_url)} alt={user ? `${user.first_name} ${user.last_name}` : ''} />
                   <AvatarFallback className="bg-primary/10 text-primary text-xs">
                     {getInitials(user?.first_name, user?.last_name)}
                   </AvatarFallback>
