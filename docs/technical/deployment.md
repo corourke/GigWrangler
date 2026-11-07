@@ -227,6 +227,39 @@ Chosen over Vercel and Netlify during the original production bring-up:
 
 **Vercel is not part of this stack.** It appears in the repo only as a rejected alternative.
 
+#### Security headers
+
+[`public/_headers`](../../public/_headers) is copied into `build/` and applied by Pages to every response (`/*`):
+
+| Header | Value | Why |
+|---|---|---|
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | HTTPS only, for a year, on every subdomain. No `preload` yet: that's hard to undo. |
+| `X-Frame-Options` | `DENY` | The app can't be framed (older browsers). |
+| `Content-Security-Policy` | `frame-ancestors 'none'` | The same for current browsers. It's enforced on its own because `frame-ancestors` is ignored in a report-only policy. |
+| `X-Content-Type-Options` | `nosniff` | Files are only used as their declared type. |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Other sites see only the origin, never the path. |
+| `Permissions-Policy` | `camera=(self), geolocation=(), microphone=()` | The camera for scanning receipts; no location or microphone. |
+| `Content-Security-Policy-Report-Only` | see the file | Reports, without blocking, anything outside the app's own sources and services. |
+
+**The report-only policy** allows:
+- **Scripts:** `'self'` only. The build has no inline script: `registerSW.js` and the chunks are files.
+- **Styles:** `'self' 'unsafe-inline'`, for the style attributes React and Radix set.
+- **Connections:** `'self'`, both Supabase projects (`https://` and `wss://` for realtime; dev `qcrzwsazasaojqoqxwnr`, prod `hqnnhtxcxedisasvtbqv`) and Sentry ingest (`*.ingest.sentry.io`, `*.ingest.us.sentry.io`, `*.ingest.de.sentry.io`).
+- **Images:** `'self' data: blob:`, the two Supabase hosts (storage) and `*.googleusercontent.com` (Google profile pictures).
+- **Frames:** `'self' blob:` and the Supabase hosts, for PDF previews.
+- **Workers:** `'self' blob:`, for the service worker and the PDF worker.
+- **Everything else:** `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`.
+
+Google sign-in and calendar authorization are navigations, not requests, so they need no entry.
+
+**Checked on 11-07 (PR "Add security headers"):** the dev build was served with this policy **enforced** and loaded in Chromium (Playwright). The app rendered with no violations. Requests to both Supabase hosts (`https` and `wss`), a Sentry ingest host and a storage image were allowed; a request to an unlisted host was blocked.
+
+**Switching to enforce.** After a deploy, open the browser console on prod and use the app: sign in, gigs, purchases with a document preview, the mobile view. Any line saying "[Report Only] Refused to …" names a source the policy would block. Once there are none, rename the header to `Content-Security-Policy`. Keep `frame-ancestors 'none'` in it, and drop the separate one.
+
+**Caching:** `/` and `/index.html` are sent with `Cache-Control: no-cache`, like `sw.js`, `registerSW.js` and `version.json`, so a deploy is picked up on the next load. A client-side route such as `/gigs/123` is served `index.html` by the SPA fallback with Pages' default caching for HTML.
+
+**Check after a deploy:** `curl -sI https://gigwrangler.com/ | grep -iE 'strict-transport|x-frame|content-security|referrer|permissions|nosniff|cache-control'`.
+
 ### Supabase
 
 Provides Postgres, Auth, Storage, and Edge Functions. Two projects, no staging:
