@@ -110,15 +110,6 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       const venue = data.participants?.find((p: any) => p.role === 'Venue')?.organization;
       const act = data.participants?.find((p: any) => p.role === 'Act')?.organization;
       setGig({ ...data, venue, act });
-      const allAssignments = (data.staff_slots || []).flatMap((s: any) => s.staff_assignments || []);
-      console.log('[MobileGigDetail] user.id:', user?.id, 'user.email:', user?.email);
-      console.log('[MobileGigDetail] assignments:', JSON.stringify(allAssignments.map((a: any) => ({
-        id: a.id, status: a.status, user_id_raw: a.user_id,
-        user: a.user ? { id: a.user.id, email: a.user.email, first_name: a.user.first_name } : null,
-        idMatch: a.user?.id === user?.id,
-        uidMatch: a.user_id === user?.id,
-        emailMatch: !!(user?.email && a.user?.email && a.user.email === user?.email),
-      }))));
     } catch (error: any) {
       toast.error(error.message || 'Failed to load gig');
       onBack();

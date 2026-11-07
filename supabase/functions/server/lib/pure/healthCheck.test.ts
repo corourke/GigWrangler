@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { isAlertable, recipientsToNotify, isSentryConfigured, isAuthorizedCronRequest } from './healthCheck';
+import { readFileSync } from 'node:fs';
+import { isAlertable, recipientsToNotify, isSentryConfigured, isAuthorizedCronRequest, timingSafeEqual } from './healthCheck';
 
 describe('isAlertable', () => {
   it('alerts only on a real failure', () => {
@@ -51,5 +52,21 @@ describe('isAuthorizedCronRequest', () => {
     expect(isAuthorizedCronRequest('Bearer ', undefined)).toBe(false);
     expect(isAuthorizedCronRequest('Bearer ', '')).toBe(false);
     expect(isAuthorizedCronRequest('Bearer undefined', undefined)).toBe(false);
+  });
+});
+
+describe('timingSafeEqual', () => {
+  it('matches equal strings only', () => {
+    expect(timingSafeEqual('abc', 'abc')).toBe(true);
+    expect(timingSafeEqual('abc', 'abd')).toBe(false);
+    expect(timingSafeEqual('abc', 'abcd')).toBe(false);
+    expect(timingSafeEqual('', '')).toBe(true);
+  });
+
+  it('is what the cron check compares the token with', () => {
+    const source = readFileSync('supabase/functions/server/lib/pure/healthCheck.ts', 'utf8');
+    const body = source.slice(source.indexOf('export function isAuthorizedCronRequest'));
+    expect(body).toMatch(/timingSafeEqual\(/);
+    expect(body.slice(0, body.indexOf('\n}'))).not.toMatch(/===\s*expected/);
   });
 });
