@@ -60,7 +60,7 @@ Choose it in the equipment details on the purchase line, or in the equipment's o
 
 ## Filed years are locked
 
-Once you've filed a year's taxes, an Admin locks that year under **Financials → Reporting → Filed tax years**: enter the year and the date you filed, then click **Lock year**.
+Once you've filed a year's taxes, an Admin locks that year under **Financials → Reporting → Schedule C**, in **Filed tax years** below the report: enter the year and the date you filed, then click **Lock year**.
 
 - **Locked:** you can't change that year's purchases' costs, dates, categories or tax treatment, or add or delete purchases dated in it.
 - **Gig money is locked too:** a gig's income, and its expenses that didn't come from a purchase (quick expenses, mileage, staff pay), dated in that year. Their amounts, dates, categories and status can't change, and you can't add or remove them. Their notes and descriptions still can. A gig expense that came from a purchase stays editable on the gig, because the purchase is what counts for tax.
