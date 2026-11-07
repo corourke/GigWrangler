@@ -146,6 +146,7 @@ export default function AttachmentManager({
             <input
               type="file"
               multiple
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,application/pdf,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               onChange={handleFileUpload}
               disabled={isUploading}

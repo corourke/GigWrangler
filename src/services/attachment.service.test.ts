@@ -56,6 +56,21 @@ describe('attachment.service', () => {
   });
 
   describe('uploadAttachment', () => {
+    it('refuses a file over 25 MB before uploading', async () => {
+      const file = new File(['x'], 'big.pdf', { type: 'application/pdf' });
+      Object.defineProperty(file, 'size', { value: 25 * 1024 * 1024 + 1 });
+      await expect(uploadAttachment(orgId, file)).rejects.toThrow('Files can be up to 25 MB');
+      expect(mockStorageBucket.upload).not.toHaveBeenCalled();
+    });
+
+    it('refuses a file that is not a PDF or an image before uploading', async () => {
+      const file = new File(['x'], 'rider.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      await expect(uploadAttachment(orgId, file)).rejects.toThrow('Attach a PDF or an image');
+      const svg = new File(['<svg/>'], 'logo.svg', { type: 'image/svg+xml' });
+      await expect(uploadAttachment(orgId, svg)).rejects.toThrow('Attach a PDF or an image');
+      expect(mockStorageBucket.upload).not.toHaveBeenCalled();
+    });
+
     it('uploads under the organization-id prefix (storage RLS path convention)', async () => {
       const file = new File(['data'], 'invoice.pdf', { type: 'application/pdf' });
       mockSupabase.then.mockImplementation((onFulfilled: any) =>
@@ -81,7 +96,7 @@ describe('attachment.service', () => {
 
       await uploadAttachment(orgId, file, 'receipt.png');
 
-      expect(mockStorageBucket.upload).toHaveBeenCalledWith(`${orgId}/receipt.png`, file);
+      expect(mockStorageBucket.upload).toHaveBeenCalledWith(`${orgId}/receipt.png`, file, { contentType: 'image/png' });
       expect(mockSupabase.insert).toHaveBeenCalledWith(
         expect.objectContaining({
           organization_id: orgId,
