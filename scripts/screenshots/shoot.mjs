@@ -21,7 +21,7 @@ const CHROMIUM = process.env.SHOT_CHROMIUM || '/opt/pw-browsers/chromium';
 // The demo world's "today". Must match the anchor the seed was run with.
 const ANCHOR = process.env.SHOT_ANCHOR || '2026-10-07';
 const TIMEZONE = 'America/Los_Angeles';
-const PASSWORD = 'demo1pass';
+const PASSWORD = 'demo-pass-2026';
 const VIEWPORT = { width: 1200, height: 900 };
 const USERS = {
   admin: 'demo-admin@gigwrangler.test',
