@@ -76,9 +76,9 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 | # | Method | Path | Enforced | Code | Notes |
 |---|--------|------|---------------------|----------|-------|
 | 33 | POST | `/webauthn/register/options` | 👤 | `requireUser` | Enrolls a device for the caller. |
-| 34 | POST | `/webauthn/register/verify` | 👤 | `requireUser` | |
-| 35 | POST | `/webauthn/authenticate/options` | 🔓 (identifies by email) | none | Unlock flow, public by design (Q-E). |
-| 36 | POST | `/webauthn/authenticate/verify` | 🔓 (identifies by email) | none | Unlock flow, public by design (Q-E). |
+| 34 | POST | `/webauthn/register/verify` | 👤 | `requireUser` | Stores the device with its signature counter. |
+| 35 | POST | `/webauthn/authenticate/options` | 🔓 (identifies by email) | none | Unlock flow, public by design (Q-E). The account is found with `auth_user_id_by_email` (service role only). Every failure returns the same 400 (`UNLOCK_FAILED`, `lib/pure/webauthnUnlock.ts`). |
+| 36 | POST | `/webauthn/authenticate/verify` | 🔓 (identifies by email) | none | Unlock flow, public by design (Q-E). Checks and updates the device's signature counter. Every failure returns the same 400 (`UNLOCK_FAILED`). |
 
 ## Access requests (issue #33)
 
