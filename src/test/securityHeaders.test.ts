@@ -29,18 +29,23 @@ describe('security headers (public/_headers)', () => {
     expect(all['permissions-policy']).toBe('camera=(self), geolocation=(), microphone=()');
   });
 
-  it('refuses framing in an enforced policy (frame-ancestors is ignored in report-only)', () => {
-    expect(all['content-security-policy']).toBe("frame-ancestors 'none'");
+  it('enforces one policy, framing refused, with no report-only copy', () => {
+    expect(all['content-security-policy-report-only']).toBeUndefined();
+    const csp = directives(all['content-security-policy'] ?? '');
+    expect(csp['frame-ancestors']).toEqual(["'none'"]);
   });
 
-  it('reports, without enforcing, a policy that allows only the app\'s own sources and its services', () => {
-    const csp = directives(all['content-security-policy-report-only'] ?? '');
+  it('enforces a policy that allows only the app\'s own sources and its services', () => {
+    const csp = directives(all['content-security-policy'] ?? '');
     expect(csp['default-src']).toEqual(["'self'"]);
+    // No eval: zod runs without its JIT (src/lib/zodConfig.ts).
     expect(csp['script-src']).toEqual(["'self'"]);
+    expect(all['content-security-policy']).not.toContain('unsafe-eval');
     expect(csp['worker-src']).toEqual(["'self'", 'blob:']);
     expect(csp['style-src']).toEqual(["'self'", "'unsafe-inline'"]);
     expect(csp['object-src']).toEqual(["'none'"]);
     expect(csp['base-uri']).toEqual(["'self'"]);
+    expect(csp['form-action']).toEqual(["'self'"]);
     for (const ref of ['qcrzwsazasaojqoqxwnr', 'hqnnhtxcxedisasvtbqv']) {
       expect(csp['connect-src']).toContain(`https://${ref}.supabase.co`);
       expect(csp['connect-src']).toContain(`wss://${ref}.supabase.co`);
