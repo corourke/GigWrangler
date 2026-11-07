@@ -68,7 +68,7 @@ but not the slot org's other assignments, rates or fees.
 
 ## 6. Storage (Attachments Bucket)
 
-Files (invoices, receipts, photos) live in the private `attachments` storage bucket and are served exclusively via short-lived signed URLs (1-hour expiry, created in `attachment.service.ts`). The bucket accepts only PDFs and images (no SVG), up to 25 MB each.
+Files (invoices, receipts, photos) live in the private `attachments` storage bucket and are served exclusively via short-lived signed URLs (1-hour expiry, created in `attachment.service.ts`). The bucket accepts only PDFs, images, Word/Excel/PowerPoint documents and CSV (no HTML, SVG or macro-enabled Office files), up to 25 MB each.
 
 ### Path Convention
 Every object is stored as `{organization_id}/{filename}`. The org-id prefix is the unit of isolation: storage policies derive the owning organization from the first path segment with `(storage.foldername(name))[1]::uuid`. Uploads that do not carry a valid org-id prefix are rejected by policy.
