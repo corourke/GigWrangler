@@ -8,7 +8,7 @@ import { Label } from './ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Alert, AlertDescription } from './ui/alert';
 import { Separator } from './ui/separator';
-import { getPasswordStrength, type PasswordStrength } from '../utils/passwordValidation';
+import { getPasswordStrength, passwordLengthError, MIN_PASSWORD_LENGTH, type PasswordStrength } from '../utils/passwordValidation';
 
 const STRENGTH_LABEL: Record<PasswordStrength, { text: string; className: string }> = {
   weak: { text: 'Weak', className: 'text-destructive' },
@@ -118,6 +118,13 @@ export default function LoginScreen() {
 
     if (!firstName || !lastName) {
       setError('Please provide your first and last name');
+      setIsLoading(false);
+      return;
+    }
+
+    const lengthError = passwordLengthError(password);
+    if (lengthError) {
+      setError(lengthError);
       setIsLoading(false);
       return;
     }
@@ -412,12 +419,12 @@ export default function LoginScreen() {
                       onChange={(e) => setPassword(e.target.value)}
                       className="pl-10"
                       required
-                      minLength={6}
+                      minLength={MIN_PASSWORD_LENGTH}
                       disabled={isLoading}
                     />
                   </div>
                   <p className="text-xs text-gray-500">
-                    Minimum 6 characters
+                    Minimum {MIN_PASSWORD_LENGTH} characters
                     {passwordStrength && (
                       <>
                         {' · '}
