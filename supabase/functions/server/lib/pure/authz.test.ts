@@ -126,7 +126,11 @@ describe('canDecideAccessRequest (issue #33, point 6)', () => {
 describe('accessRequestNotificationAudience (issue #52)', () => {
   it('routes to platform moderators while the org is unclaimed', () => {
     expect(accessRequestNotificationAudience(false, 'Manager')).toBe('platform_moderators');
-    expect(accessRequestNotificationAudience(false, 'Viewer')).toBe('platform_moderators');
+    expect(accessRequestNotificationAudience(false, 'Admin')).toBe('platform_moderators');
+  });
+  it('routes a request to join an unclaimed org to moderators and the org\'s Managers, who can decide it', () => {
+    expect(accessRequestNotificationAudience(false, 'Viewer')).toBe('platform_moderators_and_org_managers');
+    expect(accessRequestNotificationAudience(false, 'Staff')).toBe('platform_moderators_and_org_managers');
   });
   it('routes to the org\'s own Admins once claimed', () => {
     expect(accessRequestNotificationAudience(true, 'Manager')).toBe('org_admins');
