@@ -25,8 +25,8 @@ describe('toCsv', () => {
   });
 
   it('takes the same input as Papa.unparse: fields and data, or objects with columns', () => {
-    expect(toCsv({ fields: ['A', 'B'], data: [['=x', '-1.00']] })).toBe("A,B\r\n'=x,-1.00");
-    expect(toCsv([{ A: '@x', B: 2 }], { columns: ['B', 'A'] })).toBe("B,A\r\n2,'@x");
+    expect(cells(toCsv({ fields: ['A', 'B'], data: [['=x', '-1.00']] }))).toEqual([['A', 'B'], ["'=x", '-1.00']]);
+    expect(cells(toCsv([{ A: '@x', B: 2 }], { columns: ['B', 'A'] }))).toEqual([['B', 'A'], ['2', "'@x"]]);
   });
 });
 

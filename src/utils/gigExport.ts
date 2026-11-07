@@ -1,4 +1,4 @@
-import Papa from 'papaparse';
+import { toCsv } from './csv';
 import type { ColumnDef } from '../components/tables/SmartDataTable';
 import type { GigExportAggregates } from '../services/gigFinancial.service';
 
@@ -83,7 +83,7 @@ export function buildExportRows<T extends { id: string }>(
 
 /** Serialize export rows to a CSV string, with `headers` as the header row (and column order). */
 export function gigsToCsv(rows: Record<string, string | number>[], headers: string[]): string {
-  return Papa.unparse(rows, { columns: headers });
+  return toCsv(rows, { columns: headers });
 }
 
 /** `gigs-export-YYYY-MM-DD.csv` for today (local date). */
