@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AssetListScreen from './AssetListScreen'
 import { makeUser, makeOrganization } from '../test/factories'
@@ -81,6 +81,10 @@ vi.mock('../services/inventoryManagement.service', () => ({
 vi.mock('../services/purchase.service', () => ({
   scanInvoice: vi.fn().mockResolvedValue({}),
 }))
+vi.mock('./ReviewScannedDataDialog', () => ({
+  default: (p: { open: boolean; scannedData: unknown }) => (p.open ? <div>{p.scannedData ? 'Review scanned data' : 'Manual entry'}</div> : null),
+}))
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() } }))
 
 const mockProps = {
   organization: makeOrganization({ name: 'Test Org' }),
@@ -170,5 +174,20 @@ describe('AssetListScreen (Equipment › Items)', () => {
   it('keeps the tracking status filter', async () => {
     render(<AssetListScreen {...mockProps} />)
     expect((await screen.findAllByText('Tracking:')).length).toBeGreaterThan(0)
+  })
+})
+
+describe('AssetListScreen: Upload Invoice when scanning is unavailable', () => {
+  it('opens manual entry on the server\'s SCAN_ACCESS_REQUIRED, with a plain message', async () => {
+    const { scanInvoice } = await import('../services/purchase.service')
+    const { toast } = await import('sonner')
+    vi.mocked(scanInvoice).mockRejectedValueOnce(new Error('SCAN_ACCESS_REQUIRED'))
+    const { container } = render(<AssetListScreen {...mockProps} />)
+    await screen.findByText('Upload Invoice')
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['%PDF'], 'invoice.pdf', { type: 'application/pdf' })] } })
+    expect(await screen.findByText('Manual entry')).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledWith('AI scan unavailable for this file type. Opening manual entry.')
+    expect(toast.error).not.toHaveBeenCalledWith('SCAN_ACCESS_REQUIRED')
   })
 })
