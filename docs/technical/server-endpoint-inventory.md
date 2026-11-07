@@ -33,7 +33,7 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 | 8 | POST | `/organizations` | 🔑 | `requireUser` | Any authed user can create an org and becomes its Admin (Q-B). |
 | 9 | PUT | `/organizations/:id` | 👑 | `requireOrgRole({ roles: ['Admin'], allowUnclaimedOrgManagers })` | While the org is unclaimed, also a platform moderator or an Admin/Manager of an org sharing a gig with it (`user_can_manage_unclaimed_org`); after that only the org's own Admin. |
 | 10 | DELETE | `/organizations/:id` | 👑 | Same as #9 | |
-| 11 | POST | `/organizations/:id/members` | 🛡️ to add others (👑 to add an Admin); 🔑 to self-join | `requireUser` + inline `verifyOrgMembership` | Self-join only as Viewer, or as Staff when the email domain is in the org's `allowed_domains`. |
+| 11 | POST | `/organizations/:id/members` | 🛡️ to add others (👑 to add an Admin); 🔑 to self-join | `requireUser` + inline `verifyOrgMembership`; `canSelfJoinDirectly` (`lib/pure/authz.ts`) | Self-join only as Staff, when the confirmed sign-in email's domain is in the org's `allowed_domains`. Otherwise 403 "Request to join instead" (#37). |
 | 12 | GET | `/organizations/:id/members` | 🏢 (or platform moderator) | `requireOrgRole({ allowPlatformModerator: true })` | Lists members. |
 | 13 | GET | `/organizations/:id/members/:memberId` | 🏢 | `requireOrgRole()` | Single member detail. |
 | 14 | PUT | `/organizations/:id/members/:memberId` | 🛡️; 👑 to change to/from Admin | `requireOrgRole({ roles: ['Admin', 'Manager'] })` + inline check | Role/profile update. |
@@ -84,10 +84,11 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 
 | # | Method | Path | Enforced | Code | Notes |
 |---|--------|------|----------|------|-------|
-| 37 | POST | `/organizations/:id/access-requests` | Viewer or Staff of the org | `requireOrgRole({ roles: ['Viewer', 'Staff'] })` | Ask for a higher role. Non-members self-join first (#11). |
-| 38 | GET | `/organizations/:id/access-requests` | 👑 | `requireOrgRole({ roles: ['Admin'] })` | Pending requests for the org. |
-| 39 | PUT | `/organizations/:id/access-requests/:requestId` | Platform moderator while the org is unclaimed, else 👑 | `requireUser` + `canDecideAccessRequest` (`lib/pure/authz.ts`) | Approve or reject. |
+| 37 | POST | `/organizations/:id/access-requests` | 🔑 non-member to ask to join; Viewer or Staff of the org to ask for Manager/Admin | `requireUser` + inline membership check; `canRequestToJoin` (`lib/pure/authz.ts`) | A request to join is for Viewer, or Staff with a confirmed email at one of the org's `allowed_domains`. |
+| 38 | GET | `/organizations/:id/access-requests` | 🛡️ | `requireOrgRole({ roles: ['Admin', 'Manager'] })` | Pending requests for the org: all for Admins, requests to join for Managers. |
+| 39 | PUT | `/organizations/:id/access-requests/:requestId` | Platform moderator while the org is unclaimed; 👑; 🛡️ for a request to join | `requireUser` + `canDecideAccessRequest` (`lib/pure/authz.ts`) | Approve or reject. Approving a request to join adds the membership. |
 | 40 | GET | `/moderator/access-requests` | Platform moderator | `requireUser` + inline `isPlatformModerator` | Pending requests across all unclaimed orgs. |
+| 40a | GET | `/me/access-requests` | 👤 | `requireUser`, filtered on `requester_id` | The caller's own pending requests (shown as "Request pending" in the org picker). |
 
 ## Notifications
 

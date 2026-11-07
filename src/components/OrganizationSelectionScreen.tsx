@@ -25,10 +25,12 @@ import {
   AlertCircle,
   ChevronRight,
   Loader2,
-  UserPlus
+  UserPlus,
+  Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { searchOrganizations, joinOrganization } from '../services/organization.service';
+import { createAccessRequest, getMyPendingAccessRequests } from '../services/accessRequest.service';
 import { emailDomainMatches } from '../utils/validation-utils';
 import { 
   ORG_ROLE_CONFIG, 
@@ -66,6 +68,18 @@ export default function OrganizationSelectionScreen({
   const [viewState, setViewState] = useState<ViewState>('default');
   const [searchResults, setSearchResults] = useState<Organization[]>([]);
   const [joiningOrg, setJoiningOrg] = useState<string | null>(null);
+  // Orgs the user has already asked to join (or asked for a higher role in).
+  const [pendingOrgIds, setPendingOrgIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    getMyPendingAccessRequests()
+      .then((requests) => {
+        if (!cancelled) setPendingOrgIds(new Set(requests.map((r) => r.organization_id)));
+      })
+      .catch((error) => console.error('Error loading your pending requests:', error));
+    return () => { cancelled = true; };
+  }, []);
 
   // Create lookup of user's organization IDs for quick checking
   const userOrgIds = useMemo(() => {
@@ -104,22 +118,37 @@ export default function OrganizationSelectionScreen({
     return () => clearTimeout(debounceTimer);
   }, [searchQuery]);
 
-  // Handle joining an organization. Staff is only offered (see the render
-  // below) when the user's email domain matches the org's allowed_domains
-  // (issue #33 point 7) — the server re-validates regardless.
-  const handleJoinOrganization = async (org: Organization, role: 'Viewer' | 'Staff' = 'Viewer') => {
+  // Joining as Staff straight away is only offered (see the render below) when
+  // the user's email domain matches the org's allowed_domains; the server
+  // checks it against the confirmed sign-in email.
+  const handleJoinAsStaff = async (org: Organization) => {
     setJoiningOrg(org.id);
 
     try {
-      await joinOrganization(org.id, role);
+      await joinOrganization(org.id, 'Staff');
 
-      toast.success(`Joined ${org.name} as ${role}`);
+      toast.success(`Joined ${org.name} as Staff`);
 
       // Refresh the page to update user's organizations
       window.location.reload();
     } catch (error: any) {
       console.error('Error joining organization:', error);
       toast.error(error.message || 'Failed to join organization');
+      setJoiningOrg(null);
+    }
+  };
+
+  // Everyone else asks to join; the org's Admins or Managers approve it.
+  const handleRequestToJoin = async (org: Organization) => {
+    setJoiningOrg(org.id);
+    try {
+      await createAccessRequest(org.id, 'Viewer');
+      setPendingOrgIds((prev) => new Set(prev).add(org.id));
+      toast.success(`Request sent. ${org.name}'s Admins or Managers will let you in.`);
+    } catch (error: any) {
+      console.error('Error requesting to join organization:', error);
+      toast.error(error.message || 'Failed to send the request');
+    } finally {
       setJoiningOrg(null);
     }
   };
@@ -340,49 +369,42 @@ export default function OrganizationSelectionScreen({
                             <ChevronRight className="w-4 h-4 mr-1" />
                             Open
                           </Button>
-                        ) : emailDomainMatches(user.email, organization.allowed_domains) ? (
+                        ) : pendingOrgIds.has(organization.id) ? (
+                          <Button size="sm" variant="outline" disabled className="w-full">
+                            <Clock className="w-4 h-4 mr-1" />
+                            Request pending
+                          </Button>
+                        ) : (
                           <div className="flex gap-1.5">
+                            {emailDomainMatches(user.email, organization.allowed_domains) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleJoinAsStaff(organization)}
+                                disabled={isJoining}
+                                className="flex-1"
+                                title="Your email domain matches this organization"
+                              >
+                                {isJoining ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Join as Staff'}
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleJoinOrganization(organization, 'Viewer')}
+                              onClick={() => handleRequestToJoin(organization)}
                               disabled={isJoining}
                               className="flex-1"
-                              title="Your email domain matches this organization"
                             >
-                              {isJoining ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Viewer'}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleJoinOrganization(organization, 'Staff')}
-                              disabled={isJoining}
-                              className="flex-1"
-                              title="Your email domain matches this organization"
-                            >
-                              {isJoining ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Staff'}
+                              {isJoining ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <UserPlus className="w-4 h-4 mr-1" />
+                                  Request to join
+                                </>
+                              )}
                             </Button>
                           </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleJoinOrganization(organization, 'Viewer')}
-                            disabled={isJoining}
-                            className="w-full"
-                          >
-                            {isJoining ? (
-                              <>
-                                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                                Joining...
-                              </>
-                            ) : (
-                              <>
-                                <UserPlus className="w-4 h-4 mr-1" />
-                                Join as Viewer
-                              </>
-                            )}
-                          </Button>
                         )}
                       </div>
                     </div>

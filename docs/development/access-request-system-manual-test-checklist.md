@@ -46,13 +46,17 @@ this checklist against a hosted dev backend before merging, not just review the 
 - [ ] Open a claimed org's edit form as *that org's own* Admin: no banner, edit/save
       works normally.
 
-## 2. Self-Join (#46)
+## 2. Joining an organization (#46; requests to join from migration 20261107060000)
 
-- [ ] As the Requester, join an org whose `allowed_domains` does **not** match their
-      email: single **"Join as Viewer"** button, unchanged from before this PR.
-- [ ] Join the org whose `allowed_domains` **does** match: two buttons appear
-      (**Viewer** / **Staff**). Clicking **Staff** actually lands the Requester as Staff
-      (check their role on the Team screen).
+- [ ] As the Requester, find an org whose `allowed_domains` does **not** match their
+      email: a single **"Request to join"** button. Clicking it shows a toast and the
+      button becomes **"Request pending"** (also after a reload).
+- [ ] As that org's Admin **or Manager**, the Team screen lists the request under
+      **Pending Access Requests** as **"Join as Viewer"**. Approving it adds the Requester
+      as a Viewer; the Requester gets the "Your request to join … was approved" notice.
+- [ ] Find the org whose `allowed_domains` **does** match (with a confirmed email): two
+      buttons appear (**Join as Staff** / **Request to join**). **Join as Staff** lands the
+      Requester as Staff straight away (check their role on the Team screen).
 
 ## 3. Access Requests — Unclaimed Org (needs the Moderator flag from Prerequisites)
 

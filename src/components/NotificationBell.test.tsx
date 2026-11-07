@@ -184,6 +184,66 @@ describe('NotificationBell (issue #52 — generic notifications)', () => {
     expect(mockToTeam).not.toHaveBeenCalled();
   });
 
+  it('a request to join reads as one, and takes a Manager of that org to Team', async () => {
+    mockUseAuth.mockReturnValue({
+      user: makeUser(),
+      organizations: [{ organization: org, role: 'Manager' }],
+      selectOrganization: vi.fn(),
+    });
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue([
+      {
+        id: 'notif-join',
+        recipient_id: 'manager-1',
+        type: 'access_request.created',
+        payload: {
+          access_request_id: 'req-join',
+          organization_id: 'org-1',
+          organization_name: 'Acme Productions',
+          requester_name: 'Robin Park',
+          requested_role: 'Viewer',
+        },
+        read_at: null,
+        created_at: '2026-01-01T00:00:00Z',
+      } as any,
+    ]);
+
+    const user = userEvent.setup();
+    render(<NotificationBell />);
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    await openBell(user);
+    expect(screen.getByText(/asked to join/)).toBeInTheDocument();
+    await user.click(screen.getByText(/Robin Park/));
+
+    await waitFor(() => expect(mockToTeam).toHaveBeenCalled());
+    expect(mockToModeratorQueue).not.toHaveBeenCalled();
+  });
+
+  it('the outcome of a request to join reads as one', async () => {
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue([
+      {
+        id: 'notif-join-outcome',
+        recipient_id: 'user-1',
+        type: 'access_request.outcome',
+        payload: {
+          access_request_id: 'req-join',
+          organization_id: 'org-1',
+          organization_name: 'Acme Productions',
+          requested_role: 'Staff',
+          status: 'approved',
+          response_message: null,
+        },
+        read_at: null,
+        created_at: '2026-01-01T00:00:00Z',
+      } as any,
+    ]);
+
+    const user = userEvent.setup();
+    render(<NotificationBell />);
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument());
+    await openBell(user);
+    expect(screen.getByText(/Your request to join/)).toBeInTheDocument();
+  });
+
   it('does not query notifications when there is no user', async () => {
     mockUseAuth.mockReturnValue({ user: null, organizations: [], selectOrganization: vi.fn() });
     render(<NotificationBell />);
