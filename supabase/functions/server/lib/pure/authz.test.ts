@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  canAssignRole,
+  takesLastAdmin, canAssignRole,
   parseBearer,
   isRoleAllowed,
   orgsIntersect,
@@ -242,4 +242,18 @@ describe('ORGANIZATION_DELETE_REFERENCES', () => {
       expect(tables.get(table), `column ${table}.${column}`).toContain(column);
     }
   );
+});
+
+// An organization keeps at least one Admin (the database enforces it too).
+describe('takesLastAdmin', () => {
+  it('is true when the only Admin would be removed or given another role', () => {
+    expect(takesLastAdmin({ adminCount: 1, currentRole: 'Admin', newRole: null })).toBe(true);
+    expect(takesLastAdmin({ adminCount: 1, currentRole: 'Admin', newRole: 'Manager' })).toBe(true);
+  });
+
+  it('is false with another Admin, for a non-Admin, or when the role stays Admin', () => {
+    expect(takesLastAdmin({ adminCount: 2, currentRole: 'Admin', newRole: null })).toBe(false);
+    expect(takesLastAdmin({ adminCount: 1, currentRole: 'Staff', newRole: null })).toBe(false);
+    expect(takesLastAdmin({ adminCount: 1, currentRole: 'Admin', newRole: 'Admin' })).toBe(false);
+  });
 });

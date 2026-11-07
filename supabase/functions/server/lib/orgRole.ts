@@ -38,16 +38,15 @@ export interface OrgRoleOptions {
   roles?: string[];
   /** Where to read the org id from (default: the `:id` route param). */
   getOrgId?: OrgIdSource;
-  /** When true, a global admin (user_is_admin RPC) bypasses the membership check. */
-  allowGlobalAdmin?: boolean;
+  /** When true, a platform moderator passes without being a member. */
+  allowPlatformModerator?: boolean;
   /**
-   * When true, a global admin (user_is_admin RPC — "Admin of at least one
-   * org") bypasses the membership check only while the target org is
-   * unclaimed. Once an org has its own Admin, only that org's own Admin (via
-   * the normal membership check below) may act. Mirrors the "Admins can
-   * update per claimed status" RLS policy on organizations.
+   * When true, while the target org is unclaimed (no Admin of its own), a platform moderator or an
+   * Admin or Manager of an org sharing a gig with it passes without being a member
+   * (user_can_manage_unclaimed_org). Mirrors the "Admins can update per claimed status" RLS policy
+   * on organizations.
    */
-  allowGlobalAdminIfUnclaimed?: boolean;
+  allowUnclaimedOrgManagers?: boolean;
 }
 
 /**
@@ -66,25 +65,24 @@ export function requireOrgRole(options: OrgRoleOptions = {}): MiddlewareHandler 
 
     const user = c.get('user');
 
-    if (options.allowGlobalAdmin) {
-      const { data: isAdmin } = await supabaseAdmin.rpc('user_is_admin', { user_uuid: user.id });
-      if (isAdmin) {
+    if (options.allowPlatformModerator) {
+      const { data: profile } = await supabaseAdmin
+        .from('users').select('platform_moderator').eq('id', user.id).maybeSingle();
+      if (profile?.platform_moderator === true) {
         c.set('orgId', orgId);
         await next();
         return;
       }
     }
 
-    if (options.allowGlobalAdminIfUnclaimed) {
-      const { data: org } = await supabaseAdmin
-        .from('organizations').select('claimed').eq('id', orgId).maybeSingle();
-      if (org?.claimed === false) {
-        const { data: isAdmin } = await supabaseAdmin.rpc('user_is_admin', { user_uuid: user.id });
-        if (isAdmin) {
-          c.set('orgId', orgId);
-          await next();
-          return;
-        }
+    if (options.allowUnclaimedOrgManagers) {
+      const { data: canManage } = await supabaseAdmin.rpc('user_can_manage_unclaimed_org', {
+        p_organization_id: orgId, p_user_id: user.id,
+      });
+      if (canManage === true) {
+        c.set('orgId', orgId);
+        await next();
+        return;
       }
     }
 
