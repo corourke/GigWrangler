@@ -6,6 +6,7 @@ import { pickProfileUpdates } from '../lib/pure/memberUpdate.ts';
 import { newPasswordError } from '../lib/pure/password.ts';
 import { normalizeWebsiteUrl } from '../lib/pure/websiteUrl.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
+import { fail } from '../lib/fail.ts';
 
 const ORG_UPDATE_FIELDS = [
   'name', 'roles', 'url', 'phone_number', 'description',
@@ -41,8 +42,7 @@ export function registerOrganizations(app: App) {
     const { data: organizations, error } = await supabaseAdmin
       .from('organizations').select('*').order('name');
     if (error) {
-      console.error('Error fetching organizations:', error);
-      return c.json({ error: error.message }, 400);
+      return fail(c, 'Error fetching organizations', error);
     }
     return c.json(organizations || []);
   });
@@ -68,8 +68,7 @@ export function registerOrganizations(app: App) {
     const { data: org, error: orgError } = await supabaseAdmin
       .from('organizations').insert({ ...orgData, claimed: auto_join }).select().single();
     if (orgError) {
-      console.error('Error creating organization:', orgError);
-      return c.json({ error: orgError.message }, 400);
+      return fail(c, 'Error creating organization', orgError);
     }
 
     if (auto_join) {
@@ -77,9 +76,8 @@ export function registerOrganizations(app: App) {
         .from('organization_members')
         .insert({ organization_id: org.id, user_id: user.id, role: 'Admin' });
       if (memberError) {
-        console.error('Error adding organization member:', memberError);
         await supabaseAdmin.from('organizations').delete().eq('id', org.id);
-        return c.json({ error: memberError.message }, 400);
+        return fail(c, 'Error adding organization member', memberError);
       }
     }
 
@@ -120,8 +118,7 @@ export function registerOrganizations(app: App) {
     const { data: updatedOrg, error: updateError } = await supabaseAdmin
       .from('organizations').update(updateData).eq('id', orgId).select().single();
     if (updateError) {
-      console.error('Error updating organization:', updateError);
-      return c.json({ error: updateError.message }, 400);
+      return fail(c, 'Error updating organization', updateError);
     }
     return c.json(updatedOrg);
   });
@@ -154,8 +151,7 @@ export function registerOrganizations(app: App) {
     const { error: deleteError } = await supabaseAdmin
       .from('organizations').delete().eq('id', orgId);
     if (deleteError) {
-      console.error('Error deleting organization:', deleteError);
-      return c.json({ error: deleteError.message }, 400);
+      return fail(c, 'Error deleting organization', deleteError);
     }
     return c.json({ success: true });
   });
@@ -207,8 +203,7 @@ export function registerOrganizations(app: App) {
       .insert({ organization_id: orgId, user_id: targetUserId, role: targetRole })
       .select(MEMBER_USER_SELECT).single();
     if (memberError) {
-      console.error('Error joining organization:', memberError);
-      return c.json({ error: memberError.message }, 400);
+      return fail(c, 'Error joining organization', memberError);
     }
     return c.json({ organization: org, role: membership.role, member: membership });
   });
@@ -220,8 +215,7 @@ export function registerOrganizations(app: App) {
       .from('organization_members').select(MEMBER_USER_SELECT)
       .eq('organization_id', orgId).order('created_at', { ascending: true });
     if (error) {
-      console.error('Error fetching organization members:', error);
-      return c.json({ error: error.message }, 400);
+      return fail(c, 'Error fetching organization members', error);
     }
     const enriched = await Promise.all((members || []).map(enrichMember));
     return c.json(enriched);
@@ -260,8 +254,7 @@ export function registerOrganizations(app: App) {
       const { error: userUpdateError } = await supabaseAdmin
         .from('users').update(userUpdates).eq('id', targetMember.user_id);
       if (userUpdateError) {
-        console.error('Error updating user profile:', userUpdateError);
-        return c.json({ error: userUpdateError.message }, 400);
+        return fail(c, 'Error updating user profile', userUpdateError);
       }
     }
 
@@ -286,8 +279,7 @@ export function registerOrganizations(app: App) {
       const { error: memberUpdateError } = await supabaseAdmin
         .from('organization_members').update(memberUpdates).eq('id', memberId);
       if (memberUpdateError) {
-        console.error('Error updating organization member:', memberUpdateError);
-        return c.json({ error: memberUpdateError.message }, 400);
+        return fail(c, 'Error updating organization member', memberUpdateError);
       }
     }
 
@@ -325,8 +317,7 @@ export function registerOrganizations(app: App) {
     const { error: deleteError } = await supabaseAdmin
       .from('organization_members').delete().eq('id', memberId);
     if (deleteError) {
-      console.error('Error removing organization member:', deleteError);
-      return c.json({ error: deleteError.message }, 400);
+      return fail(c, 'Error removing organization member', deleteError);
     }
     return c.json({ success: true });
   });
@@ -350,8 +341,7 @@ export function registerOrganizations(app: App) {
     const { error: deleteError } = await supabaseAdmin
       .from('invitations').delete().eq('id', invitationId);
     if (deleteError) {
-      console.error('Error cancelling invitation:', deleteError);
-      return c.json({ error: deleteError.message }, 400);
+      return fail(c, 'Error cancelling invitation', deleteError);
     }
     return c.json({ success: true });
   });
@@ -384,11 +374,7 @@ export function registerOrganizations(app: App) {
       p_inviter_id: user.id,
     });
     if (rpcError) {
-      console.error('Error calling invite_user_to_organization RPC:', rpcError);
-      return c.json(
-        { error: rpcError.message || 'Failed to process invitation in database', details: rpcError.details, hint: rpcError.hint, code: rpcError.code },
-        400
-      );
+      return fail(c, 'Error calling invite_user_to_organization RPC', rpcError);
     }
 
     const origin = c.req.header('origin') || 'http://localhost:3000';
@@ -398,7 +384,7 @@ export function registerOrganizations(app: App) {
     });
     if (emailError) {
       console.warn('Error sending invitation email:', emailError);
-      return c.json({ ...data, email_sent: false, email_error: emailError.message });
+      return c.json({ ...data, email_sent: false, email_error: 'The invitation email could not be sent' });
     }
     return c.json({ ...data, email_sent: true });
   });
@@ -427,16 +413,17 @@ export function registerOrganizations(app: App) {
       app_metadata: { must_change_password: true },
     });
     if (createAuthError || !authData.user) {
-      console.error('Error creating auth user:', createAuthError);
-      return c.json({ error: createAuthError?.message || 'Failed to create user' }, 400);
+      if ((createAuthError as { code?: string } | null)?.code === 'email_exists') {
+        return c.json({ error: 'An account with this email already exists' }, 400);
+      }
+      return fail(c, 'Error creating auth user', createAuthError);
     }
 
     const { error: profileError } = await supabaseAdmin
       .from('users').insert({ id: authData.user.id, email, first_name, last_name }).select().single();
     if (profileError) {
-      console.error('Error creating user profile:', profileError);
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-      return c.json({ error: profileError.message }, 400);
+      return fail(c, 'Error creating user profile', profileError);
     }
 
     const { data: memberData, error: memberInsertError } = await supabaseAdmin
@@ -444,10 +431,9 @@ export function registerOrganizations(app: App) {
       .insert({ organization_id: orgId, user_id: authData.user.id, role })
       .select(`*, user:users(id, first_name, last_name, email)`).single();
     if (memberInsertError) {
-      console.error('Error adding member to organization:', memberInsertError);
       await supabaseAdmin.from('users').delete().eq('id', authData.user.id);
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-      return c.json({ error: memberInsertError.message }, 400);
+      return fail(c, 'Error adding member to organization', memberInsertError);
     }
     return c.json(memberData);
   });
