@@ -5,6 +5,7 @@ import { captureException } from "../_shared/sentry.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { buildScanParams, readScanResponse } from "./scanRequest.ts";
 import { mediaTypeFor, queueUpdateFor, staleScanCutoff } from "./scanQueue.ts";
+import { canScanInvoices, scanLimitError, scanFailure } from "./scanLimits.ts";
 
 function getCorsHeaders(req: Request): Record<string, string> {
   return corsHeaders(req.headers.get('Origin'), {
@@ -14,8 +15,6 @@ function getCorsHeaders(req: Request): Record<string, string> {
 }
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
-// Raised from 20 for scanning a batch of invoices at once (10-01); about $3/hour at most.
-const SCANS_PER_HOUR_LIMIT = 60;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const ASSET_CATEGORY_HINTS = `
@@ -133,22 +132,31 @@ async function scanFile(file: File, organizationId: string, userId: string, admi
     return { status: 415, body: { error: 'Unsupported file type (PDF, JPEG, PNG, WebP, or GIF only)' } };
   }
 
-  // Per-user rate limit: count scans in the trailing hour before spending
-  // Anthropic credits; record the attempt before making the call
+  // Limits: the person's scans in the trailing hour and the organization's in the trailing
+  // 24 hours, counted before spending Anthropic credits; the attempt is recorded before the call
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { count: recentScans, error: usageError } = await adminClient
-    .from('ai_scan_usage')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .gte('created_at', oneHourAgo);
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const [userUsage, orgUsage] = await Promise.all([
+    adminClient
+      .from('ai_scan_usage')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', oneHourAgo),
+    adminClient
+      .from('ai_scan_usage')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
+      .gte('created_at', oneDayAgo),
+  ]);
 
-  if (usageError) {
-    console.error('Failed to check scan usage:', usageError);
+  if (userUsage.error || orgUsage.error) {
+    console.error('Failed to check scan usage:', userUsage.error ?? orgUsage.error);
     throw new Error('Unable to verify scan quota');
   }
 
-  if ((recentScans ?? 0) >= SCANS_PER_HOUR_LIMIT) {
-    return { status: 429, body: { error: `Scan limit reached (${SCANS_PER_HOUR_LIMIT}/hour). Try again later.` } };
+  const limitError = scanLimitError({ userScansLastHour: userUsage.count ?? 0, orgScansLastDay: orgUsage.count ?? 0 });
+  if (limitError) {
+    return { status: 429, body: { error: limitError } };
   }
 
   const { error: insertError } = await adminClient
@@ -159,8 +167,7 @@ async function scanFile(file: File, organizationId: string, userId: string, admi
     throw new Error('Unable to record scan usage');
   }
 
-  // Opportunistic cleanup so the usage table stays small
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  // Opportunistic cleanup so the usage table stays small (the daily limit needs only the last 24 hours)
   await adminClient.from('ai_scan_usage').delete().lt('created_at', oneDayAgo);
 
   const arrayBuffer = await file.arrayBuffer();
@@ -210,7 +217,7 @@ async function scanFile(file: File, organizationId: string, userId: string, admi
         status: 403,
         body: {
           error: 'SCAN_ACCESS_REQUIRED',
-          message: `Anthropic model access denied. Status: ${err.status}. Message: ${err.message}`,
+          message: 'Invoice scanning is not available right now.',
         },
       };
     } else {
@@ -337,7 +344,7 @@ Deno.serve(async (req) => {
         .eq('organization_id', item.organization_id)
         .eq('user_id', user.id)
         .maybeSingle();
-      if (!role || !['Admin', 'Manager'].includes(role.role)) {
+      if (!canScanInvoices(role?.role)) {
         return json(403, { error: 'Only Admins and Managers can scan invoices' });
       }
 
@@ -359,8 +366,10 @@ Deno.serve(async (req) => {
         const file = new File([blob], item.file_name, { type: blob.type });
         result = await scanFile(file, item.organization_id, user.id, adminClient);
       } catch (err: any) {
+        const reference = crypto.randomUUID();
+        console.error(`Error scanning a queued invoice (reference ${reference}):`, err);
         await captureException(err);
-        result = { status: 500, body: { error: err.message || 'Scan failed' } };
+        result = scanFailure(reference);
       }
       await adminClient.from('purchase_scan_queue').update(queueUpdateFor(result)).eq('id', queueItemId);
       return json(result.status, result.body);
@@ -386,30 +395,26 @@ Deno.serve(async (req) => {
 
     const { data: membership, error: membershipError } = await adminClient
       .from('organization_members')
-      .select('id')
+      .select('role')
       .eq('organization_id', organizationId)
       .eq('user_id', user.id)
       .maybeSingle();
 
-    if (membershipError || !membership) {
-      return new Response(JSON.stringify({ error: 'Not a member of this organization' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (membershipError || !canScanInvoices(membership?.role)) {
+      return json(403, { error: 'Only Admins and Managers can scan invoices' });
     }
 
     const result = await scanFile(file, organizationId, user.id, adminClient);
     return json(result.status, result.body);
 
   } catch (error: any) {
-    console.error('Error in ai-scan:', error);
+    const reference = crypto.randomUUID();
+    console.error(`Error in ai-scan (reference ${reference}):`, error);
     await captureException(error);
-    return new Response(
-      JSON.stringify({ error: error.message || 'Internal Server Error' }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    const failure = scanFailure(reference);
+    return new Response(JSON.stringify(failure.body), {
+      status: failure.status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });
