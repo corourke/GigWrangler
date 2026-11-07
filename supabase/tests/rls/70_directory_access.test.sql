@@ -7,6 +7,8 @@
 UPDATE organizations SET claimed = false WHERE id = rls_test.u('org_b');
 UPDATE users SET platform_moderator = true WHERE id = rls_test.u('c_viewer');
 
+CREATE FUNCTION rls_test.run(p_user text, p_sql text) RETURNS int LANGUAGE sql AS
+  $$ SELECT rls_test.try(rls_test.u(p_user), p_sql) $$;
 CREATE FUNCTION rls_test.b(p bool) RETURNS int LANGUAGE sql AS $$ SELECT CASE WHEN p THEN 1 ELSE 0 END $$;
 
 -- 1. Managing an unclaimed organization: moderators, and Admins/Managers of an org sharing a gig.

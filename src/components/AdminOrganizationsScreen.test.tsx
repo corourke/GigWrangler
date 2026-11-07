@@ -5,8 +5,8 @@ import { makeUser } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
 
 vi.mock('./AppHeader', () => ({ default: () => null }))
-const invoke = vi.fn(async () => ({ data: [], error: null }))
-const rpc = vi.fn(async () => ({ data: false, error: null }))
+const invoke = vi.fn(async (_path: string): Promise<{ data: unknown; error: unknown }> => ({ data: [], error: null }))
+const rpc = vi.fn(async (_fn: string, _args: unknown): Promise<{ data: unknown; error: unknown }> => ({ data: false, error: null }))
 vi.mock('../utils/supabase/client', () => ({
   createClient: () => ({ functions: { invoke }, rpc }),
 }))

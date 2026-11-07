@@ -83,8 +83,7 @@ export default function PersonMatchResults({
   );
 }
 
-/** The line under a match's name: masked email, their organizations, and why it matched when that isn't obvious. */
+/** The line under a match's name: why it matched, when that isn't obvious. */
 export function personMatchDetail(m: PersonMatch): string {
-  const why = m.matched_on === 'phone' ? 'same phone' : m.matched_on === 'similar name' ? 'similar name' : null;
-  return [m.email_hint, m.organization_names.join(', '), why].filter(Boolean).join(' · ');
+  return m.matched_on === 'phone' ? 'same phone' : m.matched_on === 'similar name' ? 'similar name' : '';
 }
