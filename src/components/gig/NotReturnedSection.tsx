@@ -16,6 +16,7 @@ import { recordKind } from '../../utils/equipmentItems';
 import { formatDateDisplay } from '../../utils/dateUtils';
 import { WRITE_OFF_LOCKED_MESSAGE } from '../../utils/writeOffMessages';
 import { plural } from '../../utils/plural';
+import { NOT_RETURNED_STATUS } from '../../config/inventoryWorkflow';
 
 interface NotReturnedSectionProps {
   organizationId: string;
@@ -51,7 +52,7 @@ export default function NotReturnedSection({ organizationId, gigId, gigEnd, canE
   useEffect(() => { load(); }, [load]);
 
   const over = new Date(gigEnd).getTime() < Date.now();
-  const shown = notReturned.filter((e) => over || e.status === 'Not Returned');
+  const shown = notReturned.filter((e) => over || e.status === NOT_RETURNED_STATUS);
   if (!shown.length && !writtenOff.length) return null;
 
   const act = async (what: () => Promise<unknown>, done: string) => {

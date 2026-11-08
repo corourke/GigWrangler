@@ -15,6 +15,7 @@
  * A gig row with a purchase_id is skipped: its purchase line already counts.
  */
 import { toCsv } from './csv';
+import { money } from './money';
 import { TAX_DEPRECIATE_ABOVE, lineTaxTreatment, suggestedTaxTreatment, taxTreatmentLabel, type TaxTreatment } from './taxTreatment';
 import { tidyAssetCategory } from './purchaseCategories';
 import { asRecoveryPeriod, type RecoveryPeriod } from './recoveryPeriod';
@@ -81,7 +82,7 @@ export interface ScheduleCLineLabel {
 
 // ---- Shared ------------------------------------------------------------------
 
-export const money = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100 || 0;
+export { money };
 
 /** YYYY-MM-DD of a date or timestamp, in the viewer's time zone for timestamps. */
 export function dayOf(value: string | null | undefined): string | null {
