@@ -11,10 +11,12 @@ import { lineTaxTreatment } from '../utils/taxTreatment';
 import {
   createGigFinancial,
   updateGigFinancial,
-  deleteGigFinancial,
   getGigFinancialsByPurchaseId,
   logGigFinancialAdded,
   logGigFinancialChanged,
+  logGigFinancialRemoved,
+  soleReceiptPathsFor,
+  removeReceiptFiles,
 } from './gigFinancial.service';
 import { logAssetSaved, logAssetStatusChanged } from './asset.service';
 import { getKitOptions, createKit, addKitAssetLines } from './kit.service';
@@ -495,78 +497,71 @@ export async function createLedgerEntryForPurchaseLine(
   }
 }
 
-/** Outcome of reconciling a purchase line's ledger entry after its gig changed. */
-export type LedgerReconcileResult =
+/** What changing a purchase line's gig did (B21). */
+export type LineGigChange =
+  /** The line was already on that gig: nothing written. */
+  | { action: 'unchanged' }
+  /** Linked to a gig, but the line isn't expensed, so it has no gig expense. */
   | { action: 'noop' }
-  /** No ledger entry exists yet — caller should offer to create one for `gigId`. */
+  /** Linked; no gig expense exists yet. The caller may offer to create one for `gigId`. */
   | { action: 'needs-entry'; gigId: string }
-  /** A ledger entry already covers this line on the target gig — nothing to do. */
-  | { action: 'exists'; financialIds: string[] }
-  /** Existing ledger entries were moved to follow the line's new gig. */
-  | { action: 'moved'; financialIds: string[]; toGigId: string }
-  /** The line was cleared of its gig — caller must confirm removing these entries. */
-  | { action: 'confirm-remove'; financialIds: string[]; fromGigId: string; amount: number };
+  /** Linked; a gig expense already covers it there. */
+  | { action: 'exists' }
+  /** Linked to a new gig, and its gig expenses moved with it. */
+  | { action: 'moved'; toGigId: string; count: number }
+  /** Unlinked from every gig; `removed` gig expenses were deleted (the user confirmed). */
+  | { action: 'unlinked'; removed: number };
+
+type SetLineGigResult = {
+  changed: boolean;
+  moved: { before: DbGigFinancial; after: DbGigFinancial }[];
+  removed: DbGigFinancial[];
+  entries: number;
+};
 
 /**
- * Keep a purchase line's auto-created gig ledger entry in sync after its
- * `gig_id` changed. Non-destructive operations (moving an entry to follow a
- * reassigned line) are applied here; destructive ones (removing an entry when a
- * line is unlinked from every gig) are returned for the caller to confirm.
+ * Change a purchase line's gig in one call (set_purchase_line_gig, B21): the line and its gig
+ * expenses change together, or nothing does. Clearing the gig of a line that has gig expenses
+ * deletes them only with `removeEntries` (the user confirmed); otherwise it is refused.
+ * Removed rows' receipt files go after the call succeeds; history is logged from what it returns.
  *
- * Only expensed lines ever carry a ledger entry; a depreciated line never does (#133).
+ * Only expensed lines ever carry a gig expense; a depreciated line never does (#133).
  */
-export async function reconcileLedgerForLineGigChange(params: {
-  item: LedgerLineSource;
-  previousGigId: string | null | undefined;
-  newGigId: string | null | undefined;
-  organizationId: string;
-}): Promise<LedgerReconcileResult> {
-  const { item, newGigId } = params;
+export async function setPurchaseLineGig(
+  item: LedgerLineSource & { gig_id?: string | null },
+  gigId: string | null,
+  opts: { removeEntries?: boolean } = {},
+): Promise<LineGigChange> {
   try {
+    await getCurrentUser();
+    const removeEntries = !gigId && !!opts.removeEntries;
+    // Read before the call: the delete sweeps the attachment links with the rows.
+    const receiptPaths = removeEntries
+      ? await soleReceiptPathsFor((await getGigFinancialsByPurchaseId(item.id)).map((f) => f.id))
+      : [];
+    const { data, error } = await getSupabase().rpc('set_purchase_line_gig', {
+      p_line_id: item.id,
+      p_gig_id: gigId,
+      p_remove_entries: removeEntries,
+    });
+    if (error) throw error;
+    // The function's jsonb result (migration 20261108150000).
+    const result = data as unknown as SetLineGigResult;
+    if (!result.changed) return { action: 'unchanged' };
+
+    for (const { before, after } of result.moved) await logGigFinancialChanged(before, after);
+    if (result.removed.length > 0) {
+      await removeReceiptFiles(receiptPaths);
+      for (const row of result.removed) await logGigFinancialRemoved(row);
+    }
+
+    if (!gigId) return { action: 'unlinked', removed: result.removed.length };
+    if (result.moved.length > 0) return { action: 'moved', toGigId: gigId, count: result.moved.length };
+    if (result.entries > 0) return { action: 'exists' };
     if (lineTaxTreatment(item) !== 'expense') return { action: 'noop' };
-
-    const existing = await getGigFinancialsByPurchaseId(item.id);
-
-    if (newGigId) {
-      if (existing.length === 0) return { action: 'needs-entry', gigId: newGigId };
-
-      const misplaced = existing.filter((f) => f.gig_id !== newGigId);
-      if (misplaced.length === 0) {
-        return { action: 'exists', financialIds: existing.map((f) => f.id) };
-      }
-      for (const f of misplaced) {
-        await updateGigFinancial(f.id, { gig_id: newGigId });
-      }
-      return { action: 'moved', financialIds: misplaced.map((f) => f.id), toGigId: newGigId };
-    }
-
-    // Clearing the gig.
-    if (existing.length === 0) return { action: 'noop' };
-    return {
-      action: 'confirm-remove',
-      financialIds: existing.map((f) => f.id),
-      fromGigId: existing[0].gig_id,
-      amount: existing.reduce((sum, f) => sum + (Number(f.amount) || 0), 0),
-    };
+    return { action: 'needs-entry', gigId };
   } catch (err) {
-    return handleApiError(err, 'reconcile ledger for purchase line');
-  }
-}
-
-/**
- * Delete the given gig ledger entries. Used when the user confirms unlinking a
- * purchase line from its gig (see `reconcileLedgerForLineGigChange`).
- */
-export async function removeLedgerEntriesForPurchaseLine(financialIds: string[]): Promise<{ removed: number }> {
-  try {
-    let removed = 0;
-    for (const id of financialIds) {
-      await deleteGigFinancial(id);
-      removed += 1;
-    }
-    return { removed };
-  } catch (err) {
-    return handleApiError(err, 'remove ledger entries for purchase line');
+    return handleApiError(err, 'change the gig of a purchase line');
   }
 }
 

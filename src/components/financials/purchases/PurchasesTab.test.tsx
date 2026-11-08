@@ -21,10 +21,8 @@ vi.mock('../../../services/purchase.service', () => ({
   trackPurchaseLineAsEquipment: vi.fn(async () => 'a-new'),
   scanInvoice: vi.fn(),
   deletePurchase: vi.fn(),
-  updatePurchase: vi.fn(),
-  reconcileLedgerForLineGigChange: vi.fn(),
+  setPurchaseLineGig: vi.fn(),
   createLedgerEntryForPurchaseLine: vi.fn(),
-  removeLedgerEntriesForPurchaseLine: vi.fn(),
   purchaseLineLedgerAmount: vi.fn(),
   getLinkedGigExpenses: vi.fn(async () => ({ entries: 0, gigs: 0, amount: 0 })),
 }));

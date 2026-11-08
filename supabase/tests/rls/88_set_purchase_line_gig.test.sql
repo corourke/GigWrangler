@@ -11,7 +11,8 @@ INSERT INTO rls_test.ids VALUES
   ('h_old', '00000000-0000-0000-0000-00000000d104'),
   ('l_old', '00000000-0000-0000-0000-00000000d105'),
   ('f1', '00000000-0000-0000-0000-00000000d301'),
-  ('f_old', '00000000-0000-0000-0000-00000000d302');
+  ('f_old', '00000000-0000-0000-0000-00000000d302'),
+  ('f_in', '00000000-0000-0000-0000-00000000d303');
 
 INSERT INTO gigs (id, title, status, start, "end", timezone, created_by, updated_by, owner_organization_id) VALUES
   (rls_test.u('gig2'), 'Second gig', (enum_range(NULL::gig_status))[1], now(), now() + interval '4 hours', 'UTC', rls_test.u('a_admin'), rls_test.u('a_admin'), rls_test.u('org_a')),
@@ -32,6 +33,10 @@ INSERT INTO purchases (id, organization_id, parent_id, row_type, purchase_date, 
 INSERT INTO gig_financials (id, gig_id, organization_id, direction, stage, amount, amount_settled, paid_at, date, purchase_id, description, created_by) VALUES
   (rls_test.u('f1'), rls_test.u('gig'), rls_test.u('org_a'), 'out', 'paid', 60, 60, '2026-05-01', '2026-05-01', rls_test.u('l1'), 'Tape', rls_test.u('a_admin')),
   (rls_test.u('f_old'), rls_test.u('gig'), rls_test.u('org_a'), 'out', 'paid', 20, 20, '2025-05-01', '2025-05-01', rls_test.u('l_old'), 'Old', rls_test.u('a_admin'));
+-- A filed-year row the lock does protect (income is tax data), to show a refused step undoes the
+-- whole change.
+INSERT INTO gig_financials (id, gig_id, organization_id, direction, stage, amount, amount_settled, paid_at, date, purchase_id, description, created_by) VALUES
+  (rls_test.u('f_in'), rls_test.u('gig'), rls_test.u('org_a'), 'in', 'paid', 5, 5, '2025-05-01', '2025-05-01', rls_test.u('l_old'), 'Refund', rls_test.u('a_admin'));
 INSERT INTO tax_years (organization_id, year, filed_on) VALUES (rls_test.u('org_a'), 2025, '2026-03-25');
 
 -- As p_user, call p_call, then return a number from p_check. Rolled back; -1 if refused.
@@ -52,7 +57,7 @@ BEGIN
 END $$;
 CREATE FUNCTION rls_test.set_gig(p_line text, p_gig text, p_remove boolean DEFAULT false) RETURNS text LANGUAGE sql STABLE AS $$
   SELECT format('SELECT public.set_purchase_line_gig(%L, %s, %s)', rls_test.u(p_line),
-    CASE WHEN p_gig IS NULL THEN 'NULL' ELSE quote_literal(rls_test.u(p_gig)) END, p_remove)
+    CASE WHEN p_gig IS NULL THEN 'NULL' ELSE quote_literal(rls_test.u(p_gig)) END, CASE WHEN p_remove THEN 'true' ELSE 'false' END)
 $$;
 
 -- Moving a line to another gig takes its gig expense along.
@@ -73,9 +78,25 @@ SELECT rls_test.expect('... and its gig expense removed', rls_test.call_then('a_
 SELECT rls_test.expect('A line with no gig expenses just unlinks', rls_test.call_then('a_admin', rls_test.set_gig('l_none', NULL),
   format('SELECT count(*)::int FROM public.purchases WHERE id = %L AND gig_id IS NULL', rls_test.u('l_none'))), 1);
 
--- All or nothing: a filed year refuses, and nothing changes.
-SELECT rls_test.expect('A filed year refuses a move', rls_test.call_then('a_admin', rls_test.set_gig('l_old', 'gig2'), 'SELECT 1'), -1);
-SELECT rls_test.expect('A filed year refuses a confirmed clear', rls_test.call_then('a_admin', rls_test.set_gig('l_old', NULL, true), 'SELECT 1'), -1);
+-- A line's gig link isn't tax data (the purchase is), so a filed year doesn't stop a move.
+SELECT rls_test.expect('A filed year still lets a line move gigs', rls_test.call_then('a_admin', rls_test.set_gig('l_old', 'gig2'),
+  format('SELECT count(*)::int FROM public.gig_financials WHERE purchase_id = %L AND gig_id = %L', rls_test.u('l_old'), rls_test.u('gig2'))), 2);
+
+-- All or nothing: one refused step (deleting filed-year income) undoes the whole change.
+SELECT rls_test.expect('A refused removal refuses the change', rls_test.call_then('a_admin', rls_test.set_gig('l_old', NULL, true), 'SELECT 1'), -1);
+DO $$
+DECLARE v_user uuid := rls_test.u('a_admin'); v_line uuid := rls_test.u('l_old');
+BEGIN
+  BEGIN
+    PERFORM set_config('request.jwt.claim.sub', v_user::text, true);
+    SET LOCAL ROLE authenticated;
+    PERFORM public.set_purchase_line_gig(v_line, NULL, true);
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+  RESET ROLE;
+END $$;
+SELECT rls_test.expect('... the line keeps its gig', (SELECT count(*)::int FROM public.purchases WHERE id = rls_test.u('l_old') AND gig_id = rls_test.u('gig')), 1);
+SELECT rls_test.expect('... and its gig expense stays', (SELECT count(*)::int FROM public.gig_financials WHERE id = rls_test.u('f_old')), 1);
 
 -- Who may.
 SELECT rls_test.expect('A gig outside the purchase''s organization is refused', rls_test.call_then('a_admin', rls_test.set_gig('l1', 'gig_c'), 'SELECT 1'), -1);

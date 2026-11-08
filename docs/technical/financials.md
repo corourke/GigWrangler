@@ -235,7 +235,13 @@ Files live in the `attachments` table and storage bucket, joined through `entity
   - the Type filter is All, Expensed, Depreciated or Equipment;
   - **Track as equipment** replaces **Reclassify as Asset**;
   - **Assign Gig** and **Add to gig ledger** appear only on expensed lines;
-  - a purchase is never assigned to a gig as a whole: **Assign receipt to gig** was removed in #133 step 3; lines are linked one at a time (`reconcileLedgerForLineGigChange`).
+  - a purchase is never assigned to a gig as a whole: **Assign receipt to gig** was removed in #133 step 3; lines are linked one at a time;
+  - changing a line's gig is one call, `set_purchase_line_gig` (B21, migration 20261108150000, via `setPurchaseLineGig`):
+    - **Moving** to another gig moves the line and its gig expenses (`purchase_id` = the line) together. The gig must have the line's organization on it.
+    - **Clearing** the gig of a line that has gig expenses deletes them only once the user confirms (`p_remove_entries`). Without confirmation, nothing changes.
+    - **The same gig again** writes nothing.
+    - **All or nothing:** if any step is refused, nothing changes. The line's gig link and its purchase-linked gig expenses are not tax data (the purchase is), so a filed year does not stop a move.
+    - **After a delete:** the removed rows' receipt files go once the call succeeds. If the file removal fails, the files are left orphaned (the rows are gone) and a count is reported to Sentry, with no paths.
 - **Tax years:** Admins lock and unlock years under **Financials → Reporting → Schedule C → Filed tax years** (`TaxYearsCard`, shown under the Schedule C report only; `taxYear.service.ts`); Managers see them read-only.
 
 "Track as equipment" is a separate question.

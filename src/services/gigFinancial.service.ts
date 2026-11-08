@@ -1,4 +1,5 @@
 import { FinCategory, FinDirection, FinStage, DbGigFinancial, FieldChange } from '../utils/supabase/types';
+import * as Sentry from '@sentry/react';
 import { handleApiError } from '../utils/api-error-utils';
 import { getSupabase, getCurrentUser, listRecords } from './base/dataAccess';
 import { writeActivity, actorNameOf } from './writeActivity';
@@ -489,16 +490,32 @@ async function soleAttachmentPathsForGigFinancial(finId: string): Promise<string
   }
 }
 
+/** The sole-owned receipt files of several financial records (see above). Never throws. */
+export async function soleReceiptPathsFor(finIds: string[]): Promise<string[]> {
+  const all = await Promise.all(finIds.map((id) => soleAttachmentPathsForGigFinancial(id)));
+  return all.flat();
+}
+
 /**
- * Best-effort removal of those files, once the row is gone. The storage backend can only be
- * written through the Storage API, so this is done here. Never throws.
+ * Best-effort removal of receipt files, once their rows are gone. Storage can only be written
+ * through the Storage API, outside the database transaction, so a failure leaves the files
+ * orphaned (the rows are already gone). It is reported to Sentry with a count only: no paths or
+ * user data. Never throws.
  */
-async function removeAttachmentFiles(paths: string[]): Promise<void> {
+export async function removeReceiptFiles(paths: string[]): Promise<void> {
   if (paths.length === 0) return;
+  let failed = false;
   try {
-    await getSupabase().storage.from('attachments').remove(paths);
-  } catch (err) {
-    console.warn('removeAttachmentFiles: non-fatal', err);
+    const { error } = await getSupabase().storage.from('attachments').remove(paths);
+    failed = !!error;
+  } catch {
+    failed = true;
+  }
+  if (failed) {
+    Sentry.captureMessage('Receipt files could not be removed after their rows were deleted', {
+      level: 'warning',
+      extra: { count: paths.length },
+    });
   }
 }
 
@@ -516,7 +533,7 @@ export async function deleteGigFinancial(finId: string) {
       throw new Error('Financial record not found, or you do not have permission to delete it.');
     }
     // Only now that the row is gone (B3): a refused delete (a filed year, no permission) keeps its receipt.
-    await removeAttachmentFiles(receiptPaths);
+    await removeReceiptFiles(receiptPaths);
     await logFinancialEvent('financial.removed', data[0] as DbGigFinancial);
     return { success: true };
   } catch (err) {
@@ -530,6 +547,9 @@ export async function deleteGigFinancial(finId: string) {
  */
 export async function logGigFinancialAdded(row: DbGigFinancial): Promise<void> {
   await logFinancialEvent('financial.added', row);
+}
+export async function logGigFinancialRemoved(row: DbGigFinancial): Promise<void> {
+  await logFinancialEvent('financial.removed', row);
 }
 export async function logGigFinancialChanged(before: DbGigFinancial, after: DbGigFinancial): Promise<void> {
   const changes = computeFieldChanges(before, after, LOGGED_FIELDS);
