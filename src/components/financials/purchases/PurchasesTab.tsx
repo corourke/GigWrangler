@@ -80,6 +80,7 @@ import {
   type DatePreset,
   type PurchaseTypeFilter,
 } from './purchaseFilters';
+import { ATTACHMENT_FILE_ACCEPT } from '../../../utils/fileAccept';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** A purchase date (YYYY-MM-DD) split for the date block on each purchase card. */
@@ -1098,7 +1099,7 @@ export default function PurchasesTab({
         ref={fileInputRef}
         onChange={handleAttachFile}
         className="hidden"
-        accept=".pdf,image/*"
+        accept={ATTACHMENT_FILE_ACCEPT}
       />
     </div>
   );

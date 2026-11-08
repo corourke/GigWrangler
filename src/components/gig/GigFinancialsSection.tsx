@@ -59,6 +59,7 @@ import FinancialRowDialog from './financials/FinancialRowDialog';
 import RecordPaymentDialog, { type RecordPaymentValues } from './financials/RecordPaymentDialog';
 import { formatMoney, formatShort, rowName, stageText } from './financials/format';
 import { projectedStaffCost } from '../../utils/rateEstimate';
+import { SCAN_FILE_ACCEPT } from '../../utils/fileAccept';
 
 type FinancialRow = DbGigFinancial & { counterparty?: { id: string; name: string } | null; attachment_count?: number };
 
@@ -301,7 +302,7 @@ export default function GigFinancialsSection({
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                   onChange={handleUploadReceipt}
                   disabled={isScanning}
-                  accept=".pdf,image/*"
+                  accept={SCAN_FILE_ACCEPT}
                 />
                 <Button variant="outline" size="sm" disabled={isScanning} tabIndex={-1}>
                   {isScanning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Receipt className="w-4 h-4 mr-1" />}

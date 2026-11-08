@@ -35,11 +35,12 @@ describe('scan limits', () => {
       .toBe('Scan limit reached (60/hour). Try again later.');
   });
 
-  it('stop the organization at the daily limit, with its own message', () => {
+  // A rolling 24 hours, not a calendar day: "tomorrow" would be wrong.
+  it('stop the organization at its limit for the last 24 hours, with its own message', () => {
     expect(scanLimitError({ userScansLastHour: 0, orgScansLastDay: 200 }))
-      .toBe('Daily scan limit reached for this organization (200 a day). Try again tomorrow.');
+      .toBe('Scan limit reached for this organization (200 scans in the last 24 hours). Try again later.');
     expect(scanLimitError({ userScansLastHour: 60, orgScansLastDay: 250 }))
-      .toBe('Daily scan limit reached for this organization (200 a day). Try again tomorrow.');
+      .toBe('Scan limit reached for this organization (200 scans in the last 24 hours). Try again later.');
   });
 });
 

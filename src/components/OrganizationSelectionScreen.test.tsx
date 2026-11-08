@@ -6,9 +6,11 @@ vi.mock('./AppHeader', () => ({ default: () => null }));
 
 const searchOrganizations = vi.fn();
 const joinOrganization = vi.fn();
+const signedInEmailConfirmed = vi.fn();
 vi.mock('../services/organization.service', () => ({
   searchOrganizations: (...args: unknown[]) => searchOrganizations(...args),
   joinOrganization: (...args: unknown[]) => joinOrganization(...args),
+  signedInEmailConfirmed: () => signedInEmailConfirmed(),
 }));
 
 const createAccessRequest = vi.fn();
@@ -47,6 +49,7 @@ async function search(orgs: any[]) {
 beforeEach(() => {
   vi.clearAllMocks();
   getMyPendingAccessRequests.mockResolvedValue([]);
+  signedInEmailConfirmed.mockResolvedValue(true);
 });
 
 describe('OrganizationSelectionScreen: joining an organization', () => {
@@ -86,5 +89,22 @@ describe('OrganizationSelectionScreen: joining an organization', () => {
     await waitFor(() => expect(joinOrganization).toHaveBeenCalledWith('org-2', 'Staff'));
     expect(reload).toHaveBeenCalled();
     expect(createAccessRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe('OrganizationSelectionScreen: Join as Staff needs a confirmed email', () => {
+  it('offers only Request to join on a matching domain until the email is confirmed', async () => {
+    signedInEmailConfirmed.mockResolvedValue(false);
+    renderScreen();
+    await search([domainOrg]);
+    await waitFor(() => expect(signedInEmailConfirmed).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: /join as staff/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /request to join/i })).toBeInTheDocument();
+  });
+
+  it('offers Join as Staff on a matching domain once the email is confirmed', async () => {
+    renderScreen();
+    await search([domainOrg]);
+    expect(await screen.findByRole('button', { name: /join as staff/i })).toBeInTheDocument();
   });
 });

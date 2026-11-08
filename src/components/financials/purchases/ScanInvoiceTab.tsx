@@ -5,6 +5,7 @@ import { Card } from '../../ui/card';
 import ReviewScannedDataDialog from '../../ReviewScannedDataDialog';
 import { getQueuedInvoiceFile, type ScanQueueItem } from '../../../services/purchaseScanQueue.service';
 import type { ScanQueue } from './useScanQueue';
+import { SCAN_FILE_ACCEPT } from '../../../utils/fileAccept';
 
 const STATUS: Record<ScanQueueItem['status'], { label: string; Icon: typeof Clock; className: string }> = {
   queued: { label: 'Waiting', Icon: Clock, className: 'text-muted-foreground' },
@@ -51,7 +52,7 @@ export default function ScanInvoiceTab({ organizationId, queue, onSaved }: ScanI
         ref={inputRef}
         type="file"
         multiple
-        accept=".pdf,image/*"
+        accept={SCAN_FILE_ACCEPT}
         className="hidden"
         data-testid="scan-invoice-input"
         onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }}
