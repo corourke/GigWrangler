@@ -52,6 +52,8 @@ interface AdminOrganizationsScreenProps {
   onCreateOrganization: () => void;
   onBack: () => void;
   onLogout: () => void;
+  /** After an organization is deleted, so the app can drop it from your memberships. */
+  onOrganizationDeleted?: (organizationId: string) => void;
   onEditProfile: () => void;
 }
 
@@ -63,6 +65,7 @@ export default function AdminOrganizationsScreen({
   onBack,
   onLogout,
   onEditProfile,
+  onOrganizationDeleted,
 }: AdminOrganizationsScreenProps) {
   const adminOrgIds = new Set(userMemberships.filter((m) => m.role === 'Admin').map((m) => m.organization.id));
   const [organizations, setOrganizations] = useState<OrganizationWithMembers[]>([]);
@@ -93,15 +96,20 @@ export default function AdminOrganizationsScreen({
         await handleFunctionsError(orgError, 'load organizations');
       }
 
-      // Fetch member counts for each organization
+      // Member counts only where the list is yours to see: your organizations, or any as a
+      // moderator. Asking for the others would only be refused.
+      const memberOrgIds = new Set(userMemberships.map((m) => m.organization.id));
+      const { data: isModerator } = await supabase.rpc('is_platform_moderator');
       const orgsWithCounts = await Promise.all(
         (orgs || []).map(async (org: Organization) => {
           try {
-            const { data: members, error: membersError } = await supabase.functions.invoke(`server/organizations/${org.id}/members`, {
-              method: 'GET'
-            });
-
-            const member_count = !membersError && members ? members.length : null;
+            let member_count: number | null = null;
+            if (isModerator === true || memberOrgIds.has(org.id)) {
+              const { data: members, error: membersError } = await supabase.functions.invoke(`server/organizations/${org.id}/members`, {
+                method: 'GET'
+              });
+              member_count = !membersError && members ? members.length : null;
+            }
             let can_manage_unclaimed = false;
             if (!org.claimed && !adminOrgIds.has(org.id)) {
               const { data: canManage } = await supabase.rpc('user_can_manage_unclaimed_org', {
@@ -143,6 +151,7 @@ export default function AdminOrganizationsScreen({
 
       toast.success('Organization deleted successfully');
       setOrganizations(prev => prev.filter(org => org.id !== deleteOrgId));
+      onOrganizationDeleted?.(deleteOrgId);
       setDeleteOrgId(null);
       setIsDeleting(false);
     } catch (err: any) {

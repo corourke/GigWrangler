@@ -74,3 +74,54 @@ describe('AdminOrganizationsScreen: unclaimed organizations', () => {
     expect(within(row).getAllByText('—').length).toBeGreaterThan(0)
   })
 })
+
+// The member list is fetched only where it's yours to see (your organizations, or any as a
+// moderator), so the page makes no calls that are bound to be refused.
+describe('AdminOrganizationsScreen: member lists', () => {
+  const mine = { id: 'org-mine', name: 'Mine', roles: ['Production'], claimed: true, city: null, state: null, phone_number: null }
+  const theirs = { id: 'org-theirs', name: 'Theirs', roles: ['Venue'], claimed: true, city: null, state: null, phone_number: null }
+
+  const renderAs = async ({ moderator }: { moderator: boolean }) => {
+    invoke.mockReset()
+    rpc.mockReset()
+    invoke.mockImplementation(async (path: string) =>
+      path === 'server/organizations' ? { data: [mine, theirs], error: null } : { data: [{ id: 'm1' }], error: null })
+    rpc.mockImplementation(async (fn: string) => ({ data: fn === 'is_platform_moderator' ? moderator : false, error: null }))
+    const onOrganizationDeleted = vi.fn()
+    render(
+      <AdminOrganizationsScreen
+        user={makeUser()}
+        organizations={[{ organization: { id: 'org-mine', name: 'Mine' }, role: 'Admin' } as any]}
+        onEditOrganization={vi.fn()}
+        onCreateOrganization={vi.fn()}
+        onBack={vi.fn()}
+        onLogout={vi.fn()}
+        onEditProfile={vi.fn()}
+        onOrganizationDeleted={onOrganizationDeleted}
+      />,
+    )
+    await screen.findByText('Theirs')
+    return { onOrganizationDeleted }
+  }
+
+  it("doesn't ask for the members of an organization you aren't in", async () => {
+    await renderAs({ moderator: false })
+    const paths = invoke.mock.calls.map(([path]) => path)
+    expect(paths).toContain('server/organizations/org-mine/members')
+    expect(paths).not.toContain('server/organizations/org-theirs/members')
+  })
+
+  it('a moderator still sees every count', async () => {
+    await renderAs({ moderator: true })
+    await waitFor(() => expect(invoke.mock.calls.map(([path]) => path)).toContain('server/organizations/org-theirs/members'))
+  })
+
+  it('tells the app when you delete your own organization', async () => {
+    const { onOrganizationDeleted } = await renderAs({ moderator: false })
+    const row = screen.getByText('Mine').closest('tr')!
+    fireEvent.click(within(row).getByTitle('Delete Organization'))
+    invoke.mockResolvedValue({ data: { success: true }, error: null })
+    fireEvent.click(await screen.findByRole('button', { name: /^Delete/ }))
+    await waitFor(() => expect(onOrganizationDeleted).toHaveBeenCalledWith('org-mine'))
+  })
+})
