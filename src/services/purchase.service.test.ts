@@ -15,6 +15,7 @@ import {
   createLedgerEntryForPurchaseLine,
   reconcileLedgerForLineGigChange,
   removeLedgerEntriesForPurchaseLine,
+  savePurchaseEdit,
   getLinkedGigExpenses,
 } from './purchase.service';
 import { createClient } from '../utils/supabase/client';
@@ -24,7 +25,10 @@ import {
   createGigFinancial,
   updateGigFinancial,
   deleteGigFinancial,
+  logGigFinancialAdded,
+  logGigFinancialChanged,
 } from './gigFinancial.service';
+import { logAssetSaved, logAssetStatusChanged } from './asset.service';
 import { getKitOptions, createKit, addKitAssetLines } from './kit.service';
 
 // Mock Supabase client
@@ -50,7 +54,10 @@ vi.mock('./gigFinancial.service', () => ({
   createGigFinancial: vi.fn(),
   updateGigFinancial: vi.fn(),
   deleteGigFinancial: vi.fn(),
+  logGigFinancialAdded: vi.fn(),
+  logGigFinancialChanged: vi.fn(),
 }));
+vi.mock('./asset.service', () => ({ logAssetSaved: vi.fn(), logAssetStatusChanged: vi.fn() }));
 
 describe('purchase.service', () => {
   let mockSupabase: any;
@@ -116,7 +123,7 @@ describe('purchase.service', () => {
   });
 
   describe('createPurchaseWithUnits (#183)', () => {
-    it('saves the purchase, its lines and one record per unit through create_purchase_transaction_v2', async () => {
+    it('saves the purchase, its lines and one record per unit through create_purchase_transaction_v3', async () => {
       const header = { organization_id: 'org-1', vendor: 'Sweetwater' };
       const items = [{ organization_id: 'org-1', description: 'QSC K12.2', quantity: 2 }];
       const units = [
@@ -127,13 +134,49 @@ describe('purchase.service', () => {
 
       const result = await createPurchaseWithUnits(header, items, units);
 
-      expect(mockSupabase.rpc).toHaveBeenCalledWith('create_purchase_transaction_v2', { p_header: header, p_items: items, p_units: units });
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('create_purchase_transaction_v3', { p_header: header, p_items: items, p_units: units, p_gig_id: null, p_ledger: [] });
       expect(result).toEqual({ id: 'h1', line_ids: ['l1'], unit_ids: ['u1', 'u2'] });
+    });
+
+    // B6: on a gig, the expensed lines' gig expenses are saved in the same call, and recorded in the gig's history.
+    it('links lines to a gig in the same call, and logs each gig expense added', async () => {
+      const ledger = [{ line_index: 0, amount: 30, category: 'Supplies', description: 'Ties', date: '2026-05-01', paid_at: '2026-05-01' }];
+      const row = { id: 'f1', gig_id: 'g1', organization_id: 'org-1', direction: 'out', stage: 'paid', amount: 30, amount_settled: 30, description: 'Ties' };
+      mockSupabase.rpc.mockResolvedValue({ data: { id: 'h1', line_ids: ['l1'], unit_ids: [], ledger: [row] }, error: null });
+      await createPurchaseWithUnits({ organization_id: 'org-1' }, [{ organization_id: 'org-1' }], [], { gigId: 'g1', ledger });
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('create_purchase_transaction_v3', expect.objectContaining({ p_gig_id: 'g1', p_ledger: ledger }));
+      expect(logGigFinancialAdded).toHaveBeenCalledWith(row);
     });
 
     it('passes the database’s refusal on', async () => {
       mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'Each unit must name a line of this purchase' } });
       await expect(createPurchaseWithUnits({ organization_id: 'org-1' }, [], [])).rejects.toMatchObject({ message: 'Each unit must name a line of this purchase' });
+    });
+  });
+
+  // B6: a purchase edit is one call; the equipment and gig money it changed go in their history.
+  describe('savePurchaseEdit', () => {
+    const plan: any = { equipment: [], header: { vendor: 'V' }, track_lines: [], updated_items: [], new_items: [], add_units: [],
+      removed_item_ids: [], asset_changes: [{ asset_id: 'a1', data: { serial_number: 'SN' } }], gig_changes: [{ fin_id: 'f1', amount: 120, settle: true }] };
+
+    it('sends the whole plan in one call, then logs what changed', async () => {
+      const assetPair = { before: { id: 'a1', serial_number: null }, after: { id: 'a1', serial_number: 'SN' } };
+      const finPair = { before: { id: 'f1', amount: 100 }, after: { id: 'f1', amount: 120 } };
+      const status = { asset_id: 'a2', organization_id: 'org-1', from: 'Active', to: 'Inactive' };
+      mockSupabase.rpc.mockResolvedValue({ data: { assets: [assetPair], financials: [finPair], status_changes: [status] }, error: null });
+      await savePurchaseEdit('h1', plan);
+      expect(mockSupabase.rpc).toHaveBeenCalledTimes(1);
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('update_purchase_v1', { p_purchase_id: 'h1', p_plan: plan });
+      expect(logAssetSaved).toHaveBeenCalledWith(assetPair.before, assetPair.after);
+      expect(logGigFinancialChanged).toHaveBeenCalledWith(finPair.before, finPair.after);
+      expect(logAssetStatusChanged).toHaveBeenCalledWith(status);
+    });
+
+    it('a refused save logs nothing', async () => {
+      mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'The 2025 tax year is locked (filed).' } });
+      await expect(savePurchaseEdit('h1', plan)).rejects.toBeTruthy();
+      expect(logAssetSaved).not.toHaveBeenCalled();
+      expect(logGigFinancialChanged).not.toHaveBeenCalled();
     });
   });
 
@@ -189,14 +232,14 @@ describe('purchase.service', () => {
       rowIndexes: [2, 3, 4],
     };
 
-    it('saves each purchase through create_purchase_transaction_v2, never v1', async () => {
+    it('saves each purchase through create_purchase_transaction_v3, never v1', async () => {
       mockSupabase.rpc.mockResolvedValue({ data: { id: 'h1', line_ids: ['l1', 'l2'], unit_ids: ['u1', 'u2', 'u3'] }, error: null });
       (getKitOptions as any).mockResolvedValue([{ id: 'kit-1', name: 'Mic Kit 1' }]);
 
       const result = await importPurchases('org-1', { purchases: [micPurchase] });
 
       expect(mockSupabase.rpc).toHaveBeenCalledTimes(1);
-      expect(mockSupabase.rpc).toHaveBeenCalledWith('create_purchase_transaction_v2', { p_header: header, p_items: micPurchase.items, p_units: micPurchase.units });
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('create_purchase_transaction_v3', { p_header: header, p_items: micPurchase.items, p_units: micPurchase.units, p_gig_id: null, p_ledger: [] });
       expect(mockSupabase.rpc).not.toHaveBeenCalledWith('create_purchase_transaction_v1', expect.anything());
       expect(result.results).toEqual([{ rowIndexes: [2, 3, 4], status: 'success' }]);
       expect(result.successCount).toBe(3);
