@@ -24,8 +24,9 @@ Everyone can open the screen. What else you see depends on your role:
 
 - **Admins and Managers** see **Add Team Member**, can edit cells in place, and
   see **Pending Invitations**.
-- **Admins** also see **Pending Access Requests**, with **Approve** and **Reject**
-  buttons for each request.
+- **Admins and Managers** also see **Pending Access Requests** while one is
+  waiting, with **Approve** and **Reject** buttons for each. Admins see every
+  request; Managers see only requests to join the organization.
 - **Staff and Viewers** see the list read-only, plus a **Request Access** button
   to ask for a higher role.
 
