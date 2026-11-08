@@ -175,7 +175,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Create**: Admin can create organizations for their tenant
 - **Read**: View organization details, members, and associated gigs
 - **Update**: Admin can edit organization details
-- **Delete**: Admin can delete organizations (with dependency checks)
+- **Delete**: Admin can delete organizations (with dependency checks). Other members must be removed first; the Admin's own membership goes with the organization, so a sole Admin can delete it.
 
 ---
 

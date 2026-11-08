@@ -168,9 +168,15 @@ export function requireGigCreateOrgId(
  * `gig_financials.counterparty_id` is deliberately excluded: it's a `SET
  * NULL` reference (an org can be someone else's counterparty), not one that
  * would destroy or orphan the financial record itself.
+ *
+ * `exceptCallerColumn`: rows of the person deleting don't count. The sole
+ * Admin may delete their own organization; their membership goes with it
+ * (the last-Admin trigger lets that cascade through).
  */
-export const ORGANIZATION_DELETE_REFERENCES: ReadonlyArray<{ table: string; column: string; label: string }> = [
-  { table: 'organization_members', column: 'organization_id', label: 'members' },
+export const ORGANIZATION_DELETE_REFERENCES: ReadonlyArray<{
+  table: string; column: string; label: string; exceptCallerColumn?: string;
+}> = [
+  { table: 'organization_members', column: 'organization_id', label: 'other members', exceptCallerColumn: 'user_id' },
   { table: 'gig_participants', column: 'organization_id', label: 'gig participations' },
   { table: 'gig_staff_slots', column: 'organization_id', label: 'gig staff slots' },
   { table: 'gig_kit_assignments', column: 'organization_id', label: 'gig kit assignments' },
