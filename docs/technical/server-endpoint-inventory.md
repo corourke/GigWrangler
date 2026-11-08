@@ -12,6 +12,8 @@ authorization is the middleware named in each row: `requireUser` (`lib/auth.ts`)
 legacy `/make-server-de012ad4`) prefix. The function keeps the default `verify_jwt = true`, so the Supabase gateway
 also requires a JWT (the anon key is enough) before any route runs, `/health` included.
 
+**Two-factor sign-in (#361).** `requireUser` also applies the database's two-factor rule: a session without its code (`aal1`, not a Google sign-in) for someone who must use two-factor sign-in (`mfa_required_for`) gets 403 `{ error: 'TWO_FACTOR_REQUIRED' }` on every route that uses it.
+
 Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self only · 🏢 org member · 🛡️ org Admin/Manager · 👑 org Admin.
 
 ## Users
@@ -89,6 +91,7 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 | 39 | PUT | `/organizations/:id/access-requests/:requestId` | Platform moderator while the org is unclaimed; 👑; 🛡️ for a request to join | `requireUser` + `canDecideAccessRequest` (`lib/pure/authz.ts`) | Approve or reject. Approving a request to join adds the membership. |
 | 40 | GET | `/moderator/access-requests` | Platform moderator | `requireUser` + inline `isPlatformModerator` | Pending requests across all unclaimed orgs. |
 | 40a | GET | `/me/access-requests` | 👤 | `requireUser`, filtered on `requester_id` | The caller's own pending requests (shown as "Request pending" in the org picker). |
+| 40b | POST | `/moderator/two-factor/reset` | Platform moderator | `requireUser` + inline `users.platform_moderator` check | Removes the authenticators of the account with that email (lost phone, #361), so they set one up again at their next sign-in. Logged in `activity_log` (`two_factor.reset`). 404 when no account has that email. |
 
 ## Notifications
 

@@ -28,8 +28,21 @@ CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS
   $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS
   $$ SELECT nullif(current_setting('request.jwt.claim.role', true), '') $$;
+-- aal ('aal1'/'aal2') and amr (JSON array of {"method": ...}) come from request.jwt.claim.aal / .amr.
 CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS
-  $$ SELECT jsonb_build_object('sub', auth.uid(), 'role', auth.role()) $$;
+  $$ SELECT jsonb_build_object('sub', auth.uid(), 'role', auth.role(),
+       'aal', coalesce(nullif(current_setting('request.jwt.claim.aal', true), ''), 'aal1'),
+       'amr', coalesce(nullif(current_setting('request.jwt.claim.amr', true), ''), '[{"method":"password"}]')::jsonb) $$;
+-- Supabase Auth's multi-factor table, as far as policies need it.
+CREATE TYPE auth.factor_status AS ENUM ('unverified', 'verified');
+CREATE TABLE auth.mfa_factors (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  friendly_name text,
+  factor_type text NOT NULL DEFAULT 'totp',
+  status auth.factor_status NOT NULL DEFAULT 'unverified',
+  created_at timestamptz DEFAULT now()
+);
 GRANT USAGE ON SCHEMA auth, extensions TO anon, authenticated, service_role;
 
 CREATE SCHEMA storage;

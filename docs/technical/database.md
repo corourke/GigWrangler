@@ -431,6 +431,23 @@ WebAuthn/passkey device registrations for users
 - RLS is **ENABLED** on this table. Users read and remove their own devices; enrolling and recording use go through the `server` function (service role). `authenticated` has no INSERT or UPDATE (migration 20261107080000).
 - `auth_user_id_by_email(p_email)` (SECURITY DEFINER, service role only) finds the account for the unlock flow's email, ignoring case and surrounding spaces.
 
+### user_mfa_requirements
+
+When two-factor sign-in becomes required for an Admin (#361, migration 20261107110000).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| user_id | UUID | Primary key; reference to users(id) (ON UPDATE and ON DELETE CASCADE) |
+| required_after | TIMESTAMPTZ | End of the 14-day grace period (NOT NULL) |
+
+**Notes:**
+- RLS is **ENABLED**; service role only. Nobody can move their own date.
+- Trigger `start_mfa_grace` on `organization_members` adds a row (now + 14 days) the first time someone becomes an Admin; an earlier date is kept. Existing Admins got now + 14 days when the migration ran.
+- `mfa_required_for(p_user_id)` (service role only): the person has a verified authenticator, or is an Admin past `required_after`.
+- `mfa_satisfied()` (authenticated): true with no signed-in user, for a session that entered its code (`aal2`), for a Google sign-in, or when `mfa_required_for` is false.
+- `two_factor_requirement()` (authenticated): `{required, required_after, satisfied}` for the signed-in person; the app reads it before loading anything.
+- Every table with RLS in `public`, and `storage.objects`, has the restrictive policy **"Two-factor sign-in when required"** (`TO authenticated`, `USING/WITH CHECK ((SELECT public.mfa_satisfied()))`). A new table with RLS must add it too; RLS test 78 checks that none is missing.
+
 ---
 
 ## Gig Management Tables

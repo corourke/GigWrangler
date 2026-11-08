@@ -644,7 +644,7 @@ function SettingsRoute() {
       organization={organization}
       user={user}
       userRole={userRole}
-      tab={tab === 'categories' ? 'categories' : 'calendar'}
+      tab={tab === 'categories' || tab === 'security' ? tab : 'calendar'}
       onTabChange={t => nav.navigate(`/settings/${t}`, { replace: true })}
       onBack={nav.toDashboard}
       onNavigateToDashboard={nav.toDashboard}
