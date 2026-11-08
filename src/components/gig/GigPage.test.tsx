@@ -567,3 +567,19 @@ describe('GigPage (#12)', () => {
     });
   });
 });
+
+// B12: when the page moves to another gig before the first one has loaded, the late answer for
+// the first gig is dropped, not shown over the second.
+describe('GigPage: a late answer for another gig', () => {
+  it('keeps showing the gig the page is on', async () => {
+    let resolveFirst!: (g: any) => void;
+    vi.mocked(getGig).mockImplementation((id: string) =>
+      id === 'g1' ? new Promise((r) => { resolveFirst = r; }) : Promise.resolve({ ...gig, id: 'g2', title: 'Harbor Lights Gala' } as any));
+    const { rerender } = render(<GigPage {...baseProps} gigId="g1" />);
+    rerender(<GigPage {...baseProps} gigId="g2" />);
+    expect((await screen.findAllByText('Harbor Lights Gala')).length).toBeGreaterThan(0);
+    await act(async () => { resolveFirst(gig); });
+    expect(screen.queryByText('Riverside Summer Series')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Harbor Lights Gala').length).toBeGreaterThan(0);
+  });
+});
