@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import PurchasesTab from './PurchasesTab';
+import { getLinkedGigExpenses } from '../../../services/purchase.service';
 import { presetRange } from './purchaseFilters';
 
 const recent = presetRange('last-30').to; // today
@@ -25,6 +26,7 @@ vi.mock('../../../services/purchase.service', () => ({
   createLedgerEntryForPurchaseLine: vi.fn(),
   removeLedgerEntriesForPurchaseLine: vi.fn(),
   purchaseLineLedgerAmount: vi.fn(),
+  getLinkedGigExpenses: vi.fn(async () => ({ entries: 0, gigs: 0, amount: 0 })),
 }));
 vi.mock('../../../services/attachment.service', () => ({
   getEntityAttachments: vi.fn(async () => []),
@@ -176,5 +178,30 @@ describe('Purchases report: gig links are on lines (#133 step 3)', () => {
     expect(screen.getByText('Amazon')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit purchase' })).toBeInTheDocument();
     expect(screen.queryByText('Guitar Center')).not.toBeInTheDocument();
+  });
+});
+
+describe('Deleting a purchase removes its gig expenses (B2)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('says how much expense, from how many gigs, goes with a whole purchase', async () => {
+    vi.mocked(getLinkedGigExpenses).mockResolvedValueOnce({ entries: 2, gigs: 1, amount: 120 });
+    render(<PurchasesTab {...props} />);
+    await waitFor(() => expect(screen.getByText('Sweetwater')).toBeInTheDocument());
+    fireEvent.click(screen.getByTitle('Delete purchase'));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(await within(dialog).findByText('This also removes $120.00 of expenses from 1 gig.')).toBeInTheDocument();
+    expect(getLinkedGigExpenses).toHaveBeenCalledWith(['h1', 'i1']);
+    expect(within(dialog).queryByText(/will not be automatically deleted/)).not.toBeInTheDocument();
+  });
+
+  it('says nothing about gigs when no gig expense is linked', async () => {
+    render(<PurchasesTab {...props} />);
+    await waitFor(() => expect(screen.getByText('Sweetwater')).toBeInTheDocument());
+    fireEvent.click(screen.getByTitle('Delete purchase'));
+    const dialog = await screen.findByRole('alertdialog');
+    await waitFor(() => expect(getLinkedGigExpenses).toHaveBeenCalled());
+    expect(within(dialog).queryByText(/This also removes/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/will not be automatically deleted/)).not.toBeInTheDocument();
   });
 });

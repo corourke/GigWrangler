@@ -679,7 +679,7 @@ Every amount of money a gig brings in or costs, one row each, with its stage.
 | reference_number| TEXT | Invoice, PO, or check number (nullable) |
 | counterparty_id | UUID | Reference to organizations.id for the other party in transaction (nullable) |
 | external_entity_name | TEXT | Name of counterparty if not in organizations table (nullable) |
-| purchase_id | UUID | Reference to purchases.id — the source receipt/invoice this ledger row records (nullable, ON DELETE SET NULL; migration 20260319213000) |
+| purchase_id | UUID | Reference to purchases.id — the source receipt/invoice this ledger row records (nullable; migration 20260319213000). ON DELETE CASCADE since migration 20261107130000 (B2): deleting the purchase line, or its whole purchase, removes this row too |
 | staff_assignment_id | UUID | Reference to gig_staff_assignments.id — the completed assignment this labor cost came from (nullable, ON DELETE SET NULL; migration 20260319213000) |
 | description | TEXT | Detailed description or notes (nullable, Markdown-formatted) |
 | notes | TEXT | Internal notes (nullable) |

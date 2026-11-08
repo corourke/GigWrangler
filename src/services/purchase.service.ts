@@ -134,6 +134,22 @@ export async function deletePurchase(purchaseId: string) {
   return { success: true };
 }
 
+/**
+ * The gig expenses linked to these purchases (a purchase and its lines), which deleting them
+ * removes too (B2): how many, on how many gigs, and their amount (settled, else agreed).
+ */
+export async function getLinkedGigExpenses(purchaseIds: string[]): Promise<{ entries: number; gigs: number; amount: number }> {
+  if (purchaseIds.length === 0) return { entries: 0, gigs: 0, amount: 0 };
+  const { data, error } = await getSupabase()
+    .from('gig_financials')
+    .select('gig_id, amount, amount_settled')
+    .in('purchase_id', purchaseIds);
+  if (error) return handleApiError(error, 'fetch gig expenses linked to a purchase');
+  const rows = (data ?? []) as { gig_id: string; amount: number | null; amount_settled: number | null }[];
+  const amount = rows.reduce((sum, r) => sum + (Number(r.amount_settled ?? r.amount) || 0), 0);
+  return { entries: rows.length, gigs: new Set(rows.map((r) => r.gig_id)).size, amount: Math.round(amount * 100) / 100 };
+}
+
 /** How one planned purchase went: saved (perhaps with a kit warning) or not saved at all. */
 export interface ImportPurchaseResult {
   rowIndexes: number[];
