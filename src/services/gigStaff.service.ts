@@ -155,9 +155,10 @@ export async function updateGigStaffSlots(
           const assignmentData = {
             user_id: assignment.user_id,
             status: assignment.status || 'Requested',
-            rate: assignment.rate || null,
+            rate: assignment.rate ?? null,
             ...(assignment.rate_unit ? { rate_unit: assignment.rate_unit } : {}),
-            fee: assignment.fee || null,
+            // ?? not ||: a typed $0 is an amount, kept as 0.
+            fee: assignment.fee ?? null,
             notes: assignment.notes || null,
             completed_at: (assignment as any).completed_at || null,
             units_completed: (assignment as any).units_completed || null,
