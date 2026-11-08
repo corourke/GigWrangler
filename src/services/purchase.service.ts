@@ -13,7 +13,10 @@ import {
   updateGigFinancial,
   deleteGigFinancial,
   getGigFinancialsByPurchaseId,
+  logGigFinancialAdded,
+  logGigFinancialChanged,
 } from './gigFinancial.service';
+import { logAssetSaved, logAssetStatusChanged } from './asset.service';
 import { getKitOptions, createKit, addKitAssetLines } from './kit.service';
 
 /**
@@ -278,20 +281,91 @@ export async function createPurchaseWithUnits(
   header: Partial<DbPurchase>,
   items: Partial<DbPurchase>[],
   units: LineUnitInput[],
-): Promise<{ id: string; line_ids: string[]; unit_ids: string[] }> {
+  /** Scanned on a gig: its expensed lines go on the gig, with their gig expenses, in the same call (B6). */
+  gigLink?: { gigId: string; ledger: PurchaseLedgerEntry[] },
+): Promise<{ id: string; line_ids: string[]; unit_ids: string[]; ledger?: DbGigFinancial[] }> {
   try {
     await getCurrentUser();
     const supabase = getSupabase();
-    const { data, error } = await (supabase.rpc as any)('create_purchase_transaction_v2', {
+    const { data, error } = await (supabase.rpc as any)('create_purchase_transaction_v3', {
       p_header: header,
       p_items: items,
       p_units: units,
+      p_gig_id: gigLink?.gigId ?? null,
+      p_ledger: gigLink?.ledger ?? [],
     });
     if (error) throw error;
     if (!data?.id) throw new Error('Purchase transaction returned no result');
+    for (const row of (data.ledger ?? []) as DbGigFinancial[]) await logGigFinancialAdded(row);
     return data;
   } catch (err) {
     return handleApiError(err, 'create purchase transaction');
+  }
+}
+
+/** A purchase line's gig expense, for create_purchase_transaction_v3 (B6). */
+export interface PurchaseLedgerEntry {
+  /** The line, by its position in the items sent (0-based). */
+  line_index: number;
+  amount: number;
+  category: string;
+  description: string;
+  date: string;
+  paid_at: string;
+}
+
+/** The gig expense for the item at `lineIndex`, as createLedgerEntryForPurchaseLine would make it. */
+export function purchaseLedgerEntry(item: LedgerLineSource, lineIndex: number, gigId: string, organizationId: string): PurchaseLedgerEntry {
+  const payload = buildPurchaseLineLedgerPayload(item, gigId, organizationId);
+  return {
+    line_index: lineIndex,
+    amount: payload.amount,
+    category: payload.category,
+    description: payload.description,
+    date: payload.date,
+    paid_at: payload.paid_at,
+  };
+}
+
+/**
+ * A purchase edit, as update_purchase_v1 takes it (B6): every step of the save, applied in one
+ * transaction in this order.
+ */
+export interface PurchaseEditPlan {
+  equipment: (
+    | { op: 'lot_quantity'; asset_id: string; quantity: number }
+    | { op: 'repoint'; line_id: string; asset_id: string }
+    | { op: 'remove_unit'; asset_id: string; how: 'delete' | 'inactive' }
+  )[];
+  header: Record<string, any>;
+  track_lines: { line_id: string; units: Omit<LineUnitInput, 'line_index'>[]; period: number | null }[];
+  updated_items: { id: string; data: Record<string, any> }[];
+  new_items: { data: Record<string, any>; track: boolean; units: Omit<LineUnitInput, 'line_index'>[]; period: number | null }[];
+  add_units: { line_id: string; units: Omit<LineUnitInput, 'line_index'>[] }[];
+  removed_item_ids: string[];
+  asset_changes: { asset_id: string; data: Record<string, any> }[];
+  gig_changes: { fin_id: string; amount: number; settle: boolean }[];
+}
+
+/**
+ * Save a purchase edit in one call, all or nothing (B6), then record the equipment and gig money
+ * it changed in their history, as updateAsset and updateGigFinancial do.
+ */
+export async function savePurchaseEdit(purchaseId: string, plan: PurchaseEditPlan): Promise<void> {
+  try {
+    await getCurrentUser();
+    const { data, error } = await (getSupabase().rpc as any)('update_purchase_v1', { p_purchase_id: purchaseId, p_plan: plan });
+    if (error) throw error;
+    const result = (data ?? {}) as {
+      assets?: { before: any; after: any }[];
+      financials?: { before: DbGigFinancial; after: DbGigFinancial }[];
+      status_changes?: { asset_id: string; organization_id: string; from: string | null; to: string; asset_model?: string; category?: string }[];
+    };
+    for (const s of result.status_changes ?? []) await logAssetStatusChanged(s);
+    for (const a of result.assets ?? []) if (a.before && a.after) await logAssetSaved(a.before, a.after);
+    for (const f of result.financials ?? []) if (f.before && f.after) await logGigFinancialChanged(f.before, f.after);
+  } catch (err) {
+    return handleApiError(err, 'save purchase');
   }
 }
 

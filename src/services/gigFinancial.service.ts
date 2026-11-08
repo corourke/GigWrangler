@@ -534,3 +534,15 @@ export async function deleteGigFinancial(finId: string) {
     return handleApiError(err, 'delete gig financial');
   }
 }
+
+/**
+ * History for gig money saved by a database function rather than createGigFinancial /
+ * updateGigFinancial (a purchase save, B6): an added row, or the fields that changed.
+ */
+export async function logGigFinancialAdded(row: DbGigFinancial): Promise<void> {
+  await logFinancialEvent('financial.added', row);
+}
+export async function logGigFinancialChanged(before: DbGigFinancial, after: DbGigFinancial): Promise<void> {
+  const changes = computeFieldChanges(before, after, LOGGED_FIELDS);
+  if (changes.length > 0) await logFinancialEvent('financial.updated', after, changes);
+}
