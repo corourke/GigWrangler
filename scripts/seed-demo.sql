@@ -215,7 +215,8 @@ VALUES (pg_temp.d(1,1), 'jordan.blake@crew.example', 'Staff', pg_temp.d(2,1), 'p
 -- Access requests (ID kind 0013) and the notifications they send (kind 0014),
 -- in the shape supabase/functions/server/routes/accessRequests.ts writes them:
 --   1 Sofia (Staff) asks for Manager at Demo Sound & Lighting: pending, for Alicia.
---   2 Victor (Viewer) asked for Admin: rejected by Alicia, with a reply.
+--   2 Victor (Viewer) asked for Admin: rejected by Alicia. No reply: the app has no way
+--     to write one, so the seed doesn't show one either.
 --   3 Vera asks for Admin of Cedar Hall, which no one has claimed: pending, for
 --     the platform moderator.
 INSERT INTO public.access_requests (id, organization_id, requester_id, requested_role, message, status, handled_by, handled_at, response_message, created_at)
@@ -223,7 +224,7 @@ VALUES
   (pg_temp.d(13,1), pg_temp.d(1,1), pg_temp.d(2,3), 'Manager', 'I''m running FOH on most of our gigs now and would like to set up staffing myself.',
      'pending', NULL, NULL, NULL, pg_temp.at(pg_temp.anchor() - 1, 7)),
   (pg_temp.d(13,2), pg_temp.d(1,1), pg_temp.d(2,4), 'Admin', 'I need to see Financials to do the books.',
-     'rejected', pg_temp.d(2,1), pg_temp.at(pg_temp.anchor() - 3, 9), 'Admin is more than you need. Let''s talk about Manager, which includes Financials.',
+     'rejected', pg_temp.d(2,1), pg_temp.at(pg_temp.anchor() - 3, 9), NULL,
      pg_temp.at(pg_temp.anchor() - 4, 16)),
   (pg_temp.d(13,3), pg_temp.d(1,3), pg_temp.d(2,22), 'Admin', 'I''m the house manager at Cedar Hall and would like to manage our listing.',
      'pending', NULL, NULL, NULL, pg_temp.at(pg_temp.anchor() - 2, 11));
@@ -237,7 +238,7 @@ VALUES
   (pg_temp.d(14,2), pg_temp.d(2,4), 'access_request.outcome',
      jsonb_build_object('access_request_id', pg_temp.d(13,2), 'organization_id', pg_temp.d(1,1), 'organization_name', 'Demo Sound & Lighting',
                         'requested_role', 'Admin', 'status', 'rejected',
-                        'response_message', 'Admin is more than you need. Let''s talk about Manager, which includes Financials.'),
+                        'response_message', NULL),
      NULL, pg_temp.at(pg_temp.anchor() - 3, 9)),
   (pg_temp.d(14,3), pg_temp.d(2,6), 'access_request.created',
      jsonb_build_object('access_request_id', pg_temp.d(13,3), 'organization_id', pg_temp.d(1,3), 'organization_name', 'Cedar Hall',
