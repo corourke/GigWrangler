@@ -223,6 +223,30 @@ describe('describeOrganizationDeleteBlockers (issue #53)', () => {
   });
 });
 
+// The sole Admin may delete their own organization: their own membership doesn't count as a
+// member left behind (it goes with the organization); anyone else's still does.
+describe('deleting an organization whose only member is you', () => {
+  const members = ORGANIZATION_DELETE_REFERENCES.find((ref) => ref.table === 'organization_members');
+  it("doesn't count the caller's own membership", () => {
+    expect(members?.exceptCallerColumn).toBe('user_id');
+    expect(members?.label).toBe('other members');
+  });
+  it('counts everything else in full', () => {
+    expect(ORGANIZATION_DELETE_REFERENCES.filter((ref) => ref.exceptCallerColumn)).toHaveLength(1);
+  });
+  it('the route leaves the caller out of that count', () => {
+    const source = readFileSync('supabase/functions/server/routes/organizations.ts', 'utf8');
+    const route = source.slice(source.indexOf("app.delete('/organizations/:id',"));
+    const handler = route.slice(0, route.indexOf('app.', 10));
+    expect(handler).toMatch(/ref\.exceptCallerColumn\)\s*query = query\.neq\(ref\.exceptCallerColumn, c\.get\('user'\)\.id\)/);
+  });
+  it('still refuses while someone else is a member', () => {
+    expect(describeOrganizationDeleteBlockers({ 'other members': 1 })).toBe(
+      'Cannot delete an organization that still has other members. Remove them first.'
+    );
+  });
+});
+
 describe('canAssignRole', () => {
   it('lets an Admin give any role', () => {
     for (const role of ['Admin', 'Manager', 'Staff', 'Viewer']) expect(canAssignRole('Admin', role)).toBe(true);
