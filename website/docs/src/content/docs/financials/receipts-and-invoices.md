@@ -13,7 +13,7 @@ Scanning reads a PDF or photo and fills in the vendor, date, total and line item
 
 Admins and Managers can scan; Staff and Viewers don't see the scan buttons. Each file can be a PDF or a JPEG, PNG, WebP or GIF image, up to 10 MB.
 
-Scanning has limits: 200 files per organization in any 24 hours, and 60 per person in any hour. Past them, a scan fails with "Daily scan limit reached for this organization (200 a day). Try again tomorrow." or "Scan limit reached (60/hour). Try again later." Both limits count back from the moment you scan, so capacity frees up gradually rather than at midnight. In the scan queue the file shows as **Failed**, and you can **Retry** it later.
+Scanning has limits: 200 files per organization in any 24 hours, and 60 per person in any hour. Past them, a scan fails with "Scan limit reached for this organization (200 scans in the last 24 hours). Try again later." or "Scan limit reached (60/hour). Try again later." Both limits count back from the moment you scan, so capacity frees up gradually rather than at midnight. In the scan queue the file shows as **Failed**, and you can **Retry** it later.
 
 ### 1. Financials → Purchases → Scan invoices
 
@@ -93,7 +93,7 @@ If you change a saved line's quantity, it also asks what to do with that line's 
 | Phone: a gig's transaction → **Receipts & Documents** | **Upload** | That money row |
 | An asset's page or edit form | **Asset Attachments** → **Upload** | The equipment (manuals, photos) |
 
-Each file can be up to 25 MB. **Attach Doc** and **Receipt (optional)** take a PDF or an image. The **Upload** buttons also take Word, Excel and PowerPoint documents (.docx, .xlsx, .pptx) and CSV files. Any other file is refused with "Attach a PDF, an image, an Office document or a CSV (Word, Excel, PowerPoint)", and a larger one with "Files can be up to 25 MB".
+Each file can be up to 25 MB, and can be a PDF, an image (JPEG, PNG, WebP, GIF or HEIC), a Word, Excel or PowerPoint document (.docx, .xlsx, .pptx) or a CSV file. The scan buttons offer only what scanning reads: a PDF or a JPEG, PNG, WebP or GIF image. Any other file is refused with "Attach a PDF, an image, an Office document or a CSV (Word, Excel, PowerPoint)", and a larger one with "Files can be up to 25 MB".
 
 :::tip
 **Add purchase** has no file upload. Save the purchase, then use **Attach Doc** on it in the Purchases report.

@@ -29,7 +29,7 @@ Each invoice card shows the date, vendor, description and **Invoice Total**, and
 - **Gig Details**: shows the linked gig.
 - **Attach Doc** / **View Doc**: attach the invoice file, or open it.
 - **Edit** (pencil): opens the purchase on the review screen. See [Receipts and invoices](/financials/receipts-and-invoices/#the-review-screen).
-- **Delete** (trash): deletes the invoice and its lines. A gig's money-out rows and equipment records are **not** deleted with it.
+- **Delete** (trash): deletes the invoice and its lines, after you confirm. If any line is a gig's expense, that money-out row is deleted too, and the confirmation says how much and from how many gigs, such as "This also removes $378.40 of expenses from 1 gig." Equipment records are **not** deleted.
 
 ## A line
 
@@ -41,7 +41,7 @@ Click a line to open it. You'll see its price and cost figures, and these action
 
 - **Asset Details**: the equipment record, with **Edit Asset** and **Open Asset**.
 - **Gig Details**: the linked gig, with **Open Gig**.
-- **Delete Item**: removes the line. Its equipment record, if any, is kept.
+- **Delete Item**: removes the line, and the gig's money-out row if the line is a gig's expense. Its equipment record, if any, is kept.
 - **Track as equipment** (lines that aren't yet): creates one equipment record holding the line's whole quantity (a lot), so you can tag it and put it in kits. Its tax treatment doesn't change, and if it's a gig's expense it stays one. This works for purchases from filed years too.
 
 To change a line's tax treatment, **Edit** the purchase.
