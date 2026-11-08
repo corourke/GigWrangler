@@ -2,6 +2,7 @@ import type { App, AppContext } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { requireOrgRole } from '../lib/orgRole.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
+import { fail } from '../lib/fail.ts';
 import {
   canDecideAccessRequest,
   shouldClaimOrgOnApproval,
@@ -11,6 +12,7 @@ import {
   confirmedEmail,
 } from '../lib/pure/authz.ts';
 import { sendEmail } from '../lib/email.ts';
+import { accessRequestOutcomeEmail } from '../lib/pure/accessRequestEmail.ts';
 
 /**
  * Best-effort side-channel insert into the generic notifications table
@@ -97,19 +99,27 @@ export function registerAccessRequests(app: App) {
         .insert({ organization_id: orgId, requester_id: user.id, requested_role, message: message || null })
         .select(REQUEST_SELECT).single();
       if (error) {
-        console.error('Error creating access request:', error);
-        return c.json({ error: error.message }, 400);
+        return fail(c, 'Error creating access request', error);
       }
 
       const audience = accessRequestNotificationAudience(request.organization?.claimed ?? true, requested_role);
-      const { data: recipients } =
-        audience === 'platform_moderators'
-          ? await supabaseAdmin.from('users').select('id').eq('platform_moderator', true)
-          : await supabaseAdmin
-              .from('organization_members').select('user_id')
-              .eq('organization_id', orgId)
-              .in('role', audience === 'org_admins_and_managers' ? ['Admin', 'Manager'] : ['Admin']);
-      const recipientIds = (recipients || []).map((r: any) => r.user_id ?? r.id);
+      const orgRoles =
+        audience === 'org_admins_and_managers' ? ['Admin', 'Manager']
+        : audience === 'org_admins' ? ['Admin']
+        : audience === 'platform_moderators_and_org_managers' ? ['Manager']
+        : [];
+      const [moderators, members] = await Promise.all([
+        audience.startsWith('platform_moderators')
+          ? supabaseAdmin.from('users').select('id').eq('platform_moderator', true)
+          : Promise.resolve({ data: [] as { id: string }[] }),
+        orgRoles.length
+          ? supabaseAdmin.from('organization_members').select('user_id').eq('organization_id', orgId).in('role', orgRoles)
+          : Promise.resolve({ data: [] as { user_id: string }[] }),
+      ]);
+      const recipientIds = [...new Set([
+        ...((moderators.data || []) as { id: string }[]).map((r) => r.id),
+        ...((members.data || []) as { user_id: string }[]).map((r) => r.user_id),
+      ])];
       const requesterName = [request.requester?.first_name, request.requester?.last_name]
         .filter(Boolean).join(' ') || request.requester?.email || 'A user';
       await notify(recipientIds, 'access_request.created', {
@@ -139,8 +149,7 @@ export function registerAccessRequests(app: App) {
       }
       const { data, error } = await query.order('created_at', { ascending: true });
       if (error) {
-        console.error('Error fetching org access requests:', error);
-        return c.json({ error: error.message }, 400);
+        return fail(c, 'Error fetching org access requests', error);
       }
       return c.json(data || []);
     }
@@ -200,8 +209,7 @@ export function registerAccessRequests(app: App) {
           .from('organization_members')
           .insert({ organization_id: orgId, user_id: request.requester_id, role: request.requested_role });
         if (joinError) {
-          console.error('Error adding member on join-request approval:', joinError);
-          return c.json({ error: joinError.message }, 400);
+          return fail(c, 'Error adding member on join-request approval', joinError);
         }
       }
     } else if (decision === 'approved') {
@@ -210,15 +218,13 @@ export function registerAccessRequests(app: App) {
         .update({ role: request.requested_role })
         .eq('organization_id', orgId).eq('user_id', request.requester_id);
       if (memberError) {
-        console.error('Error promoting member on access-request approval:', memberError);
-        return c.json({ error: memberError.message }, 400);
+        return fail(c, 'Error promoting member on access-request approval', memberError);
       }
       if (shouldClaimOrgOnApproval(org.claimed, request.requested_role)) {
         const { error: claimError } = await supabaseAdmin
           .from('organizations').update({ claimed: true, updated_at: new Date().toISOString() }).eq('id', orgId);
         if (claimError) {
-          console.error('Error marking organization claimed on access-request approval:', claimError);
-          return c.json({ error: claimError.message }, 400);
+          return fail(c, 'Error marking organization claimed on access-request approval', claimError);
         }
       }
     }
@@ -233,8 +239,7 @@ export function registerAccessRequests(app: App) {
       })
       .eq('id', requestId).select(REQUEST_SELECT).single();
     if (updateError) {
-      console.error('Error updating access request:', updateError);
-      return c.json({ error: updateError.message }, 400);
+      return fail(c, 'Error updating access request', updateError);
     }
 
     await notify([request.requester_id], 'access_request.outcome', {
@@ -251,22 +256,14 @@ export function registerAccessRequests(app: App) {
     // authoritative regardless of whether this succeeds.
     const requesterEmail = updatedRequest?.requester?.email;
     if (requesterEmail) {
-      const orgName = updatedRequest.organization?.name || 'the organization';
-      const verb = decision === 'approved' ? 'approved' : 'rejected';
-      const joining = isJoinRequest(request.requested_role);
-      const emailResult = await sendEmail({
-        to: requesterEmail,
-        subject: joining
-          ? `Your request to join ${orgName} was ${verb}`
-          : `Your ${request.requested_role} request for ${orgName} was ${verb}`,
-        html: `
-          <p>Hi ${updatedRequest.requester.first_name || ''},</p>
-          <p>${joining
-            ? `Your request to join <strong>${orgName}</strong> as <strong>${request.requested_role}</strong> was <strong>${verb}</strong>.`
-            : `Your request for <strong>${request.requested_role}</strong> access on <strong>${orgName}</strong> was <strong>${verb}</strong>.`}</p>
-          ${response_message ? `<p>${response_message}</p>` : ''}
-        `.trim(),
+      const email = accessRequestOutcomeEmail({
+        firstName: updatedRequest.requester.first_name,
+        orgName: updatedRequest.organization?.name || 'the organization',
+        requestedRole: request.requested_role,
+        decision,
+        responseMessage: response_message,
       });
+      const emailResult = await sendEmail({ to: requesterEmail, ...email });
       if (!emailResult.sent) {
         console.warn('Access-request outcome email not sent:', emailResult.error);
       }
@@ -299,8 +296,7 @@ export function registerAccessRequests(app: App) {
     const { data: unclaimedOrgs, error: orgsError } = await supabaseAdmin
       .from('organizations').select('id').eq('claimed', false);
     if (orgsError) {
-      console.error('Error fetching unclaimed organizations:', orgsError);
-      return c.json({ error: orgsError.message }, 400);
+      return fail(c, 'Error fetching unclaimed organizations', orgsError);
     }
     const unclaimedOrgIds = (unclaimedOrgs || []).map((o) => o.id);
     if (unclaimedOrgIds.length === 0) {
@@ -312,8 +308,7 @@ export function registerAccessRequests(app: App) {
       .eq('status', 'pending').in('organization_id', unclaimedOrgIds)
       .order('created_at', { ascending: true });
     if (error) {
-      console.error('Error fetching moderator access-request queue:', error);
-      return c.json({ error: error.message }, 400);
+      return fail(c, 'Error fetching moderator access-request queue', error);
     }
     return c.json(data || []);
   });

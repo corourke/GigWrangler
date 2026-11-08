@@ -1446,7 +1446,7 @@ Unified, append-only activity/audit log for gigs, assets and other entities (mig
 
 ### access_requests
 
-Requests to join an organization (Viewer, Staff; migration 20261107060000) and Viewer/Staff → Manager/Admin elevation requests (migration 20260908000000). Routed to platform moderators while the target org is unclaimed; once it is claimed, requests to join go to its Admins and Managers, elevation requests to its Admins.
+Requests to join an organization (Viewer, Staff; migration 20261107060000) and Viewer/Staff → Manager/Admin elevation requests (migration 20260908000000). Routed to platform moderators while the target org is unclaimed (with the org's Managers for a request to join, since they can decide it); once it is claimed, requests to join go to its Admins and Managers, elevation requests to its Admins.
 
 | Field | Type | Description |
 |-------|------|-------------|
