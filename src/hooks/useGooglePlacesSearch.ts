@@ -92,6 +92,8 @@ export function useGooglePlacesSearch() {
   const [showResults, setShowResults] = useState(false);
   /** True when the search request itself failed — must render distinctly from "no results found", since those mean very different things to the user. */
   const [searchError, setSearchError] = useState(false);
+  // Over a rate limit, the server's own message (it says the details can be typed by hand).
+  const [searchErrorMessage, setSearchErrorMessage] = useState<string | null>(null);
 
   const search = async () => {
     if (!searchQuery.trim()) return;
@@ -99,6 +101,7 @@ export function useGooglePlacesSearch() {
     setIsSearching(true);
     setShowResults(true);
     setSearchError(false);
+    setSearchErrorMessage(null);
 
     try {
       const supabase = createClient();
@@ -180,6 +183,7 @@ export function useGooglePlacesSearch() {
       console.error('Error searching places:', error);
       setSearchResults([]);
       setSearchError(true);
+      setSearchErrorMessage(error?.status === 429 && error?.message ? error.message : null);
       setIsSearching(false);
     }
   };
@@ -188,8 +192,9 @@ export function useGooglePlacesSearch() {
   const dismiss = () => {
     setShowResults(false);
     setSearchError(false);
+    setSearchErrorMessage(null);
     setSearchQuery('');
   };
 
-  return { searchQuery, setSearchQuery, isSearching, searchResults, showResults, searchError, search, dismiss };
+  return { searchQuery, setSearchQuery, isSearching, searchResults, showResults, searchError, searchErrorMessage, search, dismiss };
 }
