@@ -1306,6 +1306,23 @@ Tracks sync status of gigs to Google Calendar per user.
 
 ## Operational Tables
 
+### rate_limit_events
+
+Rolling-window counts for the `server` function's rate limits (migration 20261108090000): organization creation, Google Places calls, invitation emails and access requests. The limits are in `supabase/functions/server/lib/pure/rateLimits.ts`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | BIGINT | Primary key (identity) |
+| action | TEXT | `org_create`, `places`, `invitation_email` or `access_request` (CHECK) |
+| user_id | UUID | Who did it (NOT NULL; no foreign key, like `ai_scan_usage`) |
+| organization_id | UUID | The organization, for limits counted per organization (nullable) |
+| created_at | TIMESTAMPTZ | When (NOT NULL, default now()) |
+
+**Notes:**
+- RLS is **ENABLED** with only the restrictive two-factor policy: no grants to `anon` or `authenticated`, so only the server's service-role client reads or writes it. Tests: `81_rate_limit_events.test.sql`.
+- Not an audit log: the server deletes an action's rows older than 24 hours (the longest window) when it records a new one.
+- Indexed on (action, user_id, created_at), (action, organization_id, created_at) and (action, created_at).
+
 ### ai_scan_usage
 
 Usage log for the `ai-scan` edge function, used for its rate limits: 60 scans per user per hour (since 10-02; it was 20) and 200 per organization per 24 hours (migration 20261107070000).

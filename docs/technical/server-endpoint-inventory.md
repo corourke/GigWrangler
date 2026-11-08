@@ -12,6 +12,8 @@ authorization is the middleware named in each row: `requireUser` (`lib/auth.ts`)
 legacy `/make-server-de012ad4`) prefix. The function keeps the default `verify_jwt = true`, so the Supabase gateway
 also requires a JWT (the anon key is enough) before any route runs, `/health` included.
 
+**Rate limits.** Org creation (#8), both Google Places routes, invitations and access requests (#37) call `rateLimited` (`lib/rateLimit.ts`) before the work and answer 429 with a plain message over the limit; see security-scheme.md §8.
+
 **Two-factor sign-in (#361).** `requireUser` also applies the database's two-factor rule: a session without its code (`aal1`, not a Google sign-in) for someone who must use two-factor sign-in (`mfa_required_for`) gets 403 `{ error: 'TWO_FACTOR_REQUIRED' }` on every route that uses it.
 
 Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self only · 🏢 org member · 🛡️ org Admin/Manager · 👑 org Admin.
@@ -32,7 +34,7 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 | # | Method | Path | Enforced | Code | Notes |
 |---|--------|------|---------------------|----------|-------|
 | 7 | GET | `/organizations` | 🔑 | `requireUser` | World-readable to authed users by design (org discovery, security-scheme §4). |
-| 8 | POST | `/organizations` | 🔑 | `requireUser` | Any authed user can create an org and becomes its Admin (Q-B). |
+| 8 | POST | `/organizations` | 🔑 | `requireUser` + `rateLimited('org_create')` | Any authed user can create an org and becomes its Admin (Q-B). At most 5 per user in 24 hours (429). |
 | 9 | PUT | `/organizations/:id` | 👑 | `requireOrgRole({ roles: ['Admin'], allowUnclaimedOrgManagers })` | While the org is unclaimed, also a platform moderator or an Admin/Manager of an org sharing a gig with it (`user_can_manage_unclaimed_org`); after that only the org's own Admin. |
 | 10 | DELETE | `/organizations/:id` | 👑 | Same as #9 | |
 | 11 | POST | `/organizations/:id/members` | 🛡️ to add others (👑 to add an Admin); 🔑 to self-join | `requireUser` + inline `verifyOrgMembership`; `canSelfJoinDirectly` (`lib/pure/authz.ts`) | Self-join only as Staff, when the confirmed sign-in email's domain is in the org's `allowed_domains`. Otherwise 403 "Request to join instead" (#37). |
@@ -116,7 +118,7 @@ Decisions made for the refactor. The two fixes (Q-C, Q-D) shipped with it.
 ## Future Considerations (deferred)
 
 - **User-directory scoping (from Q-A): done 11-07.** `/users/:id` returns only yourself or someone sharing an organization or a gig with you; `/users?search=` and `/users/:id/organizations` are removed.
-- **Org-creation abuse controls (from Q-B).** Pair open org creation with rate-limiting and an abuse plan before any public launch.
+- **Org-creation abuse controls (from Q-B): rate limits done 11-08.** Organization creation, Places calls, invitation emails and access requests are rate-limited (see security-scheme.md §8). A wider abuse plan (e.g. reporting, review of new orgs) is still open before any public launch.
 
 ---
 

@@ -7,6 +7,7 @@ import { newPasswordError } from '../lib/pure/password.ts';
 import { normalizeWebsiteUrl } from '../lib/pure/websiteUrl.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
 import { fail } from '../lib/fail.ts';
+import { rateLimited } from '../lib/rateLimit.ts';
 
 const ORG_UPDATE_FIELDS = [
   'name', 'roles', 'url', 'phone_number', 'description',
@@ -64,6 +65,9 @@ export function registerOrganizations(app: App) {
       if (!website.ok) return c.json({ error: website.error }, 400);
       orgData.url = website.value;
     }
+
+    const limited = await rateLimited(c, 'org_create');
+    if (limited) return limited;
 
     const { data: org, error: orgError } = await supabaseAdmin
       .from('organizations').insert({ ...orgData, claimed: auto_join }).select().single();
@@ -364,6 +368,10 @@ export function registerOrganizations(app: App) {
     if (!canAssignRole(c.get('membership')?.role, role)) {
       return c.json({ error: 'Only Admins can invite an Admin' }, 403);
     }
+
+    // Before the invitation is made, so a refused one leaves nothing behind.
+    const limited = await rateLimited(c, 'invitation_email', { organizationId: orgId });
+    if (limited) return limited;
 
     const { data, error: rpcError } = await supabaseAdmin.rpc('invite_user_to_organization', {
       p_organization_id: orgId,
