@@ -663,7 +663,7 @@ Every amount of money a gig brings in or costs, one row each, with its stage.
 |-------|------|-------------|
 | id | UUID | Primary key |
 | gig_id | UUID | Reference to gigs.id (NOT NULL) |
-| organization_id | UUID | Reference to organizations.id (the owning organization) (nullable) |
+| organization_id | UUID | Reference to organizations.id (the owning organization) (NOT NULL; migration 20261108140000) |
 | direction | fin_direction | `in` or `out` (NOT NULL; migration 20261005000000) |
 | stage | fin_stage | Where the row stands (NOT NULL; migration 20261005000000) |
 | legacy_type | fin_type | The pre-2026-10 `type`, kept on converted rows for audit (nullable; renamed from `type` in migration 20261005000000) |
