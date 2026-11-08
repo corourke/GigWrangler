@@ -1216,3 +1216,59 @@ describe('ReviewScannedDataDialog: totals and scanned prices', () => {
     expect(items.map(i => [i.item_price, i.line_cost])).toEqual([[30, 30], [0, 0]]);
   });
 });
+
+// Saving when the lines don't add up to the invoice total asks first; it doesn't block (Docs Lead
+// smoke test, 11-08). Reconciled means within a cent, as on the Purchases tab and in the reports.
+describe('ReviewScannedDataDialog: saving when the totals don\'t match', () => {
+  beforeEach(() => vi.clearAllMocks());
+  const invoice = (total: number) => ({
+    vendor: 'Sweetwater', purchase_date: '2026-07-05', total_inv_amount: total,
+    items: [{ description: 'Tape', quantity: 1, item_price: 20, item_cost: 20, category: 'Supplies' }],
+  });
+  const openNew = async (total: number) => {
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" scannedData={invoice(total) as any} file={null} />);
+    const save = await screen.findByRole('button', { name: 'Save Purchase' });
+    await waitFor(() => expect(save).toBeEnabled());
+    return save;
+  };
+
+  it('asks before saving; Go back saves nothing', async () => {
+    await userEvent.click(await openNew(25));
+    const ask = await screen.findByRole('alertdialog');
+    expect(within(ask).getByText('The lines add up to $20.00, but the invoice total is $25.00.')).toBeInTheDocument();
+    await userEvent.click(within(ask).getByRole('button', { name: 'Go back' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(createPurchaseWithUnits).not.toHaveBeenCalled();
+  });
+
+  it('Save anyway saves once', async () => {
+    await userEvent.click(await openNew(25));
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Save anyway' }));
+    await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalledTimes(1));
+  });
+
+  it('saves straight away when the totals match', async () => {
+    await userEvent.click(await openNew(20));
+    await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('a 3¢ difference is a mismatch, as in the reports', async () => {
+    await openNew(20.03);
+    expect(screen.getByText('Mismatch:')).toBeInTheDocument();
+  });
+
+  it('an edit that changes nothing about money saves without asking, even if it never matched', async () => {
+    const svc = await import('../services/purchase.service');
+    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({
+      id: 'h1', vendor: 'Sweetwater', purchase_date: '2026-03-01', total_inv_amount: 80, description: 'Stands',
+      items: [{ id: 'l1', row_type: 'item', tax_treatment: 'expense', description: 'Stand', quantity: 1, item_price: 50, item_cost: 50, line_cost: 50, asset_id: null, category: 'Audio' }],
+      assets: [], attachments: [],
+    } as any);
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} onUpdated={vi.fn()} organizationId="org-1" scannedData={null} file={null} editPurchaseId="h1" />);
+    await userEvent.type(await screen.findByDisplayValue('Stand'), ' x');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.savePurchaseEdit).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+});
