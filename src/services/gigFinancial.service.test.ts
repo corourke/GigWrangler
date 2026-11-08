@@ -71,6 +71,23 @@ describe('getGigProfitabilitySummary projected staff costs (#213)', () => {
     expect(summary.projectedStaffCosts).toBe(350 + 400 + 200);
   });
 
+  it('totals and profit are whole cents (B16)', async () => {
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'gigs') return makeChain({ data: nightGig, error: null });
+      if (table === 'gig_financials') return makeChain({ data: [
+        { direction: 'in', stage: 'accepted', amount: '1.1' },
+        { direction: 'out', stage: 'accepted', amount: '0.2' },
+      ], error: null });
+      if (table === 'gig_staff_assignments') return makeChain({ data: [
+        { fee: 0.1, rate: null, rate_unit: 'hour', status: 'Confirmed', completed_at: null },
+      ], error: null });
+      return makeChain({ data: [], error: null });
+    });
+    const summary = await getGigProfitabilitySummary('gig-1', 'org-1');
+    expect(summary.totalCosts).toBe(0.3);
+    expect(summary.profit).toBe(0.8);
+  });
+
   it("reads the gig's start, end and timezone", async () => {
     setup([]);
     await getGigProfitabilitySummary('gig-1', 'org-1');
@@ -102,6 +119,24 @@ describe('getGigExportAggregates', () => {
       return makeChain({ data: [], error: null });
     });
   }
+
+  it('sums are whole cents (B16)', async () => {
+    setup({
+      participants: [{ gig_id: 'g1' }],
+      financials: [
+        { gig_id: 'g1', direction: 'in', stage: 'accepted', amount: '0.1', staff_assignment_id: null },
+        { gig_id: 'g1', direction: 'in', stage: 'accepted', amount: '0.2', staff_assignment_id: null },
+        { gig_id: 'g1', direction: 'out', stage: 'accepted', amount: '0.1', staff_assignment_id: null },
+        { gig_id: 'g1', direction: 'out', stage: 'accepted', amount: '0.2', staff_assignment_id: null },
+        { gig_id: 'g1', direction: 'out', stage: 'paid', amount: '0.1', amount_settled: '0.1', staff_assignment_id: 's1' },
+        { gig_id: 'g1', direction: 'out', stage: 'paid', amount: '0.2', amount_settled: '0.2', staff_assignment_id: 's2' },
+      ],
+    });
+    const g1 = (await getGigExportAggregates('org-1')).get('g1')!;
+    expect(g1.revenue).toBe(0.3);
+    expect(g1.expenses).toBe(0.3);
+    expect(g1.costOfStaff).toBe(0.3);
+  });
 
   it('returns an empty map when the org participates in no gigs', async () => {
     setup({ participants: [] });
