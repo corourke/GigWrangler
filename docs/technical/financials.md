@@ -238,6 +238,11 @@ Files live in the `attachments` table and storage bucket, joined through `entity
   - **Track as equipment** replaces **Reclassify as Asset**;
   - **Assign Gig** and **Add to gig ledger** appear only on expensed lines;
   - a purchase is never assigned to a gig as a whole: **Assign receipt to gig** was removed in #133 step 3; lines are linked one at a time (`reconcileLedgerForLineGigChange`).
+- **Review dialog, totals that don't match:**
+  - The dialog shows **Mismatch** when the lines don't add up to the invoice total within a cent (`isReconciled`, the same rule as the purchase list and Needs attention).
+  - Saving a mismatch asks first ("Save anyway" or "Go back"); it isn't blocked.
+  - There's no question in a filed year, or on an edit that changes neither the total nor any line's cost.
+  - Edits re-spread the total over the lines' prices, so a new purchase mismatches only when its lines have no prices.
 - **Tax years:** Admins lock and unlock years under **Financials → Reporting → Schedule C → Filed tax years** (`TaxYearsCard`, shown under the Schedule C report only; `taxYear.service.ts`); Managers see them read-only.
 
 "Track as equipment" is a separate question.
