@@ -439,35 +439,24 @@ export async function recordGigFinancialPayment(
   row: DbGigFinancial,
   payment: { amount: number; paid_at: string; remainder: 'split' | 'settle'; reference_number?: string | null },
 ): Promise<{ paid: DbGigFinancial; remainder: DbGigFinancial | null }> {
-  const agreed = Number(row.amount ?? 0);
-  const short = agreed - payment.amount;
-  let remainder: DbGigFinancial | null = null;
-
-  if (short > 0.004 && payment.remainder === 'split') {
-    remainder = await createGigFinancial({
-      gig_id: row.gig_id,
-      organization_id: row.organization_id!,
-      direction: row.direction,
-      stage: row.stage,
-      amount: Math.round(short * 100) / 100,
-      date: row.date,
-      due_date: row.due_date,
-      category: row.category,
-      description: row.description ? `${row.description} (remainder)` : 'Remainder',
-      counterparty_id: row.counterparty_id,
-      external_entity_name: row.external_entity_name,
-      currency: row.currency,
+  try {
+    // One call, so a refused payment (a filed year, no permission) leaves no remainder behind (B7).
+    const { data, error } = await getSupabase().rpc('record_gig_payment', {
+      p_id: row.id,
+      p_amount: payment.amount,
+      p_paid_at: payment.paid_at.slice(0, 10),
+      p_split: payment.remainder === 'split',
+      p_reference: payment.reference_number || null,
     });
+    if (error) throw error;
+    const result = data as unknown as { paid: DbGigFinancial; remainder: DbGigFinancial | null };
+    const changes = computeFieldChanges(row, result.paid, LOGGED_FIELDS);
+    if (changes.length > 0) await logFinancialEvent('financial.paid', result.paid, changes);
+    if (result.remainder) await logFinancialEvent('financial.added', result.remainder);
+    return { paid: result.paid, remainder: result.remainder ?? null };
+  } catch (err) {
+    return handleApiError(err, 'record a payment');
   }
-
-  const paid = await updateGigFinancial(row.id, {
-    stage: 'paid',
-    amount: short > 0.004 ? payment.amount : agreed,
-    amount_settled: payment.amount,
-    paid_at: payment.paid_at,
-    ...(payment.reference_number ? { reference_number: payment.reference_number } : {}),
-  });
-  return { paid, remainder };
 }
 
 /**

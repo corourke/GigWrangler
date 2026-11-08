@@ -44,6 +44,7 @@ import type {
   PackingListRow,
 } from '../../services/inventoryManagement.service';
 import { plural } from '../../utils/plural';
+import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface InventoryReportsProps {
   organizationId: string;
@@ -233,7 +234,10 @@ function ManifestTab({
     });
   };
 
+  // A late answer for an earlier location or gig filter is dropped (B12).
+  const startManifestRequest = useLatestRequest();
   const fetchManifest = useCallback(async () => {
+    const isCurrent = startManifestRequest();
     if (!location) {
       setRows([]);
       return;
@@ -244,14 +248,15 @@ function ManifestTab({
         location,
         gigId: gigFilter !== 'all' ? gigFilter : undefined,
       });
+      if (!isCurrent()) return;
       setRows(data);
       setCheckedRows(new Set());
     } catch {
-      setRows([]);
+      if (isCurrent()) setRows([]);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [organizationId, location, gigFilter]);
+  }, [organizationId, location, gigFilter, startManifestRequest]);
 
   useEffect(() => {
     fetchManifest();
@@ -563,7 +568,10 @@ function PackingListTab({
     }
   };
 
+  // A late answer for an earlier gig is dropped (B12).
+  const startPackingRequest = useLatestRequest();
   const fetchPackingList = useCallback(async () => {
+    const isCurrent = startPackingRequest();
     if (!gigId) {
       setRows([]);
       return;
@@ -571,15 +579,18 @@ function PackingListTab({
     setLoading(true);
     try {
       const data = await getPackingListReport(organizationId, gigId);
+      if (!isCurrent()) return;
       setRows(data);
       setCheckedRows(new Set());
     } catch {
-      setRows([]);
+      if (isCurrent()) setRows([]);
     } finally {
-      setLoading(false);
-      setLoaded(true);
+      if (isCurrent()) {
+        setLoading(false);
+        setLoaded(true);
+      }
     }
-  }, [organizationId, gigId]);
+  }, [organizationId, gigId, startPackingRequest]);
 
   useEffect(() => {
     if (loaded) onLoaded?.();
@@ -812,7 +823,9 @@ function PackingListTab({
 function useConflictFlags(organizationId: string): Set<string> {
   const [conflictFlags, setConflictFlags] = useState<Set<string>>(new Set());
   useEffect(() => {
-    getInventoryConflictFlags(organizationId).then(setConflictFlags).catch(() => {});
+    let cancelled = false;
+    getInventoryConflictFlags(organizationId).then((f) => { if (!cancelled) setConflictFlags(f); }).catch(() => {});
+    return () => { cancelled = true; };
   }, [organizationId]);
   return conflictFlags;
 }

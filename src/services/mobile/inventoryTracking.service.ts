@@ -579,12 +579,14 @@ export const inventoryTrackingService = {
   getExtras,
   getLoose,
 
-  async matchTag(tagNumber: string) {
+  /** A kit or unit with this tag in the organization (B14): tags are unique per organization only. */
+  async matchTag(tagNumber: string, organizationId: string) {
     const trimmed = tagNumber.trim();
 
     const { data: kits } = await supabase
       .from('kits')
       .select('id, name, tag_number, is_container')
+      .eq('organization_id', organizationId)
       .eq('tag_number', trimmed)
       .limit(1);
 
@@ -595,6 +597,7 @@ export const inventoryTrackingService = {
     const { data: assets } = await supabase
       .from('assets')
       .select('id, name, manufacturer_model, description, category, tag_number, serial_number, quantity, status, equipment_item_id')
+      .eq('organization_id', organizationId)
       .eq('tag_number', trimmed)
       .limit(1);
 

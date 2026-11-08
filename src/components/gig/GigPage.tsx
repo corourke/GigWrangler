@@ -43,6 +43,7 @@ import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay } from '../../utils/dateUtils';
 import type { ActivityLogEntry, Gig, Organization, User, UserRole } from '../../utils/supabase/types';
 import type { GigTab } from '../../routes/paths';
+import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface GigPageProps {
   gigId: string;
@@ -113,24 +114,34 @@ export default function GigPage({
   }, []);
   const [finishing, setFinishing] = useState(false);
 
+  // A late answer for an earlier gig (or an earlier reload) is dropped (B12).
+  const startGigRequest = useLatestRequest();
   const loadGig = useCallback(async () => {
+    const isCurrent = startGigRequest();
     setLoadError(null);
     try {
       const data = await getGig(gigId);
+      if (!isCurrent()) return;
       setGig(data);
-      countChildGigs(gigId).then(setChildGigCount).catch(() => setChildGigCount(0));
-      checkAllConflicts(gigId, data.start, data.end, data.timezone, organization.id).then((r) => setConflicts(r.conflicts)).catch(() => {});
+      countChildGigs(gigId).then((n) => { if (isCurrent()) setChildGigCount(n); }).catch(() => { if (isCurrent()) setChildGigCount(0); });
+      checkAllConflicts(gigId, data.start, data.end, data.timezone, organization.id)
+        .then((r) => { if (isCurrent()) setConflicts(r.conflicts); }).catch(() => {});
     } catch (error: any) {
-      setLoadError(error.message || 'Failed to load this gig.');
+      if (isCurrent()) setLoadError(error.message || 'Failed to load this gig.');
     }
-  }, [gigId, organization.id]);
+  }, [gigId, organization.id, startGigRequest]);
 
   useEffect(() => { loadGig(); }, [loadGig]);
 
   useEffect(() => {
     if (tab !== 'history') return;
+    let cancelled = false;
     setActivityLoading(true);
-    getGigActivity(gigId).then(setActivity).catch(() => setActivity([])).finally(() => setActivityLoading(false));
+    getGigActivity(gigId)
+      .then((a) => { if (!cancelled) setActivity(a); })
+      .catch(() => { if (!cancelled) setActivity([]); })
+      .finally(() => { if (!cancelled) setActivityLoading(false); });
+    return () => { cancelled = true; };
   }, [tab, gigId]);
 
   // Staff and Viewers never see financials (#12); keep them off that tab.

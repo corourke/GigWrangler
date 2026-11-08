@@ -19,6 +19,7 @@ import {
 } from '../../services/maintenance.service';
 import { isStaffOrAbove } from '../../utils/permissions';
 import type { UserRole } from '../../utils/supabase/constants';
+import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface MaintenanceListProps {
   organizationId: string;
@@ -51,17 +52,23 @@ export function MaintenanceList({ organizationId, organizationName, userRole }: 
   const [busy, setBusy] = useState(false);
   const canEdit = isStaffOrAbove(userRole);
 
+  // A late answer for an earlier organization (or reload) is dropped (B12).
+  const startRequest = useLatestRequest();
   const load = useCallback(async () => {
+    const isCurrent = startRequest();
     try {
-      setList(await getMaintenanceList(organizationId));
+      const list = await getMaintenanceList(organizationId);
+      if (!isCurrent()) return;
+      setList(list);
       setLoadFailed(false);
     } catch (err) {
+      if (!isCurrent()) return;
       console.error('Error loading the maintenance list:', err);
       setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [organizationId]);
+  }, [organizationId, startRequest]);
   useEffect(() => { load(); }, [load]);
 
   const act = async (what: () => Promise<unknown>, done: string) => {

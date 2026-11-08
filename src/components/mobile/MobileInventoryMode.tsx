@@ -1009,7 +1009,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
           return;
         }
         if (offerAdHoc(tagNumber)) return;
-        const found = navigator.onLine ? await inventoryTrackingService.matchTag(tagNumber) : null;
+        const found = navigator.onLine ? await inventoryTrackingService.matchTag(tagNumber, selectedOrganization.id) : null;
         if (found?.type === 'asset' && found.item) {
           openExtraScan(found.item);
           return;

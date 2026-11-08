@@ -44,6 +44,19 @@ export default tseslint.config(
       'react-hooks/exhaustive-deps': 'warn',
       // Unused function params are idiomatic (callbacks, destructured props);
       // unused locals/imports remain errors
+      // B11: a date column is a calendar day; new Date('2026-03-01') is the evening before west
+      // of UTC. Use parseDateOnly / formatDateOnly (src/utils/dateOnly.ts).
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "NewExpression[callee.name='Date'][arguments.length=1] > MemberExpression.arguments[property.name=/^(date|due_date|purchase_date|acquisition_date|retired_on|filed_on|tax_date|disposed_on)$/]",
+          message: 'A date column is a calendar day: use parseDateOnly / formatDateOnly (src/utils/dateOnly.ts), not new Date().',
+        },
+        {
+          selector: "NewExpression[callee.name='Date'][arguments.length=1] > Identifier.arguments[name=/^(dueDate|due_date|purchase_date|purchaseDate|acquisition_date|retired_on|retiredOn|filed_on)$/]",
+          message: 'A date column is a calendar day: use parseDateOnly / formatDateOnly (src/utils/dateOnly.ts), not new Date().',
+        },
+      ],
       '@typescript-eslint/no-unused-vars': [
         'error',
         { args: 'none', varsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true },

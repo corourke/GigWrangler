@@ -32,7 +32,13 @@ export const formatInTimeZone = (
   options: Intl.DateTimeFormatOptions = {}
 ): string => {
   if (!date) return '';
-  
+
+  // A date-only value ('2026-03-01') is a calendar day, the same in every zone (B11): format it
+  // as noon UTC, in UTC, so no zone moves it to the day before.
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return new Intl.DateTimeFormat('en-US', { ...options, timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
+  }
+
   try {
     const d = typeof date === 'string' ? new Date(date) : date;
     if (isNaN(d.getTime())) return typeof date === 'string' ? date : '';
@@ -228,7 +234,7 @@ export const formatForDateTimeInput = (
   timeZone: string | undefined
 ): string => {
   if (!date) return '';
-  
+
   try {
     const d = typeof date === 'string' ? new Date(date) : date;
     if (isNaN(d.getTime())) return '';
