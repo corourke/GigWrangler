@@ -72,7 +72,7 @@ An Admin of the organization decides it, or a platform moderator if it has no Ad
 yet. You're notified the same way, and if it's approved your role changes
 automatically. See [Access requests & moderation](/reference/access-requests-and-moderation/).
 
-![The notification bell open on a decision: a request for Admin was rejected, with the Admin's reply below it](../../../assets/screenshots/getting-started/organizations-notification.png)
+![The notification bell open on a decision: "Your request for Admin on Demo Sound & Lighting was rejected."](../../../assets/screenshots/getting-started/organizations-notification.png)
 
 ## 3. Accept an invitation
 
