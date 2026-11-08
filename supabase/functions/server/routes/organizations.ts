@@ -139,8 +139,10 @@ export function registerOrganizations(app: App) {
 
     const counts: Record<string, number> = {};
     for (const ref of ORGANIZATION_DELETE_REFERENCES) {
-      const { count, error: countError } = await supabaseAdmin
+      let query = supabaseAdmin
         .from(ref.table).select('*', { count: 'exact', head: true }).eq(ref.column, orgId);
+      if (ref.exceptCallerColumn) query = query.neq(ref.exceptCallerColumn, c.get('user').id);
+      const { count, error: countError } = await query;
       if (countError) {
         console.error(`Error checking ${ref.table} for org delete:`, countError);
         return c.json({ error: `Failed to check ${ref.label}` }, 500);

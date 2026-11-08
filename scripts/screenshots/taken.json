@@ -230,8 +230,8 @@
       "src/components/NotificationBell.tsx"
     ],
     "anchor": "2026-10-07",
-    "taken": "2026-10-10",
-    "appCommit": "0122c92"
+    "taken": "2026-11-08",
+    "appCommit": "4a40b8f"
   },
   "getting-started/organizations-request-access": {
     "page": "getting-started/organizations.md",

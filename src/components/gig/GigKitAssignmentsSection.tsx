@@ -20,6 +20,7 @@ import EquipmentNeededTable from './EquipmentNeededTable';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import { useRowBaseline } from '../../utils/hooks/useRowBaseline';
 import SaveStateIndicator from './SaveStateIndicator';
+import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 /**
  * Which currently-assigned kits share a physical asset with another kit
@@ -199,13 +200,17 @@ export default function GigKitAssignmentsSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignedKitIds.join(',')]);
 
+  const startRequest = useLatestRequest();
   const loadData = async () => {
+    // A late answer for an earlier gig is dropped (B12).
+    const isCurrent = startRequest();
     setIsLoading(true);
     try {
       const [assignmentsData, kitsData] = await Promise.all([
         getGigKits(gigId),
         getKits(currentOrganizationId),
       ]);
+      if (!isCurrent()) return;
 
       const organizationAssignments = assignmentsData.filter(
         (a: any) => a.kit?.organization_id === currentOrganizationId
@@ -226,10 +231,11 @@ export default function GigKitAssignmentsSection({
       reset({ assignments: formattedAssignments });
       setAvailableKits(organizationKits);
     } catch (error: any) {
+      if (!isCurrent()) return;
       console.error('Error loading kits:', error);
       toast.error('Failed to load kits');
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
   };
 

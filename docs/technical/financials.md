@@ -262,12 +262,12 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 
 | Where (UI) | Writes | Notes |
 |---|---|---|
-| Financials → Purchases → **Scan invoices** (title-row button) | Header + lines; the units or lot of each line marked as equipment; the file as `purchase` attachment | Several files at once, read in the background two at a time, reviewed one at a time. RPC `create_purchase_transaction_v2` (#183). |
+| Financials → Purchases → **Scan invoices** (title-row button) | Header + lines; the units or lot of each line marked as equipment; the file as `purchase` attachment | Several files at once, read in the background two at a time, reviewed one at a time. RPC `create_purchase_transaction_v3` (#183, B6); on a gig, the expensed lines' gig expenses are saved in the same call. Editing a saved purchase saves through `update_purchase_v1`, all or nothing. |
 | Financials → Purchases → **Add purchase** (title-row button) | Same, without a file | Attach the file afterwards with **Attach Doc** on the report. |
 | Gig → Financials → **Upload Receipt** | Same, then each **expensed** line gets the gig's `gig_id` and its own money-out row (`createLedgerEntryForPurchaseLine`) | Scans one file. Depreciated lines are not the gig's cost (#130, fixed 10-06). |
 | Assets list → **Upload Invoice** | Same as Scan invoices, for one file | Opens manual entry if the file can't be scanned. |
 | Purchases report → **Attach Doc** | A `purchase` attachment on the header | No scan. |
-| Import → **CSV Import** | Headers, lines, and each equipment line's units or lot; kit lines for rows that name a kit | One `create_purchase_transaction_v2` call per purchase, then the kit lines (#183 D). No gig links, no attachments. `source` 0 = header, 1 = equipment line (units or a lot), 2 = expense line. See `purchases-field-mapping.md`. |
+| Import → **CSV Import** | Headers, lines, and each equipment line's units or lot; kit lines for rows that name a kit | One `create_purchase_transaction_v3` call per purchase (no gig), then the kit lines (#183 D). No gig links, no attachments. `source` 0 = header, 1 = equipment line (units or a lot), 2 = expense line. See `purchases-field-mapping.md`. |
 | Assets → new asset | An `assets` row only | No purchase. |
 | Gig → **Booking** / **Payment received** / **Other** | Money-in or money-out rows | Payment received on a gig with an open booking pays that booking off by default (same as its Record Payment); "Separate payment (no booking)" adds a paid row |
 | Gig → **Expense / Mileage** | One money-out row | Mileage = miles × the IRS rate for the date (`src/utils/financials.utils.ts`; 2025–26 rates wrong, #125 F1). A simple expense can carry a receipt (`gig_financial`). |

@@ -15,6 +15,7 @@ import {
   PopoverTrigger,
 } from '../../ui/popover';
 import { getGigOptionsForOrganization } from '../../../services/gig.service';
+import { formatDateOnly } from '../../../utils/dateOnly';
 
 interface GigOption {
   id: string;
@@ -115,7 +116,7 @@ export default function GigCombobox({ organizationId, value, onChange, disabled,
               </CommandGroup>
               {aroundDate && !isLoading && (
                 <p className="px-2 py-1.5 text-[10px] text-gray-400 border-t">
-                  Showing gigs near {new Date(aroundDate).toLocaleDateString()}
+                  Showing gigs near {formatDateOnly(aroundDate, 'M/d/yyyy') || aroundDate}
                 </p>
               )}
             </CommandList>

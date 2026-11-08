@@ -149,7 +149,7 @@ function CreateOrgRoute() {
 }
 
 function AdminOrgsRoute() {
-  const { user, organizations } = useAuth();
+  const { user, organizations, setOrganizations, selectedOrganization, selectOrganization } = useAuth();
   const nav = useNav();
   const { openEditProfile } = useAppShell();
   if (!user) return <LoadingSpinner />;
@@ -162,6 +162,10 @@ function AdminOrgsRoute() {
       onBack={nav.toOrgSelection}
       onLogout={nav.logoutAndHome}
       onEditProfile={openEditProfile}
+      onOrganizationDeleted={(orgId) => {
+        setOrganizations(organizations.filter((m) => m.organization.id !== orgId));
+        if (selectedOrganization?.id === orgId) selectOrganization(null);
+      }}
     />
   );
 }

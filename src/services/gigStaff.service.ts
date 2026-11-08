@@ -3,6 +3,7 @@ import { getCurrentUser, getSupabase } from './base/dataAccess';
 import { writeActivity, actorNameOf } from './writeActivity';
 import { verifyGigAccess } from './gigService.shared';
 import { StaffingChange } from '../utils/supabase/types';
+import { deleteGigFinancial } from './gigFinancial.service';
 
 /**
  * Gig staff-slot / assignment operations (Phase 7, Step 4 — extracted from
@@ -257,14 +258,12 @@ export async function unfinalizeStaffAssignment(assignmentId: string) {
     if (fetchError) throw fetchError;
     if (!assignment) throw new Error('Assignment not found');
 
-    // 2. Delete the financial record if it exists
+    // 2. Remove the labor row as any money row is removed (B4): it must actually go (a filed
+    //    year or missing permission stops here, leaving the assignment finalized), its receipt
+    //    follows, and the gig's history records it. A row already deleted elsewhere has
+    //    cleared gig_financial_id (ON DELETE SET NULL).
     if (assignment.gig_financial_id) {
-      const { error: deleteError } = await supabase
-        .from('gig_financials')
-        .delete()
-        .eq('id', assignment.gig_financial_id);
-
-      if (deleteError) throw deleteError;
+      await deleteGigFinancial(assignment.gig_financial_id);
     }
 
     // 3. Reset assignment completion fields
