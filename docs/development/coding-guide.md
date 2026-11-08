@@ -27,6 +27,7 @@
 - **Partial Updates**: When updating data through user edit actions (form or inline editing), ONLY update database columns for values that have been changed in the UI. Do not make changes to column values that haven't changed to avoid triggering unnecessary change logic in the back-end.
 - **Migration Assumptions**: It is not necessary to gracefully handle cases where tables don't exist - we will always assume migrations have been run.
 - **No Mock Data**: Do not add or maintain any code to handle mock data outside of tests - we are using a live database.
+- **Date columns are calendar days**: a `date` column (`purchase_date`, `due_date`, `acquisition_date`, `retired_on`, a money row's `date`) arrives as `'2026-03-01'`. `new Date('2026-03-01')` is midnight UTC, the evening before west of UTC. Parse and format these with `parseDateOnly` / `formatDateOnly` (`src/utils/dateOnly.ts`); `formatDateDisplay` also keeps a date-only value's day. ESLint flags `new Date()` on a date column (`no-restricted-syntax` in `eslint.config.js`).
 
 ---
 

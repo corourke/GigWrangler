@@ -76,7 +76,8 @@ export default function MobileGigFinancials({
   };
 
   const sortedFinancials = [...financials].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    // Calendar days ('YYYY-MM-DD') sort as text, newest first.
+    (a, b) => String(b.date ?? '').localeCompare(String(a.date ?? ''))
   );
 
   return (

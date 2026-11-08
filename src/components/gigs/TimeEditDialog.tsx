@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
+import { formatDateOnly, parseDateOnly } from '../../utils/dateOnly';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
 const MINUTES = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
@@ -65,13 +66,13 @@ export function TimeEditDialog({
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-full justify-start text-left font-normal">
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date ? format(date, 'PPP') : 'Pick a date'}
+                  {date ? formatDateOnly(date, 'PPP') : 'Pick a date'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
                 <Calendar
                   mode="single"
-                  selected={date ? new Date(date) : undefined}
+                  selected={parseDateOnly(date) ?? undefined}
                   onSelect={(d) => d && setDate(format(d, 'yyyy-MM-dd'))}
                 />
               </PopoverContent>

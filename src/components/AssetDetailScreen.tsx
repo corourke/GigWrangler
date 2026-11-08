@@ -22,6 +22,7 @@ import { recordKind } from '../utils/equipmentItems';
 import { undoWriteOff } from '../services/writeOff.service';
 import { getLockedTaxYears } from '../services/taxYear.service';
 import { WRITE_OFF_LOCKED_MESSAGE } from '../utils/writeOffMessages';
+import { formatDateOnly } from '../utils/dateOnly';
 
 interface AssetDetailScreenProps {
   organization: Organization;
@@ -287,7 +288,7 @@ export default function AssetDetailScreen({
                 <div>
                   <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Retired On</p>
                   <p className="mt-1 text-gray-900">
-                    {asset.retired_on ? format(new Date(asset.retired_on), 'PPP') : '—'}
+                    {asset.retired_on ? formatDateOnly(asset.retired_on, 'PPP') : '—'}
                   </p>
                 </div>
                 {asset.purchase_id && (
@@ -353,7 +354,7 @@ export default function AssetDetailScreen({
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Acquisition Date</p>
                   <p className="mt-1 text-gray-900 font-medium">
-                    {asset.acquisition_date ? format(new Date(asset.acquisition_date), 'PPP') : '—'}
+                    {asset.acquisition_date ? formatDateOnly(asset.acquisition_date, 'PPP') : '—'}
                   </p>
                 </div>
                 <div>
