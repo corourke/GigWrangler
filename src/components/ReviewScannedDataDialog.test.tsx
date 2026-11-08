@@ -1176,3 +1176,18 @@ describe('ReviewScannedDataDialog: totals and scanned prices', () => {
     expect(items.map(i => [i.item_price, i.line_cost])).toEqual([[30, 30], [0, 0]]);
   });
 });
+
+// B18: a scanned line starts tracked as equipment only when the scan suggests it ($50 durable rule).
+describe('ReviewScannedDataDialog: the scan\'s equipment suggestion (B18)', () => {
+  it('a cheap durable item starts untracked; one the scan suggests starts tracked', async () => {
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" file={null}
+      scannedData={{ vendor: 'Sweetwater', purchase_date: '2026-07-05', total_inv_amount: 125, items: [
+        { description: 'Cable', quantity: 1, item_price: 25, item_cost: 25, is_durable: true, suggested_type: 'Expense', category: 'Audio' },
+        { description: 'Mic', quantity: 1, item_price: 100, item_cost: 100, is_durable: true, suggested_type: 'Asset', category: 'Audio' },
+      ] } as any} />);
+    const cable = await screen.findByRole('group', { name: 'Equipment: Cable' });
+    const mic = screen.getByRole('group', { name: 'Equipment: Mic' });
+    expect(within(cable).getByTitle('Track as equipment')).toBeInTheDocument();
+    expect(within(mic).getByTitle('Tracked as equipment (can go in kits)')).toBeInTheDocument();
+  });
+});
