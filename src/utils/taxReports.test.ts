@@ -300,7 +300,7 @@ describe('Disposals by record (#185)', () => {
 // #337: the app's depreciated purchases, as the depreciation estimate and the Form 4562 prefill read them.
 describe('placedItemsFrom', () => {
   it('lists each depreciated line with a recovery period: its date (else its invoice\'s), cost and period', () => {
-    const asset = (recovery_period: number | null) => ({ id: 'a', manufacturer_model: null, category: null, recovery_period, retired_on: null, liquidation_amt: null, status: null });
+    const asset = (recovery_period: number | null) => ({ id: 'a', manufacturer_model: 'Mic', category: 'Audio', recovery_period, retired_on: null, liquidation_amt: null, status: 'Active' });
     expect(placedItemsFrom([
       line({ id: '1', tax_treatment: 'depreciate', purchase_date: null, line_cost: 1200, asset: asset(7) }),
       line({ id: '2', tax_treatment: 'depreciate', purchase_date: '2025-07-04', line_cost: null, item_cost: 300, quantity: 2, asset: asset(5) }),
@@ -317,7 +317,7 @@ describe('placedItemsFrom', () => {
 describe('disposedItemsFrom', () => {
   it('lists every year\'s disposals with their recovery period: a record\'s share of its line, or the line\'s linked equipment', () => {
     const rec = (id: string, retired_on: string | null, quantity = 1) => ({
-      id, manufacturer_model: 'Mic', description: null, category: 'Audio', acquisition_date: null, item_cost: null, status: 'Retired',
+      id, manufacturer_model: 'Mic', description: null, category: 'Audio', acquisition_date: '2024-02-01', item_cost: null, status: 'Retired',
       retired_on, recovery_period: 7, purchase_line_id: 'lot', quantity,
     });
     const lot = line({ id: 'lot', tax_treatment: 'depreciate', purchase_date: '2024-02-01', quantity: 4, line_cost: 400 });

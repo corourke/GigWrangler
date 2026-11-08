@@ -2165,6 +2165,7 @@ export type Database = {
         Returns: Json
       }
       two_factor_requirement: { Args: never; Returns: Json }
+      update_purchase_v1: { Args: { p_plan: Json; p_purchase_id: string }; Returns: Json }
       add_gig_participant_contact: {
         Args: {
           p_actor_id?: string
@@ -2292,6 +2293,10 @@ export type Database = {
       }
       create_purchase_transaction_v2: {
         Args: { p_header: Json; p_items: Json[]; p_units: Json[] }
+        Returns: Json
+      }
+      create_purchase_transaction_v3: {
+        Args: { p_header: Json; p_items: Json[]; p_units: Json[]; p_gig_id?: string | null; p_ledger?: Json[] }
         Returns: Json
       }
       ensure_org_categories: { Args: { p_org: string }; Returns: undefined }

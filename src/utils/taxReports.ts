@@ -15,6 +15,7 @@
  * A gig row with a purchase_id is skipped: its purchase line already counts.
  */
 import { toCsv } from './csv';
+import type { Tables } from './supabase/database.types';
 import { TAX_DEPRECIATE_ABOVE, lineTaxTreatment, suggestedTaxTreatment, taxTreatmentLabel, type TaxTreatment } from './taxTreatment';
 import { tidyAssetCategory } from './purchaseCategories';
 import { asRecoveryPeriod, type RecoveryPeriod } from './recoveryPeriod';
@@ -22,52 +23,28 @@ import type { ReportAsset } from './taxSummaryReports';
 
 // ---- Inputs, as loaded by services/taxReport.service ---------------------------
 
-export interface ReportPurchaseLine {
-  id: string;
-  purchase_date: string | null;
-  vendor: string | null;
-  description: string | null;
-  category: string | null;
-  quantity: number | null;
-  item_cost: number | null;
-  line_cost: number | null;
-  tax_treatment: string | null;
-  asset_id: string | null;
+/** A purchase line as the tax reports read it: columns of `purchases`, with its invoice and equipment (B20). */
+export type ReportPurchaseLine = Pick<Tables<'purchases'>,
+  'id' | 'purchase_date' | 'vendor' | 'description' | 'category' | 'quantity' | 'item_cost' | 'line_cost'
+  | 'tax_treatment' | 'asset_id'
   /** The invoice the line belongs to: where its treatment is edited. */
-  parent_id: string | null;
-  parent: { purchase_date: string | null; vendor: string | null } | null;
-  asset: {
-    id: string;
-    manufacturer_model: string | null;
-    category: string | null;
-    recovery_period: number | null;
-    retired_on: string | null;
-    liquidation_amt: number | null;
-    status: string | null;
-  } | null;
-}
+  | 'parent_id'> & {
+  parent: Pick<Tables<'purchases'>, 'purchase_date' | 'vendor'> | null;
+  asset: Pick<Tables<'assets'>, 'id' | 'manufacturer_model' | 'category' | 'recovery_period' | 'retired_on' | 'liquidation_amt' | 'status'> | null;
+};
 
-export interface ReportGigRow {
-  id: string;
-  gig_id: string;
-  direction: 'in' | 'out';
-  stage: string;
-  amount_settled: number | null;
-  paid_at: string | null;
-  /** The day this money counts for taxes (database column): the paid day, else the row's date. The year lock uses it too. */
-  tax_date: string | null;
-  /** The row's own date: for mileage, the trip's date, which sets its IRS rate. */
-  date?: string | null;
-  description: string | null;
-  category: string | null;
-  mileage: number | null;
-  purchase_id: string | null;
-  staff_assignment_id: string | null;
-  external_entity_name: string | null;
-  reference_number: string | null;
-  counterparty: { name: string | null } | null;
-  gig: { title: string | null; start: string | null } | null;
-}
+/**
+ * A paid gig money row as the tax reports read it: columns of `gig_financials` (B20).
+ * `tax_date` is the day this money counts for taxes (the paid day, else the row's date); the year
+ * lock uses it too. `date` is the row's own date: for mileage, the trip's date, which sets its IRS rate.
+ */
+export type ReportGigRow = Pick<Tables<'gig_financials'>,
+  'id' | 'gig_id' | 'direction' | 'stage' | 'amount_settled' | 'paid_at' | 'tax_date' | 'description' | 'category'
+  | 'mileage' | 'purchase_id' | 'staff_assignment_id' | 'external_entity_name' | 'reference_number'>
+  & Partial<Pick<Tables<'gig_financials'>, 'date'>> & {
+  counterparty: Pick<Tables<'organizations'>, 'name'> | null;
+  gig: Pick<Tables<'gigs'>, 'title' | 'start'> | null;
+};
 
 export interface ReportExpenseCategory {
   name: string;

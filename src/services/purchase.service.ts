@@ -29,7 +29,7 @@ export async function getPurchases(organizationId: string, filters?: {
 }) {
   const supabase = getSupabase();
   try {
-    let query = (supabase.from('purchases') as any)
+    let query = supabase.from('purchases')
       .select('*')
       .eq('organization_id', organizationId)
       .order('purchase_date', { ascending: false });
@@ -61,7 +61,7 @@ export async function getPurchaseWithDetails(purchaseId: string): Promise<Purcha
   const supabase = getSupabase();
   try {
     // 1. Get the purchase (could be a header or item)
-    const { data: purchase, error: purchaseError } = await (supabase.from('purchases') as any)
+    const { data: purchase, error: purchaseError } = await supabase.from('purchases')
       .select('*')
       .eq('id', purchaseId)
       .single();
@@ -72,14 +72,14 @@ export async function getPurchaseWithDetails(purchaseId: string): Promise<Purcha
 
     // 2. If it's a header, get its items and associated assets
     if (purchase.row_type === 'header') {
-      const { data: items, error: itemsError } = await (supabase.from('purchases') as any)
+      const { data: items, error: itemsError } = await supabase.from('purchases')
         .select('*')
         .eq('parent_id', purchaseId);
 
       if (itemsError) throw itemsError;
       result.items = items || [];
 
-      const { data: assets, error: assetsError } = await (supabase.from('assets') as any)
+      const { data: assets, error: assetsError } = await supabase.from('assets')
         .select('*')
         .eq('purchase_id', purchaseId);
 
@@ -88,7 +88,7 @@ export async function getPurchaseWithDetails(purchaseId: string): Promise<Purcha
     }
 
     // 3. Get attachments
-    const { data: entityAttachments, error: attachError } = await (supabase.from('entity_attachments') as any)
+    const { data: entityAttachments, error: attachError } = await supabase.from('entity_attachments')
       .select('*, attachment:attachment_id(*)')
       .eq('entity_type', 'purchase')
       .eq('entity_id', purchaseId);
@@ -250,7 +250,7 @@ export async function trackPurchaseLineAsEquipment(lineId: string): Promise<stri
   try {
     await getCurrentUser();
     const supabase = getSupabase();
-    const { data: line, error } = await (supabase.from('purchases') as any)
+    const { data: line, error } = await supabase.from('purchases')
       .select('id, organization_id, quantity, description, category, asset_id')
       .eq('id', lineId)
       .single();
@@ -287,7 +287,7 @@ export async function createPurchaseWithUnits(
   try {
     await getCurrentUser();
     const supabase = getSupabase();
-    const { data, error } = await (supabase.rpc as any)('create_purchase_transaction_v3', {
+    const { data, error } = await supabase.rpc('create_purchase_transaction_v3', {
       p_header: header,
       p_items: items,
       p_units: units,
@@ -295,16 +295,18 @@ export async function createPurchaseWithUnits(
       p_ledger: gigLink?.ledger ?? [],
     });
     if (error) throw error;
-    if (!data?.id) throw new Error('Purchase transaction returned no result');
-    for (const row of (data.ledger ?? []) as DbGigFinancial[]) await logGigFinancialAdded(row);
-    return data;
+    // The function's jsonb result (migration 20261108120000).
+    const result = data as unknown as { id: string; line_ids: string[]; unit_ids: string[]; ledger?: DbGigFinancial[] } | null;
+    if (!result?.id) throw new Error('Purchase transaction returned no result');
+    for (const row of result.ledger ?? []) await logGigFinancialAdded(row);
+    return result;
   } catch (err) {
     return handleApiError(err, 'create purchase transaction');
   }
 }
 
 /** A purchase line's gig expense, for create_purchase_transaction_v3 (B6). */
-export interface PurchaseLedgerEntry {
+export type PurchaseLedgerEntry = {
   /** The line, by its position in the items sent (0-based). */
   line_index: number;
   amount: number;
@@ -312,7 +314,7 @@ export interface PurchaseLedgerEntry {
   description: string;
   date: string;
   paid_at: string;
-}
+};
 
 /** The gig expense for the item at `lineIndex`, as createLedgerEntryForPurchaseLine would make it. */
 export function purchaseLedgerEntry(item: LedgerLineSource, lineIndex: number, gigId: string, organizationId: string): PurchaseLedgerEntry {
@@ -331,7 +333,7 @@ export function purchaseLedgerEntry(item: LedgerLineSource, lineIndex: number, g
  * A purchase edit, as update_purchase_v1 takes it (B6): every step of the save, applied in one
  * transaction in this order.
  */
-export interface PurchaseEditPlan {
+export type PurchaseEditPlan = {
   equipment: (
     | { op: 'lot_quantity'; asset_id: string; quantity: number }
     | { op: 'repoint'; line_id: string; asset_id: string }
@@ -345,7 +347,7 @@ export interface PurchaseEditPlan {
   removed_item_ids: string[];
   asset_changes: { asset_id: string; data: Record<string, any> }[];
   gig_changes: { fin_id: string; amount: number; settle: boolean }[];
-}
+};
 
 /**
  * Save a purchase edit in one call, all or nothing (B6), then record the equipment and gig money
@@ -354,7 +356,7 @@ export interface PurchaseEditPlan {
 export async function savePurchaseEdit(purchaseId: string, plan: PurchaseEditPlan): Promise<void> {
   try {
     await getCurrentUser();
-    const { data, error } = await (getSupabase().rpc as any)('update_purchase_v1', { p_purchase_id: purchaseId, p_plan: plan });
+    const { data, error } = await getSupabase().rpc('update_purchase_v1', { p_purchase_id: purchaseId, p_plan: plan });
     if (error) throw error;
     const result = (data ?? {}) as {
       assets?: { before: any; after: any }[];
@@ -378,7 +380,7 @@ export async function addLineUnits(lineId: string, units: Omit<LineUnitInput, 'l
   try {
     await getCurrentUser();
     const supabase = getSupabase();
-    const { data, error } = await (supabase.rpc as any)('add_purchase_line_units', { p_line_id: lineId, p_units: units });
+    const { data, error } = await supabase.rpc('add_purchase_line_units', { p_line_id: lineId, p_units: units });
     if (error) throw error;
     return (data ?? []) as string[];
   } catch (err) {
