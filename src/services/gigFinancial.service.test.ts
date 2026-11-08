@@ -297,26 +297,46 @@ describe('gig financial row writes', () => {
     expect(finChains[1].update).toHaveBeenCalledWith(expect.objectContaining({ stage: 'invoiced', paid_at: null, amount_settled: null }));
   });
 
-  it('splits a partial payment: the row is paid, the rest stays owed as a new row', async () => {
+  // B7: the payment and its remainder are one database call (record_gig_payment), so a refused
+  // payment (a filed year, no permission) leaves no remainder behind.
+  const rpcReturns = (data: any, error: any = null) => { mockSupabase.rpc = vi.fn(async () => ({ data, error })); };
+
+  it('splits a partial payment in one call: the row is paid, the rest stays owed as a new row', async () => {
+    const paidRow = { ...baseRow, stage: 'paid', amount: 600, amount_settled: 600, paid_at: '2026-12-12' };
+    const remainderRow = { ...baseRow, id: 'fin-rem', amount: 900, description: 'Wedding balance (remainder)' };
+    rpcReturns({ paid: paidRow, remainder: remainderRow });
     const { paid, remainder } = await recordGigFinancialPayment(baseRow as any, {
-      amount: 600, paid_at: '2026-12-12', remainder: 'split',
+      amount: 600, paid_at: '2026-12-12', remainder: 'split', reference_number: 'CHK-1',
     });
-    const inserted = finChains.find((c) => c.insert.mock.calls.length)!.insert.mock.calls[0][0];
-    expect(inserted).toMatchObject({ direction: 'in', stage: 'invoiced', amount: 900, due_date: '2027-01-09', description: 'Wedding balance (remainder)' });
-    expect(remainder).not.toBeNull();
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('record_gig_payment', {
+      p_id: 'fin-1', p_amount: 600, p_paid_at: '2026-12-12', p_split: true, p_reference: 'CHK-1',
+    });
+    expect(finChains.some((c) => c.insert.mock.calls.length || c.update.mock.calls.length)).toBe(false);
     expect(paid).toMatchObject({ stage: 'paid', amount: 600, amount_settled: 600, paid_at: '2026-12-12' });
+    expect(remainder).toMatchObject({ id: 'fin-rem', amount: 900 });
     expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({ event_type: 'financial.paid', entity_id: 'fin-1' }));
+    expect(logActivity).toHaveBeenCalledWith(expect.objectContaining({ event_type: 'financial.added', entity_id: 'fin-rem' }));
   });
 
-  it('settles for less: the agreed amount drops and nothing stays owed', async () => {
+  it('settles for less: one call, no remainder', async () => {
+    rpcReturns({ paid: { ...baseRow, stage: 'paid', amount: 600, amount_settled: 600 }, remainder: null });
     const { paid, remainder } = await recordGigFinancialPayment(baseRow as any, {
       amount: 600, paid_at: '2026-12-12', remainder: 'settle',
     });
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('record_gig_payment', expect.objectContaining({ p_split: false, p_reference: null }));
     expect(remainder).toBeNull();
     expect(paid).toMatchObject({ stage: 'paid', amount: 600, amount_settled: 600 });
   });
 
+  it('a refused payment records nothing and logs nothing', async () => {
+    rpcReturns(null, { code: '42501', message: 'The 2025 tax year is locked (filed).' });
+    await expect(recordGigFinancialPayment(baseRow as any, { amount: 600, paid_at: '2025-12-12', remainder: 'split' })).rejects.toBeTruthy();
+    expect(finChains.some((c) => c.insert.mock.calls.length || c.update.mock.calls.length)).toBe(false);
+    expect(logActivity).not.toHaveBeenCalled();
+  });
+
   it('records an overpayment as received, keeping the agreed amount', async () => {
+    rpcReturns({ paid: { ...baseRow, stage: 'paid', amount: 250, amount_settled: 260 }, remainder: null });
     const { paid, remainder } = await recordGigFinancialPayment({ ...baseRow, amount: 250 } as any, {
       amount: 260, paid_at: '2026-06-24', remainder: 'split',
     });
