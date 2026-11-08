@@ -275,7 +275,11 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 | Review screen (edit) → **Expense / Depreciate** | The line's `tax_treatment` | Depreciating first tracks the line as equipment. Not on a gig expense or in a locked year. |
 | Financials → Reporting → Schedule C → **Filed tax years** | `tax_years` rows (Admins) | Lock with the filed date; unlock to amend. |
 
-The AI scan suggests whether each line is equipment (a $50 durable rule) and suggests categories; the user can change both before saving.
+The AI scan suggests whether each line is equipment and suggests categories; the user can change both before saving.
+
+- **The $50 rule** (`supabase/functions/ai-scan/classifyItem.ts`): a line is suggested as equipment (`suggested_type: 'Asset'`) when the scan reads it as durable and its price per piece is $50 or more. Consumables are never suggested, at any price.
+- **In the review dialog** (`src/utils/scanSuggestion.ts`): a suggested line starts with "Track as equipment" on; anything else starts off. A durable item under $50, such as a cable, starts untracked.
+- **Not a tax answer:** this is separate from the tax treatment, which follows the $200 / $2,500 pre-sets above. A depreciated line is always tracked, whatever the suggestion said. Tested by `classifyItem.test.ts`, `scanSuggestion.test.ts` and the dialog's B18 test.
 
 ---
 
