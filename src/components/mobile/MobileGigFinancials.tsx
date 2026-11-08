@@ -14,6 +14,7 @@ import { Loader2, DollarSign, Receipt, FileText, ChevronRight, History, Papercli
 import QuickActionButtons from '../gig/QuickActionButtons';
 import AttachmentManager from '../AttachmentManager';
 import { cn } from '../ui/utils';
+import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface MobileGigFinancialsProps {
   gigId: string;
@@ -42,7 +43,10 @@ export default function MobileGigFinancials({
 
   const isAdmin = userRole === 'Admin' || userRole === 'Manager';
 
+  // A late answer for an earlier gig is dropped (B12).
+  const startRequest = useLatestRequest();
   const loadData = useCallback(async () => {
+    const isCurrent = startRequest();
     setIsLoading(true);
     setIsSummaryLoading(true);
     try {
@@ -50,15 +54,18 @@ export default function MobileGigFinancials({
         getGigFinancials(gigId, organizationId),
         getGigProfitabilitySummary(gigId, organizationId)
       ]);
+      if (!isCurrent()) return;
       setFinancials(finData);
       setSummary(summaryData);
     } catch (error) {
-      console.error('Error loading mobile financials:', error);
+      if (isCurrent()) console.error('Error loading mobile financials:', error);
     } finally {
-      setIsLoading(false);
-      setIsSummaryLoading(false);
+      if (isCurrent()) {
+        setIsLoading(false);
+        setIsSummaryLoading(false);
+      }
     }
-  }, [gigId, organizationId]);
+  }, [gigId, organizationId, startRequest]);
 
   useEffect(() => {
     if (isAdmin) {

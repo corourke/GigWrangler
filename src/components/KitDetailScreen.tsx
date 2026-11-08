@@ -33,6 +33,7 @@ import { getEntityActivity } from '../services/activityLog.service';
 import { pieceValue, summarizeItem } from '../utils/equipmentItems';
 import ActivityFeed from './ActivityFeed';
 import { History } from 'lucide-react';
+import { useLatestRequest } from '../utils/hooks/useLatestRequest';
 
 interface KitDetailScreenProps {
   organization: Organization;
@@ -142,7 +143,10 @@ export default function KitDetailScreen({
     loadKit();
   }, [kitId]);
 
+  // A late answer for an earlier kit is dropped (B12).
+  const startKitRequest = useLatestRequest();
   const loadKit = async () => {
+    const isCurrent = startKitRequest();
     setIsLoading(true);
     setLoadError(null);
     try {
@@ -152,6 +156,7 @@ export default function KitDetailScreen({
         getKitComponentTree(kitId),
         getKitFlattenedItems(kitId),
       ]);
+      if (!isCurrent()) return;
       setKit(data);
       setFlattenedAssets(flattened as FlattenedAssetRow[]);
       setFlattenedItems(items ?? []);
@@ -164,14 +169,15 @@ export default function KitDetailScreen({
 
       setActivityLoading(true);
       getEntityActivity('kit', kitId)
-        .then(setKitActivity)
+        .then((a) => { if (isCurrent()) setKitActivity(a); })
         .catch(() => {})
-        .finally(() => setActivityLoading(false));
+        .finally(() => { if (isCurrent()) setActivityLoading(false); });
     } catch (error: any) {
+      if (!isCurrent()) return;
       console.error('Error loading kit:', error);
       setLoadError(error.message || 'Failed to load this kit.');
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
   };
 

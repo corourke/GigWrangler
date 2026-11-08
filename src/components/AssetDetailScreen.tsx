@@ -23,6 +23,7 @@ import { undoWriteOff } from '../services/writeOff.service';
 import { getLockedTaxYears } from '../services/taxYear.service';
 import { WRITE_OFF_LOCKED_MESSAGE } from '../utils/writeOffMessages';
 import { formatDateOnly } from '../utils/dateOnly';
+import { useLatestRequest } from '../utils/hooks/useLatestRequest';
 
 interface AssetDetailScreenProps {
   organization: Organization;
@@ -91,11 +92,15 @@ export default function AssetDetailScreen({
     loadAsset();
   }, [assetId]);
 
+  // A late answer for an earlier record is dropped (B12).
+  const startAssetRequest = useLatestRequest();
   const loadAsset = async () => {
+    const isCurrent = startAssetRequest();
     setIsLoading(true);
     setLoadError(null);
     try {
       const data = await getAsset(assetId);
+      if (!isCurrent()) return;
       setAsset(data);
 
       // Load history tables concurrently
@@ -105,18 +110,20 @@ export default function AssetDetailScreen({
           getAssetHistory(assetId),
           getAssetInventoryTracking(assetId),
         ]);
+        if (!isCurrent()) return;
         setAssetActivity(history);
         setInventoryTracking(tracking);
       } catch (err) {
-        console.error('Error loading asset history:', err);
+        if (isCurrent()) console.error('Error loading asset history:', err);
       } finally {
-        setIsLoadingHistory(false);
+        if (isCurrent()) setIsLoadingHistory(false);
       }
     } catch (error: any) {
+      if (!isCurrent()) return;
       console.error('Error loading asset:', error);
       setLoadError(error.message || 'Failed to load this asset.');
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
   };
 
