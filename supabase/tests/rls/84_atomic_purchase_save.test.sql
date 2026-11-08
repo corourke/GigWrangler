@@ -26,10 +26,10 @@ INSERT INTO purchases (id, organization_id, parent_id, row_type, purchase_date, 
   (rls_test.u('pl_lot'),   rls_test.u('org_a'), rls_test.u('ph'), 'line', '2026-04-01', 10, 5,  50,  'XLR', 'expense', NULL),
   (rls_test.u('pl_units'), rls_test.u('org_a'), rls_test.u('ph'), 'line', '2026-04-01', 2, 50,  100, 'Mic', 'expense', NULL),
   (rls_test.u('ol'),       rls_test.u('org_a'), rls_test.u('oh'), 'line', '2025-04-01', 1, 50,  50,  'Old part', 'expense', NULL);
-INSERT INTO assets (id, organization_id, purchase_id, purchase_line_id, manufacturer_model, category, quantity, status, acquisition_date) VALUES
-  (rls_test.u('a_lot'), rls_test.u('org_a'), rls_test.u('ph'), rls_test.u('pl_lot'), 'XLR', 'Audio', 10, 'Active', '2026-04-01'),
-  (rls_test.u('a_u1'),  rls_test.u('org_a'), rls_test.u('ph'), rls_test.u('pl_units'), 'Mic', 'Audio', 1, 'Active', '2026-04-01'),
-  (rls_test.u('a_u2'),  rls_test.u('org_a'), rls_test.u('ph'), rls_test.u('pl_units'), 'Mic', 'Audio', 1, 'Active', '2026-04-01');
+INSERT INTO assets (id, organization_id, purchase_id, purchase_line_id, manufacturer_model, category, quantity, status, acquisition_date, created_by, updated_by) VALUES
+  (rls_test.u('a_lot'), rls_test.u('org_a'), rls_test.u('ph'), rls_test.u('pl_lot'), 'XLR', 'Audio', 10, 'Active', '2026-04-01', rls_test.u('a_admin'), rls_test.u('a_admin')),
+  (rls_test.u('a_u1'),  rls_test.u('org_a'), rls_test.u('ph'), rls_test.u('pl_units'), 'Mic', 'Audio', 1, 'Active', '2026-04-01', rls_test.u('a_admin'), rls_test.u('a_admin')),
+  (rls_test.u('a_u2'),  rls_test.u('org_a'), rls_test.u('ph'), rls_test.u('pl_units'), 'Mic', 'Audio', 1, 'Active', '2026-04-01', rls_test.u('a_admin'), rls_test.u('a_admin'));
 UPDATE purchases SET asset_id = rls_test.u('a_lot') WHERE id = rls_test.u('pl_lot');
 UPDATE purchases SET asset_id = rls_test.u('a_u1') WHERE id = rls_test.u('pl_units');
 INSERT INTO gig_financials (id, gig_id, organization_id, direction, stage, amount, amount_settled, paid_at, date, purchase_id, description, created_by) VALUES
@@ -119,6 +119,13 @@ SELECT rls_test.expect('A filed year refuses a cost change, and nothing else is 
       'updated_items', jsonb_build_array(jsonb_build_object('id', rls_test.u('ol'), 'data', jsonb_build_object('line_cost', 60))))),
     'SELECT 1')::int, -1);
 SELECT rls_test.expect('  ...the header is as it was', (SELECT count(*)::int FROM purchases WHERE id = rls_test.u('oh') AND description = 'Old'), 1);
+SELECT rls_test.expect('  ...while in the filed year a description-only edit still saves',
+  rls_test.save('a_admin', rls_test.edit_call('oh', jsonb_build_object(
+      'header', jsonb_build_object('description', 'Old parts'),
+      'updated_items', jsonb_build_array(jsonb_build_object('id', rls_test.u('ol'), 'data', jsonb_build_object('description', 'Old strings'))))),
+    format('SELECT count(*) FROM purchases WHERE id IN (%s, %s) AND description IN (%L, %L)', rls_test.q('oh'), rls_test.q('ol'), 'Old parts', 'Old strings'))::int, 2);
+SELECT rls_test.expect('  ...and the edit of this purchase alone (no foreign line) saves',
+  rls_test.save('a_admin', rls_test.edit_call('ph', rls_test.edit_plan()), 'SELECT 1')::int, 1);
 SELECT rls_test.expect('Staff cannot save a purchase edit',
   rls_test.save('a_staff', rls_test.edit_call('ph', rls_test.edit_plan()), 'SELECT 1')::int, -1);
 SELECT rls_test.expect('Another organization cannot',
