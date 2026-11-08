@@ -13,6 +13,7 @@ import {
 } from '../lib/pure/authz.ts';
 import { sendEmail } from '../lib/email.ts';
 import { accessRequestOutcomeEmail } from '../lib/pure/accessRequestEmail.ts';
+import { rateLimited } from '../lib/rateLimit.ts';
 
 /**
  * Best-effort side-channel insert into the generic notifications table
@@ -85,6 +86,9 @@ export function registerAccessRequests(app: App) {
       } else if (membership?.role !== 'Viewer' && membership?.role !== 'Staff') {
         return c.json({ error: 'Only Viewers and Staff of this organization can ask for Manager or Admin' }, 403);
       }
+
+      const limited = await rateLimited(c, 'access_request', { organizationId: orgId });
+      if (limited) return limited;
 
       const { data: existing } = await supabaseAdmin
         .from('access_requests').select('id')

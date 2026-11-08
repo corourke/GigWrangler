@@ -111,4 +111,10 @@ Two authorization gaps the refactor closed (both had failing tests written first
 - **Gig creation** now always requires Admin/Manager of a **required** `primary_organization_id` (previously the check was skipped entirely when the field was omitted).
 - **Calendar `sync-gig-all-users`** now requires the caller to be a member of a participant org of the target gig (previously any authenticated user could trigger it).
 
+**Rate limits** (`lib/rateLimit.ts`, limits in `lib/pure/rateLimits.ts`, migration `20261108090000`). Rolling windows, counted in the service-role-only `rate_limit_events` table. The event is recorded before the work, so a failed attempt still counts. Exceeded → 429 with a plain message:
+- creating an organization: 5 per user in 24 hours;
+- Google Places calls (each search and each result's details): 300 per user an hour, and 2,000 across everyone in 24 hours (Places calls carry no organization, so the second is a cost ceiling);
+- invitation emails: 20 per inviter an hour, and 100 per organization in 24 hours;
+- access requests: 10 per user in 24 hours.
+
 WebAuthn `authenticate/*` endpoints remain intentionally public (the unlock flow) and gate only the cosmetic mobile lock, not data access. Top-level errors are captured to Sentry and returned as clean 500s with no internal detail. Route-level failures in `organizations.ts` and `accessRequests.ts` go through `fail()` (`lib/fail.ts`): the details are logged under a reference and the caller gets "Something went wrong. Reference: <id>". The exception is a message raised by our own database functions (`RAISE EXCEPTION` without an error code, SQLSTATE P0001), which is written for people and passed on. Email bodies built by the server escape every value people type (`lib/pure/accessRequestEmail.ts`).

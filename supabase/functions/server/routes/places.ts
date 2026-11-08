@@ -1,5 +1,6 @@
 import type { App } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
+import { rateLimited } from '../lib/rateLimit.ts';
 
 // Google Places proxy. Auth-only (gates API-key abuse); no org concept.
 // Behavior preserved verbatim from the legacy handler.
@@ -13,6 +14,9 @@ export function registerPlaces(app: App) {
     if (!query) {
       return c.json({ error: 'Query parameter is required' }, 400);
     }
+
+    const limited = await rateLimited(c, 'places');
+    if (limited) return limited;
 
     const apiKey = Deno.env.get('GOOGLE_PLACES_API_KEY');
     if (!apiKey) {
@@ -87,6 +91,9 @@ export function registerPlaces(app: App) {
   // Place details (catch-all; static /search above wins via Hono static-first)
   app.get('/integrations/google-places/:placeId{.+}', requireUser, async (c) => {
     const placeId = c.req.param('placeId');
+
+    const limited = await rateLimited(c, 'places');
+    if (limited) return limited;
 
     const apiKey = Deno.env.get('GOOGLE_PLACES_API_KEY');
     if (!apiKey) {
