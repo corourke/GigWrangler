@@ -882,6 +882,8 @@ describe('MobileInventoryMode', () => {
       expect(screen.queryByRole('button', { name: /Swap/ })).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Add to this gig' })).toBeInTheDocument()
       expect(inventoryTrackingService.submitScan).not.toHaveBeenCalled()
+      // B14: looked up in the selected organization only.
+      expect(inventoryTrackingService.matchTag).toHaveBeenCalledWith('K12-2', auth.orgId)
     })
 
     it('Add to this gig: just the new unit, on its own (no kit)', async () => {

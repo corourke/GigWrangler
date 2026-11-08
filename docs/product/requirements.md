@@ -175,7 +175,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Create**: Admin can create organizations for their tenant
 - **Read**: View organization details, members, and associated gigs
 - **Update**: Admin can edit organization details
-- **Delete**: Admin can delete organizations (with dependency checks)
+- **Delete**: Admin can delete organizations (with dependency checks). Other members must be removed first; the Admin's own membership goes with the organization, so a sole Admin can delete it.
 
 ---
 
@@ -226,7 +226,7 @@ This app streamlines the management of gigs (where an act performs at a venue) f
 - **Read**: Staff+ can view gigs (staff see only assigned gigs)
 - **Update**: Manager+ can edit gigs
 - **Delete**: Admin can delete gigs
-- **Duplicate**: Copy gig with its related data (participants, and the primary org's staff slots and kit assignments). Copied staff slots start unstaffed; assignments are not copied
+- **Duplicate**: Copy gig with its related data (participants, and the primary org's staff slots and kit assignments). Copied staff slots start unstaffed; assignments are not copied. No money rows are copied (B10, Cameron 11-08): no income, labor, purchase or mileage rows and no reference numbers; the copy's history entry records how many staff slots, kits and schedule entries were copied.
 
 #### Multi-Act Scheduling & Event Timeline
 

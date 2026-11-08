@@ -15,6 +15,7 @@ import {
 import type { GigWithTracking, KitAssignmentWithTracking } from '../../services/inventoryManagement.service';
 import type { UserRole } from '../../utils/supabase/types';
 import { plural } from '../../utils/plural';
+import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface InventorySummaryDashboardProps {
   /** Opens the scanning panel for a gig (Equipment › Out on gigs). */
@@ -359,22 +360,27 @@ export function InventorySummaryDashboard({
 
   const canOverride = userRole === 'Admin' || userRole === 'Manager';
 
+  // A late answer for an earlier organization is dropped (B12).
+  const startRequest = useLatestRequest();
   const loadData = useCallback(async () => {
+    const isCurrent = startRequest();
     setLoading(true);
     try {
       const [gigsData, conflicts] = await Promise.all([
         getActiveGigsWithTracking(organizationId),
         getInventoryConflictFlags(organizationId),
       ]);
+      if (!isCurrent()) return;
       setGigs(gigsData);
       setConflictKitIds(conflicts);
     } catch {
+      if (!isCurrent()) return;
       setGigs([]);
       setConflictKitIds(new Set());
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [organizationId]);
+  }, [organizationId, startRequest]);
 
   useEffect(() => {
     loadData();

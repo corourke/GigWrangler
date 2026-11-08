@@ -81,6 +81,7 @@ import {
   type PurchaseTypeFilter,
 } from './purchaseFilters';
 import { ATTACHMENT_FILE_ACCEPT } from '../../../utils/fileAccept';
+import { useLatestRequest } from '../../../utils/hooks/useLatestRequest';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** A purchase date (YYYY-MM-DD) split for the date block on each purchase card. */
@@ -181,18 +182,22 @@ export default function PurchasesTab({
     });
   }, []);
 
+  const startPurchasesRequest = useLatestRequest();
   useEffect(() => {
     loadPurchases();
   }, [organization.id, reloadToken]);
 
   useEffect(() => {
+    let cancelled = false;
     getGigOptionsForOrganization(organization.id)
       .then((gigs) => {
+        if (cancelled) return;
         const map = new Map<string, string>();
         gigs.forEach(g => map.set(g.id, g.title));
         setGigNames(map);
       })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, [organization.id]);
 
   const [headerAttachments, setHeaderAttachments] = useState<Map<string, { filePath: string; fileName: string }>>(new Map());
@@ -201,15 +206,20 @@ export default function PurchasesTab({
   const [linesWithLedger, setLinesWithLedger] = useState<Set<string>>(new Set());
 
   async function loadPurchases() {
+    // A late answer for an earlier organization (or reload) is dropped (B12).
+    const isCurrent = startPurchasesRequest();
     setIsLoading(true);
     try {
       const data = await getPurchases(organization.id);
+      if (!isCurrent()) return;
       setPurchases(data);
 
       const gigLinkedItemIds = data
         .filter((p: DbPurchase) => lineTaxTreatment(p) === 'expense' && p.gig_id)
         .map((p: DbPurchase) => p.id);
-      setLinesWithLedger(await getPurchaseIdsWithLedgerEntry(gigLinkedItemIds));
+      const withLedger = await getPurchaseIdsWithLedgerEntry(gigLinkedItemIds);
+      if (!isCurrent()) return;
+      setLinesWithLedger(withLedger);
 
       const headers = data.filter((p: DbPurchase) => p.row_type === 'header');
       const attMap = new Map<string, { filePath: string; fileName: string }>();
@@ -221,12 +231,14 @@ export default function PurchasesTab({
           }
         } catch (_) { /* ignore */ }
       }));
+      if (!isCurrent()) return;
       setHeaderAttachments(attMap);
     } catch (error) {
+      if (!isCurrent()) return;
       console.error('Error loading purchases:', error);
       toast.error('Failed to load purchases');
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
   }
 

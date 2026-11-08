@@ -17,6 +17,7 @@ import { formatDateDisplay } from '../../utils/dateUtils';
 import { WRITE_OFF_LOCKED_MESSAGE } from '../../utils/writeOffMessages';
 import { plural } from '../../utils/plural';
 import { NOT_RETURNED_STATUS } from '../../config/inventoryWorkflow';
+import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface NotReturnedSectionProps {
   organizationId: string;
@@ -39,16 +40,23 @@ export default function NotReturnedSection({ organizationId, gigId, gigEnd, canE
   const [locked, setLocked] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
 
+  // A late answer for an earlier gig (or reload) is dropped (B12).
+  const startRequest = useLatestRequest();
   const load = useCallback(async () => {
+    const isCurrent = startRequest();
     try {
       const r = await getGigReturns(organizationId, gigId);
+      if (!isCurrent()) return;
       setNotReturned(r.notReturned);
       setWrittenOff(r.writtenOff);
-      if (canEdit && r.writtenOff.length) setLocked(await getLockedTaxYears(organizationId));
+      if (canEdit && r.writtenOff.length) {
+        const locked = await getLockedTaxYears(organizationId);
+        if (isCurrent()) setLocked(locked);
+      }
     } catch (err) {
-      console.error('Error loading what is still out at the gig:', err);
+      if (isCurrent()) console.error('Error loading what is still out at the gig:', err);
     }
-  }, [organizationId, gigId, canEdit]);
+  }, [organizationId, gigId, canEdit, startRequest]);
   useEffect(() => { load(); }, [load]);
 
   const over = new Date(gigEnd).getTime() < Date.now();

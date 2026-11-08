@@ -23,14 +23,12 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import {
   createPurchaseWithUnits,
-  addLineUnits,
   getPurchaseWithDetails,
-  updatePurchase,
-  createPurchase,
-  deletePurchase,
   computeAssetFieldChanges,
-  createLedgerEntryForPurchaseLine,
+  purchaseLedgerEntry,
+  savePurchaseEdit,
   type AssetFieldChange,
+  type PurchaseEditPlan,
 } from '../services/purchase.service';
 import { getLockedTaxYears } from '../services/taxYear.service';
 import {
@@ -40,9 +38,8 @@ import {
   TAX_TREATMENT_HELP,
   type TaxTreatment,
 } from '../utils/taxTreatment';
-import { getGigFinancials, updateGigFinancial } from '../services/gig.service';
+import { getGigFinancials } from '../services/gig.service';
 import { uploadAttachment, linkAttachmentToEntity, getAttachmentUrl } from '../services/attachment.service';
-import { updateAsset, deleteAsset } from '../services/asset.service';
 import { getItems } from '../services/equipmentItem.service';
 import EquipmentDetailsDialog, { type EquipmentDetails } from './purchases/EquipmentDetailsDialog';
 import type { FormUnitRow } from './equipment/form/UnitOrLotSection';
@@ -673,24 +670,17 @@ export default function ReviewScannedDataDialog({
 
       // One record per unit, or one lot, for each tracked line (#183).
       const units = formData.items.flatMap((item, i) => (item.is_asset ? newUnitsOf(item, i) : []));
-      const result = await createPurchaseWithUnits(header, items, units);
-
-      // Scanned on a gig: each expensed line is a cost of the gig, with its own
-      // money-out row. The purchase itself, and depreciated equipment, are not (#130, #133).
-      if (gigId) {
-        try {
-          const saved = await getPurchaseWithDetails(result.id);
-          const expensed = (saved?.items ?? []).filter((it: any) => lineTaxTreatment(it) === 'expense');
-          for (const line of expensed) {
-            await updatePurchase(line.id, { gig_id: gigId });
-            await createLedgerEntryForPurchaseLine(line, gigId, organizationId);
-          }
-          window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
-        } catch (finErr) {
-          console.error('Error linking receipt lines to the gig:', finErr);
-          toast.error('Purchase created, but its lines could not be added to the gig');
-        }
-      }
+      // Scanned on a gig: each expensed line is a cost of the gig, with its own money-out row.
+      // The purchase itself, and depreciated equipment, are not (#130, #133). Saved in the same
+      // call as the purchase, so it is never left half-linked (B6).
+      const gigLink = gigId ? {
+        gigId,
+        ledger: items.flatMap((line, i) => ((line.tax_treatment ?? 'expense') === 'expense'
+          ? [purchaseLedgerEntry({ ...line, id: '', row_type: 'line' } as any, i, gigId, organizationId)]
+          : [])),
+      } : undefined;
+      const result = await createPurchaseWithUnits(header, items, units, gigLink);
+      if (gigId) window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
 
       if (attachmentId) {
         try {
@@ -904,49 +894,34 @@ export default function ReviewScannedDataDialog({
     if (!editPurchaseId) return;
     setIsSubmitting(true);
     try {
-      // Quantities that no longer match their equipment, as chosen (#183). These go first: if the
-      // database refuses one, nothing else is saved yet.
+      // The whole save is one call, all or nothing (B6), in this order: the equipment decisions
+      // for quantities that no longer match (#183), the header, units for lines starting to be
+      // tracked, line changes, new lines, more units, removed lines, recovery periods (#125),
+      // equipment fields and the gig money the lines feed.
+      const equipment: PurchaseEditPlan['equipment'] = [];
       for (const m of plan.mismatches) {
         const d = lineDecisions[m.lineId];
         if (!d || d.mode === 'leave') continue;
-        if (m.kind === 'lot') { await updateAsset(m.records[0].id, { quantity: m.quantity }); continue; }
+        if (m.kind === 'lot') { equipment.push({ op: 'lot_quantity', asset_id: m.records[0].id, quantity: m.quantity }); continue; }
         // A depreciated line must keep an equipment record: point it at a unit that stays first.
         if (m.markerId && d.remove.includes(m.markerId)) {
           const kept = m.records.find(r => !d.remove.includes(r.id));
-          if (kept) await updatePurchase(m.lineId, { asset_id: kept.id });
+          if (kept) equipment.push({ op: 'repoint', line_id: m.lineId, asset_id: kept.id });
         }
-        for (const id of d.remove) {
-          if (d.how === 'inactive') await updateAsset(id, { status: 'Inactive', purchase_line_id: null });
-          else await deleteAsset(id);
-        }
+        for (const id of d.remove) equipment.push({ op: 'remove_unit', asset_id: id, how: d.how === 'inactive' ? 'inactive' : 'delete' });
       }
-      await updatePurchase(editPurchaseId, plan.headerData);
-      // Chosen recovery periods of new units: set once their lines are depreciated (#125).
-      const periods: [string, RecoveryPeriod][] = [];
-      const track = async (lineId: string, units: LineUnitInput[], period: RecoveryPeriod | null) => {
-        if (!units.length) return;
-        const ids = await addLineUnits(lineId, units);
-        if (period) ids.forEach(id => periods.push([id, period]));
-      };
-      for (const t of plan.trackLines) await track(t.id, t.units, t.period);
-      for (const u of plan.updatedItems) await updatePurchase(u.id, u.data);
-      for (const { _track, _units, _period, ...n } of plan.newItems) {
-        // A depreciated line needs its equipment before it is depreciated.
-        const wanted = n.tax_treatment;
-        const created: any = await createPurchase({ ...n, tax_treatment: _track ? 'expense' : wanted });
-        if (_track && created?.id) {
-          await track(created.id, _units, _period);
-          if (wanted === 'depreciate') await updatePurchase(created.id, { tax_treatment: 'depreciate' });
-        }
-      }
-      for (const a of plan.addUnits) await addLineUnits(a.lineId, a.units);
-      for (const id of plan.removedItemIds) await deletePurchase(id);
-      for (const [assetId, recovery_period] of periods) await updateAsset(assetId, { recovery_period });
       const removed = new Set(plan.mismatches.flatMap(m => lineDecisions[m.lineId]?.mode === 'update' ? lineDecisions[m.lineId].remove : []));
-      for (const a of plan.assetChanges) if (!removed.has(a.assetId)) await updateAsset(a.assetId, a.data);
-      for (const g of plan.gigChanges) {
-        await updateGigFinancial(g.finId, g.settle ? { amount: g.to, amount_settled: g.to } : { amount: g.to });
-      }
+      await savePurchaseEdit(editPurchaseId, {
+        equipment,
+        header: plan.headerData,
+        track_lines: plan.trackLines.map(t => ({ line_id: t.id, units: t.units, period: t.period })),
+        updated_items: plan.updatedItems,
+        new_items: plan.newItems.map(({ _track, _units, _period, ...data }) => ({ data, track: !!_track, units: _units ?? [], period: _period ?? null })),
+        add_units: plan.addUnits.map(a => ({ line_id: a.lineId, units: a.units })),
+        removed_item_ids: plan.removedItemIds,
+        asset_changes: plan.assetChanges.filter(a => !removed.has(a.assetId)).map(a => ({ asset_id: a.assetId, data: a.data })),
+        gig_changes: plan.gigChanges.map(g => ({ fin_id: g.finId, amount: g.to, settle: !!g.settle })),
+      });
 
       if (file) {
         try {

@@ -438,3 +438,42 @@ export async function duplicateAsset(assetId: string) {
     return handleApiError(err, 'duplicate asset');
   }
 }
+
+/**
+ * History for equipment saved by a database function rather than updateAsset (a purchase
+ * save, B6): the fields that changed, and a status change.
+ */
+export async function logAssetSaved(before: Record<string, any>, after: Record<string, any>): Promise<void> {
+  const field_changes = computeFieldChanges(before, after, ASSET_TRACKED_FIELDS);
+  if (field_changes.length === 0) return;
+  try {
+    const user = await getCurrentUser();
+    const { data: org } = await (getSupabase().from('organizations') as any).select('name').eq('id', after.organization_id).maybeSingle();
+    await writeActivity({
+      organization_id: after.organization_id,
+      event_type: 'asset.updated',
+      entity_type: 'asset',
+      entity_id: after.id,
+      gig_id: null,
+      actor_display_name: actorNameOf(user),
+      actor_org_name: (org as any)?.name ?? '',
+      context: { asset_model: before.manufacturer_model ?? '', category: before.category ?? '', field_changes },
+    });
+  } catch (e) { console.error('Activity log failed:', e); }
+}
+export async function logAssetStatusChanged(change: { asset_id: string; organization_id: string; from: string | null; to: string; asset_model?: string | null; category?: string | null }): Promise<void> {
+  try {
+    const user = await getCurrentUser();
+    const { data: org } = await (getSupabase().from('organizations') as any).select('name').eq('id', change.organization_id).maybeSingle();
+    await writeActivity({
+      organization_id: change.organization_id,
+      event_type: 'asset.status_changed',
+      entity_type: 'asset',
+      entity_id: change.asset_id,
+      gig_id: null,
+      actor_display_name: actorNameOf(user),
+      actor_org_name: (org as any)?.name ?? '',
+      context: { asset_model: change.asset_model ?? '', category: change.category ?? '', from_status: change.from, to_status: change.to },
+    });
+  } catch (e) { console.error('Activity log failed:', e); }
+}

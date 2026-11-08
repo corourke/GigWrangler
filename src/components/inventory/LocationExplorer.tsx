@@ -37,6 +37,7 @@ import type { UserRole } from '../../utils/supabase/types';
 import { LineExtras } from './LineExtras';
 import { piecesOf } from './piecesOf';
 import { plural } from '../../utils/plural';
+import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface LocationExplorerProps {
   organizationId: string;
@@ -142,16 +143,20 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
   const canOverride = !!userId && (userRole === 'Admin' || userRole === 'Manager');
 
   useEffect(() => {
+    let live = true;
     getActiveGigsWithTracking(organizationId)
-      .then(setGigs)
-      .catch(() => setGigs([]));
+      .then((g) => { if (live) setGigs(g); })
+      .catch(() => { if (live) setGigs([]); });
+    return () => { live = false; };
   }, [organizationId]);
 
   // The org's items, for the Item filter (#186).
   useEffect(() => {
+    let live = true;
     getItems(organizationId)
-      .then((list) => setEquipmentItems([...list].sort((a, b) => (a.manufacturer_model ?? '').localeCompare(b.manufacturer_model ?? ''))))
-      .catch(() => setEquipmentItems([]));
+      .then((list) => { if (live) setEquipmentItems([...list].sort((a, b) => (a.manufacturer_model ?? '').localeCompare(b.manufacturer_model ?? ''))); })
+      .catch(() => { if (live) setEquipmentItems([]); });
+    return () => { live = false; };
   }, [organizationId]);
 
   const selectedItem = useMemo(() => equipmentItems.find((i) => i.id === itemFilter) ?? null, [equipmentItems, itemFilter]);
@@ -185,7 +190,10 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
 
   const hasFilters = !!(locationFilter || selectedStatuses.length > 0 || gigFilter !== 'all' || itemFilter !== 'all');
 
+  // A late answer for earlier filters is dropped (B12).
+  const startItemsRequest = useLatestRequest();
   const fetchItems = useCallback(async () => {
+    const isCurrent = startItemsRequest();
     if (!locationFilter && selectedStatuses.length === 0 && gigFilter === 'all' && itemFilter === 'all') {
       setItems([]);
       setHasSearched(false);
@@ -200,13 +208,13 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
         gigId: gigFilter !== 'all' ? gigFilter : undefined,
         itemId: itemFilter !== 'all' ? itemFilter : undefined,
       });
-      setItems(results);
+      if (isCurrent()) setItems(results);
     } catch {
-      setItems([]);
+      if (isCurrent()) setItems([]);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [organizationId, locationFilter, selectedStatuses, gigFilter, itemFilter]);
+  }, [organizationId, locationFilter, selectedStatuses, gigFilter, itemFilter, startItemsRequest]);
 
   useEffect(() => {
     fetchItems();

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { updateGigStaffSlots } from './gigStaff.service';
+import { updateGigStaffSlots, unfinalizeStaffAssignment } from './gigStaff.service';
+import { deleteGigFinancial } from './gigFinancial.service';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { createClient } from '../utils/supabase/client';
 
@@ -9,6 +10,10 @@ vi.mock('../utils/supabase/client', () => ({
 
 vi.mock('../utils/supabase/auth-utils', () => ({
   requireAuth: vi.fn(),
+}));
+
+vi.mock('./gigFinancial.service', () => ({
+  deleteGigFinancial: vi.fn(),
 }));
 
 vi.mock('./activityLog.service', () => ({
@@ -227,5 +232,46 @@ describe('updateGigStaffSlots deletes only rows the caller loaded and removed (i
     expect(updates).toEqual([expect.objectContaining({ rate: 400, rate_unit: 'day' })]);
     expect(inserts[0]).toEqual(expect.objectContaining({ user_id: 'u-2', rate: 225, rate_unit: 'half_day' }));
     expect(inserts[1]).not.toHaveProperty('rate_unit');
+  });
+});
+
+// B4: un-finalizing removes the labor row the way any money row is removed (deleteGigFinancial:
+// it must actually go, its receipt follows, and the history records it), and changes nothing
+// about the assignment when it can't.
+describe('unfinalizeStaffAssignment', () => {
+  let assignmentChain: any;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (requireAuth as any).mockResolvedValue({ supabase: {}, user: { id: 'user-1' } });
+  });
+  const setup = (gigFinancialId: string | null) => {
+    assignmentChain = makeChain({ singleData: { gig_financial_id: gigFinancialId } });
+    const supabase = { from: vi.fn((t: string) => (t === 'gig_staff_assignments' ? assignmentChain : makeChain({}))) };
+    (createClient as any).mockReturnValue(supabase);
+    (requireAuth as any).mockResolvedValue({ supabase, user: { id: 'user-1' } });
+    return supabase;
+  };
+
+  it('removes the labor row through deleteGigFinancial, then reopens the assignment', async () => {
+    const supabase = setup('fin-1');
+    vi.mocked(deleteGigFinancial).mockResolvedValue({ success: true } as any);
+    await expect(unfinalizeStaffAssignment('as-1')).resolves.toEqual({ success: true });
+    expect(deleteGigFinancial).toHaveBeenCalledWith('fin-1');
+    expect(supabase.from).not.toHaveBeenCalledWith('gig_financials');
+    expect(assignmentChain.update).toHaveBeenCalledWith({ completed_at: null, units_completed: null, gig_financial_id: null });
+  });
+
+  it('stops, leaving the assignment finalized, when the row is not removed', async () => {
+    setup('fin-1');
+    vi.mocked(deleteGigFinancial).mockRejectedValue(new Error('Financial record not found, or you do not have permission to delete it.'));
+    await expect(unfinalizeStaffAssignment('as-1')).rejects.toThrow(/not found|permission/);
+    expect(assignmentChain.update).not.toHaveBeenCalled();
+  });
+
+  it('just reopens an assignment whose row is already gone', async () => {
+    setup(null);
+    await expect(unfinalizeStaffAssignment('as-1')).resolves.toEqual({ success: true });
+    expect(deleteGigFinancial).not.toHaveBeenCalled();
+    expect(assignmentChain.update).toHaveBeenCalled();
   });
 });

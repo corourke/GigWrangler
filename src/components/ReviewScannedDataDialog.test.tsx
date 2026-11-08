@@ -15,6 +15,42 @@ vi.mock('../services/purchase.service', () => ({
   computeAssetFieldChanges: vi.fn(() => []),
   trackPurchaseLineAsEquipment: vi.fn(async () => 'asset-new'),
   createLedgerEntryForPurchaseLine: vi.fn(async () => ({ created: true, financial: {} })),
+  purchaseLedgerEntry: vi.fn((item: any, i: number) => ({ line_index: i, amount: item.line_cost, category: 'Supplies', description: item.description, date: item.purchase_date, paid_at: '2026-07-05' })),
+  // B6: the edit is one database call. This stand-in replays its plan into the per-step mocks, in
+  // the order update_purchase_v1 applies it, stopping at the first refusal as the transaction
+  // does; what is saved, and in what order, is then checked as before. The database side (all or
+  // nothing) is tested in supabase/tests/rls/84_atomic_purchase_save.test.sql.
+  savePurchaseEdit: vi.fn(async (purchaseId: string, plan: any) => {
+    const svc: any = await import('../services/purchase.service');
+    const assets: any = await import('../services/asset.service');
+    const gig: any = await import('../services/gig.service');
+    for (const e of plan.equipment) {
+      if (e.op === 'lot_quantity') await assets.updateAsset(e.asset_id, { quantity: e.quantity });
+      else if (e.op === 'repoint') await svc.updatePurchase(e.line_id, { asset_id: e.asset_id });
+      else if (e.how === 'inactive') await assets.updateAsset(e.asset_id, { status: 'Inactive', purchase_line_id: null });
+      else await assets.deleteAsset(e.asset_id);
+    }
+    await svc.updatePurchase(purchaseId, plan.header);
+    const periods: [string, number][] = [];
+    for (const t of plan.track_lines) {
+      const ids = await svc.addLineUnits(t.line_id, t.units);
+      if (t.period) (ids ?? []).forEach((id: string) => periods.push([id, t.period]));
+    }
+    for (const u of plan.updated_items) await svc.updatePurchase(u.id, u.data);
+    for (const n of plan.new_items) {
+      const created = await svc.createPurchase({ ...n.data, tax_treatment: n.track ? 'expense' : n.data.tax_treatment });
+      if (n.track && created?.id) {
+        const ids = await svc.addLineUnits(created.id, n.units);
+        if (n.period) (ids ?? []).forEach((id: string) => periods.push([id, n.period]));
+        if (n.data.tax_treatment === 'depreciate') await svc.updatePurchase(created.id, { tax_treatment: 'depreciate' });
+      }
+    }
+    for (const a of plan.add_units) await svc.addLineUnits(a.line_id, a.units);
+    for (const id of plan.removed_item_ids) await svc.deletePurchase(id);
+    for (const [id, recovery_period] of periods) await assets.updateAsset(id, { recovery_period });
+    for (const a of plan.asset_changes) await assets.updateAsset(a.asset_id, a.data);
+    for (const g of plan.gig_changes) await gig.updateGigFinancial(g.fin_id, g.settle ? { amount: g.amount, amount_settled: g.amount } : { amount: g.amount });
+  }),
 }));
 vi.mock('../services/equipmentItem.service', () => ({
   getItems: vi.fn(async () => [{ id: 'item-k12', manufacturer_model: 'QSC K12.2', category: 'Audio', type: 'Speaker, Powered', records: [] }]),
@@ -156,6 +192,13 @@ describe('ReviewScannedDataDialog: $0 invoice total follow-ups (#226 item 5)', (
     expect(save).toBeEnabled();
     await userEvent.click(save);
     await waitFor(() => expect(svc.updatePurchase).toHaveBeenCalledWith('l1', { description: 'Stand stand' }));
+    // B6: the whole save is one call, with every step in its plan.
+    expect(svc.savePurchaseEdit).toHaveBeenCalledTimes(1);
+    expect(svc.savePurchaseEdit).toHaveBeenCalledWith('h1', expect.objectContaining({
+      header: expect.objectContaining({ description: 'Stands' }),
+      updated_items: [{ id: 'l1', data: { description: 'Stand stand' } }],
+      new_items: [], removed_item_ids: [], equipment: [], gig_changes: [],
+    }));
   });
 
   it('"Use $X" keeps the stored line costs (priced 100 costed 50, unpriced costed 50) instead of re-spreading the total', async () => {
@@ -642,14 +685,10 @@ describe('ReviewScannedDataDialog: expense category on a tracked, expensed line 
 describe('ReviewScannedDataDialog: Upload Receipt on a gig (#130)', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('links each expensed line to the gig, never the purchase or depreciated equipment', async () => {
+  // B6: linked in the same call as the purchase is created, so it is never left half-linked.
+  it('links each expensed line to the gig in the create call, never the purchase or depreciated equipment', async () => {
     const svc = await import('../services/purchase.service');
     const gigs = await import('../services/gig.service');
-    const lines = [
-      { id: 'l-tape', row_type: 'item', tax_treatment: 'expense', description: 'Tape', line_cost: 50 },
-      { id: 'l-console', row_type: 'asset', tax_treatment: 'depreciate', description: 'Console', line_cost: 3000 },
-    ];
-    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({ id: 'p-new', items: lines } as any);
     render(
       <ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" gigId="g1" file={null}
         scannedData={{ vendor: 'Sweetwater', purchase_date: '2026-07-05', total_inv_amount: 3050, items: [
@@ -658,16 +697,17 @@ describe('ReviewScannedDataDialog: Upload Receipt on a gig (#130)', () => {
         ] } as any} />,
     );
     await userEvent.click(await screen.findByRole('button', { name: 'Save Purchase' }));
-    await waitFor(() => expect(svc.createLedgerEntryForPurchaseLine).toHaveBeenCalled());
+    await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalled());
 
-    const [header] = vi.mocked(createPurchaseWithUnits).mock.calls[0];
+    const [header, items, , gigLink] = vi.mocked(createPurchaseWithUnits).mock.calls[0] as any[];
     expect(header).not.toHaveProperty('gig_id');
-    expect(svc.updatePurchase).toHaveBeenCalledTimes(1);
-    expect(svc.updatePurchase).toHaveBeenCalledWith('l-tape', { gig_id: 'g1' });
-    expect(svc.createLedgerEntryForPurchaseLine).toHaveBeenCalledTimes(1);
-    expect(svc.createLedgerEntryForPurchaseLine).toHaveBeenCalledWith(expect.objectContaining({ id: 'l-tape' }), 'g1', 'org-1');
+    expect(items.map((i: any) => i.tax_treatment)).toEqual(['expense', 'depreciate']);
+    expect(gigLink).toEqual({ gigId: 'g1', ledger: [expect.objectContaining({ line_index: 0, amount: 50, description: 'Tape' })] });
+    expect(svc.updatePurchase).not.toHaveBeenCalled();
+    expect(svc.createLedgerEntryForPurchaseLine).not.toHaveBeenCalled();
     expect(gigs.createGigFinancial).not.toHaveBeenCalled();
   });
+
 });
 
 describe('ReviewScannedDataDialog: equipment details pop-up (10-06)', () => {
