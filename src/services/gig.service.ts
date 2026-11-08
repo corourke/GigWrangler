@@ -659,8 +659,9 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
     // The copy belongs to the gig's owner organization (#175).
     const primaryOrgId = originalGig.owner_organization_id;
 
-    // Staff slots, kit assignments and financials belong to one org each; copy
-    // only the owner's. The caller must manage the owner to create the gig (#61).
+    // Staff slots and kit assignments belong to one org each; copy only the
+    // owner's. No money rows are copied (B10, Cameron 11-08): a copy is a new
+    // deal, and its terms, labor, purchases and mileage are entered afresh. The caller must manage the owner to create the gig (#61).
     // create_gig_complex reads the role *name* as `role` and ignores assignments,
     // so the copy (usually on a new date) starts unstaffed (#102).
     const staffSlots = (originalGig.staff_slots || [])
@@ -694,33 +695,7 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
     // Parts of the copy the database refused (e.g. a locked tax year), reported at the end.
     const notCopied: string[] = [];
 
-    const ownFinancials = (originalGig.financials || [])
-      .filter((fin: any) => fin.organization_id === primaryOrgId);
-    if (ownFinancials.length > 0) {
-      // The copy is a new deal: carry the agreed terms, not their progress.
-      // Rows past acceptance start over at accepted; ended ones are left out.
-      const financials = ownFinancials
-        .filter((fin: any) => fin.stage !== 'declined' && fin.stage !== 'cancelled')
-        .map((fin: any) => ({
-        gig_id: newGigId,
-        organization_id: fin.organization_id,
-        amount: fin.amount,
-        date: fin.date,
-        direction: fin.direction,
-        stage: ['requested', 'quoted', 'accepted'].includes(fin.stage) ? fin.stage : 'accepted',
-        category: fin.category,
-        reference_number: fin.reference_number,
-        counterparty_id: fin.counterparty_id,
-        external_entity_name: fin.external_entity_name,
-        currency: fin.currency,
-        description: fin.description,
-        notes: fin.notes,
-        created_by: user.id,
-      }));
-      const { error: finError } = await supabase.from('gig_financials').insert(financials);
-      if (finError) notCopied.push(`financials (${finError.message})`);
-    }
-
+    let kitsCopied = 0;
     const ownKitAssignments = (originalGig.kit_assignments || [])
       .filter((gka: any) => gka.organization_id === primaryOrgId);
     if (ownKitAssignments.length > 0) {
@@ -733,6 +708,7 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
       }));
       const { error: kitError } = await supabase.from('gig_kit_assignments').insert(kitAssignments);
       if (kitError) notCopied.push(`kit assignments (${kitError.message})`);
+      else kitsCopied = kitAssignments.length;
     }
 
     // Duplicate schedule entries with remapped act participant IDs
@@ -770,7 +746,16 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
         gig_id: newGigId,
         actor_display_name: actorDisplayName,
         actor_org_name: actorOrgName,
-        context: { gig_title: newTitle || originalGig.title + ' (Copy)' },
+        context: {
+          gig_title: newTitle || originalGig.title + ' (Copy)',
+          // What the copy carries over (B10); no money rows are ever copied.
+          copied_from: gigId,
+          copied: {
+            staff_slots: staffSlots.length,
+            kits: kitsCopied,
+            schedule_entries: (originalGig.schedule_entries || []).length,
+          },
+        },
       });
     } catch (e) {
       console.error('Activity log failed:', e);
