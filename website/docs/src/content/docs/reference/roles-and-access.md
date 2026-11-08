@@ -24,6 +24,7 @@ You can be an **Admin** of one organization and a **Viewer** of another. Switchi
 | See staff pay rates and fees | ✓ | ✓ | — | — |
 | See a gig's **Financials** tab and **Financials → Purchases** | ✓ | ✓ | — | — |
 | Add and edit purchases and a gig's money in and out | ✓ | ✓ | — | — |
+| Scan invoices and receipts with AI | ✓ | ✓ | — | — |
 | See **Financials → Gig Accounting** | ✓ | — | — | — |
 | Lock or unlock a filed tax year, and edit category lists | ✓ | — | — | — |
 | See assets, kits and locations | ✓ | ✓ | ✓ | ✓ |
@@ -35,7 +36,8 @@ You can be an **Admin** of one organization and a **Viewer** of another. Switchi
 | Change a member's role, up to Manager | ✓ | ✓ | — | — |
 | Make someone an Admin, or change or remove an Admin | ✓ | — | — | — |
 | Edit or delete your organization's details | ✓ | — | — | — |
-| Approve or reject requests for more access | ✓ | — | — | — |
+| Approve or reject requests to join the organization | ✓ | ✓ | — | — |
+| Approve or reject requests for a higher role | ✓ | — | — | — |
 | Request a higher role | — | — | ✓ | ✓ |
 
 ![The Active Members table on Team, showing each person's System Role: Admin, Manager, Staff or Viewer](../../../assets/screenshots/team/team-and-roles-members-table.png)
@@ -76,11 +78,11 @@ An organization is **claimed** once it has an Admin. Until then it's **unclaimed
 - **Claimed:** only its own Admins can edit or delete its details.
 - **Unclaimed:** an Admin of any organization can edit its details, and a platform moderator decides who becomes its first Admin.
 
-See [Getting into an organization](/getting-started/organizations/) for how to create, claim or request access to one.
+See [Getting into an organization](/getting-started/organizations/) for how to create one or ask to join one.
 
 ## Platform moderators
 
-A small number of accounts are **platform moderators**. They review requests for access to unclaimed organizations, and they maintain the starter category lists new organizations begin with. A moderator has no say once an organization has an Admin, and gets no extra access to your gigs or data.
+A small number of accounts are **platform moderators**. They review requests to join unclaimed organizations and requests for a role in them, and they maintain the starter category lists new organizations begin with. A moderator has no say once an organization has an Admin, and gets no extra access to your gigs or data.
 
 ## Related
 

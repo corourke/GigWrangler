@@ -54,6 +54,8 @@ export interface ReportGigRow {
   stage: string;
   amount_settled: number | null;
   paid_at: string | null;
+  /** The day this money counts for taxes (database column): the paid day, else the row's date. The year lock uses it too. */
+  tax_date: string | null;
   /** The row's own date: for mileage, the trip's date, which sets its IRS rate. */
   date?: string | null;
   description: string | null;
@@ -143,10 +145,10 @@ export interface IncomeReport {
 
 export function buildIncomeReport(gigRows: ReportGigRow[], year: number): IncomeReport {
   const rows = gigRows
-    .filter(r => r.direction === 'in' && r.stage === 'paid' && inYear(dayOf(r.paid_at), year))
+    .filter(r => r.direction === 'in' && r.stage === 'paid' && inYear(r.tax_date, year))
     .map(r => ({
       id: r.id,
-      date: dayOf(r.paid_at)!,
+      date: r.tax_date!,
       gig: r.gig?.title ?? '',
       gigDate: dayOf(r.gig?.start) ?? '',
       from: r.counterparty?.name ?? r.external_entity_name ?? '',
@@ -230,7 +232,7 @@ export function buildExpenseReport(
 
   for (const r of gigRows) {
     if (r.direction !== 'out' || r.stage !== 'paid' || r.purchase_id) continue;
-    const day = dayOf(r.paid_at);
+    const day = r.tax_date;
     if (!inYear(day, year)) continue;
     const category = r.category ?? '';
     rows.push({

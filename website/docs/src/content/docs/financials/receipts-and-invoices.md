@@ -11,6 +11,10 @@ A **purchase** is one invoice or receipt. GigWrangler stores the invoice total a
 
 Scanning reads a PDF or photo and fills in the vendor, date, total and line items for you. Nothing is saved until you've checked it.
 
+Admins and Managers can scan; Staff and Viewers don't see the scan buttons. Each file can be a PDF or a JPEG, PNG, WebP or GIF image, up to 10 MB.
+
+Scanning has limits: 200 files per organization in any 24 hours, and 60 per person in any hour. Past them, a scan fails with "Daily scan limit reached for this organization (200 a day). Try again tomorrow." or "Scan limit reached (60/hour). Try again later." Both limits count back from the moment you scan, so capacity frees up gradually rather than at midnight. In the scan queue the file shows as **Failed**, and you can **Retry** it later.
+
 ### 1. Financials → Purchases → Scan invoices
 
 Use this for a stack of invoices.
@@ -88,6 +92,8 @@ If you change a saved line's quantity, it also asks what to do with that line's 
 | A gig → **Expense / Mileage** → **Simple Expense** | **Receipt (optional)** | The new expense |
 | Phone: a gig's transaction → **Receipts & Documents** | **Upload** | That money row |
 | An asset's page or edit form | **Asset Attachments** → **Upload** | The equipment (manuals, photos) |
+
+Each file can be up to 25 MB. **Attach Doc** and **Receipt (optional)** take a PDF or an image. The **Upload** buttons also take Word, Excel and PowerPoint documents (.docx, .xlsx, .pptx) and CSV files. Any other file is refused with "Attach a PDF, an image, an Office document or a CSV (Word, Excel, PowerPoint)", and a larger one with "Files can be up to 25 MB".
 
 :::tip
 **Add purchase** has no file upload. Save the purchase, then use **Attach Doc** on it in the Purchases report.

@@ -87,7 +87,7 @@ The CSV adds the vendor and a **Tracked as equipment** column.
 
 The Schedule C report pulls the year together in the order of your Schedule C. It has no figures of its own: gross receipts are the Income report's total, and each line is the Expenses report's total for that line.
 
-The boxes at the top show **Gross receipts {year}**, **Expenses** and **Net before depreciation**. The table goes:
+The boxes at the top show **Gross receipts {year}**, **Expenses**, **Net before depreciation** and, when line 13 has a figure, **Net after depreciation**. The table goes:
 
 1. **Gross receipts**.
 2. **Line 4: Cost of goods sold (Part III)**, the Expenses report's line 4 total ($0.00 if you have none).
@@ -95,16 +95,32 @@ The boxes at the top show **Gross receipts {year}**, **Expenses** and **Net befo
 4. Each other Schedule C line that has expenses, such as **Line 9: Car and truck expenses**.
 5. **Total expenses**, which doesn't include line 4.
 6. **Net (before depreciation)**: gross profit less total expenses.
+7. **Line 13: Depreciation and section 179**, with a tag saying where the figure comes from, and the lines behind it underneath. See [Line 13: depreciation](#line-13-depreciation).
+8. **Net after depreciation**: the net before depreciation less line 13.
 
 - **Line 9** also shows its miles, and a note under it gives what those miles come to at the IRS rate on each trip's date. Mileage is counted once, on its category's line. If the mileage you recorded differs from the IRS-rate amount, or a trip has a different category, an amber note says what to correct on the gig's [Financials tab](/financials/gig-expenses/).
 - **No category (no Schedule C line)** appears in amber when some expenses have no category, or one that isn't on your list. It's included in the total. Fix it as described under [The Expenses report](#the-expenses-report).
 - **Not deducted (category has no Schedule C line; not in total)** appears below the net when expenses are in a category with no Schedule C line, such as Reimbursable. It isn't in the total or the net.
 
-Depreciation isn't included: "Depreciation and Section 179 are worked out by your tax program from the Assets report." If no expenses were paid, the table says "No expenses were paid in {year}."
+- **Equipment disposed of in the year** is counted below the table, such as "2 items disposed of in {year}: see Assets → Disposals (Form 4797)". It adds no figure.
 
-The CSV has the columns **Line**, **Description**, **Amount** and **Miles**, with the rows in the same order, line 4 and gross profit included.
+If no expenses were paid, the table says "No expenses were paid in {year}."
 
-![The Schedule C report for 2026: gross receipts, expenses and net before depreciation, then a table from Gross receipts, Line 4 Cost of goods sold at $0.00 and Gross profit, through Line 9 with 124 miles at the IRS rate, Lines 11, 20a, 22 and 27b, an amber No category row, Total expenses and Net, with the depreciation note below](../../../assets/screenshots/financials/reporting-schedule-c.png)
+The CSV has the columns **Line**, **Description**, **Amount**, **Miles** and **Source**, with the rows in the same order, line 4, gross profit and line 13 included. **Source** says where line 13 and its lines come from.
+
+### Line 13: depreciation
+
+Line 13 is never typed in on the report. It comes from your Form 4562 figures under [Filed tax years](#filing-a-year), or is estimated from them and your purchases. The tag beside it says which:
+
+- **From Form 4562, line 22:** you've entered that year's Form 4562. Line 13 is your line 22, with the lines you entered under it, such as "Line 17: equipment from earlier years". Notes below the table check line 17 against the years you've entered, and say when line 22 includes lines you didn't enter (15, 16 and 20).
+- **Estimated:** the year has no Form 4562 entered and isn't locked, such as the year you're in. GigWrangler estimates it from the Form 4562 figures you've entered for earlier years, this year's depreciated purchases and any [estimate inputs](#estimate-inputs). Each line underneath shows its working, such as "Line 19: 2026 purchases, 7-year HY ($8,373 × 14.29%)". Equipment from a year you've entered carries forward as a line 17 row, such as "Line 17: 2025 equipment, 7-year MQ".
+- **Not entered:** the year is locked but has no Form 4562 figures. Line 13 shows "—", and a note says "Add your Form 4562 figures under Filed tax years below."
+
+The estimate is for planning. As the report says, "It's for your reference: the figure your tax program calculates is what gets filed."
+
+If some expenses are in a category filed on line 13, an amber note ("Also categorized as Depreciation") lists them so they aren't counted twice. They aren't added to line 13 while it has a Form 4562 figure or an estimate.
+
+![The Schedule C report for 2026: gross receipts, expenses, and net before and after depreciation, then a table from Gross receipts, Line 4 Cost of goods sold at $0.00 and Gross profit, through Line 9 with 124 miles at the IRS rate, Lines 11, 20a, 22 and 27b, an amber No category row, Total expenses and Net (before depreciation), then Line 13 Estimated at $2,849.00 from 2025 equipment and 2026 purchases, and Net after depreciation, with the estimate and reference notes below](../../../assets/screenshots/financials/reporting-schedule-c.png)
 
 ## The Needs attention report
 
@@ -126,7 +142,30 @@ The CSV has the columns **Group**, **Item**, **Date**, **Amount** and **Problem*
 
 ## Filing a year
 
-Select **Schedule C** to see **Filed tax years**, below the report. It shows which years are locked. An Admin locks a year after filing; Managers can see the list. Locking, and what it protects, is explained in [Tax treatment and equipment](/financials/tax-treatment/#filed-years-are-locked).
+Select **Schedule C** to see **Filed tax years**, below the report. It shows which years are locked and, under **Form 4562**, each year's line 22 or "Not entered". An Admin locks a year after filing and enters its Form 4562 figures; Managers can see both. Locking, and what it protects, is explained in [Tax treatment and equipment](/financials/tax-treatment/#filed-years-are-locked).
+
+### Entering your Form 4562 figures
+
+Copy each year's depreciation figures from the Form 4562 you filed. Schedule C then uses line 22 for that year, and the next year's estimate builds on them. You can enter or correct them after the year is locked.
+
+1. In **Filed tax years**, select **Form 4562** beside the year. Lock the year first if it isn't listed.
+2. Fill in the lines from your return: **Line 12: Section 179 deduction**, **Line 14: Special depreciation allowance** (bonus), **Line 17: MACRS on equipment from earlier years**, **Line 21: Listed property** and **Line 22: Total**. Leave out a line your return doesn't have.
+3. For line 19, select **Add a line 19 row** for each recovery period on your return, and fill in **(c) basis**, **(d) recovery period**, **(e) convention**, **(f) method** and **(g) deduction**. If you bought depreciated equipment that year in GigWrangler, a box shows what it comes to, such as "From GigWrangler: $8,373 of 7-year equipment bought in 2026". Select **Use these values** to fill the row from it.
+4. Select **Save Form 4562 figures**.
+
+![Filed tax years with 2025 locked and Line 22: $4,214, and its Form 4562 open: line 12 Section 179 of 4000, a line 19 row of 6000, 7-year, MQ, 200 DB, 214, line 22 of 4214, the note that lines 12 + 14 + 17 + 19(g) + 21 come to $4,214, matching line 22, and Save Form 4562 figures](../../../assets/screenshots/financials/reporting-form-4562.png)
+
+The form checks your figures as you type:
+
+- **Line 22** against lines 12 + 14 + 17 + 19(g) + 21, such as "Lines 12 + 14 + 17 + 19(g) + 21 come to $4,214, matching line 22." Line 22 is the figure that's used, even when they differ.
+- **Line 17** against the earlier years you've entered.
+- **Line 22 is required** once you've filled in anything else: "Line 22 is the total on your form; enter it to save." Every line 19 row needs a basis.
+
+Managers can open the form but not change it.
+
+### Estimate inputs
+
+Below the years, **Estimate inputs for {year}** lets an Admin add what the estimate for the year you're in can't see: **Planned Section 179**, **Planned bonus depreciation**, **Other depreciation you expect** (such as listed property), and the **Convention for this year's purchases**: **Half-year (HY)** or **Mid-quarter (MQ)**. All are optional and blank until you fill them in. Select **Save estimate inputs**.
 
 ## Related
 

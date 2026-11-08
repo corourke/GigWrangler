@@ -81,7 +81,8 @@ export default function GigAccountingRowDetail({
     r.amount == null ? '—' : formatCurrency(r.stage === 'paid' ? settledAmount(r) : Number(r.amount));
   const secondary = (r: FinancialRecord) => {
     const stage = stageLabel(r.direction, r.stage);
-    if (r.stage === 'paid' && r.paid_at) return `${stage} ${formatDate(r.paid_at)}`;
+    // A paid day is stored as midnight UTC: show that calendar day, not the instant (B17).
+    if (r.stage === 'paid' && r.paid_at) return `${stage} ${formatDate(`${r.paid_at.slice(0, 10)}T12:00:00`)}`;
     if (r.due_date) return `${stage}, due ${formatDate(`${r.due_date}T12:00:00`)}`;
     return stage;
   };

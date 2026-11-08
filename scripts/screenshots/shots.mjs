@@ -457,12 +457,15 @@ export const shots = [
     user: 'newuser',
     sources: ['src/components/OrganizationSelectionScreen.tsx'],
     prepare: async (page, ctx) => {
-      // Searches only; never joins.
+      // Searches only; never asks to join.
       await page.goto(`${ctx.base}/org-selection`);
       await page.getByPlaceholder(/Search all organizations/).fill('Cedar');
-      await page.getByRole('button', { name: 'Join as Viewer' }).first().waitFor();
+      await page.getByRole('button', { name: 'Request to join' }).first().waitFor();
     },
-    clip: { x: 0, y: 56, width: 1200, height: 290 },
+    clip: async (page) => {
+      const button = await box(page.getByRole('button', { name: 'Request to join' }).first());
+      return { x: 0, y: 56, width: 1200, height: button.y + button.height + 32 - 56 };
+    },
   },
   {
     id: 'getting-started/organizations-create-form',
@@ -678,16 +681,39 @@ export const shots = [
     id: 'financials/reporting-schedule-c',
     page: 'financials/reporting.md',
     user: 'admin',
-    sources: ['src/components/financials/ScheduleCView.tsx', 'src/utils/taxSummaryReports.ts'],
-    viewport: { width: 1200, height: 1800 },
+    sources: ['src/components/financials/ScheduleCView.tsx', 'src/utils/taxSummaryReports.ts', 'src/utils/scheduleCDepreciation.ts'],
+    viewport: { width: 1200, height: 2000 },
     prepare: async (page, ctx) => {
       await page.goto(`${ctx.base}/financials/reporting`);
       await page.getByRole('button', { name: 'Schedule C', exact: true }).click();
       await page.getByRole('table', { name: 'Schedule C summary' }).waitFor();
+      await page.getByText('Net after depreciation', { exact: true }).last().waitFor();
     },
+    // From the header through line 13's notes and the reference note (#337).
     clip: async (page) => {
-      const t = await box(page.getByRole('table', { name: 'Schedule C summary' }));
-      return { x: 0, y: 56, width: 1200, height: Math.min(t.y + t.height + 90, 1750) - 56 };
+      const note = await box(page.getByText("It's for your reference", { exact: false }).first());
+      return { x: 0, y: 56, width: 1200, height: note.y + note.height + 16 - 56 };
+    },
+  },
+  {
+    id: 'financials/reporting-form-4562',
+    page: 'financials/reporting.md',
+    user: 'admin',
+    sources: ['src/components/financials/TaxYearsCard.tsx', 'src/components/financials/Form4562Form.tsx'],
+    viewport: { width: 1200, height: 2600 },
+    // The seed's filed year (the year before the anchor's) with its invented Form 4562 figures.
+    prepare: async (page, ctx) => {
+      await page.goto(`${ctx.base}/financials/reporting`);
+      await page.getByRole('button', { name: 'Schedule C', exact: true }).click();
+      await page.getByText('Line 22: $4,214').waitFor();
+      await page.getByRole('button', { name: 'Form 4562', exact: true }).first().click();
+      await page.getByText(/matching line 22/).waitFor();
+    },
+    // From the Filed tax years heading through the open form.
+    clip: async (page) => {
+      const card = await box(cardOf(page, 'Filed tax years'));
+      const form = await box(page.getByRole('region', { name: /^Form 4562 for / }));
+      return { x: card.x, y: card.y, width: card.width, height: form.y + form.height + 16 - card.y };
     },
   },
   {
@@ -941,9 +967,23 @@ export const shots = [
       return { x: 0, y: count.y - 16, width: 1200, height: table.y + table.height + 16 - (count.y - 16) };
     },
   },
-  // Supplied by hand (Cameron, 10-08): these screens open only from a link in an
-  // email, which the script can't follow, so they aren't taken here. Retake them by
+  {
+    id: 'getting-started/onboarding-reset-password',
+    page: 'getting-started/onboarding.md',
+    user: null,
+    sources: ['src/components/ResetPasswordScreen.tsx'],
+    prepare: async (page, ctx) => {
+      // The screen also opens without the emailed link. Fills it in; never submits.
+      await page.goto(`${ctx.base}/reset-password`);
+      await page.getByLabel('New Password').fill('x'.repeat(12));
+      await page.getByLabel('Confirm Password').fill('x'.repeat(12));
+      await page.evaluate(() => document.activeElement?.blur());
+    },
+    target: (page) => page.getByText('Reset your password').locator('xpath=ancestor::div[.//button][1]'),
+    pad: 12,
+  },
+  // Supplied by hand (Cameron, 10-08): this screen opens only from a link in an
+  // email, which the script can't follow, so it isn't taken here. Retake it by
   // hand from a dev email (Mailtrap) when the screen changes.
   //   team/invitations-accepted              src/components/AcceptInvitationScreen.tsx
-  //   getting-started/onboarding-reset-password  src/components/ResetPasswordScreen.tsx
 ];

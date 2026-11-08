@@ -6,6 +6,7 @@ import type { PurchaseToSave } from '../utils/csvAssetImportPlan';
 import { itemMatchKey } from '../utils/equipmentItems';
 import { toFinCategory } from '../utils/supabase/constants';
 import { toDateInTimeZone } from '../utils/dateUtils';
+import { toDateKey } from '../utils/moneyFlow';
 import { lineTaxTreatment } from '../utils/taxTreatment';
 import {
   createGigFinancial,
@@ -131,6 +132,22 @@ export async function deletePurchase(purchaseId: string) {
     notFound: 'Purchase not found, or you do not have permission to delete it.',
   });
   return { success: true };
+}
+
+/**
+ * The gig expenses linked to these purchases (a purchase and its lines), which deleting them
+ * removes too (B2): how many, on how many gigs, and their amount (settled, else agreed).
+ */
+export async function getLinkedGigExpenses(purchaseIds: string[]): Promise<{ entries: number; gigs: number; amount: number }> {
+  if (purchaseIds.length === 0) return { entries: 0, gigs: 0, amount: 0 };
+  const { data, error } = await getSupabase()
+    .from('gig_financials')
+    .select('gig_id, amount, amount_settled')
+    .in('purchase_id', purchaseIds);
+  if (error) return handleApiError(error, 'fetch gig expenses linked to a purchase');
+  const rows = (data ?? []) as { gig_id: string; amount: number | null; amount_settled: number | null }[];
+  const amount = rows.reduce((sum, r) => sum + (Number(r.amount_settled ?? r.amount) || 0), 0);
+  return { entries: rows.length, gigs: new Set(rows.map((r) => r.gig_id)).size, amount: Math.round(amount * 100) / 100 };
 }
 
 /** How one planned purchase went: saved (perhaps with a kit warning) or not saved at all. */
@@ -355,7 +372,8 @@ export function buildPurchaseLineLedgerPayload(
     category: toFinCategory(item.category) ?? ('Other expenses' as const),
     description: item.description || `Expense: ${item.vendor || ''}`.trim(),
     purchase_id: item.id,
-    paid_at: new Date().toISOString(),
+    // A calendar day (B1): stored as midnight UTC of the day the user sees.
+    paid_at: toDateKey(new Date()),
   };
 }
 

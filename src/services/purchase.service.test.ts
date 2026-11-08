@@ -15,6 +15,7 @@ import {
   createLedgerEntryForPurchaseLine,
   reconcileLedgerForLineGigChange,
   removeLedgerEntriesForPurchaseLine,
+  getLinkedGigExpenses,
 } from './purchase.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
@@ -63,6 +64,7 @@ describe('purchase.service', () => {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       ilike: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
       insert: vi.fn().mockReturnThis(),
       delete: vi.fn().mockReturnThis(),
@@ -302,6 +304,26 @@ describe('purchase.service', () => {
     });
   });
 
+  // B2: what a delete takes with it, for the confirm.
+  describe('getLinkedGigExpenses', () => {
+    it('counts the gig expenses linked to the purchase and its lines, their gigs and amount', async () => {
+      mockSupabase.then.mockImplementation((onFulfilled: any) => onFulfilled({ data: [
+        { gig_id: 'g1', amount: 40, amount_settled: 40 },
+        { gig_id: 'g1', amount: 20.5, amount_settled: null },
+        { gig_id: 'g2', amount: 10, amount_settled: 12 },
+      ], error: null }));
+      const r = await getLinkedGigExpenses(['h1', 'l1', 'l2']);
+      expect(mockSupabase.from).toHaveBeenCalledWith('gig_financials');
+      expect(mockSupabase.in).toHaveBeenCalledWith('purchase_id', ['h1', 'l1', 'l2']);
+      expect(r).toEqual({ entries: 3, gigs: 2, amount: 72.5 });
+    });
+
+    it('reads nothing for no purchases', async () => {
+      expect(await getLinkedGigExpenses([])).toEqual({ entries: 0, gigs: 0, amount: 0 });
+      expect(mockSupabase.from).not.toHaveBeenCalled();
+    });
+  });
+
   describe('computeAssetFieldChanges', () => {
     const asset = {
       manufacturer_model: 'SM58',
@@ -426,7 +448,8 @@ describe('purchase → gig ledger lifecycle', () => {
         description: 'Van rental',
         purchase_id: 'line-1',
       });
-      expect(payload.paid_at).toBeTruthy();
+      // A calendar day, stored as that day (B1): not this instant, whose UTC day can be tomorrow.
+      expect(payload.paid_at).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
   });
 

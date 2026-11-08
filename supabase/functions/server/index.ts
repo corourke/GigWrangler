@@ -10,6 +10,7 @@ import { registerGigs } from './routes/gigs.ts';
 import { registerCalendar } from './routes/calendar.ts';
 import { registerPlaces } from './routes/places.ts';
 import { registerWebauthn } from './routes/webauthn.ts';
+import { registerTwoFactor } from './routes/twoFactor.ts';
 
 const CORS = {
   allowMethods: 'POST, GET, PUT, DELETE, OPTIONS',
@@ -40,6 +41,7 @@ registerGigs(app);
 registerCalendar(app);
 registerPlaces(app);
 registerWebauthn(app);
+registerTwoFactor(app);
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 

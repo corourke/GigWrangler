@@ -16,6 +16,9 @@ vi.mock('../services/mobile/offlineOwner', () => ({
 }));
 import { claimOfflineStore, releaseOfflineStore } from '../services/mobile/offlineOwner';
 
+const getTwoFactorStatus = vi.fn().mockResolvedValue({ factors: [], needsCode: false, signedInWithGoogle: false });
+vi.mock('../services/twoFactor.service', () => ({ getTwoFactorStatus: (...a: unknown[]) => getTwoFactorStatus(...a) }));
+
 // Mock user service to simulate database hang
 vi.mock('../services/user.service', () => ({
   getUserProfile: vi.fn(),
@@ -353,6 +356,34 @@ describe('AuthContext: a temporary password', () => {
     await vi.waitFor(() => expect(result.current.mustChangePassword).toBe(true), { timeout: 1000 });
     act(() => result.current.passwordChanged());
     expect(result.current.mustChangePassword).toBe(false);
+  });
+
+  it('asks for the two-factor code before loading anything, then loads once it is entered (#361)', async () => {
+    getTwoFactorStatus.mockResolvedValueOnce({ factors: [{ id: 'f1' }], needsCode: true, signedInWithGoogle: false, required: false, requiredAfter: null, setupRequired: false });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => { authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } }); });
+    await vi.waitFor(() => expect(result.current.twoFactorPending).toBe(true), { timeout: 1000 });
+    expect(userService.getCompleteUserData).not.toHaveBeenCalled();
+    // The code is in: the client now holds the code-verified session, which the reload reads.
+    (createClient as any)().auth.getSession.mockResolvedValue({ data: { session: { user: { id: 'user-1' } } }, error: null });
+    await act(async () => { result.current.twoFactorVerified(); });
+    expect(result.current.twoFactorPending).toBe(false);
+    await vi.waitFor(() => expect(userService.getCompleteUserData).toHaveBeenCalled(), { timeout: 1000 });
+  });
+
+  it('asks an Admin past the grace period to set it up, loading nothing until then (#361)', async () => {
+    getTwoFactorStatus.mockResolvedValueOnce({ factors: [], needsCode: false, signedInWithGoogle: false, required: true, requiredAfter: '2026-11-01T00:00:00Z', setupRequired: true });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => { authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } }); });
+    await vi.waitFor(() => expect(result.current.twoFactorSetupRequired).toBe(true), { timeout: 1000 });
+    expect(userService.getCompleteUserData).not.toHaveBeenCalled();
+  });
+
+  it('reminds an Admin in the grace period who has no authenticator (#361)', async () => {
+    getTwoFactorStatus.mockResolvedValueOnce({ factors: [], needsCode: false, signedInWithGoogle: false, required: true, requiredAfter: '2026-12-01T00:00:00Z', setupRequired: false });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => { authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } }); });
+    await vi.waitFor(() => expect(result.current.twoFactorReminderUntil).toBe('2026-12-01T00:00:00Z'), { timeout: 1000 });
   });
 
   it('doesn\'t without the flag', async () => {

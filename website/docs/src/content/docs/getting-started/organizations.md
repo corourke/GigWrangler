@@ -1,6 +1,6 @@
 ---
 title: Getting into an organization
-description: Create an organization, claim an existing one, request access, or accept an invitation.
+description: Create an organization, ask to join an existing one, accept an invitation, or join with a matching email domain.
 sidebar:
   order: 3
 ---
@@ -19,7 +19,7 @@ From **Select Organization**, choose **Create New Organization** (or
   Sound Company, Lighting Company, Staging Company, Rental Company, Venue, Act,
   Agency).
 - Optional: **Phone Number**, **Website URL**, **Allowed Email Domains** (people
-  whose email matches can join without an invite), a **Description**, and an
+  whose email matches can join as Staff without asking), a **Description**, and an
   address.
 - Choose **Create and Join**. You become the organization's **Admin**.
 
@@ -31,34 +31,46 @@ organization — a venue or vendor you work with but aren't part of. That
 organization is then **unclaimed** (see below) until someone takes it over.
 :::
 
-## 2. Claim or request access to an existing organization
+## 2. Ask to join an existing organization
 
 If the organization already exists (for example, a venue that was added as a gig
-participant), you don't create a duplicate — you get access to the real one.
+participant), you don't create a duplicate. You ask to join the real one.
 
 1. On **Select Organization**, search for the organization by name in
    **Search all organizations...**. (Once you're in an organization, the avatar
    menu's **Switch Organization** takes you back to this screen.)
-2. On its card, choose **Join as Viewer**. You're now a read-only member.
+2. On its card, choose **Request to join**. You see "Request sent. *Organization*'s
+   Admins or Managers will let you in.", and the button changes to **Request pending**.
 
-   ![Select Organization with "Cedar" in the search box and one result, Cedar Hall, a Venue in Berkeley, with a Join as Viewer button](../../../assets/screenshots/getting-started/organizations-search-result.png)
+   ![Select Organization with "Cedar" in the search box and one result, Cedar Hall, a Venue in Berkeley, with a Request to join button](../../../assets/screenshots/getting-started/organizations-search-result.png)
 
-3. Open that organization → **Team** → **Request Access** (top-right). Viewers and
-   Staff see this button.
-4. Pick the **Requested role** — **Manager** or **Admin** — add an optional
-   message, and select **Submit Request**.
+Who decides depends on the organization:
 
-   ![The Request Access dialog: Requested role with Manager selected or Admin, an optional message, and Submit Request](../../../assets/screenshots/getting-started/organizations-request-access.png)
-
-
-What happens next depends on the organization:
-
-- **It already has an Admin** → that Admin approves or rejects your request.
+- **It already has an Admin** → any of its Admins or Managers approves or rejects
+  your request.
 - **It has no Admin yet** (an unclaimed organization) → a **platform moderator**
   reviews it.
 
 You're notified of the decision by email and by the in-app notification bell
-(top-right). If approved, your role changes automatically.
+(top-right): "Your request to join *Organization* was approved." (or "rejected").
+If it's approved, you're a **Viewer**, a read-only member, and the organization's
+card shows **Open**. You can't withdraw a request while it's pending; if it's
+rejected, you can ask again.
+
+### Asking for a higher role
+
+Once you're a member, you can ask for more:
+
+1. Open the organization → **Team** → **Request Access** (top-right). Viewers and
+   Staff see this button.
+2. Pick the **Requested role**, **Manager** or **Admin**, add an optional
+   message, and select **Submit Request**.
+
+   ![The Request Access dialog: Requested role with Manager selected or Admin, an optional message, and Submit Request](../../../assets/screenshots/getting-started/organizations-request-access.png)
+
+An Admin of the organization decides it, or a platform moderator if it has no Admin
+yet. You're notified the same way, and if it's approved your role changes
+automatically. See [Access requests & moderation](/reference/access-requests-and-moderation/).
 
 ![The notification bell open on a decision: a request for Admin was rejected, with the Admin's reply below it](../../../assets/screenshots/getting-started/organizations-notification.png)
 
@@ -73,9 +85,11 @@ including setting a password.
 
 ## 4. Join via a matching email domain
 
-If an organization has set **Allowed Email Domains** and your email matches, its
-card shows two buttons, **Viewer** and **Staff**: pick one and you join straight
-away. Use **Request Access** from the Team page if you need Manager or Admin.
+If an organization has set **Allowed Email Domains** and your confirmed email
+address matches one of them, its card also shows **Join as Staff**. Select it and
+you join straight away as Staff: "Joined *Organization* as Staff". To join as a
+Viewer instead, use **Request to join**. Use **Request Access** from the Team page if
+you need Manager or Admin.
 
 ---
 

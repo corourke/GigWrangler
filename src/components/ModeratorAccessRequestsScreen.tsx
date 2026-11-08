@@ -9,6 +9,7 @@ import { SmartDataTable } from './tables/SmartDataTable';
 import { useAccessRequestColumns, AccessRequestActions } from './team/teamColumns';
 import { useModeratorAccessRequests, useDecideAccessRequest } from '../hooks/useAccessRequests';
 import type { AccessRequestWithRelations, User } from '../utils/supabase/types';
+import TwoFactorResetCard from './security/TwoFactorResetCard';
 
 interface ModeratorAccessRequestsScreenProps {
   user: User;
@@ -69,7 +70,7 @@ export default function ModeratorAccessRequestsScreen({
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <p className="mb-4 text-sm text-gray-600">Requests to claim or elevate access on organizations with no Admin yet.</p>
+        <p className="mb-4 text-sm text-gray-600">Requests to join, claim or raise access on organizations with no Admin yet.</p>
         {requestsQuery.isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
@@ -101,6 +102,8 @@ export default function ModeratorAccessRequestsScreen({
             />
           </Card>
         )}
+
+        <TwoFactorResetCard />
       </div>
     </div>
   );

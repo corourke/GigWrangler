@@ -19,10 +19,15 @@ Calendar**. Every role has this tab.
 
 ![The Google Calendar tab in Settings before connecting: the Google Calendar Integration card with a Connect Google Calendar button](../../../assets/screenshots/settings/google-calendar-connect.png)
 
-To stop syncing and remove the connection, select **Disconnect**.
+To stop syncing, select **Disconnect**. It takes effect right away, with no
+confirmation: you see "Google Calendar integration disconnected", and GigWrangler
+removes the connection and gives up its access to your Google account. Events it
+already put on your calendar stay there. To sync again, connect again, then choose
+the calendar and turn synchronization on as if for the first time.
 
 If Google later revokes the connection, or it expires, GigWrangler says so and shows
-**Reconnect Now**. Select it and sign in again.
+**Reconnect Now**. Select it and sign in again. Your chosen calendar is kept, and
+synchronization turns back on.
 
 ## Choosing a calendar
 

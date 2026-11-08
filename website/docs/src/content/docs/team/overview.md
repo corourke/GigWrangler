@@ -18,7 +18,7 @@ Everyone in the organization can open it; Admins and Managers can change it.
 - **[Member profiles & contacts](/team/member-profiles/)** — a member's details page, and the Contacts
   list on an organization's edit screen.
 
-For *getting into* an organization (create / claim / request access / invitation),
+For *getting into* an organization (create / ask to join / invitation / email domain),
 see [Getting into an organization](/getting-started/organizations/).
 
 ## Organization settings

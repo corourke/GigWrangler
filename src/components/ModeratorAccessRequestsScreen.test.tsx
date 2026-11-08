@@ -19,3 +19,10 @@ describe('ModeratorAccessRequestsScreen page header (#39)', () => {
     expect(onBack).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('ModeratorAccessRequestsScreen subtitle', () => {
+  it('names requests to join too', () => {
+    render(<ModeratorAccessRequestsScreen user={makeUser()} onBack={vi.fn()} onLogout={vi.fn()} onEditProfile={vi.fn()} />)
+    expect(screen.getByText('Requests to join, claim or raise access on organizations with no Admin yet.')).toBeInTheDocument()
+  })
+})

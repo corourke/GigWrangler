@@ -56,6 +56,7 @@ import {
   getPurchases,
   trackPurchaseLineAsEquipment,
   deletePurchase,
+  getLinkedGigExpenses,
   updatePurchase,
   reconcileLedgerForLineGigChange,
   createLedgerEntryForPurchaseLine,
@@ -79,6 +80,7 @@ import {
   type DatePreset,
   type PurchaseTypeFilter,
 } from './purchaseFilters';
+import { ATTACHMENT_FILE_ACCEPT } from '../../../utils/fileAccept';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** A purchase date (YYYY-MM-DD) split for the date block on each purchase card. */
@@ -155,7 +157,18 @@ export default function PurchasesTab({
   const [panelState, setPanelState] = useState<PanelState>({ mode: 'closed' });
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [editPurchaseId, setEditPurchaseId] = useState<string | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'header' | 'item'; purchase: DbPurchase; childCount?: number } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'header' | 'item'; purchase: DbPurchase; childCount?: number; purchaseIds: string[] } | null>(null);
+  // The gig expenses the delete removes with it (B2), for the confirm.
+  const [deleteLinked, setDeleteLinked] = useState<{ entries: number; gigs: number; amount: number } | null>(null);
+  useEffect(() => {
+    setDeleteLinked(null);
+    if (!deleteConfirm) return;
+    let cancelled = false;
+    getLinkedGigExpenses(deleteConfirm.purchaseIds)
+      .then((linked) => { if (!cancelled) setDeleteLinked(linked); })
+      .catch((err) => console.error('Could not read the linked gig expenses:', err));
+    return () => { cancelled = true; };
+  }, [deleteConfirm]);
   const [viewMode, setViewMode] = useState<'detailed' | 'summary'>('detailed');
   const [gigNames, setGigNames] = useState<Map<string, string>>(new Map());
 
@@ -790,7 +803,7 @@ export default function PurchasesTab({
                           variant="ghost"
                           size="sm"
                           className="h-7 w-7 p-0 text-gray-400 hover:text-red-600"
-                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ type: 'header', purchase: group.header, childCount: group.children.length }); }}
+                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ type: 'header', purchase: group.header, childCount: group.children.length, purchaseIds: [group.header.id, ...group.children.map((c) => c.id)] }); }}
                           title="Delete purchase"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -875,7 +888,7 @@ export default function PurchasesTab({
                                   variant="outline"
                                   size="sm"
                                   className="h-7 px-3 text-xs text-red-600 border-red-200 hover:bg-red-50"
-                                  onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ type: 'item', purchase: item }); }}
+                                  onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ type: 'item', purchase: item, purchaseIds: [item.id] }); }}
                                 >
                                   <Trash2 className="w-3 h-3 mr-1.5" />
                                   Delete Item
@@ -1046,9 +1059,6 @@ export default function PurchasesTab({
               {deleteConfirm?.type === 'header' ? (
                 <>
                   <p>This will delete the purchase header and all {deleteConfirm.childCount} line item(s).</p>
-                  {deleteConfirm.purchase.gig_id && (
-                    <p className="text-amber-600">This purchase is linked to a gig. Any associated gig financial records will not be automatically deleted — review them in the gig's financials.</p>
-                  )}
                 </>
               ) : (
                 <>
@@ -1056,10 +1066,12 @@ export default function PurchasesTab({
                   {deleteConfirm?.purchase.asset_id && (
                     <p className="text-amber-600">This item is linked to an asset. Deleting it will unlink the asset (the asset will not be deleted).</p>
                   )}
-                  {deleteConfirm?.purchase.gig_id && (
-                    <p className="text-amber-600">This item may be linked to a gig financial record. That record will not be automatically deleted.</p>
-                  )}
                 </>
+              )}
+              {deleteLinked && deleteLinked.entries > 0 && (
+                <p className="text-amber-600">
+                  This also removes ${deleteLinked.amount.toFixed(2)} of expenses from {deleteLinked.gigs} {deleteLinked.gigs === 1 ? 'gig' : 'gigs'}.
+                </p>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1087,7 +1099,7 @@ export default function PurchasesTab({
         ref={fileInputRef}
         onChange={handleAttachFile}
         className="hidden"
-        accept=".pdf,image/*"
+        accept={ATTACHMENT_FILE_ACCEPT}
       />
     </div>
   );

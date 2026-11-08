@@ -1,3 +1,4 @@
+import './lib/zodConfig';
 import { createRoot } from "react-dom/client";
 import * as Sentry from "@sentry/react";
 import { QueryClientProvider } from "@tanstack/react-query";

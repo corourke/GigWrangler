@@ -119,14 +119,15 @@ export function canDecideAccessRequest(
 
 /**
  * Who should be notified that an access request was created: platform
- * moderators while the org is unclaimed; once claimed, its Admins, and its
- * Managers too for a request to join.
+ * moderators while the org is unclaimed (with its Managers, for a request to
+ * join); once claimed, its Admins, and its Managers too for a request to join.
  */
 export function accessRequestNotificationAudience(
   orgClaimed: boolean,
   requestedRole: string
-): 'platform_moderators' | 'org_admins' | 'org_admins_and_managers' {
-  if (!orgClaimed) return 'platform_moderators';
+): 'platform_moderators' | 'platform_moderators_and_org_managers' | 'org_admins' | 'org_admins_and_managers' {
+  // While unclaimed the org has no Admin; its Managers can still decide a request to join.
+  if (!orgClaimed) return isJoinRequest(requestedRole) ? 'platform_moderators_and_org_managers' : 'platform_moderators';
   return isJoinRequest(requestedRole) ? 'org_admins_and_managers' : 'org_admins';
 }
 

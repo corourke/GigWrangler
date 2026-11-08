@@ -431,6 +431,23 @@ WebAuthn/passkey device registrations for users
 - RLS is **ENABLED** on this table. Users read and remove their own devices; enrolling and recording use go through the `server` function (service role). `authenticated` has no INSERT or UPDATE (migration 20261107080000).
 - `auth_user_id_by_email(p_email)` (SECURITY DEFINER, service role only) finds the account for the unlock flow's email, ignoring case and surrounding spaces.
 
+### user_mfa_requirements
+
+When two-factor sign-in becomes required for an Admin (#361, migration 20261107110000).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| user_id | UUID | Primary key; reference to users(id) (ON UPDATE and ON DELETE CASCADE) |
+| required_after | TIMESTAMPTZ | End of the 14-day grace period (NOT NULL) |
+
+**Notes:**
+- RLS is **ENABLED**; service role only. Nobody can move their own date.
+- Trigger `start_mfa_grace` on `organization_members` adds a row (now + 14 days) the first time someone becomes an Admin; an earlier date is kept. Existing Admins got now + 14 days when the migration ran.
+- `mfa_required_for(p_user_id)` (service role only): the person has a verified authenticator, or is an Admin past `required_after`.
+- `mfa_satisfied()` (authenticated): true with no signed-in user, for a session that entered its code (`aal2`), for a Google sign-in, or when `mfa_required_for` is false.
+- `two_factor_requirement()` (authenticated): `{required, required_after, satisfied}` for the signed-in person; the app reads it before loading anything.
+- Every table with RLS in `public`, and `storage.objects`, has the restrictive policy **"Two-factor sign-in when required"** (`TO authenticated`, `USING/WITH CHECK ((SELECT public.mfa_satisfied()))`). A new table with RLS must add it too; RLS test 78 checks that none is missing.
+
 ---
 
 ## Gig Management Tables
@@ -657,11 +674,12 @@ Every amount of money a gig brings in or costs, one row each, with its stage.
 | currency | TEXT | Currency code (default 'USD') (NOT NULL) |
 | date | DATE | When the item started (NOT NULL) |
 | due_date | DATE | Payment due date; NULL means due once the gig is over (nullable) |
-| paid_at | TIMESTAMPTZ | When payment was made; required when `stage = 'paid'` |
+| paid_at | TIMESTAMPTZ | The day payment was made, a calendar day stored as midnight UTC; required when `stage = 'paid'` |
+| tax_date | DATE | Generated (migration 20261107120000): `gig_financial_tax_date(paid_at, date)`, i.e. `paid_at`'s UTC date when paid, else `date`. The tax reports and the filed-year lock both go by it. Read only. |
 | reference_number| TEXT | Invoice, PO, or check number (nullable) |
 | counterparty_id | UUID | Reference to organizations.id for the other party in transaction (nullable) |
 | external_entity_name | TEXT | Name of counterparty if not in organizations table (nullable) |
-| purchase_id | UUID | Reference to purchases.id — the source receipt/invoice this ledger row records (nullable, ON DELETE SET NULL; migration 20260319213000) |
+| purchase_id | UUID | Reference to purchases.id — the source receipt/invoice this ledger row records (nullable; migration 20260319213000). ON DELETE CASCADE since migration 20261107130000 (B2): deleting the purchase line, or its whole purchase, removes this row too |
 | staff_assignment_id | UUID | Reference to gig_staff_assignments.id — the completed assignment this labor cost came from (nullable, ON DELETE SET NULL; migration 20260319213000) |
 | description | TEXT | Detailed description or notes (nullable, Markdown-formatted) |
 | notes | TEXT | Internal notes (nullable) |
@@ -1446,7 +1464,7 @@ Unified, append-only activity/audit log for gigs, assets and other entities (mig
 
 ### access_requests
 
-Requests to join an organization (Viewer, Staff; migration 20261107060000) and Viewer/Staff → Manager/Admin elevation requests (migration 20260908000000). Routed to platform moderators while the target org is unclaimed; once it is claimed, requests to join go to its Admins and Managers, elevation requests to its Admins.
+Requests to join an organization (Viewer, Staff; migration 20261107060000) and Viewer/Staff → Manager/Admin elevation requests (migration 20260908000000). Routed to platform moderators while the target org is unclaimed (with the org's Managers for a request to join, since they can decide it); once it is claimed, requests to join go to its Admins and Managers, elevation requests to its Admins.
 
 | Field | Type | Description |
 |-------|------|-------------|

@@ -25,10 +25,11 @@ import { uploadAttachment, linkAttachmentToEntity } from '../../services/attachm
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { FinCategory, UserRole } from '../../utils/supabase/types';
 import type { DbGigFinancial } from '../../utils/supabase/types';
-import { STAGE_LABELS, stageLabel, stagePickerLabel } from '../../utils/moneyFlow';
+import { STAGE_LABELS, stageLabel, stagePickerLabel, toDateKey } from '../../utils/moneyFlow';
 import { formatMoney } from './financials/format';
 import { calculateMileageAmount, formatMileageNotes, getMileageRateForDate } from '../../utils/financials.utils';
 import { lockedYearMessage } from '../../utils/taxTreatment';
+import { ATTACHMENT_FILE_ACCEPT } from '../../utils/fileAccept';
 
 const commonSchema = {
   date: z.string().min(1, 'Date is required'),
@@ -343,7 +344,7 @@ export default function QuickActionButtons({
         notes: data.notes,
         counterparty_id: data.counterparty_id || undefined,
         external_entity_name: data.external_entity_name,
-        paid_at: data.paid ? new Date().toISOString() : undefined,
+        paid_at: data.paid ? toDateKey(new Date()) : undefined, // today, as a calendar day (B1)
       });
 
       if (receiptFile && (created as any)?.id) {
@@ -757,7 +758,7 @@ export default function QuickActionButtons({
               <Input
                 id="exp-receipt"
                 type="file"
-                accept=".pdf,image/*"
+                accept={ATTACHMENT_FILE_ACCEPT}
                 onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
               />
               {receiptFile && (

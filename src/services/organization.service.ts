@@ -596,3 +596,17 @@ export async function removeOrganizationContact(memberId: string) {
   }
 }
 
+
+/**
+ * Whether the signed-in email is confirmed. Joining straight away on a matching email domain
+ * needs it (the server checks the same), so the app offers Join as Staff only then.
+ */
+export async function signedInEmailConfirmed(): Promise<boolean> {
+  try {
+    const { data } = await getSupabase().auth.getUser();
+    return !!data?.user?.email_confirmed_at;
+  } catch (err) {
+    console.error('Could not read whether the email is confirmed:', err);
+    return false;
+  }
+}

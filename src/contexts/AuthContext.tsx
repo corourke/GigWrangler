@@ -9,6 +9,7 @@ import {
 import { getCompleteUserData, createUserProfile } from '../services/user.service';
 import { convertPendingToActive } from '../services/organization.service';
 import { claimOfflineStore, releaseOfflineStore } from '../services/mobile/offlineOwner';
+import { getTwoFactorStatus } from '../services/twoFactor.service';
 
 /** Clearing the phone's offline copy must never block signing in or out. */
 const quietly = (p: Promise<unknown>) => p.catch((err) => {
@@ -33,6 +34,14 @@ interface AuthContextType {
   mustChangePassword: boolean;
   /** Call once the temporary password has been replaced. */
   passwordChanged: () => void;
+  /** Two-factor sign-in (#361): this session still needs the authenticator code. */
+  twoFactorPending: boolean;
+  /** An Admin past the grace period with no authenticator: they set one up first. */
+  twoFactorSetupRequired: boolean;
+  /** An Admin in the grace period without an authenticator: when it becomes required. */
+  twoFactorReminderUntil: string | null;
+  /** Call once the code has been verified (or the authenticator set up). */
+  twoFactorVerified: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -48,6 +57,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [twoFactorPending, setTwoFactorPending] = useState(false);
+  const [twoFactorSetupRequired, setTwoFactorSetupRequired] = useState(false);
+  const [twoFactorReminderUntil, setTwoFactorReminderUntil] = useState<string | null>(null);
 
   const selectOrganization = useCallback((org: Organization | null) => {
     setSelectedOrganizationState(org);
@@ -90,6 +102,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (import.meta.env.DEV) console.log('[TRACE] AuthContext: Session found for user', session.user.id);
         
         setMustChangePassword((session.user as any).app_metadata?.must_change_password === true);
+
+        // Two-factor sign-in (#361): a session that hasn't entered the code, or an Admin past the
+        // grace period with no authenticator, does that first. Until then the database returns
+        // nothing to this session, so nothing else is loaded.
+        try {
+          const twoFactor = await getTwoFactorStatus();
+          setTwoFactorPending(twoFactor.needsCode);
+          setTwoFactorSetupRequired(twoFactor.setupRequired);
+          setTwoFactorReminderUntil(
+            twoFactor.required && twoFactor.factors.length === 0 && !twoFactor.setupRequired ? twoFactor.requiredAfter : null,
+          );
+          if (twoFactor.needsCode || twoFactor.setupRequired) return;
+        } catch (e) {
+          if (import.meta.env.DEV) console.warn('[TRACE] AuthContext: Error reading two-factor status:', e);
+        }
 
         // Ensure pending user is converted to active (e.g. after accepting invitation)
         if (session.user.email) {
@@ -290,6 +317,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await quietly(releaseOfflineStore());
     await supabase.auth.signOut();
     setMustChangePassword(false);
+    setTwoFactorPending(false);
+    setTwoFactorSetupRequired(false);
+    setTwoFactorReminderUntil(null);
     setUser(null);
     setOrganizations([]);
     selectOrganization(null);
@@ -316,6 +346,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser,
     mustChangePassword,
     passwordChanged: () => setMustChangePassword(false),
+    twoFactorPending,
+    twoFactorSetupRequired,
+    twoFactorReminderUntil,
+    // The code is in: the client's session is now aal2 (challengeAndVerify stores it), so
+    // refreshProfile reads it and loads what this session couldn't before.
+    twoFactorVerified: () => {
+      setTwoFactorPending(false);
+      setTwoFactorSetupRequired(false);
+      void refreshProfile();
+    },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -107,14 +107,16 @@ export function registerGigs(app: App) {
       const total = (rows: any[] | null) =>
         (rows || []).reduce((sum: number, f: any) => sum + parseFloat(f.amount_settled), 0);
 
-      const { data: thisMonthFin } = await received().gte('paid_at', startOfMonth.toISOString());
+      // By tax date, a calendar day (B1): compare with calendar days, not instants.
+      const day = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const { data: thisMonthFin } = await received().gte('tax_date', day(startOfMonth));
       revenueThisMonth = total(thisMonthFin);
 
       const { data: lastMonthFin } = await received()
-        .gte('paid_at', startOfLastMonth.toISOString()).lt('paid_at', startOfMonth.toISOString());
+        .gte('tax_date', day(startOfLastMonth)).lt('tax_date', day(startOfMonth));
       revenueLastMonth = total(lastMonthFin);
 
-      const { data: thisYearFin } = await received().gte('paid_at', startOfYear.toISOString());
+      const { data: thisYearFin } = await received().gte('tax_date', day(startOfYear));
       revenueThisYear = total(thisYearFin);
     }
 

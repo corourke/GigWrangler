@@ -604,6 +604,7 @@ export type Database = {
           reference_number: string | null
           staff_assignment_id: string | null
           stage: Database["public"]["Enums"]["fin_stage"]
+          tax_date: string | null
           updated_at: string | null
           updated_by: string | null
         }
@@ -2159,6 +2160,7 @@ export type Database = {
         Returns: boolean
       }
       auth_user_id_by_email: { Args: { p_email: string }; Returns: string }
+      two_factor_requirement: { Args: never; Returns: Json }
       add_gig_participant_contact: {
         Args: {
           p_actor_id?: string

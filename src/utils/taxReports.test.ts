@@ -1,5 +1,5 @@
 import type { ReportAsset } from './taxSummaryReports';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Papa from 'papaparse';
 import {
   buildIncomeReport, buildExpenseReport, buildAssetReport, buildGreyZoneReport,
@@ -12,12 +12,16 @@ const line = (o: Partial<ReportPurchaseLine>): ReportPurchaseLine => ({
   quantity: 1, item_cost: 10, line_cost: 10, tax_treatment: 'expense', asset_id: null, parent_id: 'h1',
   parent: { purchase_date: '2026-03-01', vendor: 'Sweetwater' }, asset: null, ...o,
 });
-const gigRow = (o: Partial<ReportGigRow>): ReportGigRow => ({
-  id: 'g', gig_id: 'gig1', direction: 'in', stage: 'paid', amount_settled: 100, paid_at: '2026-04-02',
-  description: null, category: null, mileage: null, purchase_id: null, staff_assignment_id: null,
-  external_entity_name: null, reference_number: null, counterparty: null,
-  gig: { title: 'Spring Gala', start: '2026-04-01' }, ...o,
-});
+const gigRow = (o: Partial<ReportGigRow>): ReportGigRow => {
+  const r = {
+    id: 'g', gig_id: 'gig1', direction: 'in', stage: 'paid', amount_settled: 100, paid_at: '2026-04-02',
+    description: null, category: null, mileage: null, purchase_id: null, staff_assignment_id: null,
+    external_entity_name: null, reference_number: null, counterparty: null,
+    gig: { title: 'Spring Gala', start: '2026-04-01' }, ...o,
+  } as ReportGigRow;
+  // As the database computes it: the paid day (UTC), else the row's date.
+  return { ...r, tax_date: 'tax_date' in o ? o.tax_date ?? null : r.paid_at ? r.paid_at.slice(0, 10) : r.date ?? null };
+};
 const scheduleC = [
   { code: '9', label: 'Car and truck expenses' }, { code: '11', label: 'Contract labor' },
   { code: '22', label: 'Supplies' }, { code: '27b', label: 'Other expenses (Part V)' },
@@ -27,6 +31,33 @@ const cats = [
   { name: 'Small audio parts', schedule_c_line: '27b' },
   { name: 'Reimbursable (not deducted)', schedule_c_line: null },
 ];
+
+describe('Paid dates are calendar days (B1, B17)', () => {
+  // Stored as midnight UTC; the viewer is west of UTC, where that instant is still Dec 31.
+  const jan1 = { paid_at: '2026-01-01T00:00:00+00:00', tax_date: '2026-01-01' };
+  const dec31 = { paid_at: '2025-12-31T00:00:00+00:00', tax_date: '2025-12-31' };
+  let originalTZ: string | undefined;
+  beforeEach(() => { originalTZ = process.env.TZ; process.env.TZ = 'America/Los_Angeles'; });
+  afterEach(() => { process.env.TZ = originalTZ; });
+
+  it('counts income paid on Jan 1 in that year, dated Jan 1', () => {
+    const r = buildIncomeReport([gigRow({ id: 'a', ...jan1 }), gigRow({ id: 'b', ...dec31 })], 2026);
+    expect(r.rows.map(x => [x.id, x.date])).toEqual([['a', '2026-01-01']]);
+    expect(buildIncomeReport([gigRow({ id: 'a', ...jan1 }), gigRow({ id: 'b', ...dec31 })], 2025).rows.map(x => x.id)).toEqual(['b']);
+  });
+
+  it('counts a gig expense paid on Jan 1 in that year, dated Jan 1', () => {
+    const r = buildExpenseReport([], [gigRow({ id: 'm', direction: 'out', category: 'Supplies', ...jan1 })], [], [], 2026);
+    expect(r.rows.map(x => [x.id, x.date])).toEqual([['m', '2026-01-01']]);
+    expect(buildExpenseReport([], [gigRow({ id: 'm', direction: 'out', category: 'Supplies', ...jan1 })], [], [], 2025).rows).toEqual([]);
+  });
+
+  it('goes by the tax date the database gives, the same one the year lock uses', () => {
+    // Paid Jan 2 for a gig dated Dec 30: 2026 money.
+    const r = buildIncomeReport([gigRow({ id: 'a', date: '2025-12-30', paid_at: '2026-01-02T00:00:00+00:00', tax_date: '2026-01-02' })], 2026);
+    expect(r.rows.map(x => x.date)).toEqual(['2026-01-02']);
+  });
+});
 
 describe('Income report (#125)', () => {
   it('counts what was received in the year, by paid date, at the settled amount', () => {

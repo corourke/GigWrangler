@@ -44,8 +44,12 @@ formatted, the same as the **Preview** tab.
 2. In **Notes & attachments**, select **Upload**.
 3. Choose one or more files.
 
-The files appear in the list and "Files uploaded successfully" confirms it. You can
-attach any type of file.
+The files appear in the list and "Files uploaded successfully" confirms it.
+
+You can attach PDFs, images (JPEG, PNG, WebP, GIF or HEIC), Word, Excel and
+PowerPoint documents (.docx, .xlsx, .pptx) and CSV files, up to 25 MB each. Any
+other file is refused with "Attach a PDF, an image, an Office document or a CSV
+(Word, Excel, PowerPoint)", and a larger one with "Files can be up to 25 MB".
 
 To take a file off the gig, select **Remove** (X) on its row and confirm. The file is
 removed from this gig's list.

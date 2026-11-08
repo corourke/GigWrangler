@@ -4,7 +4,7 @@ import { getSupabase, getCurrentUser, listRecords } from './base/dataAccess';
 import { writeActivity, actorNameOf } from './writeActivity';
 import { computeFieldChanges } from '../utils/fieldChanges';
 import type { ActivityEventType } from '../utils/activityLog.events';
-import { expectedAmount, summarizeMoney, type MoneyRow, type MoneySummary } from '../utils/moneyFlow';
+import { expectedAmount, summarizeMoney, toDateKey, type MoneyRow, type MoneySummary } from '../utils/moneyFlow';
 import { projectedStaffCost, type GigTimes } from '../utils/rateEstimate';
 
 /**
@@ -317,7 +317,7 @@ function withSettlement<T extends GigFinancialPatch>(data: T, current?: Partial<
   const stage = data.stage ?? current?.stage;
   if (stage === 'paid') {
     const out = { ...data };
-    if (!(out.paid_at ?? current?.paid_at)) out.paid_at = new Date().toISOString();
+    if (!(out.paid_at ?? current?.paid_at)) out.paid_at = toDateKey(new Date()); // today, as a calendar day (B1)
     if ((out.amount_settled ?? current?.amount_settled) == null) {
       out.amount_settled = out.amount ?? current?.amount ?? null;
     }

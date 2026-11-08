@@ -22,6 +22,7 @@ import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import ReviewScannedDataDialog from './ReviewScannedDataDialog';
 import { TrackingStatusBadge } from './inventory/TrackingStatusBadge';
+import { SCAN_FILE_ACCEPT } from '../utils/fileAccept';
 
 interface AssetListScreenProps {
   organization: Organization;
@@ -165,7 +166,8 @@ export default function AssetListScreen({
       console.error('Error scanning invoice:', err);
       // If it's a known scan error (like Tier 1+ required), we still open the dialog
       // so the user can enter data manually and the file still gets uploaded.
-      if (err.message?.includes('PDF_SCAN_ACCESS_REQUIRED') || err.message?.includes('access to the Claude 3.5 Sonnet PDF beta')) {
+      // The server sends SCAN_ACCESS_REQUIRED (older builds: PDF_SCAN_ACCESS_REQUIRED); either way, enter it by hand.
+      if (err.message?.includes('SCAN_ACCESS_REQUIRED')) {
         toast.error('AI scan unavailable for this file type. Opening manual entry.');
         setScannedData(null); // Explicitly null to trigger manual mode in dialog
         setShowReviewDialog(true);
@@ -431,7 +433,7 @@ export default function AssetListScreen({
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 onChange={handleUploadInvoice}
                 disabled={isScanning}
-                accept=".pdf,image/*"
+                accept={SCAN_FILE_ACCEPT}
               />
               <Button variant="outline" className="border-sky-500 text-sky-600 hover:bg-sky-50" disabled={isScanning}>
                 {isScanning ? (
