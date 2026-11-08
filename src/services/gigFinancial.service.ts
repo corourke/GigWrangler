@@ -5,7 +5,7 @@ import { writeActivity, actorNameOf } from './writeActivity';
 import { computeFieldChanges } from '../utils/fieldChanges';
 import type { ActivityEventType } from '../utils/activityLog.events';
 import { expectedAmount, summarizeMoney, toDateKey, type MoneyRow, type MoneySummary } from '../utils/moneyFlow';
-import { projectedStaffCost } from '../utils/rateEstimate';
+import { projectedStaffCost, type GigTimes } from '../utils/rateEstimate';
 
 /**
  * Gig financial / bid operations (Phase 7, Step 4 — extracted from
@@ -126,13 +126,15 @@ export type GigMoneySummary = MoneySummary & {
  * `profit = revenue - costOfStaff - expenses`:
  *  - `revenue`      money in that is accepted or later (paid rows at what was
  *                   actually received); see utils/moneyFlow.
- *  - `costOfStaff`  sum of every staff assignment's fee (or rate) on the gig,
- *                   regardless of status.
+ *  - `costOfStaff`  as on the gig page (B9): finalized staff at their money-out
+ *                   row's amount, plus Requested and Confirmed staff not yet
+ *                   finalized at their projected cost (a fee, or a rate times the
+ *                   units estimated from the gig's times). Declined staff cost nothing.
  *  - `expenses`     money out that is accepted or later, paid or not, except
  *                   rows with a `staff_assignment_id` (a finalized staff
  *                   assignment creates a money-out row tagged with its id; that
  *                   spend is already counted in `costOfStaff`).
- *  - `staffCount`   number of staff assignments on the gig, all roles/statuses.
+ *  - `staffCount`   number of staff assignments on the gig, all roles, except Declined.
  */
 export interface GigExportAggregates {
   revenue: number;
@@ -172,11 +174,20 @@ export async function getGigExportAggregates(
 
     const { data: assignments, error: staffError } = await supabase
       .from('gig_staff_assignments')
-      .select('fee, rate, slot:gig_staff_slots!inner(gig_id, organization_id)')
+      .select('fee, rate, rate_unit, status, completed_at, slot:gig_staff_slots!inner(gig_id, organization_id)')
       .in('slot.gig_id', gigIds)
       .eq('slot.organization_id', organizationId);
 
     if (staffError) throw staffError;
+
+    // The gig's times, for a rate's projected units.
+    const { data: gigTimes, error: gigsError } = await supabase
+      .from('gigs')
+      .select('id, start, end, timezone')
+      .in('id', gigIds);
+
+    if (gigsError) throw gigsError;
+    const timesOf = new Map(((gigTimes || []) as ({ id: string } & GigTimes)[]).map((g) => [g.id, g] as const));
 
     type RawFinancial = MoneyRow & {
       gig_id: string;
@@ -185,6 +196,9 @@ export async function getGigExportAggregates(
     type RawAssignment = {
       fee: number | null;
       rate: number | null;
+      rate_unit?: string | null;
+      status?: string | null;
+      completed_at?: string | null;
       slot: { gig_id: string; organization_id: string } | { gig_id: string; organization_id: string }[];
     };
 
@@ -208,15 +222,20 @@ export async function getGigExportAggregates(
       const a = bucket(f.gig_id);
       if (f.direction === 'in') a.revenue += expectedAmount(f);
       else if (f.staff_assignment_id == null) a.expenses += expectedAmount(f);
+      // A finalized staff assignment: its money-out row is what it cost.
+      else a.costOfStaff += expectedAmount(f);
     }
 
     for (const s of (assignments || []) as RawAssignment[]) {
       const slot = Array.isArray(s.slot) ? s.slot[0] : s.slot;
       if (!slot) continue;
+      if (s.status === 'Declined') continue;
       const a = bucket(slot.gig_id);
-      const amount = s.fee !== null ? Number(s.fee) : s.rate !== null ? Number(s.rate) : 0;
-      a.costOfStaff += Number.isFinite(amount) ? amount : 0;
       a.staffCount += 1;
+      // Not finalized yet: projected, as on the gig page (finalized ones are in the ledger above).
+      if (!s.completed_at && (s.status === 'Confirmed' || s.status === 'Requested')) {
+        a.costOfStaff += projectedStaffCost(s, timesOf.get(slot.gig_id)).amount;
+      }
     }
 
     const result = new Map<string, GigExportAggregates>();
@@ -452,12 +471,10 @@ export async function recordGigFinancialPayment(
 }
 
 /**
- * Best-effort removal of storage blobs for attachments that belong ONLY to this
- * financial record. DB metadata (entity_attachments / attachments rows) is swept
- * by the trg_cleanup_attachments trigger on delete; the storage backend can only
- * be written through the Storage API, so that part is done here. Never throws.
+ * The stored files of attachments that belong ONLY to this financial record. Read before the
+ * row is deleted: the trg_cleanup_attachments trigger sweeps the link rows with it. Never throws.
  */
-async function purgeSoleAttachmentBlobsForGigFinancial(finId: string): Promise<void> {
+async function soleAttachmentPathsForGigFinancial(finId: string): Promise<string[]> {
   try {
     const supabase = getSupabase();
     const { data: links } = await supabase
@@ -465,7 +482,7 @@ async function purgeSoleAttachmentBlobsForGigFinancial(finId: string): Promise<v
       .select('attachment_id, attachment:attachment_id(file_path)')
       .eq('entity_type', 'gig_financial')
       .eq('entity_id', finId);
-    if (!links || links.length === 0) return;
+    if (!links || links.length === 0) return [];
 
     const soleOwnedPaths: string[] = [];
     for (const l of links as any[]) {
@@ -476,11 +493,23 @@ async function purgeSoleAttachmentBlobsForGigFinancial(finId: string): Promise<v
       // 1 => only this financial's link references the attachment
       if ((count ?? 0) <= 1 && l.attachment?.file_path) soleOwnedPaths.push(l.attachment.file_path);
     }
-    if (soleOwnedPaths.length > 0) {
-      await supabase.storage.from('attachments').remove(soleOwnedPaths);
-    }
+    return soleOwnedPaths;
   } catch (err) {
-    console.warn('purgeSoleAttachmentBlobsForGigFinancial: non-fatal', err);
+    console.warn('soleAttachmentPathsForGigFinancial: non-fatal', err);
+    return [];
+  }
+}
+
+/**
+ * Best-effort removal of those files, once the row is gone. The storage backend can only be
+ * written through the Storage API, so this is done here. Never throws.
+ */
+async function removeAttachmentFiles(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  try {
+    await getSupabase().storage.from('attachments').remove(paths);
+  } catch (err) {
+    console.warn('removeAttachmentFiles: non-fatal', err);
   }
 }
 
@@ -490,13 +519,15 @@ async function purgeSoleAttachmentBlobsForGigFinancial(finId: string): Promise<v
 export async function deleteGigFinancial(finId: string) {
   const supabase = getSupabase();
   try {
-    await purgeSoleAttachmentBlobsForGigFinancial(finId);
+    const receiptPaths = await soleAttachmentPathsForGigFinancial(finId);
     // .select() to confirm a row was removed — RLS denies silently (0 rows, no error)
     const { data, error } = await supabase.from('gig_financials').delete().eq('id', finId).select();
     if (error) throw error;
     if (!data || data.length === 0) {
       throw new Error('Financial record not found, or you do not have permission to delete it.');
     }
+    // Only now that the row is gone (B3): a refused delete (a filed year, no permission) keeps its receipt.
+    await removeAttachmentFiles(receiptPaths);
     await logFinancialEvent('financial.removed', data[0] as DbGigFinancial);
     return { success: true };
   } catch (err) {

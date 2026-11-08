@@ -50,6 +50,7 @@ import { buildLineUnits, resizeUnitRows, unitRowProblems, type ItemChoice, type 
 import { getExpenseCategories, getEquipmentCategories, getEquipmentCategoryPeriods, type ExpenseCategory } from '../services/purchaseCategory.service';
 import { asRecoveryPeriod, effectiveRecoveryPeriod, recoveryPeriodLabel, type CategoryPeriods, type RecoveryPeriod } from '../utils/recoveryPeriod';
 import { retargetCategories, equipmentCategoryOf, tidyAssetCategory } from '../utils/purchaseCategories';
+import { reconcileLineCosts } from '../utils/lineCostPennies';
 
 function NumericInput({ value, onChange, placeholder = '0.00', className = '', disabled = false }: {
   value: number;
@@ -333,6 +334,10 @@ export default function ReviewScannedDataDialog({
         // treatment: an expensed line gets the matching expense heading.
         items: (scannedData.items || []).map(item => ({
           ...item,
+          // The scan can return null for a price or cost (B-new): a blank is $0, recomputed below.
+          quantity: Number(item.quantity) > 0 ? Number(item.quantity) : 1,
+          item_price: Number.isFinite(Number(item.item_price)) && item.item_price != null ? Number(item.item_price) : 0,
+          item_cost: Number.isFinite(Number(item.item_cost)) && item.item_cost != null ? Number(item.item_cost) : 0,
           category: item.category ? tidyAssetCategory(item.category) : item.category,
           tax_treatment: item._taxChosen ? item.tax_treatment : 'depreciate',
           is_asset: item.is_asset ?? item.is_durable ?? false,
@@ -643,7 +648,9 @@ export default function ReviewScannedDataDialog({
         category: formData.category,
         row_type: 'header' as const,
       };
-      const items = formData.items.map(item => ({
+      // In cents, adding up to the total: the last line takes the rounding pennies (B8).
+      const lineCosts = reconcileLineCosts(formData.items.map(item => item.item_cost * item.quantity), formData.total_inv_amount);
+      const items = formData.items.map((item, i) => ({
         organization_id: organizationId,
         purchase_date: formData.purchase_date,
         vendor: formData.vendor,
@@ -652,7 +659,7 @@ export default function ReviewScannedDataDialog({
         item_price: item.item_price,
         item_cost: item.item_cost,
         line_amount: item.item_price * item.quantity,
-        line_cost: item.item_cost * item.quantity,
+        line_cost: lineCosts[i],
         category: item.category || formData.category,
         // One line type (10-07); the tax treatment is its own choice, and a tracked
         // line's equipment is in `units`.
@@ -798,14 +805,16 @@ export default function ReviewScannedDataDialog({
     const newItems: UpdatePlan['newItems'] = [];
     const presentIds = new Set<string>();
 
-    for (const item of fd.items) {
+    // In cents, adding up to the total: the last line takes the rounding pennies (B8).
+    const lineCosts = reconcileLineCosts(fd.items.map(lineCost), fd.total_inv_amount);
+    for (const [i, item] of fd.items.entries()) {
       const lineData = {
         description: item.description,
         quantity: item.quantity,
         item_price: item.item_price,
         item_cost: item.item_cost,
         line_amount: lineAmount(item),
-        line_cost: lineCost(item),
+        line_cost: lineCosts[i],
         category: item.category || fd.category,
         tax_treatment: item.tax_treatment ?? 'expense',
         // Lines take the purchase's date (#131), so none lands in the wrong tax year.
