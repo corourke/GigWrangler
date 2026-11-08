@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getGig,
   getGigsForOrganization,
@@ -17,7 +17,6 @@ import {
 } from './gig.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
-import { FIN_CATEGORY_CONFIG } from '../utils/supabase/constants';
 
 vi.mock('../utils/supabase/client', () => ({
   createClient: vi.fn(),
