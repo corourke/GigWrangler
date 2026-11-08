@@ -5,6 +5,7 @@ import {
   getGigProfitabilitySummary,
   recordGigFinancialPayment,
   updateGigFinancial,
+  deleteGigFinancial,
 } from './gigFinancial.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
@@ -91,9 +92,11 @@ describe('getGigExportAggregates', () => {
     participants = [],
     financials = [],
     assignments = [],
-  }: { participants?: any[]; financials?: any[]; assignments?: any[] }) {
+    gigs = [],
+  }: { participants?: any[]; financials?: any[]; assignments?: any[]; gigs?: any[] }) {
     mockSupabase.from.mockImplementation((table: string) => {
       if (table === 'gig_participants') return makeChain({ data: participants, error: null });
+      if (table === 'gigs') return makeChain({ data: gigs, error: null });
       if (table === 'gig_financials') return makeChain({ data: financials, error: null });
       if (table === 'gig_staff_assignments') return makeChain({ data: assignments, error: null });
       return makeChain({ data: [], error: null });
@@ -126,9 +129,11 @@ describe('getGigExportAggregates', () => {
         { ...row('gig-2', 'in', 'paid', 2000), amount_settled: 2500 },
       ],
       assignments: [
-        { fee: 500, rate: null, slot: { gig_id: 'gig-1', organization_id: 'org-1' } },
-        { fee: null, rate: 200, slot: { gig_id: 'gig-1', organization_id: 'org-1' } },
-        { fee: 0, rate: null, slot: { gig_id: 'gig-1', organization_id: 'org-1' } },
+        { fee: 500, rate: null, status: 'Confirmed', completed_at: null, slot: { gig_id: 'gig-1', organization_id: 'org-1' } },
+        { fee: 200, rate: null, status: 'Requested', completed_at: null, slot: { gig_id: 'gig-1', organization_id: 'org-1' } },
+        { fee: 0, rate: null, status: 'Confirmed', completed_at: null, slot: { gig_id: 'gig-1', organization_id: 'org-1' } },
+        // finalized: its cost is the 900 ledger row
+        { fee: 900, rate: null, status: 'Confirmed', completed_at: '2026-05-02T00:00:00Z', slot: { gig_id: 'gig-1', organization_id: 'org-1' } },
       ],
     });
 
@@ -136,9 +141,9 @@ describe('getGigExportAggregates', () => {
 
     expect(result.get('gig-1')).toEqual({
       revenue: 4000,
-      costOfStaff: 700, // 500 + 200 + 0
+      costOfStaff: 1600, // 900 finalized (ledger) + 500 + 200 + 0 projected
       expenses: 450, // 300 paid + 150 owed (staff-linked 900 excluded)
-      staffCount: 3,
+      staffCount: 4,
     });
     expect(result.get('gig-2')).toEqual({
       revenue: 2500, // what was actually received
@@ -168,11 +173,35 @@ describe('getGigExportAggregates', () => {
     setup({
       participants: [{ gig_id: 'gig-1' }],
       assignments: [
-        { fee: 250, rate: null, slot: [{ gig_id: 'gig-1', organization_id: 'org-1' }] },
+        { fee: 250, rate: null, status: 'Confirmed', completed_at: null, slot: [{ gig_id: 'gig-1', organization_id: 'org-1' }] },
       ],
     });
     const result = await getGigExportAggregates('org-1');
     expect(result.get('gig-1')).toMatchObject({ costOfStaff: 250, staffCount: 1 });
+  });
+
+  // B9: the export's staff cost is the gig page's: finalized staff from the ledger, the rest
+  // projected (a rate times the gig's hours); Declined staff cost and count nothing.
+  it('costs staff as the gig page does, and leaves out Declined staff', async () => {
+    setup({
+      participants: [{ gig_id: 'gig-1' }],
+      gigs: [{ id: 'gig-1', start: '2026-05-01T18:00:00Z', end: '2026-05-01T22:00:00Z', timezone: 'UTC' }],
+      financials: [
+        // finalized at a different amount than the fee: the ledger amount counts
+        { gig_id: 'gig-1', direction: 'out', stage: 'paid', amount: 450, amount_settled: 450, staff_assignment_id: 'a1' },
+      ],
+      assignments: [
+        { fee: 400, rate: null, rate_unit: null, status: 'Confirmed', completed_at: '2026-05-02T00:00:00Z', slot: { gig_id: 'gig-1', organization_id: 'org-1' } },
+        { fee: null, rate: 50, rate_unit: 'hour', status: 'Requested', completed_at: null, slot: { gig_id: 'gig-1', organization_id: 'org-1' } },
+        { fee: 300, rate: null, rate_unit: null, status: 'Declined', completed_at: null, slot: { gig_id: 'gig-1', organization_id: 'org-1' } },
+      ],
+    });
+    const result = await getGigExportAggregates('org-1');
+    expect(result.get('gig-1')).toMatchObject({
+      costOfStaff: 650, // 450 from the ledger + 4 hours × $50 projected
+      staffCount: 2,    // the Declined one doesn't count
+      expenses: 0,
+    });
   });
 
   it('rethrows when a query errors', async () => {
@@ -342,5 +371,51 @@ describe('gig financial row writes', () => {
     });
     expect(remainder).toBeNull();
     expect(paid).toMatchObject({ stage: 'paid', amount: 250, amount_settled: 260 });
+  });
+});
+
+// B3: a receipt's file is removed only once its ledger row is gone. A refused delete (a filed
+// year, or no permission) must leave the receipt in place.
+describe('deleteGigFinancial and its receipt', () => {
+  let order: string[];
+  let remove: any;
+  const setup = (deleted: any[] | null, deleteError: any = null) => {
+    order = [];
+    remove = vi.fn(async () => { order.push('remove file'); return { data: [], error: null }; });
+    const links = makeFullChain({ data: [{ attachment_id: 'att-1', attachment: { file_path: 'org-1/receipt.pdf' } }], error: null });
+    const count = makeFullChain({ data: null, error: null, count: 1 } as any);
+    let eaCalls = 0;
+    const fin = makeFullChain({ data: deleted, error: deleteError });
+    fin.delete = vi.fn(() => { order.push('delete row'); return fin; });
+    const supabase = {
+      from: vi.fn((t: string) => {
+        if (t === 'entity_attachments') return eaCalls++ === 0 ? links : count;
+        if (t === 'gig_financials') return fin;
+        return makeFullChain({ data: [], error: null });
+      }),
+      storage: { from: vi.fn(() => ({ remove })) },
+    };
+    (createClient as any).mockReturnValue(supabase);
+    (requireAuth as any).mockResolvedValue({ supabase, user: { id: 'u1' } });
+  };
+  beforeEach(() => vi.clearAllMocks());
+
+  it('deletes the row first, then the receipt only it used', async () => {
+    setup([{ ...baseRow }]);
+    await deleteGigFinancial('fin-1');
+    expect(order).toEqual(['delete row', 'remove file']);
+    expect(remove).toHaveBeenCalledWith(['org-1/receipt.pdf']);
+  });
+
+  it('keeps the receipt when the delete is refused', async () => {
+    setup(null, { code: '42501', message: 'The 2025 tax year is locked (filed), so its gig income and expenses can\'t be deleted.' });
+    await expect(deleteGigFinancial('fin-1')).rejects.toBeTruthy();
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('keeps the receipt when nothing was deleted', async () => {
+    setup([]);
+    await expect(deleteGigFinancial('fin-1')).rejects.toThrow(/not found|permission/i);
+    expect(remove).not.toHaveBeenCalled();
   });
 });

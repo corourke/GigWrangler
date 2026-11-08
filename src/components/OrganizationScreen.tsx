@@ -92,6 +92,7 @@ export default function OrganizationScreen({
     searchResults,
     showResults,
     searchError,
+    searchErrorMessage,
     search: handleSearchPlaces,
     dismiss: dismissSearch,
   } = useGooglePlacesSearch();
@@ -444,9 +445,9 @@ export default function OrganizationScreen({
                 ) : searchError ? (
                   <div className="p-8 text-center">
                     <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-amber-600" />
-                    <p className="text-gray-900 mb-1">Couldn't reach business search</p>
+                    <p className="text-gray-900 mb-1">{searchErrorMessage ? 'Business search is paused' : "Couldn't reach business search"}</p>
                     <p className="text-sm text-gray-600 mb-4">
-                      Enter the details manually instead.
+                      {searchErrorMessage ?? 'Enter the details manually instead.'}
                     </p>
                     <Button
                       onClick={handleManualEntry}

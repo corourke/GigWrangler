@@ -165,7 +165,7 @@ export default function QuickCreateOrganizationDialog({
             {places.showResults && !places.isSearching && (
               <div className="border border-gray-200 rounded-md max-h-48 overflow-y-auto">
                 {places.searchError ? (
-                  <p className="p-3 text-sm text-gray-600">Couldn't reach business search. Enter the details below instead.</p>
+                  <p className="p-3 text-sm text-gray-600">{places.searchErrorMessage ?? "Couldn't reach business search. Enter the details below instead."}</p>
                 ) : places.searchResults.length === 0 ? (
                   <p className="p-3 text-sm text-gray-600">No results found.</p>
                 ) : (
