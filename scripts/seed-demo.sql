@@ -91,6 +91,22 @@ DELETE FROM public.assets WHERE organization_id::text LIKE 'de000000-0000-4000-8
 -- Organizations cascade to members, assets, kits (and components), categories,
 -- attachments, invitations, access requests, tax years.
 DELETE FROM public.organizations WHERE id::text LIKE 'de000000-0000-4000-8000-%';
+-- Organizations made while testing on dev as a demo user aren't demo data, but deleting the
+-- demo users would take their memberships, and keep_an_admin refuses to remove an
+-- organization's last Admin. So, before the users go:
+--   * an organization whose members are all demo users is deleted (its memberships go with
+--     it, which keep_an_admin allows);
+--   * a demo user's membership in an organization real people share is removed. If the demo
+--     user is that organization's only Admin, keep_an_admin refuses and the seed stops: make
+--     one of its real members an Admin first.
+DELETE FROM public.organizations o
+ WHERE o.id::text NOT LIKE 'de000000-0000-4000-8000-%'
+   AND EXISTS (SELECT 1 FROM public.organization_members m WHERE m.organization_id = o.id)
+   AND NOT EXISTS (SELECT 1 FROM public.organization_members m
+                   WHERE m.organization_id = o.id AND m.user_id::text NOT LIKE 'de000000-0000-4000-8000-%');
+DELETE FROM public.organization_members
+ WHERE user_id::text LIKE 'de000000-0000-4000-8000-%'
+   AND organization_id::text NOT LIKE 'de000000-0000-4000-8000-%';
 DELETE FROM public.users WHERE id::text LIKE 'de000000-0000-4000-8000-%';
 DELETE FROM auth.identities WHERE user_id::text LIKE 'de000000-0000-4000-8000-%';
 DELETE FROM auth.users WHERE id::text LIKE 'de000000-0000-4000-8000-%';
