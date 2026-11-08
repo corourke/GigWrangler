@@ -113,7 +113,7 @@ Two authorization gaps the refactor closed (both had failing tests written first
 
 **Rate limits** (`lib/rateLimit.ts`, limits in `lib/pure/rateLimits.ts`, migration `20261108090000`). Rolling windows, counted in the service-role-only `rate_limit_events` table. The event is recorded before the work, so a failed attempt still counts. Exceeded → 429 with a plain message:
 - creating an organization: 5 per user in 24 hours;
-- Google Places calls (each search and each result's details): 300 per user an hour, and 2,000 across everyone in 24 hours (Places calls carry no organization, so the second is a cost ceiling);
+- Google Places calls (each search and each result's details): 100 per user an hour, and 300 across everyone in 24 hours (Places calls carry no organization, so the second is a cost ceiling; its message says lookups are paused and the details can be typed by hand);
 - invitation emails: 20 per inviter an hour, and 100 per organization in 24 hours;
 - access requests: 10 per user in 24 hours.
 

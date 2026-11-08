@@ -20,9 +20,9 @@ export const RATE_LIMITS: Record<RateLimitAction, RateLimitRule[]> = {
   ],
   // Every proxied call counts (a search, and each result's details).
   places: [
-    { scope: 'user', max: 300, windowHours: 1, message: 'Too many place searches (300 an hour). Try again later.' },
-    // A ceiling on the API's cost: Places calls carry no organization.
-    { scope: 'all', max: 2000, windowHours: 24, message: 'Place search is busy right now. Try again later.' },
+    { scope: 'user', max: 100, windowHours: 1, message: 'Too many place lookups (100 an hour). Try again later, or type the details in by hand.' },
+    // A ceiling on the API's cost across everyone (Cameron, 11-08): Places calls carry no organization.
+    { scope: 'all', max: 300, windowHours: 24, message: 'Place lookups are paused until the limit resets (within 24 hours). You can type the details in by hand.' },
   ],
   invitation_email: [
     { scope: 'user', max: 20, windowHours: 1, message: 'You can send up to 20 invitations an hour. Try again later.' },
