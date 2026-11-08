@@ -20,7 +20,7 @@ INSERT INTO gigs (id, title, status, start, "end", timezone, created_by, updated
 INSERT INTO gig_participants (gig_id, organization_id, role) VALUES
   (rls_test.u('gig2'), rls_test.u('org_a'), 'Production'),
   (rls_test.u('gig_c'), rls_test.u('org_c'), 'Production');
--- A person in both org A and org C: invoker RLS alone would let them put an org A line on an org C gig.
+-- A person in both org A and org C.
 INSERT INTO organization_members (organization_id, user_id, role) VALUES (rls_test.u('org_c'), rls_test.u('a_admin'), 'Admin');
 
 INSERT INTO purchases (id, organization_id, parent_id, row_type, purchase_date, vendor, total_inv_amount, description) VALUES

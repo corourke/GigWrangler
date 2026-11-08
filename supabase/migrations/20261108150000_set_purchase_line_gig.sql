@@ -43,8 +43,7 @@ BEGIN
     RETURN jsonb_build_object('changed', false, 'moved', v_moved, 'removed', v_removed, 'entries', v_entries);
   END IF;
 
-  -- The line's organization must be on the gig. Invoker RLS alone would let someone who belongs
-  -- to two organizations put one's line on the other's gig.
+  -- The line's organization must be on the gig.
   IF p_gig_id IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM public.gig_participants gp
     WHERE gp.gig_id = p_gig_id AND gp.organization_id = v_line.organization_id
