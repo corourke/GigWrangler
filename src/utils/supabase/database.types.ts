@@ -2160,6 +2160,7 @@ export type Database = {
         Returns: boolean
       }
       auth_user_id_by_email: { Args: { p_email: string }; Returns: string }
+      finalize_staff_assignment: { Args: { p_assignment_id: string; p_units?: number | null }; Returns: string }
       record_gig_payment: {
         Args: { p_amount: number; p_id: string; p_paid_at: string; p_reference: string | null; p_split: boolean }
         Returns: Json

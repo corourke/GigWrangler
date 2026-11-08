@@ -3,7 +3,6 @@ import { getCurrentUser, getSupabase } from './base/dataAccess';
 import { writeActivity, actorNameOf } from './writeActivity';
 import { verifyGigAccess } from './gigService.shared';
 import { StaffingChange } from '../utils/supabase/types';
-import { toDateInTimeZone } from '../utils/dateUtils';
 import { deleteGigFinancial } from './gigFinancial.service';
 
 /**
@@ -221,62 +220,21 @@ export async function updateGigStaffSlots(
 }
 
 /**
- * Complete a staff assignment and create a corresponding financial record
+ * Finalize a staff assignment's pay (B5): one database call writes the owed labor row and marks
+ * the assignment done, together. A fee is the amount ($0 included); a rate is rate x `unitsCompleted`
+ * (required for a rate, kept as entered). The row is dated by the gig's start date in its time
+ * zone, so a gig in a filed tax year is refused.
  */
 export async function completeStaffAssignment(assignmentId: string, unitsCompleted?: number) {
   try {
-    const user = await getCurrentUser();
+    await getCurrentUser();
     const supabase = getSupabase();
-
-    // 1. Get assignment details
-    const { data: assignment, error: fetchError } = await supabase
-      .from('gig_staff_assignments')
-      .select('*, slot:gig_staff_slots(gig_id, organization_id, gig:gigs(timezone), role_info:staff_roles(name))')
-      .eq('id', assignmentId)
-      .single();
-
-    if (fetchError) throw fetchError;
-    if (!assignment) throw new Error('Assignment not found');
-
-    const amount = assignment.fee || (assignment.rate ? (assignment.rate * (unitsCompleted || 1)) : 0);
-    const gigId = assignment.slot.gig_id;
-    const organizationId = assignment.slot.organization_id;
-    const roleName = assignment.slot.role_info?.name || 'Staff';
-
-    // 2. Create gig_financials record
-    const { data: financial, error: finError } = await supabase
-      .from('gig_financials')
-      .insert({
-        gig_id: gigId,
-        organization_id: organizationId,
-        amount: amount,
-        date: toDateInTimeZone(new Date(), assignment.slot.gig?.timezone),
-        // Owed to the staff member until marked paid on the Financials tab.
-        direction: 'out',
-        stage: 'invoiced',
-        category: 'Contract labor',
-        description: `Labor: ${roleName}`,
-        staff_assignment_id: assignmentId,
-        created_by: user.id,
-      })
-      .select()
-      .single();
-
-    if (finError) throw finError;
-
-    // 3. Update assignment with completed_at, units_completed, and gig_financial_id
-    const { error: updateError } = await supabase
-      .from('gig_staff_assignments')
-      .update({
-        completed_at: new Date().toISOString(),
-        units_completed: unitsCompleted || null,
-        gig_financial_id: financial.id,
-      })
-      .eq('id', assignmentId);
-
-    if (updateError) throw updateError;
-
-    return { success: true, financialId: financial.id };
+    const { data, error } = await supabase.rpc('finalize_staff_assignment', {
+      p_assignment_id: assignmentId,
+      p_units: unitsCompleted ?? null,
+    });
+    if (error) throw error;
+    return { success: true, financialId: data as unknown as string };
   } catch (err) {
     return handleApiError(err, 'complete staff assignment');
   }

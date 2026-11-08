@@ -402,7 +402,8 @@ export default function GigStaffSlotsSection({
       }
     } catch (error) {
       console.error('Error completing staff assignment:', error);
-      toast.error('Error finalizing staff assignment');
+      // The database's own reason, e.g. a gig in a filed tax year (B5).
+      toast.error((error as any)?.message || 'Error finalizing staff assignment');
     } finally {
       setIsCompleting(null);
     }

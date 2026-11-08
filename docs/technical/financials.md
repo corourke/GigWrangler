@@ -150,7 +150,9 @@ Never send `''` for `category` or the uuid and date columns; the service turns `
 
 The assignment is the **plan** and the ledger row is the **actual**:
 1. **Before finalize:** a Confirmed or Requested assignment counts as a projected staff cost. A fee counts at its flat amount. A rate (`rate_unit` hour, day or half day, #171) counts as rate × units estimated from the gig (#213): per hour, the hours from the gig's start to its end, rounded to the nearest quarter hour (1 hr, labelled "(no end time)" or "(no times)", when the end is missing, not after the start, or the gig is date-only); per day, the calendar days the gig spans in its timezone, start day through end day, at least 1, with an end before 06:00 local counted to the day before so an overnight gig is one day; per half day, one per gig day. One helper, `projectedStaffCost` in `src/utils/rateEstimate.ts`, does this for the staffing footer, the read-only staffing table, the Financials tab's Projected staff costs table, the money summary, the print sheet and Gig Accounting, which show it as e.g. "est. 9 hr × $35.00 / hr = $315.00".
-2. **Finalize:** a money-out row is created, at stage `invoiced` (Owed), category Contract labor, description "Labor: {role}", amount = fee, or rate × units.
+2. **Finalize:** one call, `finalize_staff_assignment(assignment, units)` (SECURITY INVOKER, migration `20261108110000`, tests in `83_finalize_staff_assignment.test.sql`), creates a money-out row at stage `invoiced` (Owed), category Contract labor, description "Labor: {role}", and marks the assignment done with `gig_financial_id`, together.
+   - **Amount:** the fee when there is one, $0 included; otherwise rate × the units entered (required for a rate, kept as entered, 0 and decimals included).
+   - **Date:** the gig's start date in the gig's time zone. While owed, the row's year is that date, so finalizing for a gig in a filed tax year is refused.
 3. **Paid:** the same row moves to `paid`.
 
 "Undo Finalize" deletes the row.

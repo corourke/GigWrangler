@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getGig,
   getGigsForOrganization,
@@ -17,7 +17,6 @@ import {
 } from './gig.service';
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
-import { FIN_CATEGORY_CONFIG } from '../utils/supabase/constants';
 
 vi.mock('../utils/supabase/client', () => ({
   createClient: vi.fn(),
@@ -811,50 +810,33 @@ describe('gig.service', () => {
 
   // ─── completeStaffAssignment ──────────────────────────────────────────────
 
+  // B5: finalizing is one database call (finalize_staff_assignment), which writes the labor row
+  // (amount, gig-date dating, Contract labor) and the assignment's back-link together.
   describe('completeStaffAssignment', () => {
-    it('creates the labor financial with a valid fin_category enum value', async () => {
-      const assignment = {
-        id: 'as-1',
-        fee: 200,
-        rate: null,
-        slot: { gig_id: 'gig-1', organization_id: 'org-1', role_info: { name: 'FOH Engineer' } },
-      };
-      const financialsChain = makeChain({ data: { id: 'fin-1' }, error: null });
-      mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'gig_financials') return financialsChain;
-        return makeChain({ data: assignment, error: null });
-      });
+    beforeEach(() => {
       (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
-
-      const result = await completeStaffAssignment('as-1');
-
-      expect(result).toEqual({ success: true, financialId: 'fin-1' });
-      const inserted = financialsChain.insert.mock.calls[0][0];
-      // The database enum rejects anything outside FIN_CATEGORY_CONFIG
-      expect(Object.keys(FIN_CATEGORY_CONFIG)).toContain(inserted.category);
     });
-  });
 
-  describe('completeStaffAssignment dates (#93)', () => {
-    afterEach(() => { vi.useRealTimers(); });
+    it('finalizes in one call, passing the units as entered', async () => {
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: 'fin-1', error: null });
+      const result = await completeStaffAssignment('as-1', 2.5);
+      expect(mockSupabase.rpc).toHaveBeenCalledWith('finalize_staff_assignment', { p_assignment_id: 'as-1', p_units: 2.5 });
+      expect(mockSupabase.from).not.toHaveBeenCalledWith('gig_financials');
+      expect(result).toEqual({ success: true, financialId: 'fin-1' });
+    });
 
-    it('dates completed labor in the gig\'s time zone, not UTC', async () => {
-      // 6 PM Pacific on March 31 is already April 1 in UTC.
-      vi.useFakeTimers({ toFake: ['Date'] });
-      vi.setSystemTime(new Date('2026-04-01T01:00:00.000Z'));
-      const assignment = {
-        id: 'as-1', fee: 200, rate: null,
-        slot: { gig_id: 'gig-1', organization_id: 'org-1', gig: { timezone: 'America/Los_Angeles' }, role_info: { name: 'FOH Engineer' } },
-      };
-      const financialsChain = makeChain({ data: { id: 'fin-1' }, error: null });
-      mockSupabase.from.mockImplementation((table: string) =>
-        table === 'gig_financials' ? financialsChain : makeChain({ data: assignment, error: null })
-      );
-      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1' } });
+    it('passes 0 units as 0, and no units (a fee) as null', async () => {
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: 'fin-1', error: null });
+      await completeStaffAssignment('as-1', 0);
+      await completeStaffAssignment('as-2');
+      expect(mockSupabase.rpc).toHaveBeenNthCalledWith(1, 'finalize_staff_assignment', { p_assignment_id: 'as-1', p_units: 0 });
+      expect(mockSupabase.rpc).toHaveBeenNthCalledWith(2, 'finalize_staff_assignment', { p_assignment_id: 'as-2', p_units: null });
+    });
 
-      await completeStaffAssignment('as-1');
-
-      expect(financialsChain.insert.mock.calls[0][0].date).toBe('2026-03-31');
+    it('fails, writing nothing else, when the database refuses (e.g. a filed year)', async () => {
+      mockSupabase.rpc = vi.fn().mockResolvedValue({ data: null, error: { code: '42501', message: 'The 2025 tax year is locked (filed).' } });
+      await expect(completeStaffAssignment('as-1')).rejects.toBeTruthy();
+      expect(mockSupabase.from).not.toHaveBeenCalled();
     });
   });
 
