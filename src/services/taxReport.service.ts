@@ -48,7 +48,7 @@ export async function getTaxReportData(organizationId: string): Promise<TaxRepor
       .order('id')
       .range(from, to)),
     all<ReportGigRow>((from, to) => (supabase.from('gig_financials') as any)
-      .select('id, gig_id, direction, stage, amount_settled, paid_at, date, description, category, mileage, purchase_id, '
+      .select('id, gig_id, direction, stage, amount_settled, paid_at, tax_date, date, description, category, mileage, purchase_id, '
         + 'staff_assignment_id, external_entity_name, reference_number, '
         + 'counterparty:organizations!counterparty_id(name), gig:gigs(title, start)')
       .eq('organization_id', organizationId)

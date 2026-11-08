@@ -121,7 +121,8 @@ Each row is **money in** (`direction = 'in'`: fees, deposits, reimbursements) or
 - `amount_settled`: what actually moved, set when the row is paid.
 - `date`: when the item started.
 - `due_date`: when payment is due. With none, an unpaid committed row is due once the gig is over.
-- `paid_at`: when it was paid.
+- `paid_at`: the day it was paid. A calendar day: the app sends `YYYY-MM-DD` ("paid now" sends today's local date), stored as midnight UTC.
+- `tax_date` (generated, migration `20261107120000`): `paid_at`'s UTC date when paid, else `date`. The tax reports (income, expenses, Schedule C, the year list), the dashboard's revenue and the filed-year lock all use it, so a payment counts on the day it was entered in any time zone.
 - `category` (`fin_category`, IRS Schedule C): what a row is for. Money out only in the UI.
 - `counterparty_id` / `external_entity_name`: the other party.
 - `purchase_id`: the purchase line this cost came from. Old scan-from-gig rows that pointed at a header were moved to its line by migration 20261009000000 when it had one expensed line.
@@ -171,7 +172,7 @@ RLS: an organization's Admins and Managers read it; only its Admins add, change 
   - adding or deleting rows.
 - **Allowed:** `asset_id` (so expensed gear from a filed year can be tracked and put in kits), `gig_id`, `description`, `vendor` and `payment_method`.
 
-**Gig money in a locked year** (trigger `gig_financials_tax_year_lock`, migration `20261012000000`, tests in `46_line_type_and_gig_money_lock.test.sql`). The rows that are tax data are locked: income (`direction = 'in'`), and expenses with no `purchase_id` (quick expenses, mileage, staff pay). The year is the row's `date`.
+**Gig money in a locked year** (trigger `gig_financials_tax_year_lock`, migration `20261012000000`, tests in `46_line_type_and_gig_money_lock.test.sql`). The rows that are tax data are locked: income (`direction = 'in'`), and expenses with no `purchase_id` (quick expenses, mileage, staff pay). The year is the row's `tax_date` (since migration `20261107120000`, tests in `79_tax_date.test.sql`): the paid day for a paid row, else its `date`. So income for a Dec 30 gig paid Jan 2 is the new year's money.
 - **Refused:** adding or deleting such a row; changes to `organization_id`, `direction`, `stage`, `amount`, `amount_settled`, `currency`, `date`, `paid_at`, `category`, `mileage` and `purchase_id` (so a purchase-linked row can't be unlinked into tax data); moving a row into or out of the year.
 - **Allowed:** `notes`, `description`, `reference_number`, `external_entity_name`, `counterparty_id`, `due_date`, `staff_assignment_id`, `gig_id`.
 - **Not locked:** a gig expense linked to a purchase line. It is gig accounting only, and the purchase line is the tax record.

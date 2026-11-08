@@ -604,6 +604,7 @@ export type Database = {
           reference_number: string | null
           staff_assignment_id: string | null
           stage: Database["public"]["Enums"]["fin_stage"]
+          tax_date: string | null
           updated_at: string | null
           updated_by: string | null
         }

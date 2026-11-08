@@ -52,6 +52,8 @@ describe('getTaxReportData', () => {
     expect(lines.neq).toHaveBeenCalledWith('row_type', 'header');
     expect(invoices.eq).toHaveBeenCalledWith('row_type', 'header');
     expect(tables.gig_financials.eq).toHaveBeenCalledWith('stage', 'paid');
+    // The tax date the database computes, the one the year lock uses (B1).
+    expect(tables.gig_financials.select).toHaveBeenCalledWith(expect.stringContaining('tax_date'));
     expect(data.gigRows).toEqual([{ id: 'g1', amount_settled: 100 }]);
     expect(data.categories).toEqual([{ name: 'Fuel', schedule_c_line: '9' }]);
     expect(data.scheduleC).toEqual([{ code: '9', label: 'Car and truck' }]);

@@ -426,7 +426,8 @@ describe('purchase → gig ledger lifecycle', () => {
         description: 'Van rental',
         purchase_id: 'line-1',
       });
-      expect(payload.paid_at).toBeTruthy();
+      // A calendar day, stored as that day (B1): not this instant, whose UTC day can be tomorrow.
+      expect(payload.paid_at).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
   });
 
