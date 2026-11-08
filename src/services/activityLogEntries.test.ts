@@ -303,7 +303,7 @@ describe('gig activity entries', () => {
     await duplicateGig('g1');
     expect(logged()).toMatchInlineSnapshot(`
       [
-        "{"organization_id":"o1","event_type":"gig.created","entity_type":"gig","entity_id":"g2","gig_id":"g2","context":{"context_version":1,"actor_display_name":"Sam Ruiz","actor_org_name":"Acme Audio","gig_title":"Spring Gala (Copy)"}}",
+        "{"organization_id":"o1","event_type":"gig.created","entity_type":"gig","entity_id":"g2","gig_id":"g2","context":{"context_version":1,"actor_display_name":"Sam Ruiz","actor_org_name":"Acme Audio","gig_title":"Spring Gala (Copy)","copied_from":"g1","copied":{"staff_slots":0,"kits":0,"schedule_entries":0}}}",
       ]
     `);
   });
