@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithQuery as render } from '../test/renderWithQuery';
 import OrganizationSelectionScreen from './OrganizationSelectionScreen';
 
 vi.mock('./AppHeader', () => ({ default: () => null }));
@@ -51,6 +52,8 @@ beforeEach(() => {
   getMyPendingAccessRequests.mockResolvedValue([]);
   signedInEmailConfirmed.mockResolvedValue(true);
 });
+
+
 
 describe('OrganizationSelectionScreen: joining an organization', () => {
   it('asks to join instead of joining', async () => {
