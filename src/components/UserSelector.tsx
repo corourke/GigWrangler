@@ -4,7 +4,7 @@ import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '.
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Search, User as UserIcon, Loader2, UserPlus } from 'lucide-react';
 import { User } from '../utils/supabase/types';
-import { searchUsers } from '../services/user.service';
+import { useUserSelectorSearch } from './useUserSelectorData';
 import AddPersonDialog from './organization/AddPersonDialog';
 
 interface UserSelectorProps {
@@ -29,8 +29,9 @@ export default function UserSelector({
 }: UserSelectorProps) {
   const [inputValue, setInputValue] = useState(value);
   const [isOpen, setIsOpen] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<User[]>([]);
+  // The term typed into the box (a `value` prop change shows a name without searching for it).
+  const [searchTerm, setSearchTerm] = useState('');
+  const { results: searchResults, isSearching } = useUserSelectorSearch(searchTerm, organizationIds);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -39,31 +40,11 @@ export default function UserSelector({
     setInputValue(value);
   }, [value]);
 
-  const handleSearch = async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      return;
-    }
-
-    setIsSearching(true);
-
-    try {
-      // Use API function with optional organization IDs filter
-      const users = await searchUsers(query, organizationIds);
-      setSearchResults(users || []);
-    } catch (error) {
-      console.error('Error searching users:', error);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
   const handleSelectUser = (user: User) => {
     onSelect(user);
     setIsOpen(false);
     setInputValue('');
-    setSearchResults([]);
+    setSearchTerm('');
   };
 
   return (
@@ -77,7 +58,7 @@ export default function UserSelector({
             value={inputValue}
             onChange={(e) => {
               setInputValue(e.target.value);
-              handleSearch(e.target.value);
+              setSearchTerm(e.target.value);
             }}
             onFocus={() => setIsOpen(true)}
             placeholder={placeholder}
