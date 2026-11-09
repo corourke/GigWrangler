@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
-import { getTypeUsage } from '../../../services/purchaseCategory.service';
+import { useTypeUsage } from './useTypeUsage';
 
 interface TypeFieldProps {
   id: string;
@@ -16,15 +16,8 @@ interface TypeFieldProps {
  * types already used in its category (with how often), narrowing as you type.
  */
 export default function TypeField({ id, organizationId, category, value, onChange }: TypeFieldProps) {
-  const [types, setTypes] = useState<{ type: string; count: number }[]>([]);
+  const types = useTypeUsage(organizationId, category);
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!category) { setTypes([]); return; }
-    let cancelled = false;
-    getTypeUsage(organizationId, category).then((t) => { if (!cancelled) setTypes(t); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [organizationId, category]);
 
   const typed = value.trim();
   const shown = useMemo(
