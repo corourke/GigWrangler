@@ -88,7 +88,6 @@ export const queryKeys = {
   /** A signed link to a stored file. */
   attachmentUrl: (filePath: string) => ['attachmentUrl', filePath] as const,
   taxYears: (orgId: string) => ['taxYears', orgId] as const,
-  lockedTaxYears: (orgId: string) => ['taxYears', orgId, 'locked'] as const,
   taxYearDepreciation: (orgId: string) => ['taxYears', orgId, 'depreciation'] as const,
   taxReport: (orgId: string) => ['taxReport', orgId] as const,
   /** Gig Accounting's summaries: under gigs(orgId), so a gig change reaches them too. */
