@@ -1,14 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Loader2, FileText, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
-import { toast } from 'sonner';
 import { Button } from '../../ui/button';
-import { getEntityAttachments, getAttachmentUrl } from '../../../services/attachment.service';
-
-interface DocAttachment {
-  id: string;
-  file_name: string;
-  file_path: string;
-}
+import { usePurchaseDocuments } from './usePanelData';
 
 function getKind(fileName: string): 'image' | 'pdf' | 'other' {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
@@ -22,49 +15,13 @@ interface DocumentDetailViewProps {
 }
 
 export default function DocumentDetailView({ headerId }: DocumentDetailViewProps) {
-  const [attachments, setAttachments] = useState<DocAttachment[]>([]);
-  const [index, setIndex] = useState(0);
-  const [url, setUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isResolvingUrl, setIsResolvingUrl] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    setIsLoading(true);
-    getEntityAttachments('purchase', headerId)
-      .then((data) => {
-        if (!active) return;
-        setAttachments(data as DocAttachment[]);
-        setIndex(0);
-      })
-      .catch((err) => {
-        console.error('Error loading attachments:', err);
-        if (active) toast.error('Failed to load document');
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-    return () => { active = false; };
-  }, [headerId]);
-
+  // The document shown, by position; back to the first for another purchase.
+  const [shown, setShown] = useState({ headerId, index: 0 });
+  const index = shown.headerId === headerId ? shown.index : 0;
+  const setIndex = (next: number | ((i: number) => number)) =>
+    setShown({ headerId, index: typeof next === 'function' ? next(index) : next });
+  const { attachments, isLoading, url, isResolvingUrl } = usePurchaseDocuments(headerId, (docs) => docs[index]);
   const current = attachments[index];
-
-  useEffect(() => {
-    if (!current) {
-      setUrl(null);
-      return;
-    }
-    let active = true;
-    setIsResolvingUrl(true);
-    getAttachmentUrl(current.file_path)
-      .then((signed) => { if (active) setUrl(signed); })
-      .catch((err) => {
-        console.error('Error resolving document URL:', err);
-        if (active) toast.error('Failed to open document');
-      })
-      .finally(() => { if (active) setIsResolvingUrl(false); });
-    return () => { active = false; };
-  }, [current]);
 
   if (isLoading) {
     return (

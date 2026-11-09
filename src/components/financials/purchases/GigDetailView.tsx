@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
 import { Loader2, ExternalLink } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { DetailLine } from './DetailLine';
-import { getGig, getGigFinancials } from '../../../services/gig.service';
+import { usePanelGig } from './usePanelData';
 
 interface GigDetailViewProps {
   gigId: string;
@@ -14,36 +13,7 @@ const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
 
 export default function GigDetailView({ gigId, organizationId, onNavigateToGigDetail }: GigDetailViewProps) {
-  const [gig, setGig] = useState<Record<string, any> | null>(null);
-  const [financials, setFinancials] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-
-    Promise.all([
-      getGig(gigId),
-      getGigFinancials(gigId, organizationId),
-    ])
-      .then(([gigData, finData]) => {
-        if (!cancelled) {
-          setGig(gigData);
-          setFinancials(finData || []);
-          setIsLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err?.message ?? 'Failed to load gig details');
-          setIsLoading(false);
-        }
-      });
-
-    return () => { cancelled = true; };
-  }, [gigId, organizationId]);
+  const { gig, financials, isLoading, error } = usePanelGig(gigId, organizationId);
 
   if (isLoading) {
     return (

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
+import { screen, waitFor, within, fireEvent } from '@testing-library/react';
+import { renderWithQuery as render } from '../test/renderWithQuery';
 import userEvent from '@testing-library/user-event';
 import ReviewScannedDataDialog from './ReviewScannedDataDialog';
 import { createPurchaseWithUnits } from '../services/purchase.service';
@@ -1293,5 +1294,98 @@ describe('ReviewScannedDataDialog: the scan\'s equipment suggestion (B18)', () =
     const mic = screen.getByRole('group', { name: 'Equipment: Mic' });
     expect(within(cable).getByTitle('Track as equipment')).toBeInTheDocument();
     expect(within(mic).getByTitle('Tracked as equipment (can go in kits)')).toBeInTheDocument();
+  });
+});
+
+// A10 characterization: how the edit form loads, fails, follows the purchase and the
+// organization, and shows fresh data when opened again after a save.
+describe('ReviewScannedDataDialog: loading a purchase to edit (A10)', () => {
+  const stored = (id: string, vendor: string) => ({
+    id, vendor, purchase_date: '2026-02-03', total_inv_amount: 10, description: '',
+    items: [{ id: `${id}-l1`, row_type: 'item', description: 'Tape', quantity: 1, item_price: 10, item_cost: 10, line_cost: 10, asset_id: null, tax_treatment: 'expense', category: 'Supplies' }],
+    assets: [], attachments: [],
+  });
+  const editProps = { onOpenChange: vi.fn(), onSuccess: vi.fn(), onUpdated: vi.fn(), scannedData: null, file: null };
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const svc = await import('../services/purchase.service');
+    vi.mocked(svc.getPurchaseWithDetails).mockImplementation(async (id: string) => stored(id, id === 'h2' ? 'Second Vendor' : 'First Vendor') as any);
+    const tax = await import('../services/taxYear.service');
+    vi.mocked(tax.getLockedTaxYears).mockResolvedValue(new Set<number>());
+    const gig = await import('../services/gig.service');
+    vi.mocked(gig.getGigFinancials).mockResolvedValue([]);
+  });
+
+  it('shows nothing until the purchase is read, then the stored purchase', async () => {
+    const svc = await import('../services/purchase.service');
+    let resolve!: (v: any) => void;
+    vi.mocked(svc.getPurchaseWithDetails).mockReturnValueOnce(new Promise((r) => { resolve = r; }));
+    render(<ReviewScannedDataDialog open organizationId="org-1" editPurchaseId="h1" {...editProps} />);
+    expect(screen.queryByRole('button', { name: 'Save Changes' })).not.toBeInTheDocument();
+    resolve(stored('h1', 'First Vendor'));
+    expect(await screen.findByDisplayValue('First Vendor')).toBeInTheDocument();
+    expect(svc.getPurchaseWithDetails).toHaveBeenCalledWith('h1');
+  });
+
+  it('says when the purchase fails to load; opened again, it loads', async () => {
+    const svc = await import('../services/purchase.service');
+    const { toast } = await import('sonner');
+    vi.mocked(svc.getPurchaseWithDetails).mockRejectedValueOnce(new Error('offline'));
+    const { rerender } = render(<ReviewScannedDataDialog open organizationId="org-1" editPurchaseId="h1" {...editProps} />);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to load purchase'));
+    expect(screen.queryByRole('button', { name: 'Save Changes' })).not.toBeInTheDocument();
+    rerender(<ReviewScannedDataDialog open={false} organizationId="org-1" editPurchaseId="h1" {...editProps} />);
+    rerender(<ReviewScannedDataDialog open organizationId="org-1" editPurchaseId="h1" {...editProps} />);
+    expect(await screen.findByDisplayValue('First Vendor')).toBeInTheDocument();
+  });
+
+  it('switching purchase shows the other purchase', async () => {
+    const { rerender } = render(<ReviewScannedDataDialog open organizationId="org-1" editPurchaseId="h1" {...editProps} />);
+    expect(await screen.findByDisplayValue('First Vendor')).toBeInTheDocument();
+    rerender(<ReviewScannedDataDialog open organizationId="org-1" editPurchaseId="h2" {...editProps} />);
+    expect(await screen.findByDisplayValue('Second Vendor')).toBeInTheDocument();
+  });
+
+  it('reads the organization\'s filed years and categories, again for another organization', async () => {
+    const tax = await import('../services/taxYear.service');
+    const cats = await import('../services/purchaseCategory.service');
+    const items = await import('../services/equipmentItem.service');
+    const { rerender } = render(<ReviewScannedDataDialog open organizationId="org-1" editPurchaseId="h1" {...editProps} />);
+    await screen.findByDisplayValue('First Vendor');
+    await waitFor(() => expect(items.getItems).toHaveBeenCalledWith('org-1'));
+    expect(tax.getLockedTaxYears).toHaveBeenCalledWith('org-1');
+    expect(cats.getExpenseCategories).toHaveBeenCalledWith('org-1');
+    expect(cats.getEquipmentCategories).toHaveBeenCalledWith('org-1');
+    expect(cats.getEquipmentCategoryPeriods).toHaveBeenCalledWith('org-1');
+    rerender(<ReviewScannedDataDialog open organizationId="org-2" editPurchaseId="h1" {...editProps} />);
+    await waitFor(() => expect(tax.getLockedTaxYears).toHaveBeenCalledWith('org-2'));
+    await waitFor(() => expect(cats.getExpenseCategories).toHaveBeenCalledWith('org-2'));
+    await waitFor(() => expect(items.getItems).toHaveBeenCalledWith('org-2'));
+  });
+
+  it('a filed year read for the organization locks the purchase\'s tax fields', async () => {
+    const tax = await import('../services/taxYear.service');
+    vi.mocked(tax.getLockedTaxYears).mockResolvedValueOnce(new Set([2026]));
+    render(<ReviewScannedDataDialog open organizationId="org-1" editPurchaseId="h1" {...editProps} />);
+    await screen.findByDisplayValue('First Vendor');
+    expect(await screen.findByText(/2026 tax year is filed/)).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Expense category: Tape' })).toBeDisabled();
+  });
+
+  it('after a save, opening it again shows the saved purchase', async () => {
+    const svc = await import('../services/purchase.service');
+    const onUpdated = vi.fn();
+    const { rerender } = render(<ReviewScannedDataDialog open organizationId="org-1" editPurchaseId="h1" {...editProps} onUpdated={onUpdated} />);
+    const vendor = await screen.findByDisplayValue('First Vendor');
+    await userEvent.clear(vendor);
+    await enter(vendor, 'Renamed Vendor');
+    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue(stored('h1', 'Renamed Vendor') as any);
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(onUpdated).toHaveBeenCalledWith('h1'));
+    expect(svc.savePurchaseEdit).toHaveBeenCalledWith('h1', expect.objectContaining({ header: expect.objectContaining({ vendor: 'Renamed Vendor' }) }));
+    rerender(<ReviewScannedDataDialog open={false} organizationId="org-1" editPurchaseId="h1" {...editProps} onUpdated={onUpdated} />);
+    rerender(<ReviewScannedDataDialog open organizationId="org-1" editPurchaseId="h1" {...editProps} onUpdated={onUpdated} />);
+    expect(await screen.findByDisplayValue('Renamed Vendor')).toBeInTheDocument();
   });
 });
