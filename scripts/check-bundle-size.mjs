@@ -5,7 +5,7 @@
 // real DSN keeps ~72 KB of @sentry in the main chunk.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { checkSizes, findEntryChunk, LIMITS } from './bundleSize.mjs';
+import { checkSizes, findEntryChunk, forbiddenInEntry, LIMITS } from './bundleSize.mjs';
 
 const buildDir = resolve(process.argv[2] ?? 'build');
 
@@ -56,7 +56,11 @@ console.log(
   `Limits: entry ${LIMITS.entryMax.toLocaleString('en-US')}, any file ${LIMITS.fileMax.toLocaleString('en-US')} bytes`,
 );
 
-const { ok, failures } = checkSizes(entries, LIMITS);
+const { ok: sizesOk, failures } = checkSizes(entries, LIMITS);
+for (const name of forbiddenInEntry(readFileSync(join(buildDir, entryFile), 'utf8'))) {
+  failures.push(`${name} is in the entry chunk ${entryFile}. Import it only from a lazy-loaded screen.`);
+}
+const ok = sizesOk && failures.length === 0;
 if (!ok) {
   console.error('\nBundle size check FAILED:');
   for (const f of failures) console.error(`  - ${f}`);

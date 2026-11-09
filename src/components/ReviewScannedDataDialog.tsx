@@ -259,6 +259,41 @@ interface ReviewScannedDataDialogProps {
   attachmentId?: string;
 }
 
+// Spread the invoice total across the lines in proportion to each line's
+// printed price, or its stored cost when it has no price (CSV imports, #128).
+function recalculateBurdenedCosts(data: ScannedData): ScannedData {
+  const basis = (item: ScannedItem) => (item.item_price > 0 ? item.item_price : item.item_cost ?? 0);
+  const totalBasis = data.items.reduce((sum, item) => sum + basis(item) * item.quantity, 0);
+  if (totalBasis <= 0 || data.total_inv_amount <= 0) {
+    return withTaxDefaults({ ...data, items: data.items.map(item => ({ ...item, item_cost: basis(item) })) });
+  }
+  const burdenFactor = data.total_inv_amount / totalBasis;
+  return withTaxDefaults({
+    ...data,
+    items: data.items.map(item => ({
+      ...item,
+      item_cost: Number((basis(item) * burdenFactor).toFixed(4))
+    }))
+  });
+}
+
+// Pre-set each line's tax treatment from its per-item cost until the user
+// chooses one (#133): expense under $200, depreciate over $2,500, open between.
+// A depreciated line is always tracked as equipment.
+function withTaxDefaults(data: ScannedData): ScannedData {
+  return {
+    ...data,
+    items: data.items.map(item => {
+      const tax_treatment = item._taxChosen ? item.tax_treatment ?? null : suggestedTaxTreatment(item.item_cost ?? 0);
+      return {
+        ...retargetCategories(item, item.tax_treatment, tax_treatment),
+        tax_treatment,
+        is_asset: item.is_asset || tax_treatment === 'depreciate',
+      };
+    }),
+  };
+}
+
 export default function ReviewScannedDataDialog({
   open,
   onOpenChange,
@@ -487,41 +522,6 @@ export default function ReviewScannedDataDialog({
   useEffect(() => {
     if (isEditMode && formData && loadedMoney === null) setLoadedMoney(moneyKey(formData));
   }, [isEditMode, formData, loadedMoney]);
-
-  // Spread the invoice total across the lines in proportion to each line's
-  // printed price, or its stored cost when it has no price (CSV imports, #128).
-  function recalculateBurdenedCosts(data: ScannedData): ScannedData {
-    const basis = (item: ScannedItem) => (item.item_price > 0 ? item.item_price : item.item_cost ?? 0);
-    const totalBasis = data.items.reduce((sum, item) => sum + basis(item) * item.quantity, 0);
-    if (totalBasis <= 0 || data.total_inv_amount <= 0) {
-      return withTaxDefaults({ ...data, items: data.items.map(item => ({ ...item, item_cost: basis(item) })) });
-    }
-    const burdenFactor = data.total_inv_amount / totalBasis;
-    return withTaxDefaults({
-      ...data,
-      items: data.items.map(item => ({
-        ...item,
-        item_cost: Number((basis(item) * burdenFactor).toFixed(4))
-      }))
-    });
-  }
-
-  // Pre-set each line's tax treatment from its per-item cost until the user
-  // chooses one (#133): expense under $200, depreciate over $2,500, open between.
-  // A depreciated line is always tracked as equipment.
-  function withTaxDefaults(data: ScannedData): ScannedData {
-    return {
-      ...data,
-      items: data.items.map(item => {
-        const tax_treatment = item._taxChosen ? item.tax_treatment ?? null : suggestedTaxTreatment(item.item_cost ?? 0);
-        return {
-          ...retargetCategories(item, item.tax_treatment, tax_treatment),
-          tax_treatment,
-          is_asset: item.is_asset || tax_treatment === 'depreciate',
-        };
-      }),
-    };
-  }
 
   if (!open || !formData) return null;
 

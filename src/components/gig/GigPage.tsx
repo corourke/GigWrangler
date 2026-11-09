@@ -145,6 +145,7 @@ export default function GigPage({
   }, [tab, gigId]);
 
   // Staff and Viewers never see financials (#12); keep them off that tab.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- setTab is re-created each render; this reacts only to the role and the tab
   useEffect(() => { if (!canEdit && tab === 'financials') setTab('overview'); }, [canEdit, tab]);
 
   // Done waits for every pending save, so nothing typed just before is lost.

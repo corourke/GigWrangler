@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { checkSizes, findEntryChunk, LIMITS } from './bundleSize.mjs';
+import { checkSizes, findEntryChunk, forbiddenInEntry, ENTRY_FORBIDDEN, LIMITS } from './bundleSize.mjs';
 
 const html = (body) => `<!doctype html><html><head>${body}</head><body><div id="root"></div></body></html>`;
 
 describe('LIMITS', () => {
-  it('caps the entry chunk well under the offline cache limit', () => {
-    expect(LIMITS.entryMax).toBe(1_200_000);
+  it('caps the entry chunk at about 10% over its size after A21 (799,302 bytes)', () => {
+    expect(LIMITS.entryMax).toBe(880_000);
     expect(LIMITS.fileMax).toBe(2_097_152);
   });
 });
@@ -95,5 +95,20 @@ describe('checkSizes', () => {
     const res = checkSizes([{ file: 'assets/index-a.js', bytes: 2500, isEntry: true }], limits);
     expect(res.ok).toBe(false);
     expect(res.failures.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('forbiddenInEntry (A21)', () => {
+  it('names each library whose marker is in the entry source', () => {
+    expect(forbiddenInEntry('x.className="rbc-calendar";')).toEqual(['react-big-calendar']);
+    expect(forbiddenInEntry('a="recharts-wrapper" b="rbc-calendar"')).toEqual(['react-big-calendar', 'recharts']);
+  });
+
+  it('passes an entry without them', () => {
+    expect(forbiddenInEntry('createRoot(document.getElementById("root"))')).toEqual([]);
+  });
+
+  it('covers the calendar and the charts', () => {
+    expect(ENTRY_FORBIDDEN.map((f) => f.name)).toEqual(['react-big-calendar', 'recharts']);
   });
 });

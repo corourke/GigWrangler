@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Package, Edit2, Trash2, Copy, Loader2, Layers, Boxes, Container } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
@@ -139,13 +139,9 @@ export default function KitDetailScreen({
   const [kitActivity, setKitActivity] = useState<ActivityLogEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
-  useEffect(() => {
-    loadKit();
-  }, [kitId]);
-
   // A late answer for an earlier kit is dropped (B12).
   const startKitRequest = useLatestRequest();
-  const loadKit = async () => {
+  const loadKit = useCallback(async () => {
     const isCurrent = startKitRequest();
     setIsLoading(true);
     setLoadError(null);
@@ -179,7 +175,11 @@ export default function KitDetailScreen({
     } finally {
       if (isCurrent()) setIsLoading(false);
     }
-  };
+  }, [kitId, startKitRequest]);
+
+  useEffect(() => {
+    loadKit();
+  }, [loadKit]);
 
   const handleDuplicate = async () => {
     try {

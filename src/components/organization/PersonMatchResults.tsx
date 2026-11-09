@@ -1,5 +1,6 @@
 import { AlertTriangle, Loader2, User as UserIcon } from 'lucide-react';
 import type { PersonMatch } from '../../utils/supabase/types';
+import { personMatchDetail } from './personMatchDetail';
 
 interface PersonMatchResultsProps {
   matches: PersonMatch[];
@@ -81,9 +82,4 @@ export default function PersonMatchResults({
       </div>
     </div>
   );
-}
-
-/** The line under a match's name: why it matched, when that isn't obvious. */
-export function personMatchDetail(m: PersonMatch): string {
-  return m.matched_on === 'phone' ? 'same phone' : m.matched_on === 'similar name' ? 'similar name' : '';
 }

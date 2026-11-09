@@ -28,7 +28,8 @@ import {
   type OrganizationMember,
   type Invitation,
 } from './team/useTeamData';
-import { useMemberColumns, useInvitationColumns, useAccessRequestColumns, AccessRequestActions } from './team/teamColumns';
+import { useMemberColumns, useInvitationColumns, useAccessRequestColumns } from './team/teamColumns';
+import { AccessRequestActions } from './team/AccessRequestActions';
 import AddTeamMemberDialog from './team/AddTeamMemberDialog';
 import EditMemberDialog from './team/EditMemberDialog';
 import RequestAccessDialog from './team/RequestAccessDialog';
@@ -73,8 +74,9 @@ export default function TeamScreen({
   const accessRequestsQuery = useOrgAccessRequests(orgId, canDecideRequests);
   const decideAccessRequest = useDecideAccessRequest();
 
-  const members = membersQuery.data ?? [];
-  const staffRoles = staffRolesQuery.data ?? [];
+  // Memoized so an empty result is the same array each render (the memos below depend on it).
+  const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
+  const staffRoles = useMemo(() => staffRolesQuery.data ?? [], [staffRolesQuery.data]);
   const invitations = invitationsQuery.data?.invitations ?? [];
   const invitationsTableExists = invitationsQuery.data?.tableExists ?? true;
   const accessRequests = accessRequestsQuery.data ?? [];

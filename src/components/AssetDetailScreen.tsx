@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Edit2, Trash2, Copy, Loader2, History, CreditCard, ExternalLink, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -88,13 +88,9 @@ export default function AssetDetailScreen({
     }
   };
 
-  useEffect(() => {
-    loadAsset();
-  }, [assetId]);
-
   // A late answer for an earlier record is dropped (B12).
   const startAssetRequest = useLatestRequest();
-  const loadAsset = async () => {
+  const loadAsset = useCallback(async () => {
     const isCurrent = startAssetRequest();
     setIsLoading(true);
     setLoadError(null);
@@ -125,7 +121,11 @@ export default function AssetDetailScreen({
     } finally {
       if (isCurrent()) setIsLoading(false);
     }
-  };
+  }, [assetId, startAssetRequest]);
+
+  useEffect(() => {
+    loadAsset();
+  }, [loadAsset]);
 
   const handleDuplicate = async () => {
     try {

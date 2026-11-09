@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor, screen, fireEvent } from '@testing-library/react';
+import { Suspense } from 'react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { LandingRedirect, LogoutRoute, RequireAuth, RequireOrg } from './guards';
 import { useLocation } from 'react-router';
@@ -226,6 +227,7 @@ describe('RequireAuth: a temporary password', () => {
   const user = { id: 'u1', first_name: 'Ann', last_name: 'Lee', email: 'ann@example.com' };
   function renderGuard() {
     render(
+      <Suspense fallback={null}>
       <MemoryRouter initialEntries={['/gigs']}>
         <Routes>
           <Route element={<RequireAuth />}>
@@ -233,21 +235,22 @@ describe('RequireAuth: a temporary password', () => {
           </Route>
         </Routes>
       </MemoryRouter>
+      </Suspense>
     );
   }
 
-  it('shows the password screen instead of the app', () => {
+  it('shows the password screen instead of the app', async () => {
     mockUseAuth.mockReturnValue({ isLoading: false, user, mustChangePassword: true, passwordChanged: vi.fn() });
     renderGuard();
-    expect(screen.getByRole('button', { name: 'Temporary password screen' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Temporary password screen' })).toBeInTheDocument();
     expect(screen.queryByText('Gigs')).not.toBeInTheDocument();
   });
 
-  it('goes on once it is set', () => {
+  it('goes on once it is set', async () => {
     const passwordChanged = vi.fn();
     mockUseAuth.mockReturnValue({ isLoading: false, user, mustChangePassword: true, passwordChanged });
     renderGuard();
-    fireEvent.click(screen.getByRole('button', { name: 'Temporary password screen' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Temporary password screen' }));
     expect(passwordChanged).toHaveBeenCalled();
   });
 
@@ -261,43 +264,45 @@ describe('RequireAuth: a temporary password', () => {
 describe('RequireAuth: two-factor sign-in (#361)', () => {
   const user = { id: 'user-1', first_name: 'Pat', last_name: 'Lee', email: 'pat@example.com' };
   const renderGuard = () => render(
-    <MemoryRouter initialEntries={['/gigs']}>
+    <Suspense fallback={null}>
+      <MemoryRouter initialEntries={['/gigs']}>
       <Routes>
         <Route element={<RequireAuth />}>
           <Route path="/gigs" element={<div>Gigs</div>} />
         </Route>
       </Routes>
     </MemoryRouter>
+      </Suspense>
   );
 
-  it('asks for the code before the app when the session still needs it', () => {
+  it('asks for the code before the app when the session still needs it', async () => {
     mockUseAuth.mockReturnValue({ isLoading: false, user, mustChangePassword: false, twoFactorPending: true, twoFactorVerified: vi.fn() });
     renderGuard();
-    expect(screen.getByRole('button', { name: 'Two-factor code screen' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Two-factor code screen' })).toBeInTheDocument();
     expect(screen.queryByText('Gigs')).not.toBeInTheDocument();
   });
 
-  it('goes on once the code is entered', () => {
+  it('goes on once the code is entered', async () => {
     const twoFactorVerified = vi.fn();
     mockUseAuth.mockReturnValue({ isLoading: false, user, mustChangePassword: false, twoFactorPending: true, twoFactorVerified });
     renderGuard();
-    fireEvent.click(screen.getByRole('button', { name: 'Two-factor code screen' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Two-factor code screen' }));
     expect(twoFactorVerified).toHaveBeenCalled();
   });
 
-  it('asks an Admin past the grace period to set it up before the app, even before the profile loads', () => {
+  it('asks an Admin past the grace period to set it up before the app, even before the profile loads', async () => {
     const twoFactorVerified = vi.fn();
     mockUseAuth.mockReturnValue({ isLoading: false, user: null, mustChangePassword: false, twoFactorPending: false, twoFactorSetupRequired: true, twoFactorVerified });
     renderGuard();
-    fireEvent.click(screen.getByRole('button', { name: 'Two-factor setup screen' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Two-factor setup screen' }));
     expect(twoFactorVerified).toHaveBeenCalled();
     expect(screen.queryByText('Gigs')).not.toBeInTheDocument();
   });
 
-  it('asks for the code before the profile loads too', () => {
+  it('asks for the code before the profile loads too', async () => {
     mockUseAuth.mockReturnValue({ isLoading: false, user: null, mustChangePassword: false, twoFactorPending: true, twoFactorVerified: vi.fn() });
     renderGuard();
-    expect(screen.getByRole('button', { name: 'Two-factor code screen' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Two-factor code screen' })).toBeInTheDocument();
   });
 
   it('reminds an Admin in the grace period, above the app', () => {
