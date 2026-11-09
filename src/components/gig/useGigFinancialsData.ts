@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { createClient } from '../../utils/supabase/client';
+import { getProjectedStaffAssignments } from '../../services/gigStaff.service';
 import { queryKeys } from '../../lib/queryKeys';
 import {
   getGigFinancials,
@@ -32,27 +32,7 @@ export function useGigFinancialsData(
 
   const projectedStaffQuery = useQuery({
     queryKey: queryKeys.gigProjectedStaff(gigId),
-    queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('gig_staff_assignments')
-        .select(`
-          id,
-          fee,
-          rate,
-          rate_unit,
-          status,
-          user:user_id(id, first_name, last_name),
-          slot:gig_staff_slots!inner(gig_id, organization_id, role_info:staff_roles(name))
-        `)
-        .eq('slot.gig_id', gigId)
-        .eq('slot.organization_id', organizationId)
-        .is('completed_at', null)
-        .or('fee.gt.0,rate.gt.0');
-      if (error) throw error;
-      // Confirmed/Requested only, mirroring the summary logic.
-      return (data || []).filter((a) => a.status === 'Confirmed' || a.status === 'Requested');
-    },
+    queryFn: () => getProjectedStaffAssignments(gigId, organizationId),
     enabled,
   });
 

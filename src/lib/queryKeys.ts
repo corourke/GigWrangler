@@ -24,6 +24,20 @@ export const queryKeys = {
   gigConflicts: (gigId: string, orgId: string, when: { start: string; end: string; timezone?: string; allDay: boolean }) =>
     ['gig', gigId, 'conflicts', orgId, when.start, when.end, when.timezone ?? null, when.allDay] as const,
   gigActivity: (gigId: string) => ['gig', gigId, 'activity'] as const,
+  // The gig page's edit sections (A10, PR 2).
+  gigStaffSlots: (gigId: string, orgId: string) => ['gig', gigId, 'staffSlots', orgId] as const,
+  gigParticipants: (gigId: string) => ['gig', gigId, 'participants'] as const,
+  gigKitAssignments: (gigId: string, orgId: string) => ['gig', gigId, 'kitAssignments', orgId] as const,
+  gigEquipmentConflicts: (gigId: string, orgId: string, when: { start: string; end: string; timezone?: string; allDay: boolean }) =>
+    ['gig', gigId, 'equipmentConflicts', orgId, when.start, when.end, when.timezone ?? null, when.allDay] as const,
+  /** refresh: a count the kit section bumps after each save, so the table reloads. */
+  gigEquipmentNeeded: (gigId: string, orgId: string, when: { start: string; end: string; timezone?: string; allDay: boolean }, refresh: number) =>
+    ['gig', gigId, 'equipmentNeeded', orgId, when.start, when.end, when.timezone ?? null, when.allDay, refresh] as const,
+  /** Kits' flattened contents, for the same-gig overlap check. */
+  kitsFlattenedSummary: (kitIds: readonly string[]) => ['kits', 'flattened', [...kitIds].sort().join(',')] as const,
+  staffRoleNames: () => ['staffRoles', 'names'] as const,
+  /** Whether the signed-in user is a platform Admin. */
+  currentUserIsAdmin: () => ['currentUser', 'isAdmin'] as const,
 
   // Dashboard
   dashboard: (orgId: string) => ['dashboard', orgId] as const,
@@ -119,6 +133,21 @@ export function invalidateAfterGigListChange(queryClient: QueryClient, organizat
   ]);
 }
 
+/**
+ * After staff slots or assignments change (saved, finalized, un-finalized): the gig's money
+ * figures (profitability summary and projected staff costs) and the dashboard.
+ */
+export function invalidateAfterStaffingChange(
+  queryClient: QueryClient,
+  { gigId, organizationId }: { gigId: string; organizationId: string },
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.gigFinancialsSummary(gigId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.gigProjectedStaff(gigId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.financials(gigId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
+  ]);
+
 // ── Financials (A10, Engineer F) ──
 
 type PurchaseChange = {
@@ -130,10 +159,24 @@ type PurchaseChange = {
   allGigs?: boolean;
 };
 
+/** A gig's money: its ledger, profitability summary and projected staff costs (all gigs when none named). */
 function gigMoneyKeys(gigIds: (string | null | undefined)[] = [], allGigs = false): (readonly unknown[])[] {
-  if (allGigs) return [['financials'], ['gigFinancialsSummary']];
+  if (allGigs) return [['financials'], ['gigFinancialsSummary'], ['gigProjectedStaff']];
   return [...new Set(gigIds.filter((g): g is string => !!g))]
-    .flatMap((g) => [queryKeys.financials(g), queryKeys.gigFinancialsSummary(g)]);
+    .flatMap((g) => [queryKeys.financials(g), queryKeys.gigFinancialsSummary(g), queryKeys.gigProjectedStaff(g)]);
+}
+
+/**
+ * After a gig's ledger changes from outside its page (a purchase line put on it, moved, cleared or
+ * re-costed): those gigs' money figures (every gig's when not known) and the dashboard. Replaces
+ * the old 'gig-financials-updated' window event (A10).
+ */
+export function invalidateAfterGigFinancialsChange(
+  queryClient: QueryClient,
+  { organizationId, gigIds, allGigs }: { organizationId: string; gigIds?: (string | null | undefined)[]; allGigs?: boolean },
+) {
+  return Promise.all([...gigMoneyKeys(gigIds, allGigs), queryKeys.dashboard(organizationId)]
+    .map((queryKey) => queryClient.invalidateQueries({ queryKey })));
 }
 
 /** The caches a purchase write reaches, besides the Purchases report (see the two helpers below). */
