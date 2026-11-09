@@ -125,3 +125,20 @@ describe('AdminOrganizationsScreen: member lists', () => {
     await waitFor(() => expect(onOrganizationDeleted).toHaveBeenCalledWith('org-mine'))
   })
 })
+
+// The delete question states the real rule (Docs Lead code read, 11-09).
+describe('AdminOrganizationsScreen: the delete question', () => {
+  it('says what blocks a delete, not that it deletes members, gigs and equipment', async () => {
+    invoke.mockReset(); rpc.mockReset();
+    invoke.mockImplementation(async (path: string) =>
+      path === 'server/organizations' ? { data: [{ id: 'org-mine', name: 'Mine', roles: ['Production'], claimed: true }], error: null } : { data: [], error: null });
+    rpc.mockResolvedValue({ data: false, error: null });
+    render(<AdminOrganizationsScreen user={makeUser()} organizations={[{ organization: { id: 'org-mine', name: 'Mine' }, role: 'Admin' } as any]}
+      onEditOrganization={vi.fn()} onCreateOrganization={vi.fn()} onBack={vi.fn()} onLogout={vi.fn()} onEditProfile={vi.fn()} />);
+    const row = (await screen.findByText('Mine')).closest('tr')!;
+    fireEvent.click(within(row).getByTitle('Delete Organization'));
+    const ask = await screen.findByRole('alertdialog');
+    expect(ask).not.toHaveTextContent('including members, gigs, and equipment');
+    expect(ask).toHaveTextContent("only if you're its only member");
+  });
+});

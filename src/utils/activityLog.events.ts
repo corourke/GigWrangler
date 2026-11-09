@@ -1,6 +1,7 @@
 import type { ActivityLogContext } from './supabase/types';
 import { format } from 'date-fns';
 import { stageLabel, type FinStage } from './moneyFlow';
+import { plural } from './plural';
 
 interface EventTypeConfig {
   label: string;
@@ -93,8 +94,13 @@ export const ACTIVITY_EVENTS = {
     label: 'Gig Created',
     entityType: 'gig',
     calendarIndicator: false,
-    contextKeys: ['gig_title'],
-    format: () => 'Gig created',
+    contextKeys: ['gig_title', 'copied_from', 'copied'],
+    // A duplicate says what came with it (B10 stores the counts).
+    format: (ctx) => {
+      const c = ctx.copied;
+      if (!ctx.copied_from || !c) return 'Gig created';
+      return `Gig duplicated: ${plural(c.staff_slots ?? 0, 'staff slot')}, ${plural(c.kits ?? 0, 'kit')} and ${plural(c.schedule_entries ?? 0, 'schedule entry', 'schedule entries')} copied`;
+    },
   },
   'gig.notes_updated': {
     label: 'Notes Updated',

@@ -297,3 +297,13 @@ describe('CALENDAR_INDICATOR_EVENT_TYPES', () => {
     expect(CALENDAR_INDICATOR_EVENT_TYPES).toContain('gig.rescheduled');
   });
 });
+
+// A duplicated gig's History entry says what was copied (Docs Lead code read, 11-09).
+describe('gig.created for a duplicate', () => {
+  it('names the copied counts', () => {
+    const cfg = ACTIVITY_EVENTS['gig.created' as ActivityEventType];
+    expect(cfg.format({ copied_from: 'g0', copied: { staff_slots: 3, kits: 1, schedule_entries: 0 } } as any))
+      .toBe('Gig duplicated: 3 staff slots, 1 kit and 0 schedule entries copied');
+    expect(cfg.format({} as any)).toBe('Gig created');
+  });
+});
