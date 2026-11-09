@@ -390,6 +390,7 @@ export default function ImportScreen({
               title: gigData.title,
               start: parseLocalToUTC(gigData.start, gigData.timezone),
               end: parseLocalToUTC(gigData.end, gigData.timezone),
+              all_day: gigData.all_day ?? false,
               timezone: gigData.timezone,
               status: gigData.status as any,
               tags: parseTags(gigData.tags),
@@ -894,8 +895,8 @@ export default function ImportScreen({
                             return (
                               <>
                                 <Input
-                                  type={(row.data as GigRow).start?.endsWith('T12:00:00.000Z') ? 'date' : 'datetime-local'}
-                                  value={formatGigDateTimeForInput((row.data as GigRow).start, (row.data as GigRow).timezone)}
+                                  type={(row.data as GigRow).all_day ? 'date' : 'datetime-local'}
+                                  value={formatGigDateTimeForInput((row.data as GigRow).start, (row.data as GigRow).timezone, (row.data as GigRow).all_day)}
                                   onChange={(e) => {
                                     const isDateOnly = e.target.type === 'date';
                                     const utcValue = parseGigDateTimeFromInput(e.target.value, (row.data as GigRow).timezone, isDateOnly);
@@ -924,8 +925,8 @@ export default function ImportScreen({
                             return (
                               <>
                                 <Input
-                                  type={(row.data as GigRow).end?.endsWith('T12:00:00.000Z') ? 'date' : 'datetime-local'}
-                                  value={formatGigDateTimeForInput((row.data as GigRow).end, (row.data as GigRow).timezone)}
+                                  type={(row.data as GigRow).all_day ? 'date' : 'datetime-local'}
+                                  value={formatGigDateTimeForInput((row.data as GigRow).end, (row.data as GigRow).timezone, (row.data as GigRow).all_day)}
                                   onChange={(e) => {
                                     const isDateOnly = e.target.type === 'date';
                                     const utcValue = parseGigDateTimeFromInput(e.target.value, (row.data as GigRow).timezone, isDateOnly);
@@ -1185,8 +1186,8 @@ export default function ImportScreen({
                         <>
                           <TableCell>{row.rowIndex}</TableCell>
                           <TableCell>{(row.data as GigRow).title}</TableCell>
-                          <TableCell>{formatGigDateTimeForDisplay((row.data as GigRow).start, (row.data as GigRow).timezone)}</TableCell>
-                          <TableCell>{formatGigDateTimeForDisplay((row.data as GigRow).end, (row.data as GigRow).timezone)}</TableCell>
+                          <TableCell>{formatGigDateTimeForDisplay((row.data as GigRow).start, (row.data as GigRow).timezone, (row.data as GigRow).all_day)}</TableCell>
+                          <TableCell>{formatGigDateTimeForDisplay((row.data as GigRow).end, (row.data as GigRow).timezone, (row.data as GigRow).all_day)}</TableCell>
                           <TableCell>
                             <Badge variant="outline">{(row.data as GigRow).status}</Badge>
                           </TableCell>

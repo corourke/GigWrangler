@@ -545,7 +545,7 @@ export default function OrganizationScreen({
                   <p className="text-sm text-gray-600 truncate">{selectedPlace.formatted_address}</p>
                 </div>
               </div>
-              <Button
+              <Button aria-label="Clear selection"
                 onClick={handleClearSelection}
                 variant="ghost"
                 size="sm"

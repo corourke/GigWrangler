@@ -469,7 +469,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
   const checkAddition = useCallback(async (adding: Addition): Promise<string[]> => {
     if (!navigator.onLine || !gigId || !selectedOrganization || !packingList?.gig_start || !packingList?.gig_end) return [];
     return additionWarnings(
-      { id: gigId, start: packingList.gig_start, end: packingList.gig_end, timezone: packingList.gig_timezone },
+      { id: gigId, start: packingList.gig_start, end: packingList.gig_end, timezone: packingList.gig_timezone, all_day: packingList.gig_all_day },
       selectedOrganization.id,
       adding,
     );

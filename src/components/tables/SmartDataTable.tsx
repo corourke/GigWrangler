@@ -74,6 +74,8 @@ export interface ColumnDef<T> {
   options?: { label: string; value: any }[];
   pillConfig?: Record<string, { label: string; color: string }>;
   timezone?: string | ((row: T) => string);
+  /** For a datetime column: whether the row's value is a date (an all-day gig, A12). Without it, a 12:00 UTC value is. */
+  allDay?: (row: T) => boolean;
   className?: string;
   render?: (value: any, row: T) => React.ReactNode;
   /**
@@ -697,7 +699,7 @@ function RowActionsMenu<T>({ row, actions }: { row: T; actions: RowAction<T>[] }
   return (
     <DropdownMenu onOpenChange={(open) => { if (!open) setReason(null); }}>
       <DropdownMenuTrigger asChild>
-        <Button
+        <Button aria-label="Row actions"
           variant="ghost"
           size="sm"
           className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"

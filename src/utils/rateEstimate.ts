@@ -1,5 +1,5 @@
 import { RATE_UNITS, rateUnit, type RateUnit } from '../components/gig/view/staffRows';
-import { isNoonUTC, toDateInTimeZone } from './dateUtils';
+import { isGigAllDay, toDateInTimeZone } from './dateUtils';
 
 /**
  * Projected staff cost for a rate that isn't finalized yet (#213).
@@ -14,6 +14,7 @@ export interface GigTimes {
   start?: string | null;
   end?: string | null;
   timezone?: string | null;
+  all_day?: boolean | null;
 }
 
 export interface RateUnitEstimate {
@@ -76,7 +77,7 @@ function gigInstants(gig: GigTimes | null | undefined): { start: Date | null; en
 function gigDays(gig: GigTimes | null | undefined): number {
   const { start, end } = gigInstants(gig);
   if (!start || !end) return 1;
-  if (isNoonUTC(gig!.start!)) {
+  if (isGigAllDay(gig!)) {
     return Math.max(1, daysBetween(start.toISOString().slice(0, 10), end.toISOString().slice(0, 10)) + 1);
   }
   const tz = gig?.timezone;
@@ -98,7 +99,7 @@ export function estimateRateUnits(gig: GigTimes | null | undefined, unit?: strin
   const u = rateUnit(unit);
   if (u === 'hour') {
     const { start, end } = gigInstants(gig);
-    if (start && isNoonUTC(gig!.start!)) return { units: 1, label: '1 hr (no times)' };
+    if (start && isGigAllDay(gig!)) return { units: 1, label: '1 hr (no times)' };
     if (!start || !end) return { units: 1, label: '1 hr (no end time)' };
     const hours = Math.max(0.25, Math.round(((end.getTime() - start.getTime()) / 3_600_000) * 4) / 4);
     return { units: hours, label: count(hours, u) };

@@ -323,7 +323,7 @@ export const packingListService = {
 
     const { data: gigData } = await supabase
       .from('gigs')
-      .select('title, start, end, timezone, participants:gig_participants(organization_id, inactive)')
+      .select('title, start, end, all_day, timezone, participants:gig_participants(organization_id, inactive)')
       .eq('id', gigId)
       .single();
 
@@ -360,6 +360,7 @@ export const packingListService = {
       gig_start: gigData?.start ?? null,
       gig_end: gigData?.end ?? null,
       gig_timezone: gigData?.timezone ?? null,
+      gig_all_day: (gigData as any)?.all_day ?? null,
       // Who's on the gig and Inactive there: the phone adds nothing for an Inactive organization (#175).
       participants: (gigData as any)?.participants ?? [],
       kits: kitAssignments,

@@ -445,6 +445,7 @@ export async function updateGig(gigId: string, gigData: {
   title?: string;
   start?: string;
   end?: string;
+  all_day?: boolean;
   timezone?: string;
   status?: GigStatus;
   tags?: string[];
@@ -678,6 +679,7 @@ export async function duplicateGig(gigId: string, newTitle?: string) {
         title: newTitle || `${originalGig.title} (Copy)`,
         start: originalGig.start,
         end: originalGig.end,
+        all_day: originalGig.all_day ?? false,
         timezone: originalGig.timezone,
         status: 'Proposed',
         tags: originalGig.tags || [],
@@ -789,7 +791,7 @@ export async function getAllGigAccountingSummaries(
 
     const gigs = await inChunks(gigIds, (chunk) => fetchAllPages<any>((from, to) => supabase
       .from('gigs')
-      .select('id, title, status, start, end, timezone')
+      .select('id, title, status, start, end, all_day, timezone')
       .in('id', chunk)
       .order('id')
       .range(from, to)));

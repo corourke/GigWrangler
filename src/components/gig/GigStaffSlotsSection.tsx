@@ -787,7 +787,7 @@ export default function GigStaffSlotsSection({
                             />
                           )}
                           <div className="flex items-center gap-1">
-                            <Button
+                            <Button aria-label="Assignment notes"
                               type="button"
                               variant="outline"
                               size="sm"

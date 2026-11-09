@@ -6,7 +6,7 @@ import { getGigParticipantContacts, type GigParticipantContact } from '../../../
 import { getEntityAttachments } from '../../../services/attachment.service';
 import { getGigFinancials, getGigProfitabilitySummary } from '../../../services/gigFinancial.service';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG, SCHEDULE_ACTIVITY_CONFIG } from '../../../utils/supabase/constants';
-import { formatDateTimeDisplay, formatInTimeZone } from '../../../utils/dateUtils';
+import { formatDateTimeDisplay, formatInTimeZone, isGigAllDay } from '../../../utils/dateUtils';
 import type { Gig, GigStaffSlotView, Organization } from '../../../utils/supabase/types';
 import MarkdownContent from '../../MarkdownContent';
 import { assignmentCost, money, rateBasis, staffRows } from '../view/staffRows';
@@ -95,7 +95,7 @@ export default function GigPrintSheet({ gig, organization, slots, includeFinanci
   const multiDay = new Set(schedule.map((e) => day(e.start_time, tz))).size > 1;
   const crew = staffRows(slots);
   const printed = `Printed ${format(new Date(), 'MMM d, yyyy')}`;
-  const when = formatDateTimeDisplay(gig.start, gig.end, tz);
+  const when = formatDateTimeDisplay(gig.start, gig.end, tz, isGigAllDay(gig));
   const status = GIG_STATUS_CONFIG[gig.status]?.label ?? gig.status;
   const venueContact = venue ? primaryContact(venue.id) : undefined;
   const cityLine = venue ? [venue.city, [venue.state, venue.postal_code].filter(Boolean).join(' ')].filter(Boolean).join(', ') : '';

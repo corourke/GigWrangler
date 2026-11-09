@@ -55,6 +55,8 @@ interface GigKitAssignmentsSectionProps {
   gigStart?: string;
   gigEnd?: string;
   gigTimezone?: string;
+  /** The gig's all_day (A12), for the conflict check's time range. */
+  gigAllDay?: boolean;
 }
 
 export default function GigKitAssignmentsSection({
@@ -63,6 +65,7 @@ export default function GigKitAssignmentsSection({
   gigStart,
   gigEnd,
   gigTimezone,
+  gigAllDay,
 }: GigKitAssignmentsSectionProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [availableKits, setAvailableKits] = useState<Kit[]>([]);
@@ -114,12 +117,12 @@ export default function GigKitAssignmentsSection({
   const checkCrossGigConflicts = useCallback(async () => {
     if (!gigStart || !gigEnd) return;
     try {
-      const result = await checkEquipmentConflicts(gigId, gigStart, gigEnd, gigTimezone, currentOrganizationId);
+      const result = await checkEquipmentConflicts(gigId, gigStart, gigEnd, gigTimezone, currentOrganizationId, undefined, gigAllDay);
       setCrossGigConflicts([...result.conflicts, ...result.warnings]);
     } catch {
       // Non-critical — leave whatever conflicts were already shown.
     }
-  }, [gigId, gigStart, gigEnd, gigTimezone, currentOrganizationId]);
+  }, [gigId, gigStart, gigEnd, gigTimezone, gigAllDay, currentOrganizationId]);
 
   const handleSaveSuccess = useCallback((data: KitFormData) => {
     reset(data, { keepDirty: false, keepValues: true });
@@ -345,7 +348,7 @@ export default function GigKitAssignmentsSection({
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button
+                            <Button aria-label="Kit notes"
                               type="button"
                               variant="ghost"
                               size="sm"
@@ -354,7 +357,7 @@ export default function GigKitAssignmentsSection({
                             >
                               <Info className="w-4 h-4" />
                             </Button>
-                            <Button
+                            <Button aria-label="Remove kit"
                               type="button"
                               variant="ghost"
                               size="sm"
@@ -380,7 +383,7 @@ export default function GigKitAssignmentsSection({
               <p className="text-sm text-gray-500">No kits available to assign</p>
             )}
             {gigStart && gigEnd && (
-              <EquipmentNeededTable gigId={gigId} gigStart={gigStart} gigEnd={gigEnd} gigTimezone={gigTimezone} organizationId={currentOrganizationId} refreshKey={savedCount} />
+              <EquipmentNeededTable gigId={gigId} gigStart={gigStart} gigEnd={gigEnd} gigTimezone={gigTimezone} gigAllDay={gigAllDay} organizationId={currentOrganizationId} refreshKey={savedCount} />
             )}
           </div>
         </CardContent>

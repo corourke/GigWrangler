@@ -21,7 +21,7 @@ import { Skeleton } from '../ui/skeleton';
 import { cn } from '../ui/utils';
 import {Gig } from '../../utils/supabase/types';
 import { GIG_STATUS_CONFIG, getTagColor } from '../../utils/supabase/constants';
-import { formatDateTimeDisplay } from '../../utils/dateUtils';
+import { formatDateTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
 
 interface GigTableProps {
   gigs: Gig[];
@@ -50,9 +50,7 @@ export default function GigTable({
   emptyMessage = 'No gigs found',
   onCreateGig,
 }: GigTableProps) {
-  const formatDateTime = (start: string, end: string, timezone?: string) => {
-    return formatDateTimeDisplay(start, end, timezone);
-  };
+  const formatDateTime = (gig: Gig) => formatDateTimeDisplay(gig.start, gig.end, gig.timezone, isGigAllDay(gig));
 
   // Dashboard mode shows all columns but no inline editing, limited rows
   const displayGigs = mode === 'dashboard' ? gigs.slice(0, 5) : gigs;
@@ -164,7 +162,7 @@ export default function GigTable({
 
                   <TableCell>
                     <div className="text-sm text-gray-700">
-                      {formatDateTime(gig.start, gig.end, gig.timezone)}
+                      {formatDateTime(gig)}
                     </div>
                   </TableCell>
 

@@ -40,7 +40,7 @@ import { canManage } from '../../utils/permissions';
 import { deleteGigBlockedReason, gigOwnerName, inactiveBannerText, inactiveStaffEquipmentText, isInactiveOn, managesGigOwner, markInactiveConfirmText, offersMarkInactive } from '../../utils/gigOwnership';
 import { removeGigParticipant, setGigParticipantInactive } from '../../services/gigParticipant.service';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
-import { formatDateTimeDisplay } from '../../utils/dateUtils';
+import { formatDateTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
 import type { ActivityLogEntry, Gig, Organization, User, UserRole } from '../../utils/supabase/types';
 import type { GigTab } from '../../routes/paths';
 import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
@@ -124,7 +124,7 @@ export default function GigPage({
       if (!isCurrent()) return;
       setGig(data);
       countChildGigs(gigId).then((n) => { if (isCurrent()) setChildGigCount(n); }).catch(() => { if (isCurrent()) setChildGigCount(0); });
-      checkAllConflicts(gigId, data.start, data.end, data.timezone, organization.id)
+      checkAllConflicts(gigId, data.start, data.end, data.timezone, organization.id, isGigAllDay(data))
         .then((r) => { if (isCurrent()) setConflicts(r.conflicts); }).catch(() => {});
     } catch (error: any) {
       if (isCurrent()) setLoadError(error.message || 'Failed to load this gig.');
@@ -296,7 +296,7 @@ export default function GigPage({
         meta={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>
-              {formatDateTimeDisplay(gig.start, gig.end, gig.timezone)}
+              {formatDateTimeDisplay(gig.start, gig.end, gig.timezone, isGigAllDay(gig))}
               {venue?.name ? ` · ${venue.name}` : ''}
             </span>
             {ownerName && <span>Owned by {ownerName}</span>}
@@ -475,12 +475,13 @@ export default function GigPage({
                 gigStart={gig.start}
                 gigEnd={gig.end}
                 gigTimezone={gig.timezone}
+                gigAllDay={isGigAllDay(gig)}
               />
             ) : (
               <div className="space-y-4">
                 {editing && <p className="text-sm text-muted-foreground">{inactiveStaffEquipmentText(organization.name)}</p>}
                 <GigEquipmentTable gigId={gigId} organizationId={organization.id} showAmounts={canEdit} />
-                <EquipmentNeededTable gigId={gigId} gigStart={gig.start} gigEnd={gig.end} gigTimezone={gig.timezone} organizationId={organization.id} />
+                <EquipmentNeededTable gigId={gigId} gigStart={gig.start} gigEnd={gig.end} gigTimezone={gig.timezone} gigAllDay={isGigAllDay(gig)} organizationId={organization.id} />
                 <NotReturnedSection organizationId={organization.id} gigId={gigId} gigEnd={gig.end} canEdit={canEdit} />
                 {/* The packing list moved here from Equipment › Inventory › Reports (#39). */}
                 <GigSection title="Packing list">

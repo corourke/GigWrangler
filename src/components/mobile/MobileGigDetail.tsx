@@ -30,7 +30,7 @@ import { format, parseISO } from 'date-fns';
 import { getGig, updateGig, updateGigParticipants } from '../../services/gig.service';
 import { updateStaffAssignmentStatus } from '../../services/gig.service';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
-import { formatDateTimeDisplay, formatGigDateTimeForInput, parseGigDateTimeFromInput } from '../../utils/dateUtils';
+import { formatDateTimeDisplay, formatGigDateTimeForInput, isGigAllDay, parseGigDateTimeFromInput } from '../../utils/dateUtils';
 import { getAllTimezones } from '../../utils/timezones';
 import { searchOrganizations } from '../../services/organization.service';
 import { useAuth } from '../../contexts/AuthContext';
@@ -127,9 +127,9 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
     setEditTagInput('');
     setEditNotes(gig.notes || '');
 
-    const startForInput = formatGigDateTimeForInput(gig.start, gig.timezone);
-    const endForInput = gig.end ? formatGigDateTimeForInput(gig.end, gig.timezone) : '';
-    const isAllDay = !startForInput.includes('T');
+    const isAllDay = isGigAllDay(gig);
+    const startForInput = formatGigDateTimeForInput(gig.start, gig.timezone, isAllDay);
+    const endForInput = gig.end ? formatGigDateTimeForInput(gig.end, gig.timezone, isAllDay) : '';
 
     setEditAllDay(isAllDay);
     if (isAllDay) {
@@ -206,6 +206,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       const updatePayload: any = {
         title: editTitle,
         start,
+        all_day: editAllDay,
         timezone: editTimezone,
         tags: editTags,
         notes: editNotes,
@@ -382,7 +383,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
     <div className="flex flex-col">
       <div className="sticky top-0 z-40 bg-background/90 backdrop-blur-md px-4 py-3 border-b border-border/50">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack} className="h-9 w-9 -ml-2">
+          <Button aria-label="Back" variant="ghost" size="icon" onClick={onBack} className="h-9 w-9 -ml-2">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="min-w-0 flex-1">
@@ -631,7 +632,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                   <div>
                     <p className="text-[10px] font-medium text-muted-foreground uppercase">Date & Time</p>
                     <p className="text-sm font-medium mt-0.5">
-                      {formatDateTimeDisplay(gig.start, gig.end, gig.timezone)}
+                      {formatDateTimeDisplay(gig.start, gig.end, gig.timezone, isGigAllDay(gig))}
                     </p>
                     <p className="text-[10px] text-muted-foreground">{gig.timezone}</p>
                   </div>
@@ -816,7 +817,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                       <span className="text-base font-medium flex-1 truncate px-2">{org?.name || 'Unknown'}</span>
                       <div className="flex gap-0.5 shrink-0 w-12 justify-end">
                         {org?.phone_number && (
-                          <button
+                          <button aria-label={`Call ${org.name}`}
                             onClick={() => handleCall(org.phone_number)}
                             className="p-1 rounded hover:bg-muted"
                           >
@@ -824,7 +825,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                           </button>
                         )}
                         {hasLocation(org) && (
-                          <button
+                          <button aria-label={`Directions to ${org.name}`}
                             onClick={() => handleDirections(org)}
                             className="p-1 rounded hover:bg-muted"
                           >
@@ -962,7 +963,6 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
               {isEditing ? (
                 <textarea
                   className={cn(INPUT_CLASS, 'h-auto py-2')}
-                  style={{ fontSize: '14px' }}
                   rows={3}
                   value={editNotes}
                   onChange={e => setEditNotes(e.target.value)}

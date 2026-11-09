@@ -201,10 +201,10 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
                 <span className="text-[10px]">Offline</span>
               </Badge>
             )}
-            <Button variant="ghost" size="icon" onClick={() => setShowCreateModal(true)} className="h-9 w-9">
+            <Button aria-label="New gig" variant="ghost" size="icon" onClick={() => setShowCreateModal(true)} className="h-9 w-9">
               <Plus className="w-5 h-5" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={loadGigs} disabled={loading} className="h-9 w-9">
+            <Button aria-label="Refresh" variant="ghost" size="icon" onClick={loadGigs} disabled={loading} className="h-9 w-9">
               <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
@@ -221,7 +221,7 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
               className="w-full h-9 pl-9 pr-9 text-sm bg-muted/50 rounded-lg border-0 outline-none focus:ring-2 focus:ring-sky-500/30"
             />
             {searchQuery && (
-              <button
+              <button aria-label="Clear search"
                 onClick={() => setSearchQuery('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2"
               >
@@ -558,6 +558,8 @@ function QuickCreateGigModal({
         title: title.trim(),
         start,
         end,
+        // A date with no start time is stored as a date, as before (A12: now said explicitly).
+        all_day: allDay || !startTime,
         timezone,
         status,
         notes: notes.trim() || undefined,
@@ -579,7 +581,7 @@ function QuickCreateGigModal({
       <div className="relative w-full max-w-lg bg-background rounded-t-2xl max-h-full overflow-y-auto">
         <div className="sticky top-0 bg-background px-4 py-3 border-b border-border/50 flex items-center justify-between rounded-t-2xl">
           <h2 className="text-base font-bold">New Gig</h2>
-          <Button variant="ghost" size="icon" onClick={onClose} disabled={saving} className="h-8 w-8">
+          <Button aria-label="Close" variant="ghost" size="icon" onClick={onClose} disabled={saving} className="h-8 w-8">
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -714,7 +716,7 @@ function QuickCreateGigModal({
                       {conf?.label || p.role}
                     </span>
                     <span className="text-sm flex-1 truncate">{p.organization_name}</span>
-                    <button
+                    <button aria-label={`Remove ${p.organization_name}`}
                       type="button"
                       onClick={() => setParticipants(participants.filter((_, i) => i !== idx))}
                       className="p-1 rounded text-red-500 hover:bg-red-50 shrink-0"
@@ -813,7 +815,6 @@ function QuickCreateGigModal({
               onChange={(e) => setNotes(e.target.value)}
               rows={1}
               className="w-full px-3 py-2 text-sm bg-muted/50 rounded-lg border-0 outline-none focus:ring-2 focus:ring-sky-500/30 mt-1 resize-none"
-              style={{ fontSize: '14px' }}
               placeholder="Optional notes…"
             />
           </div>

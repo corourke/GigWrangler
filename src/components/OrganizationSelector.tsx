@@ -164,7 +164,7 @@ export default function OrganizationSelector({
               </p>
             )}
           </div>
-          <Button
+          <Button aria-label="Remove organization"
             type="button"
             variant="ghost"
             size="sm"

@@ -129,7 +129,7 @@ export default function PurchaseDetailPanel({
             </div>
             {totalSiblings > 1 && currentIndex >= 0 && (
               <div className="flex items-center gap-1">
-                <Button
+                <Button aria-label="Previous item"
                   variant="ghost"
                   size="sm"
                   className="h-6 w-6 p-0"
@@ -141,7 +141,7 @@ export default function PurchaseDetailPanel({
                 <span className="text-xs text-gray-500">
                   Item {currentIndex + 1} of {totalSiblings}
                 </span>
-                <Button
+                <Button aria-label="Next item"
                   variant="ghost"
                   size="sm"
                   className="h-6 w-6 p-0"
