@@ -1,3 +1,5 @@
+import type { QueryClient } from '@tanstack/react-query';
+
 /**
  * Centralized React Query key conventions (Phase 7, Step 2).
  *
@@ -9,9 +11,23 @@
  * only identify cache entries; the query functions call the services.
  */
 export const queryKeys = {
-  // Gigs
+  // Gigs. Everything about one organization's gigs sits under gigs(orgId), everything about one
+  // gig under gig(gigId), so one invalidation reaches all of it (A10).
   gigs: (orgId: string) => ['gigs', orgId] as const,
+  /** The gig list with its conflicts: { gigs, conflicts }. */
+  gigList: (orgId: string) => ['gigs', orgId, 'list'] as const,
+  /** Per-gig money totals for the list's optional columns and the export. */
+  gigAggregates: (orgId: string) => ['gigs', orgId, 'aggregates'] as const,
   gig: (gigId: string) => ['gig', gigId] as const,
+  gigChildCount: (gigId: string) => ['gig', gigId, 'children'] as const,
+  /** Conflicts for a gig as seen by one organization, for the times they were checked at. */
+  gigConflicts: (gigId: string, orgId: string, when: { start: string; end: string; timezone?: string; allDay: boolean }) =>
+    ['gig', gigId, 'conflicts', orgId, when.start, when.end, when.timezone ?? null, when.allDay] as const,
+  gigActivity: (gigId: string) => ['gig', gigId, 'activity'] as const,
+
+  // Dashboard
+  dashboard: (orgId: string) => ['dashboard', orgId] as const,
+  recentActivity: () => ['activity', 'recent'] as const,
 
   // Assets
   assets: (orgId: string) => ['assets', orgId] as const,
@@ -45,3 +61,26 @@ export const queryKeys = {
   // Generic notification feed (issue #52) — powers the notification bell.
   notifications: () => ['notifications'] as const,
 } as const;
+
+/**
+ * After a change to one gig (its details, participants, an organization going Inactive): the
+ * gig itself, its organization's gig list and the dashboard's figures.
+ */
+export function invalidateAfterGigChange(
+  queryClient: QueryClient,
+  { gigId, organizationId }: { gigId: string; organizationId: string },
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.gig(gigId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.gigs(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
+  ]);
+}
+
+/** After a gig is added (created, duplicated) or removed: the gig list and the dashboard. */
+export function invalidateAfterGigListChange(queryClient: QueryClient, organizationId: string) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.gigs(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
+  ]);
+}
