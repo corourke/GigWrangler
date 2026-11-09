@@ -8,6 +8,8 @@
  * the gig page, the accounting report and the exports always agree.
  */
 
+import { money } from './money';
+
 export type FinDirection = 'in' | 'out';
 
 export type FinStage =
@@ -169,7 +171,9 @@ export function summarizeMoney(
       s.dueOut += due;
     }
   }
-  s.net = s.expectedIn - s.expectedOut;
+  // Whole cents: float sums of stored amounts carry noise (B16).
+  for (const k of Object.keys(s) as (keyof MoneySummary)[]) s[k] = money(s[k]);
+  s.net = money(s.expectedIn - s.expectedOut);
   return s;
 }
 

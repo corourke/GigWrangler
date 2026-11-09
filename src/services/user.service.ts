@@ -2,8 +2,6 @@ import {
   User,
   PersonMatch,
   OrganizationMembershipWithOrg,
-  UserRole,
-  DbOrganization,
 } from '../utils/supabase/types';
 import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
 import { sanitizeLikeInput } from '../utils/validation-utils';
@@ -173,39 +171,6 @@ export async function searchPeople(
     return (data || []) as PersonMatch[];
   } catch (err) {
     return handleApiError(err, 'search people');
-  }
-}
-
-/**
- * Get organizations a user belongs to
- */
-export async function getUserOrganizations(userId: string): Promise<OrganizationMembershipWithOrg[]> {
-  const supabase = getSupabase();
-  try {
-    const { data, error } = await supabase
-      .rpc('get_user_organizations_secure', { user_uuid: userId });
-
-    if (error) {
-      throw error;
-    }
-
-    const orgs = (data || []) as Array<{ user_id: string; organization_id: string; role: UserRole; created_at: string; organization: DbOrganization }>;
-
-    // Optional: If we want to be extra sure about permissions when querying someone else,
-    // we could fetch the current session here, but for self-queries (the common case),
-    // we can skip it to avoid redundant getSession() calls that might hang.
-    // The server-side RPC and RLS should ideally handle security.
-    
-    // Transform the data to match the expected format
-    return orgs.map((org) => ({
-      user_id: org.user_id,
-      organization_id: org.organization_id,
-      role: org.role,
-      joined_at: org.created_at,
-      organization: org.organization
-    }));
-  } catch (err) {
-    return handleApiError(err, 'fetch user organizations');
   }
 }
 

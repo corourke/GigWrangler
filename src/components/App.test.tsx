@@ -7,7 +7,6 @@ import * as _userService from '../services/user.service'
 // Mock user service functions
 vi.mock('../services/user.service', () => ({
   getUserProfile: vi.fn(),
-  getUserOrganizations: vi.fn(),
   getCompleteUserData: vi.fn(),
 }))
 

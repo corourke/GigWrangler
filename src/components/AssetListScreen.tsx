@@ -18,7 +18,7 @@ import type { InventoryTab } from '../routes/paths';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import type { DbAsset } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
-import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
+import { ASSET_STATUS_CONFIG, TRACKING_STATUS_CONFIG } from '../utils/supabase/constants';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import ReviewScannedDataDialog from './ReviewScannedDataDialog';
 import { TrackingStatusBadge } from './inventory/TrackingStatusBadge';
@@ -479,10 +479,9 @@ export default function AssetListScreen({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="All">All Statuses</SelectItem>
-                <SelectItem value="Checked Out">Checked Out</SelectItem>
-                <SelectItem value="In Transit">In Transit</SelectItem>
-                <SelectItem value="On Site">On Site</SelectItem>
-                <SelectItem value="In Warehouse">In Warehouse</SelectItem>
+                {Object.entries(TRACKING_STATUS_CONFIG).map(([status, { label }]) => (
+                  <SelectItem key={status} value={status}>{label}</SelectItem>
+                ))}
                 <SelectItem value="Untracked">Untracked</SelectItem>
               </SelectContent>
             </Select>

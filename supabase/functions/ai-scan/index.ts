@@ -6,6 +6,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { buildScanParams, readScanResponse } from "./scanRequest.ts";
 import { mediaTypeFor, queueUpdateFor, staleScanCutoff } from "./scanQueue.ts";
 import { canScanInvoices, scanLimitError, scanFailure } from "./scanLimits.ts";
+import { classifyItem } from "./classifyItem.ts";
 
 function getCorsHeaders(req: Request): Record<string, string> {
   return corsHeaders(req.headers.get('Origin'), {
@@ -99,20 +100,6 @@ Rules:
 
 Analyze the document and return the JSON.
 `;
-
-function classifyItem(item: any) {
-  const price = item.item_price || 0;
-  
-  // Consumables are always expenses regardless of cost
-  if (item.is_consumable) return 'Expense';
-
-  // Asset Rule ($100/$50 rule):
-  // 1. Durable items >= $50 are Assets.
-  // 2. Durable items < $50 are Expenses.
-  if (item.is_durable && price >= 50) return 'Asset';
-  
-  return 'Expense';
-}
 
 interface ScanResult {
   status: number;

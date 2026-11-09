@@ -127,3 +127,6 @@ uncommitted_changes.patch
 
 # stage-plot-app was extracted to its own repo; ignore any leftover working copy
 stage-plot-app/
+# Local database dumps (supabase/dump/dump_*.sh write them; not kept in the repo)
+supabase/dump/schema_dump.sql
+supabase/dump/data_dump.sql
