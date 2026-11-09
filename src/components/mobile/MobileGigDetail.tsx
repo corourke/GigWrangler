@@ -30,7 +30,7 @@ import { format, parseISO } from 'date-fns';
 import { getGig, updateGig, updateGigParticipants } from '../../services/gig.service';
 import { updateStaffAssignmentStatus } from '../../services/gig.service';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
-import { formatDateTimeDisplay, formatGigDateTimeForInput, parseGigDateTimeFromInput } from '../../utils/dateUtils';
+import { formatDateTimeDisplay, formatGigDateTimeForInput, isGigAllDay, parseGigDateTimeFromInput } from '../../utils/dateUtils';
 import { getAllTimezones } from '../../utils/timezones';
 import { searchOrganizations } from '../../services/organization.service';
 import { useAuth } from '../../contexts/AuthContext';
@@ -126,9 +126,9 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
     setEditTagInput('');
     setEditNotes(gig.notes || '');
 
-    const startForInput = formatGigDateTimeForInput(gig.start, gig.timezone);
-    const endForInput = gig.end ? formatGigDateTimeForInput(gig.end, gig.timezone) : '';
-    const isAllDay = !startForInput.includes('T');
+    const isAllDay = isGigAllDay(gig);
+    const startForInput = formatGigDateTimeForInput(gig.start, gig.timezone, isAllDay);
+    const endForInput = gig.end ? formatGigDateTimeForInput(gig.end, gig.timezone, isAllDay) : '';
 
     setEditAllDay(isAllDay);
     if (isAllDay) {
@@ -205,6 +205,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       const updatePayload: any = {
         title: editTitle,
         start,
+        all_day: editAllDay,
         timezone: editTimezone,
         tags: editTags,
         notes: editNotes,
@@ -630,7 +631,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                   <div>
                     <p className="text-[10px] font-medium text-muted-foreground uppercase">Date & Time</p>
                     <p className="text-sm font-medium mt-0.5">
-                      {formatDateTimeDisplay(gig.start, gig.end, gig.timezone)}
+                      {formatDateTimeDisplay(gig.start, gig.end, gig.timezone, isGigAllDay(gig))}
                     </p>
                     <p className="text-[10px] text-muted-foreground">{gig.timezone}</p>
                   </div>

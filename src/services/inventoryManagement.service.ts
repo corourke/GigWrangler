@@ -190,7 +190,7 @@ export async function getActiveGigsWithTracking(organizationId: string): Promise
 
     const { data: gigs, error: gigsError } = await supabase
       .from('gigs')
-      .select('id, title, start, end, status')
+      .select('id, title, start, end, all_day, status')
       .in('id', gigIds)
       .in('status', ['Booked', 'DateHold'])
       .gte('end', pastBound)
@@ -343,7 +343,7 @@ export async function getGigsForReportPicker(
 
     let query = supabase
       .from('gigs')
-      .select('id, title, start, timezone')
+      .select('id, title, start, all_day, timezone')
       .in('id', gigIds);
     if (!options.showAll) {
       const { from, to } = reportPickerWindow(options.today);

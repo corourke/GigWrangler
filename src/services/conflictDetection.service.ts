@@ -46,8 +46,12 @@ function getTimezoneOffsetMs(date: Date, timeZone: string): number {
   }
 }
 
-function getEffectiveRange(start: string, end: string, timezone?: string): { effectiveStart: Date; effectiveEnd: Date } {
-  const isDateOnly = isNoonUTC(start) || isNoonUTC(end);
+/**
+ * The time a gig takes up: an all-day gig its whole local day, a timed gig its start to end.
+ * allDay is the gig's all_day (A12); without it, a 12:00 UTC start or end counts as all-day, as before.
+ */
+export function effectiveRange(start: string, end: string, timezone?: string, allDay?: boolean | null): { effectiveStart: Date; effectiveEnd: Date } {
+  const isDateOnly = typeof allDay === 'boolean' ? allDay : isNoonUTC(start) || isNoonUTC(end);
   if (isDateOnly) {
     const d = new Date(start);
     const calendarDate = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
@@ -145,8 +149,8 @@ function addContainerUnits(kitIds: readonly string[], ctx: NeedsContext, assetsB
 }
 
 /** A gig's needs with its effective time range, for the peak. */
-function timedNeeds(gig: { id: string; title?: string; start: string; end: string; timezone?: string }, needs: ReadonlyMap<string, ItemNeed>): GigNeeds {
-  const { effectiveStart, effectiveEnd } = getEffectiveRange(gig.start, gig.end, gig.timezone);
+function timedNeeds(gig: { id: string; title?: string; start: string; end: string; timezone?: string; all_day?: boolean | null }, needs: ReadonlyMap<string, ItemNeed>): GigNeeds {
+  const { effectiveStart, effectiveEnd } = effectiveRange(gig.start, gig.end, gig.timezone, gig.all_day);
   return { id: gig.id, title: gig.title ?? 'This gig', start: effectiveStart.getTime(), end: effectiveEnd.getTime(), needs };
 }
 
@@ -259,7 +263,7 @@ function widenedQueryRange(effectiveStart: Date, effectiveEnd: Date) {
   };
 }
 
-export async function checkStaffConflicts(gigId: string, startTime: string, endTime: string, timezone?: string): Promise<ConflictResult> {
+export async function checkStaffConflicts(gigId: string, startTime: string, endTime: string, timezone?: string, allDay?: boolean): Promise<ConflictResult> {
   const supabase = getSupabase();
   try {
     const { data: currentSlots, error: slotsError } = await supabase
@@ -283,13 +287,13 @@ export async function checkStaffConflicts(gigId: string, startTime: string, endT
     const staffUserIds = currentAssignments.map((a: any) => a.user_id);
     const _staffLookup = new Map(currentAssignments.map((a: any) => [a.user_id, a.user]));
 
-    const { effectiveStart: currentStart, effectiveEnd: currentEnd } = getEffectiveRange(startTime, endTime, timezone);
+    const { effectiveStart: currentStart, effectiveEnd: currentEnd } = effectiveRange(startTime, endTime, timezone, allDay);
     const { queryStart, queryEnd } = widenedQueryRange(currentStart, currentEnd);
 
     const { data: candidateGigs, error: candidateError } = await supabase
       .from('gigs')
       .select(`
-        id, title, start, end, timezone,
+        id, title, start, end, all_day, timezone,
         staff_slots:gig_staff_slots(
           assignments:gig_staff_assignments(user_id, user:user_id(id, first_name, last_name))
         )
@@ -305,7 +309,7 @@ export async function checkStaffConflicts(gigId: string, startTime: string, endT
     const warnings: Conflict[] = [];
 
     for (const gig of candidateGigs || []) {
-      const { effectiveStart: gigStart, effectiveEnd: gigEnd } = getEffectiveRange(gig.start, gig.end, gig.timezone);
+      const { effectiveStart: gigStart, effectiveEnd: gigEnd } = effectiveRange(gig.start, gig.end, gig.timezone, gig.all_day);
       const level = classifyOverlap(currentStart, currentEnd, gigStart, gigEnd);
       if (!level) continue;
 
@@ -336,7 +340,7 @@ export async function checkStaffConflicts(gigId: string, startTime: string, endT
   }
 }
 
-export async function checkParticipantConflicts(gigId: string, startTime: string, endTime: string, timezone?: string): Promise<ConflictResult> {
+export async function checkParticipantConflicts(gigId: string, startTime: string, endTime: string, timezone?: string, allDay?: boolean): Promise<ConflictResult> {
   const supabase = getSupabase();
   try {
     const { data: currentParticipants, error: currentError } = await supabase
@@ -352,13 +356,13 @@ export async function checkParticipantConflicts(gigId: string, startTime: string
 
     const orgIds = activeParticipants.map((p: any) => p.organization_id);
 
-    const { effectiveStart: currentStart, effectiveEnd: currentEnd } = getEffectiveRange(startTime, endTime, timezone);
+    const { effectiveStart: currentStart, effectiveEnd: currentEnd } = effectiveRange(startTime, endTime, timezone, allDay);
     const { queryStart, queryEnd } = widenedQueryRange(currentStart, currentEnd);
 
     const { data: candidateGigs, error: candidateError } = await supabase
       .from('gigs')
       .select(`
-        id, title, start, end, timezone,
+        id, title, start, end, all_day, timezone,
         participants:gig_participants(role, inactive, organization:organization_id(id, name))
       `)
       .neq('id', gigId)
@@ -372,7 +376,7 @@ export async function checkParticipantConflicts(gigId: string, startTime: string
     const warnings: Conflict[] = [];
 
     for (const gig of candidateGigs || []) {
-      const { effectiveStart: gigStart, effectiveEnd: gigEnd } = getEffectiveRange(gig.start, gig.end, gig.timezone);
+      const { effectiveStart: gigStart, effectiveEnd: gigEnd } = effectiveRange(gig.start, gig.end, gig.timezone, gig.all_day);
       const level = classifyOverlap(currentStart, currentEnd, gigStart, gigEnd);
       if (!level) continue;
 
@@ -411,7 +415,7 @@ export interface Addition {
   records?: LooseRecord[];
 }
 
-export async function checkEquipmentConflicts(gigId: string, startTime: string, endTime: string, timezone: string | undefined, organizationId: string, adding?: Addition): Promise<ConflictResult> {
+export async function checkEquipmentConflicts(gigId: string, startTime: string, endTime: string, timezone: string | undefined, organizationId: string, adding?: Addition, allDay?: boolean): Promise<ConflictResult> {
   const supabase = getSupabase();
   try {
     const { data: assigned, error: currentError } = await supabase
@@ -429,14 +433,14 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
     if (currentGigKits.length === 0 && !adding?.records?.length
       && (await loadLooseSafely(supabase, [gigId], organizationId)).size === 0) return { conflicts: [], warnings: [] };
 
-    const { effectiveStart: currentStart, effectiveEnd: currentEnd } = getEffectiveRange(startTime, endTime, timezone);
+    const { effectiveStart: currentStart, effectiveEnd: currentEnd } = effectiveRange(startTime, endTime, timezone, allDay);
     const { queryStart, queryEnd } = widenedQueryRange(currentStart, currentEnd);
 
     // Not an inner join: a gig with only what was added at pack-out counts too.
     const { data: candidates, error: candidateError } = await supabase
       .from('gigs')
       .select(`
-        id, title, start, end, timezone,
+        id, title, start, end, all_day, timezone,
         kit_assignments:gig_kit_assignments(kit_id, organization_id, kit:kits!inner(id, name))
       `)
       .neq('id', gigId)
@@ -494,14 +498,14 @@ export async function checkEquipmentConflicts(gigId: string, startTime: string, 
 
     // Per item (#184): what this gig and the gigs overlapping it need, against what's free.
     const levels = new Map(candidateGigs.map((gig: any) => {
-      const { effectiveStart: gigStart, effectiveEnd: gigEnd } = getEffectiveRange(gig.start, gig.end, gig.timezone);
+      const { effectiveStart: gigStart, effectiveEnd: gigEnd } = effectiveRange(gig.start, gig.end, gig.timezone, gig.all_day);
       return [gig.id, classifyOverlap(currentStart, currentEnd, gigStart, gigEnd)];
     }));
     const thisNeeds = needsOf(kitIds, needsData);
     const gigKitIds = (gig: any) => (gig.kit_assignments || []).map((a: any) => a.kit_id as string);
     const overlapping = candidateGigs.filter((gig: any) => levels.get(gig.id) === 'conflict');
     const rows = itemNeedRows(
-      timedNeeds({ id: gigId, start: startTime, end: endTime, timezone }, thisNeeds),
+      timedNeeds({ id: gigId, start: startTime, end: endTime, timezone, all_day: allDay }, thisNeeds),
       overlapping.map((gig: any) => timedNeeds(gig, needsOf(gigKitIds(gig), needsData))),
       needsData.counts,
     );
@@ -560,15 +564,15 @@ function conflictMessages(result: ConflictResult): string[] {
  * it's a second look, not a gate.
  */
 export async function additionWarnings(
-  gig: { id: string; start: string; end: string; timezone?: string | null },
+  gig: { id: string; start: string; end: string; timezone?: string | null; all_day?: boolean | null },
   organizationId: string,
   adding: Addition,
 ): Promise<string[]> {
   try {
     const tz = gig.timezone ?? undefined;
     const [before, after] = await Promise.all([
-      checkEquipmentConflicts(gig.id, gig.start, gig.end, tz, organizationId),
-      checkEquipmentConflicts(gig.id, gig.start, gig.end, tz, organizationId, adding),
+      checkEquipmentConflicts(gig.id, gig.start, gig.end, tz, organizationId, undefined, gig.all_day ?? undefined),
+      checkEquipmentConflicts(gig.id, gig.start, gig.end, tz, organizationId, adding, gig.all_day ?? undefined),
     ]);
     const already = new Set(conflictMessages(before));
     return [...new Set(conflictMessages(after))].filter((m) => !already.has(m));
@@ -584,7 +588,7 @@ const STATUS_ORDER = { short: 0, 'none-spare': 1, enough: 2 } as const;
  * What a gig needs per item, against what's free when it and the gigs
  * overlapping it all happen (#184, the gig's "Equipment needed" table).
  */
-export async function getEquipmentNeeded(gigId: string, startTime: string, endTime: string, timezone: string | undefined, organizationId: string): Promise<{ overlapping: number; rows: ItemNeedRow[] }> {
+export async function getEquipmentNeeded(gigId: string, startTime: string, endTime: string, timezone: string | undefined, organizationId: string, allDay?: boolean): Promise<{ overlapping: number; rows: ItemNeedRow[] }> {
   const supabase = getSupabase();
   try {
     const { data: currentGigKits, error: currentError } = await supabase.from('gig_kit_assignments').select('kit_id, organization_id').eq('gig_id', gigId);
@@ -592,12 +596,12 @@ export async function getEquipmentNeeded(gigId: string, startTime: string, endTi
     const ownKitIds = ofOrg((currentGigKits ?? []) as any[], organizationId).map((a: any) => a.kit_id as string);
     if (ownKitIds.length === 0 && (await loadLooseSafely(supabase, [gigId], organizationId)).size === 0) return { overlapping: 0, rows: [] };
 
-    const { effectiveStart, effectiveEnd } = getEffectiveRange(startTime, endTime, timezone);
+    const { effectiveStart, effectiveEnd } = effectiveRange(startTime, endTime, timezone, allDay);
     const { queryStart, queryEnd } = widenedQueryRange(effectiveStart, effectiveEnd);
     // Not an inner join: a gig with only what was added at pack-out counts too.
     const { data: candidateGigs, error: candidateError } = await supabase
       .from('gigs')
-      .select('id, title, start, end, timezone, kit_assignments:gig_kit_assignments(kit_id, organization_id)')
+      .select('id, title, start, end, all_day, timezone, kit_assignments:gig_kit_assignments(kit_id, organization_id)')
       .neq('id', gigId)
       .neq('status', 'Cancelled')
       .lte('start', queryEnd)
@@ -611,7 +615,7 @@ export async function getEquipmentNeeded(gigId: string, startTime: string, endTi
       .map((gig: any) => ({ ...gig, kit_ids: [...ofOrg(gig.kit_assignments ?? [], organizationId).map((a: any) => a.kit_id as string), ...looseIds(gig.id)] }))
       .filter((gig: any) => {
         if (gig.kit_ids.length === 0) return false;
-        const r = getEffectiveRange(gig.start, gig.end, gig.timezone);
+        const r = effectiveRange(gig.start, gig.end, gig.timezone, gig.all_day);
         return rangesOverlap(effectiveStart, effectiveEnd, r.effectiveStart, r.effectiveEnd);
       });
 
@@ -621,7 +625,7 @@ export async function getEquipmentNeeded(gigId: string, startTime: string, endTi
       looseNeeds(looseByGig),
     );
     const rows = itemNeedRows(
-      timedNeeds({ id: gigId, start: startTime, end: endTime, timezone }, needsOf(kitIds, data)),
+      timedNeeds({ id: gigId, start: startTime, end: endTime, timezone, all_day: allDay }, needsOf(kitIds, data)),
       overlapping.map((gig: any) => timedNeeds(gig, needsOf(gig.kit_ids, data))),
       data.counts,
     )
@@ -638,12 +642,12 @@ export async function getEquipmentNeeded(gigId: string, startTime: string, endTi
   }
 }
 
-export async function checkAllConflicts(gigId: string, startTime: string, endTime: string, timezone: string | undefined, organizationId: string): Promise<ConflictResult> {
+export async function checkAllConflicts(gigId: string, startTime: string, endTime: string, timezone: string | undefined, organizationId: string, allDay?: boolean): Promise<ConflictResult> {
   try {
     const [staffResult, participantResult, equipmentResult] = await Promise.all([
-      checkStaffConflicts(gigId, startTime, endTime, timezone),
-      checkParticipantConflicts(gigId, startTime, endTime, timezone),
-      checkEquipmentConflicts(gigId, startTime, endTime, timezone, organizationId)
+      checkStaffConflicts(gigId, startTime, endTime, timezone, allDay),
+      checkParticipantConflicts(gigId, startTime, endTime, timezone, allDay),
+      checkEquipmentConflicts(gigId, startTime, endTime, timezone, organizationId, undefined, allDay)
     ]);
 
     return {
@@ -670,6 +674,7 @@ interface GigForConflictCheck {
   title: string;
   start: string;
   end: string;
+  all_day?: boolean;
   timezone?: string;
   status?: string;
 }
@@ -797,11 +802,11 @@ export async function checkAllConflictsForGigs(gigs: GigForConflictCheck[], orga
 
     for (let i = 0; i < activeGigs.length; i++) {
       const gigA = activeGigs[i];
-      const { effectiveStart: aStart, effectiveEnd: aEnd } = getEffectiveRange(gigA.start, gigA.end, gigA.timezone);
+      const { effectiveStart: aStart, effectiveEnd: aEnd } = effectiveRange(gigA.start, gigA.end, gigA.timezone, gigA.all_day);
 
       for (let j = i + 1; j < activeGigs.length; j++) {
         const gigB = activeGigs[j];
-        const { effectiveStart: bStart, effectiveEnd: bEnd } = getEffectiveRange(gigB.start, gigB.end, gigB.timezone);
+        const { effectiveStart: bStart, effectiveEnd: bEnd } = effectiveRange(gigB.start, gigB.end, gigB.timezone, gigB.all_day);
 
         if (!rangesOverlap(aStart, aEnd, bStart, bEnd)) continue;
 

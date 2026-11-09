@@ -10,7 +10,7 @@ import { isGigPast } from './gigTimeframe';
 import { estimateRateUnits } from './rateEstimate';
 import { effectiveRange } from '../services/conflictDetection.service';
 import { buildCalendarEvent } from '../../supabase/functions/server/lib/pure/calendarEvent';
-import { validateGigRow } from './csvImport';
+import { validateGigRow, generateGigTemplate } from './csvImport';
 import { formatExportDate } from './gigExport';
 
 // A12: whether a gig is all-day is its all_day flag, not a 12:00 UTC start. A timed gig that
@@ -118,6 +118,10 @@ describe('CSV import all_day', () => {
   it('all_day no with a date-only start is an error: a timed gig needs a time', () => {
     const row = validateGigRow({ ...base, start: '2026-05-01', all_day: 'no' }, 0);
     expect(row.errors.map((e) => e.field)).toContain('all_day');
+  });
+
+  it('the template has the all_day column', () => {
+    expect(generateGigTemplate().split('\n')[0].split(',')).toContain('all_day');
   });
 
   it('an unknown all_day value is an error', () => {

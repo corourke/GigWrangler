@@ -56,7 +56,7 @@ import { toast } from 'sonner';
 import { Organization, User, UserRole, GigStatus, Gig } from '../utils/supabase/types';
 import { isGigPast } from '../utils/gigTimeframe';
 import { GIG_STATUS_CONFIG, TAG_CONFIG } from '../utils/supabase/constants';
-import { formatDateTimeDisplay, formatTimeDisplay, isNoonUTC } from '../utils/dateUtils';
+import { formatDateTimeDisplay, formatTimeDisplay, isGigAllDay } from '../utils/dateUtils';
 import { canDeleteGig, canManage } from '../utils/permissions';
 import { deleteGigBlockedReason, isInactiveOn, managesGigOwner } from '../utils/gigOwnership';
 import { PageHeader } from './layout/PageHeader';
@@ -311,14 +311,15 @@ export default function GigListScreen({
       isEditable: sharedEditable,
       type: 'datetime',
       timezone: (row) => row.timezone,
+      allDay: (row) => isGigAllDay(row),
       className: 'w-[14%]',
       render: (_, row) => (
         <span className="text-sm text-gray-700">
-          {formatDateTimeDisplay(row.start, row.end, row.timezone)}
+          {formatDateTimeDisplay(row.start, row.end, row.timezone, isGigAllDay(row))}
         </span>
       ),
       // Displayed as a combined start–end range on screen; export gets a plain start date.
-      exportValue: (row) => formatExportDate(row.start, row.timezone),
+      exportValue: (row) => formatExportDate(row.start, row.timezone, isGigAllDay(row)),
     },
     {
       id: 'end',
@@ -330,7 +331,18 @@ export default function GigListScreen({
       isEditable: sharedEditable,
       type: 'datetime',
       timezone: (row) => row.timezone,
-      exportValue: (row) => formatExportDate(row.end, row.timezone),
+      allDay: (row) => isGigAllDay(row),
+      exportValue: (row) => formatExportDate(row.end, row.timezone, isGigAllDay(row)),
+    },
+    {
+      // A12: shown on request; in an export it says which dates are whole days.
+      id: 'all_day',
+      header: 'All day',
+      accessor: 'all_day',
+      sortable: true,
+      optional: true,
+      render: (_, row) => <span className="text-sm text-gray-700">{isGigAllDay(row) ? 'Yes' : ''}</span>,
+      exportValue: (row) => (isGigAllDay(row) ? 'yes' : 'no'),
     },
     {
       id: 'status',
@@ -509,7 +521,7 @@ export default function GigListScreen({
 
   const calendarEvents: CalendarEvent[] = useMemo(() => {
     return filteredGigs.map(gig => {
-      const isAllDay = isNoonUTC(gig.start);
+      const isAllDay = isGigAllDay(gig);
       if (isAllDay) {
         const startDateStr = gig.start.substring(0, 10);
         const endDateStr = gig.end ? gig.end.substring(0, 10) : startDateStr;

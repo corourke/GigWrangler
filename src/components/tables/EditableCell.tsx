@@ -57,6 +57,8 @@ export function EditableCell<T>({
   const multiPillAnchorRef = useRef<HTMLDivElement>(null);
 
   const resolvedTimezone = typeof column.timezone === 'function' ? column.timezone(row) : column.timezone;
+  // A12: the row says whether its datetime is a date (an all-day gig); otherwise the old 12:00 UTC rule.
+  const resolvedAllDay = column.allDay ? column.allDay(row) : undefined;
 
   // Sync editValue when value changes externally
   useEffect(() => {
@@ -178,7 +180,7 @@ export function EditableCell<T>({
     }
 
     if (column.type === 'datetime' && newValue) {
-      const isDateOnly = !newValue.includes('T');
+      const isDateOnly = resolvedAllDay ?? !newValue.includes('T');
       finalValue = parseGigDateTimeFromInput(newValue, resolvedTimezone, isDateOnly);
     }
 
@@ -430,7 +432,7 @@ export function EditableCell<T>({
     }
 
     if (column.type === 'datetime' && value) {
-      return formatGigDateTimeForDisplay(value, resolvedTimezone);
+      return formatGigDateTimeForDisplay(value, resolvedTimezone, resolvedAllDay);
     }
 
     return String(value);
@@ -619,7 +621,7 @@ export function EditableCell<T>({
           <div className="absolute inset-0 z-40 bg-background flex items-start">
             <input
               ref={inputRef}
-              defaultValue={formatGigDateTimeForInput(editValue, resolvedTimezone)}
+              defaultValue={formatGigDateTimeForInput(editValue, resolvedTimezone, resolvedAllDay)}
               onBlur={() => {
                 const val = inputRef.current?.value;
                 save(val || value);
@@ -637,7 +639,7 @@ export function EditableCell<T>({
                 }
               }}
               className="h-full w-full px-4 py-2 text-sm border-none outline-none ring-0 bg-transparent min-w-0 text-foreground"
-              type={value && !isNoonUTC(String(value)) ? 'datetime-local' : 'date'}
+              type={(resolvedAllDay ?? (!value || isNoonUTC(String(value)))) ? 'date' : 'datetime-local'}
               max="9999-12-31T23:59"
             />
           </div>
