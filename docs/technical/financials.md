@@ -244,6 +244,11 @@ Files live in the `attachments` table and storage bucket, joined through `entity
     - **The same gig again** writes nothing.
     - **All or nothing:** if any step is refused, nothing changes. The line's gig link and its purchase-linked gig expenses are not tax data (the purchase is), so a filed year does not stop a move.
     - **After a delete:** the removed rows' receipt files go once the call succeeds. If the file removal fails, the files are left orphaned (the rows are gone) and a count is reported to Sentry, with no paths.
+- **Review dialog, totals that don't match:**
+  - The dialog shows **Mismatch** when the lines don't add up to the invoice total within a cent (`isReconciled`, the same rule as the purchase list and Needs attention).
+  - Saving a mismatch asks first ("Save anyway" or "Go back"); it isn't blocked.
+  - There's no question in a filed year, or on an edit that changes neither the total nor any line's cost.
+  - Edits re-spread the total over the lines' prices, so a new purchase mismatches only when its lines have no prices.
 - **Tax years:** Admins lock and unlock years under **Financials → Reporting → Schedule C → Filed tax years** (`TaxYearsCard`, shown under the Schedule C report only; `taxYear.service.ts`); Managers see them read-only.
 
 "Track as equipment" is a separate question.

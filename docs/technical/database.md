@@ -1594,6 +1594,8 @@ These functions are defined with `SECURITY DEFINER` to bypass RLS when necessary
 
 ## Indexes
 
+**Rule (A2):** every foreign key in `public` has an index whose leading columns are the key's columns. Migration `20261109100000_index_foreign_keys.sql` added the 34 that were missing, named `idx_<table>_<column>`. RLS test `89_foreign_keys_indexed.test.sql` fails if a new foreign key arrives without one, so add the index in the same migration as the key.
+
 To optimize performance, the following indexes are implemented:
 
 ### Core Tables

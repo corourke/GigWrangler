@@ -41,7 +41,7 @@ function makeChain(result: { data: any; error: any }) {
   const chainMethods = [
     'select', 'insert', 'update', 'delete', 'upsert',
     'eq', 'neq', 'in', 'not', 'is', 'or',
-    'order', 'limit', 'lte', 'gte',
+    'order', 'limit', 'lte', 'gte', 'range',
   ];
   chainMethods.forEach(m => { chain[m] = vi.fn().mockReturnValue(chain); });
   chain.single = vi.fn().mockResolvedValue(result);

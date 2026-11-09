@@ -1217,6 +1217,70 @@ describe('ReviewScannedDataDialog: totals and scanned prices', () => {
   });
 });
 
+// Saving when the lines don't add up to the invoice total asks first; it doesn't block (Docs Lead
+// smoke test, 11-08). Reconciled means within a cent, as on the Purchases tab and in the reports.
+// Edits re-spread the total over the lines' prices, so a new purchase only mismatches when its lines
+// have no prices to spread over.
+describe('ReviewScannedDataDialog: saving when the totals don\'t match', () => {
+  beforeEach(() => vi.clearAllMocks());
+  const invoice = (total: number, price: number) => ({
+    vendor: 'Sweetwater', purchase_date: '2026-07-05', total_inv_amount: total,
+    items: [{ description: 'Tape', quantity: 1, item_price: price, item_cost: price, category: 'Supplies' }],
+  });
+  const openNew = async (total: number, price: number) => {
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} organizationId="org-1" scannedData={invoice(total, price) as any} file={null} />);
+    const save = await screen.findByRole('button', { name: 'Save Purchase' });
+    await waitFor(() => expect(save).toBeEnabled());
+    return save;
+  };
+  const openEdit = async (total: number, lineCost: number) => {
+    const svc = await import('../services/purchase.service');
+    vi.mocked(svc.getPurchaseWithDetails).mockResolvedValue({
+      id: 'h1', vendor: 'Sweetwater', purchase_date: '2026-03-01', total_inv_amount: total, description: 'Stands',
+      items: [{ id: 'l1', row_type: 'item', tax_treatment: 'expense', description: 'Stand', quantity: 1, item_price: lineCost, item_cost: lineCost, line_cost: lineCost, asset_id: null, category: 'Audio' }],
+      assets: [], attachments: [],
+    } as any);
+    render(<ReviewScannedDataDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} onUpdated={vi.fn()} organizationId="org-1" scannedData={null} file={null} editPurchaseId="h1" />);
+    await screen.findByDisplayValue('Stand');
+    return svc;
+  };
+
+  it('asks before saving; Go back saves nothing', async () => {
+    await userEvent.click(await openNew(25, 0));
+    const ask = await screen.findByRole('alertdialog');
+    expect(within(ask).getByText('The lines add up to $0.00, but the invoice total is $25.00.')).toBeInTheDocument();
+    await userEvent.click(within(ask).getByRole('button', { name: 'Go back' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(createPurchaseWithUnits).not.toHaveBeenCalled();
+  });
+
+  it('Save anyway saves once', async () => {
+    await userEvent.click(await openNew(25, 0));
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Save anyway' }));
+    await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalledTimes(1));
+  });
+
+  it('saves straight away when the totals match', async () => {
+    await userEvent.click(await openNew(20, 20));
+    await waitFor(() => expect(createPurchaseWithUnits).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('a 3¢ difference is a mismatch, as in the reports', async () => {
+    await openEdit(50.03, 50);
+    expect(screen.getByText('Mismatch:')).toBeInTheDocument();
+  });
+
+  it('an edit that changes nothing about money saves without asking, even if it never matched', async () => {
+    const svc = await openEdit(80, 50);
+    expect(screen.getByText('Mismatch:')).toBeInTheDocument();
+    await userEvent.type(screen.getByDisplayValue('Stand'), ' x');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(svc.savePurchaseEdit).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+});
+
 // B18: a scanned line starts tracked as equipment only when the scan suggests it ($50 durable rule).
 describe('ReviewScannedDataDialog: the scan\'s equipment suggestion (B18)', () => {
   it('a cheap durable item starts untracked; one the scan suggests starts tracked', async () => {

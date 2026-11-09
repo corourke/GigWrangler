@@ -7,6 +7,7 @@ import {
   verifyTwoFactorCode,
   removeTwoFactor,
   resetTwoFactorForAccount,
+  reminderUntil,
 } from './twoFactor.service';
 
 vi.mock('../utils/supabase/client', () => ({ createClient: vi.fn() }));
@@ -130,5 +131,28 @@ describe('a lost device', () => {
     err.context = response;
     invoke.mockResolvedValue({ data: null, error: err });
     await expect(resetTwoFactorForAccount('nobody@example.com')).rejects.toThrow('No account with that email');
+  });
+});
+
+// The setup reminder shows only while there's time left, and not to a Google sign-in, which already
+// counts (Docs Lead code read, 11-09).
+describe('reminderUntil', () => {
+  const now = new Date('2026-11-09T12:00:00Z');
+  const status = (over: Record<string, unknown> = {}) => ({
+    factors: [], needsCode: false, signedInWithGoogle: false, required: true,
+    requiredAfter: '2026-11-20T00:00:00Z', setupRequired: false, ...over,
+  }) as any;
+  it('shows the date while the grace period runs', () => {
+    expect(reminderUntil(status(), now)).toBe('2026-11-20T00:00:00Z');
+  });
+  it('not once the date has passed', () => {
+    expect(reminderUntil(status({ requiredAfter: '2026-11-01T00:00:00Z' }), now)).toBeNull();
+  });
+  it('not to a Google sign-in', () => {
+    expect(reminderUntil(status({ signedInWithGoogle: true }), now)).toBeNull();
+  });
+  it('not with an authenticator, or when not required', () => {
+    expect(reminderUntil(status({ factors: [{ id: 'f' }] }), now)).toBeNull();
+    expect(reminderUntil(status({ required: false }), now)).toBeNull();
   });
 });

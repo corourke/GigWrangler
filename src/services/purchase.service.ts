@@ -1,5 +1,5 @@
 import { handleApiError, handleFunctionsError } from '../utils/api-error-utils';
-import { getSupabase, getCurrentUser, listRecords, createRecord, updateRecord, deleteOne } from './base/dataAccess';
+import { getSupabase, getCurrentUser, listRecords, createRecord, updateRecord, deleteOne, fetchAllPages } from './base/dataAccess';
 import type { DbPurchase, PurchaseWithItems, DbGigFinancial, DbAsset } from '../utils/supabase/types';
 import type { LineUnitInput } from '../utils/lineUnits';
 import type { PurchaseToSave } from '../utils/csvAssetImportPlan';
@@ -31,26 +31,16 @@ export async function getPurchases(organizationId: string, filters?: {
 }) {
   const supabase = getSupabase();
   try {
-    let query = supabase.from('purchases')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .order('purchase_date', { ascending: false });
-
-    if (filters?.gig_id) {
-      query = query.eq('gig_id', filters.gig_id);
-    }
-
-    if (filters?.vendor) {
-      query = query.ilike('vendor', `%${filters.vendor}%`);
-    }
-
-    if (filters?.row_type) {
-      query = query.eq('row_type', filters.row_type);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+    // Every row, a page at a time (A3); id breaks ties so pages don't overlap.
+    return await fetchAllPages((from, to) => {
+      let query = supabase.from('purchases')
+        .select('*')
+        .eq('organization_id', organizationId);
+      if (filters?.gig_id) query = query.eq('gig_id', filters.gig_id);
+      if (filters?.vendor) query = query.ilike('vendor', `%${filters.vendor}%`);
+      if (filters?.row_type) query = query.eq('row_type', filters.row_type);
+      return query.order('purchase_date', { ascending: false }).order('id').range(from, to);
+    });
   } catch (err) {
     return handleApiError(err, 'fetch purchases');
   }

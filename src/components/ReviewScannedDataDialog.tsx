@@ -49,6 +49,17 @@ import { getExpenseCategories, getEquipmentCategories, getEquipmentCategoryPerio
 import { asRecoveryPeriod, effectiveRecoveryPeriod, recoveryPeriodLabel, type CategoryPeriods, type RecoveryPeriod } from '../utils/recoveryPeriod';
 import { retargetCategories, equipmentCategoryOf, tidyAssetCategory } from '../utils/purchaseCategories';
 import { reconcileLineCosts } from '../utils/lineCostPennies';
+import { isReconciled } from './financials/purchases/reconciliation';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 
 function NumericInput({ value, onChange, placeholder = '0.00', className = '', disabled = false }: {
   value: number;
@@ -182,6 +193,11 @@ function lineCost(item: ScannedItem): number {
   return Number(((item.item_cost ?? 0) * item.quantity).toFixed(4));
 }
 
+/** What a save would change about money: the invoice total and each line's cost. */
+function moneyKey(fd: { total_inv_amount: number; items: ScannedItem[] }): string {
+  return JSON.stringify([fd.total_inv_amount, fd.items.map(lineCost)]);
+}
+
 /** A line's printed total, by the same rule (#330): stored, unless its quantity or unit price changed. */
 function lineAmount(item: ScannedItem): number {
   const was = item._loadedTotals;
@@ -279,6 +295,10 @@ export default function ReviewScannedDataDialog({
   const purchaseLocked = isEditMode && isTaxYearLocked(originalDate, lockedYears);
   const [existingDoc, setExistingDoc] = useState<{ url: string; kind: 'image' | 'pdf' | 'other'; name: string } | null>(null);
   const [pendingPlan, setPendingPlan] = useState<UpdatePlan | null>(null);
+  // Saving when the lines don't add up to the invoice total asks first (11-08).
+  const [confirmMismatch, setConfirmMismatch] = useState(false);
+  // Edit mode: the money as loaded, so an edit that doesn't touch it saves without asking.
+  const [loadedMoney, setLoadedMoney] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showFullPreview, setShowFullPreview] = useState(false);
   const [pdfPageImages, setPdfPageImages] = useState<string[]>([]);
@@ -389,6 +409,7 @@ export default function ReviewScannedDataDialog({
         setAssetsById(aById);
         setOriginalItemIds(items.map((it) => it.id));
         setOriginalDate(details.purchase_date || null);
+        setLoadedMoney(null);
 
         // Show what is stored. Recomputing here would zero cost-only lines (CSV
         // imports have no printed price) and rescale lines that don't add up to
@@ -461,6 +482,11 @@ export default function ReviewScannedDataDialog({
     })();
     return () => { cancelled = true; };
   }, [open, editPurchaseId, organizationId]);
+
+  // The money as loaded, once the edit form is filled.
+  useEffect(() => {
+    if (isEditMode && formData && loadedMoney === null) setLoadedMoney(moneyKey(formData));
+  }, [isEditMode, formData, loadedMoney]);
 
   // Spread the invoice total across the lines in proportion to each line's
   // printed price, or its stored cost when it has no price (CSV imports, #128).
@@ -964,7 +990,14 @@ export default function ReviewScannedDataDialog({
 
   const calculatedTotalCost = formData.items.reduce((sum, item) => sum + lineCost(item), 0);
   const diff = Math.abs(calculatedTotalCost - formData.total_inv_amount);
-  const hasMismatch = diff > 0.05;
+  // Within a cent, as on the Purchases tab and in the reports (reconciliation.isReconciled).
+  const hasMismatch = !isReconciled(formData.total_inv_amount, formData.items.map(item => ({ line_cost: lineCost(item) })));
+  // Ask before saving a mismatch, unless nothing money-related would be saved: a filed year
+  // (only descriptions go), or an edit that didn't touch the total or any line's cost.
+  const moneyChanged = !isEditMode || loadedMoney === null || moneyKey(formData) !== loadedMoney;
+  const askBeforeSave = hasMismatch && !purchaseLocked && moneyChanged;
+  const save = () => (isEditMode ? handleUpdate() : handleSubmit());
+  const onSaveClick = () => (askBeforeSave ? setConfirmMismatch(true) : save());
   // A $0 or empty invoice total over lines that cost something is a missed field (#226).
   // Not in a filed year: the total is locked there and only descriptions are saved.
   const missingTotal = !purchaseLocked && !(formData.total_inv_amount > 0) && calculatedTotalCost > 0.005;
@@ -1462,7 +1495,7 @@ export default function ReviewScannedDataDialog({
               {cancelLabel}
             </Button>
             <button
-              onClick={isEditMode ? handleUpdate : handleSubmit}
+              onClick={onSaveClick}
               disabled={!canSave}
               style={{ height: 28, padding: '0 20px', fontSize: 12, fontWeight: 600, borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0284c7', color: 'white', border: 'none', cursor: 'pointer', opacity: canSave ? 1 : 0.5 }}
             >
@@ -1477,6 +1510,20 @@ export default function ReviewScannedDataDialog({
 
   const overlays = (
     <>
+    <AlertDialog open={confirmMismatch} onOpenChange={setConfirmMismatch}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>The totals don't match</AlertDialogTitle>
+          <AlertDialogDescription>
+            The lines add up to ${calculatedTotalCost.toFixed(2)}, but the invoice total is ${Number(formData.total_inv_amount || 0).toFixed(2)}.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Go back</AlertDialogCancel>
+          <AlertDialogAction onClick={() => { setConfirmMismatch(false); save(); }}>Save anyway</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     {detailsItem && (
       <EquipmentDetailsDialog
         open

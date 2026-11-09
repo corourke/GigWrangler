@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { updateGigStaffSlots, unfinalizeStaffAssignment } from './gigStaff.service';
+import { updateGigStaffSlots, unfinalizeStaffAssignment, completeAllStaffAssignments } from './gigStaff.service';
 import { deleteGigFinancial } from './gigFinancial.service';
 import { requireAuth } from '../utils/supabase/auth-utils';
 import { createClient } from '../utils/supabase/client';
@@ -27,7 +27,7 @@ import { logActivity } from './activityLog.service';
 // several tables here are queried both ways in a single call.
 function makeChain(opts: { data?: any; singleData?: any; maybeSingleData?: any }) {
   const chain: any = {};
-  ['select', 'insert', 'update', 'delete', 'eq', 'in', 'is', 'or', 'order', 'limit'].forEach((m) => {
+  ['select', 'insert', 'update', 'delete', 'eq', 'in', 'is', 'not', 'or', 'order', 'limit'].forEach((m) => {
     chain[m] = vi.fn().mockReturnValue(chain);
   });
   chain.single = vi.fn().mockResolvedValue({ data: opts.singleData ?? null, error: null });
@@ -81,6 +81,26 @@ describe('updateGigStaffSlots (issue #55 — logs adds even without an explicit 
     (requireAuth as any).mockRejectedValue(new Error('Not authenticated'));
     await expect(updateGigStaffSlots('gig-1', [{ organization_id: 'org-1', role: 'FOH Engineer' }])).rejects.toThrow();
     expect(mockSupabase.from).not.toHaveBeenCalled();
+  });
+
+  // A typed $0 is an amount, not a blank: it's saved as 0, not NULL (Docs Lead smoke test, 11-08).
+  it('saves a $0 fee or rate as 0, and a blank as NULL', async () => {
+    const assignmentChain = makeChain({ singleData: { id: 'asg-new' } });
+    const base = mockSupabase.from.getMockImplementation();
+    mockSupabase.from.mockImplementation((table: string) =>
+      table === 'gig_staff_assignments' ? assignmentChain : base(table));
+    await updateGigStaffSlots('gig-1', [{
+      organization_id: 'org-1', role: 'Stagehand',
+      assignments: [
+        { user_id: 'u-fee', status: 'Confirmed', fee: 0, rate: null },
+        { user_id: 'u-rate', status: 'Confirmed', rate: 0, fee: null, rate_unit: 'hour' },
+        { user_id: 'u-blank', status: 'Confirmed', fee: null, rate: null },
+      ],
+    } as any]);
+    const inserted = assignmentChain.insert.mock.calls.map(([row]: any[]) => row);
+    expect(inserted.find((r: any) => r.user_id === 'u-fee')).toMatchObject({ fee: 0, rate: null });
+    expect(inserted.find((r: any) => r.user_id === 'u-rate')).toMatchObject({ rate: 0, fee: null });
+    expect(inserted.find((r: any) => r.user_id === 'u-blank')).toMatchObject({ fee: null, rate: null });
   });
 
   it('does not log when no slots actually change', async () => {
@@ -273,5 +293,23 @@ describe('unfinalizeStaffAssignment', () => {
     await expect(unfinalizeStaffAssignment('as-1')).resolves.toEqual({ success: true });
     expect(deleteGigFinancial).not.toHaveBeenCalled();
     expect(assignmentChain.update).toHaveBeenCalled();
+  });
+});
+
+// Finalize All finalizes what it can and says how many it couldn't (Docs Lead code read, 11-09).
+describe('completeAllStaffAssignments: some refused', () => {
+  it('counts the finalized and the refused, with the first reason', async () => {
+    const rpc = vi.fn(async (_fn: string, args: any) => args.p_assignment_id === 'a2'
+      ? { data: null, error: { message: 'The 2025 tax year is locked (filed).' } }
+      : { data: 'fin-x', error: null });
+    const supabase: any = {
+      rpc,
+      from: vi.fn(() => makeChain({ data: [{ id: 'a1', fee: 10 }, { id: 'a2', fee: 10 }, { id: 'a3', fee: 10 }] })),
+    };
+    (createClient as any).mockReturnValue(supabase);
+    (requireAuth as any).mockResolvedValue({ supabase, user: { id: 'u1' } });
+    const res: any = await completeAllStaffAssignments('gig-1', 'org-1');
+    expect(res).toMatchObject({ success: true, count: 2, failed: 1, total: 3 });
+    expect(res.reason).toContain('locked (filed)');
   });
 });
