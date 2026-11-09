@@ -163,29 +163,29 @@ export async function getGigExportAggregates(
 
     const gigIds = participants.map((p) => p.gig_id);
 
-    const financials = await fetchAllPages<any>((from, to) => supabase
+    const financials = await inChunks(gigIds, (chunk) => fetchAllPages<any>((from, to) => supabase
       .from('gig_financials')
       .select('id, gig_id, direction, stage, amount, amount_settled, staff_assignment_id')
-      .in('gig_id', gigIds)
+      .in('gig_id', chunk)
       .eq('organization_id', organizationId)
       .order('id')
-      .range(from, to));
+      .range(from, to)));
 
-    const assignments = await fetchAllPages<any>((from, to) => supabase
+    const assignments = await inChunks(gigIds, (chunk) => fetchAllPages<any>((from, to) => supabase
       .from('gig_staff_assignments')
       .select('id, fee, rate, rate_unit, status, completed_at, slot:gig_staff_slots!inner(gig_id, organization_id)')
-      .in('slot.gig_id', gigIds)
+      .in('slot.gig_id', chunk)
       .eq('slot.organization_id', organizationId)
       .order('id')
-      .range(from, to));
+      .range(from, to)));
 
     // The gig's times, for a rate's projected units.
-    const gigTimes = await fetchAllPages<any>((from, to) => supabase
+    const gigTimes = await inChunks(gigIds, (chunk) => fetchAllPages<any>((from, to) => supabase
       .from('gigs')
       .select('id, start, end, timezone')
-      .in('id', gigIds)
+      .in('id', chunk)
       .order('id')
-      .range(from, to));
+      .range(from, to)));
     const timesOf = new Map(((gigTimes || []) as ({ id: string } & GigTimes)[]).map((g) => [g.id, g] as const));
 
     type RawFinancial = MoneyRow & {

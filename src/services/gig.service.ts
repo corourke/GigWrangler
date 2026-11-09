@@ -787,22 +787,22 @@ export async function getAllGigAccountingSummaries(
 
     const gigIds = participants.map((p) => p.gig_id);
 
-    const gigs = await fetchAllPages<any>((from, to) => supabase
+    const gigs = await inChunks(gigIds, (chunk) => fetchAllPages<any>((from, to) => supabase
       .from('gigs')
       .select('id, title, status, start, end, timezone')
-      .in('id', gigIds)
+      .in('id', chunk)
       .order('id')
-      .range(from, to));
+      .range(from, to)));
 
-    const financials = await fetchAllPages<any>((from, to) => supabase
+    const financials = await inChunks(gigIds, (chunk) => fetchAllPages<any>((from, to) => supabase
       .from('gig_financials')
       .select('id, gig_id, direction, stage, amount, amount_settled, due_date, paid_at')
-      .in('gig_id', gigIds)
+      .in('gig_id', chunk)
       .eq('organization_id', organizationId)
       .order('id')
-      .range(from, to));
+      .range(from, to)));
 
-    const assignments = await fetchAllPages<any>((from, to) => supabase
+    const assignments = await inChunks(gigIds, (chunk) => fetchAllPages<any>((from, to) => supabase
       .from('gig_staff_assignments')
       .select(`
         id,
@@ -813,10 +813,10 @@ export async function getAllGigAccountingSummaries(
         completed_at,
         slot:gig_staff_slots!inner(gig_id, organization_id)
       `)
-      .in('slot.gig_id', gigIds)
+      .in('slot.gig_id', chunk)
       .eq('slot.organization_id', organizationId)
       .order('id')
-      .range(from, to));
+      .range(from, to)));
 
     type RawFinancial = MoneyRow & { id: string; gig_id: string };
 

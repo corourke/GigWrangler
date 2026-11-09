@@ -96,33 +96,37 @@ export async function getContainerPieces(
 ): Promise<ContainerPieces> {
   const supabase = getSupabase();
   try {
-    const { data: kits, error } = await (supabase.from('kits') as any)
+    const kits = await fetchAllPages<{ id: string }>((from, to) => (supabase.from('kits') as any)
       .select('id')
       .eq('organization_id', organizationId)
-      .eq('is_container', true);
-    if (error) throw error;
-    const containerKitIds = new Set<string>((kits ?? []).map((k: { id: string }) => k.id));
+      .eq('is_container', true)
+      .order('id')
+      .range(from, to));
+    const containerKitIds = new Set<string>(kits.map((k) => k.id));
     if (excludeKitId) containerKitIds.delete(excludeKitId);
     if (containerKitIds.size === 0) return { all: new Map(), active: new Map() };
     const ids = [...containerKitIds];
 
+    // Every row (A3): the container ids a chunk at a time, each read a page at a time.
     const [components, unitCache, itemCache] = await Promise.all([
-      (supabase.from('kit_components') as any).select('kit_id, child_kit_id').in('kit_id', ids).not('child_kit_id', 'is', null),
-      (supabase.from('kit_flattened_cache') as any).select('kit_id, asset_id, total_quantity').in('kit_id', ids),
-      (supabase.from('kit_flattened_item_cache') as any).select('kit_id, equipment_item_id, total_quantity').in('kit_id', ids),
+      inChunks(ids, (chunk) => fetchAllPages<any>((from, to) => (supabase.from('kit_components') as any)
+        .select('kit_id, child_kit_id').in('kit_id', chunk).not('child_kit_id', 'is', null).order('id').range(from, to))),
+      inChunks(ids, (chunk) => fetchAllPages<any>((from, to) => (supabase.from('kit_flattened_cache') as any)
+        .select('kit_id, asset_id, total_quantity').in('kit_id', chunk).order('kit_id').order('asset_id').range(from, to))),
+      inChunks(ids, (chunk) => fetchAllPages<any>((from, to) => (supabase.from('kit_flattened_item_cache') as any)
+        .select('kit_id, equipment_item_id, total_quantity').in('kit_id', chunk).order('kit_id').order('equipment_item_id').range(from, to))),
     ]);
-    for (const r of [components, unitCache, itemCache]) if (r.error) throw r.error;
 
     const nestedContainerIds = new Set<string>(
-      (components.data ?? [])
+      components
         .map((c: { child_kit_id: string }) => c.child_kit_id)
         .filter((id: string) => containerKitIds.has(id)),
     );
     const maps = recordItemMaps(items);
     const count = (assetItem: ReadonlyMap<string, string>) => containerPiecesByItem({
       containerKitIds, nestedContainerIds, assetItem,
-      unitCache: unitCache.data ?? [],
-      itemCache: itemCache.data ?? [],
+      unitCache,
+      itemCache,
     });
     return { all: count(maps.all), active: count(maps.available) };
   } catch (err) {
