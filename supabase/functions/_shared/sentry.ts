@@ -2,7 +2,7 @@
 // not set (local dev / functions serve), so it is always safe to import.
 // Version pinned so `supabase functions deploy` is reproducible (an unpinned
 // URL silently tracks whatever "latest" resolves to at deploy time).
-import * as Sentry from 'https://deno.land/x/sentry@8.55.0/index.mjs';
+import { Sentry } from './deps.ts';
 import { scrubEvent } from './sentryScrub.ts';
 
 const dsn = Deno.env.get('SENTRY_DSN');

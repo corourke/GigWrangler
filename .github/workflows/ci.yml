@@ -23,6 +23,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Advisories in what ships to the browser fail the build; dev-only tools are left out (A23).
+      - name: Audit shipped dependencies
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -45,6 +49,39 @@ jobs:
 
       - name: Check bundle size
         run: npm run check:bundle
+
+  edge:
+    # Type-checks the edge functions against their pinned dependencies (A7, A23). The lockfile is
+    # frozen: a dependency that changed without an updated supabase/functions/deno.lock fails here.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.1.4
+      - name: deno check
+        working-directory: supabase/functions
+        env:
+          # The functions run without the app's package.json; check them the same way.
+          DENO_NO_PACKAGE_JSON: '1'
+        run: deno check --no-config --lock=deno.lock --frozen server/index.ts ai-scan/index.ts health-check/index.ts
+
+  docs:
+    # Builds the documentation site (website/docs) so a broken page fails the PR, not the deploy (A23).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: website/docs/.nvmrc
+          cache: npm
+          cache-dependency-path: website/docs/package-lock.json
+      - name: Install
+        working-directory: website/docs
+        run: npm ci
+      - name: Build
+        working-directory: website/docs
+        run: npm run build
 
   rls:
     # Applies every migration to a throwaway Postgres 17 and checks tenant
