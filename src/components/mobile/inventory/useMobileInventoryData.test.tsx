@@ -67,7 +67,7 @@ describe('useMobileInventoryData', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
     data.readPackingListOnDevice.mockResolvedValue({ gig_title: 'Fresh', kits: [{ id: 'k' }] })
     await act(() => result.current.refreshPackingList('g1'))
-    expect(result.current.packingList?.kits).toHaveLength(1)
+    await waitFor(() => expect(result.current.packingList?.kits).toHaveLength(1))
     expect(data.loadGigPackingList).toHaveBeenCalledTimes(1)
   })
 
@@ -76,7 +76,7 @@ describe('useMobileInventoryData', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
     data.loadGigPackingList.mockResolvedValue({ gig_title: 'Again', kits: [] })
     await act(() => result.current.reloadPackingList('g1'))
-    expect(result.current.packingList?.gig_title).toBe('Again')
+    await waitFor(() => expect(result.current.packingList?.gig_title).toBe('Again'))
   })
 
   it('runs while react-query thinks it is offline (the service decides), and skips member names offline', async () => {

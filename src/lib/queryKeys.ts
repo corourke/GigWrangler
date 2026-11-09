@@ -44,4 +44,10 @@ export const queryKeys = {
 
   // Generic notification feed (issue #52) — powers the notification bell.
   notifications: () => ['notifications'] as const,
+  // --- Mobile inventory (A10, Engineer O) ---
+  // Inventory Mode's packing list is local-first: the device copy, then the server's.
+  packingList: (gigId: string) => ['packingList', gigId] as const,
+  gigTitleOnDevice: (gigId: string) => ['packingList', gigId, 'title'] as const,
+  orgIndex: (orgId: string) => ['orgIndex', orgId] as const,
+  orgMemberNames: (orgId: string) => ['team', orgId, 'memberNames'] as const,
 } as const;
