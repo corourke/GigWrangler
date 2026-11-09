@@ -61,3 +61,25 @@ describe('equipment invalidation helpers (A10)', () => {
     ]))
   })
 })
+
+describe('kit query keys (A10)', () => {
+  it('keys each kit view under the kit, so a kit write covers them all', () => {
+    expect(queryKeys.kitDetail('k1')).toEqual(['kit', 'k1', 'detail'])
+    expect(queryKeys.kitForm('k1')).toEqual(['kit', 'k1', 'form'])
+    expect(queryKeys.kitActivity('k1')).toEqual(['kit', 'k1', 'activity'])
+    expect(queryKeys.kitFlattenedSummary('k1')).toEqual(['kit', 'k1', 'flattenedSummary'])
+    for (const key of [queryKeys.kitDetail('k1'), queryKeys.kitForm('k1'), queryKeys.kitActivity('k1')]) {
+      expect(key.slice(0, 2)).toEqual(queryKeys.kit('k1'))
+    }
+  })
+
+  it('keys the kit editor’s items under the organization’s equipment, per kit', () => {
+    expect(queryKeys.kitEditorItems('org-1', 'k1')).toEqual([...queryKeys.equipmentItems('org-1'), 'forKit', 'k1'])
+    expect(queryKeys.kitEditorItems('org-1', null)).toEqual([...queryKeys.equipmentItems('org-1'), 'forKit', 'new'])
+  })
+
+  it('keys the picker under the organization’s kits, by what it was asked', () => {
+    expect(queryKeys.kitPicker('org-1', { kitId: 'k1', filter: 'all', search: 'mic', inKitIds: ['k3', 'k2'] }))
+      .toEqual(['kits', 'org-1', 'picker', { kitId: 'k1', filter: 'all', search: 'mic', inKitIds: ['k2', 'k3'] }])
+  })
+})
