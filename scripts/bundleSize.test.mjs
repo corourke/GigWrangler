@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkSizes, findEntryChunk, LIMITS } from './bundleSize.mjs';
+import { checkSizes, findEntryChunk, findSourceMaps, LIMITS } from './bundleSize.mjs';
 
 const html = (body) => `<!doctype html><html><head>${body}</head><body><div id="root"></div></body></html>`;
 
@@ -95,5 +95,18 @@ describe('checkSizes', () => {
     const res = checkSizes([{ file: 'assets/index-a.js', bytes: 2500, isEntry: true }], limits);
     expect(res.ok).toBe(false);
     expect(res.failures.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('findSourceMaps (A18)', () => {
+  it('lists .map files: they go to Sentry and must never be served or precached', () => {
+    expect(findSourceMaps(['static/index-1.js', 'static/index-1.js.map', 'sw.js.map', 'index.html'])).toEqual([
+      'static/index-1.js.map',
+      'sw.js.map',
+    ]);
+  });
+
+  it('is empty for a normal build', () => {
+    expect(findSourceMaps(['static/index-1.js', 'static/index-1.css'])).toEqual([]);
   });
 });
