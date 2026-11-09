@@ -6,6 +6,7 @@ import AttachmentManager from '../AttachmentManager';
 import MarkdownContent from '../MarkdownContent';
 import ActivityFeed from '../ActivityFeed';
 import { ConflictWarning } from '../ConflictWarning';
+import { useGigPageData } from './useGigPageData';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -33,17 +34,14 @@ import { GigStatusField, GigTagsField, GigTitleField } from './basicInfo/GigBasi
 import { EditSaveStatus, GigEditForm, NotesCard, WhenAndScheduleCard } from './edit/GigEditParts';
 import { useEditSession } from '../../utils/hooks/editSession';
 import { EditSessionProvider } from '../../utils/hooks/EditSessionProvider';
-import { countChildGigs, deleteGig, duplicateGig, getGig } from '../../services/gig.service';
-import { getGigActivity } from '../../services/activityLog.service';
-import { checkAllConflicts, type Conflict } from '../../services/conflictDetection.service';
+import { deleteGig, duplicateGig } from '../../services/gig.service';
 import { canManage } from '../../utils/permissions';
 import { deleteGigBlockedReason, gigOwnerName, inactiveBannerText, inactiveStaffEquipmentText, isInactiveOn, managesGigOwner, markInactiveConfirmText, offersMarkInactive } from '../../utils/gigOwnership';
 import { removeGigParticipant, setGigParticipantInactive } from '../../services/gigParticipant.service';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
-import type { ActivityLogEntry, Gig, Organization, User, UserRole } from '../../utils/supabase/types';
+import type { Organization, User, UserRole } from '../../utils/supabase/types';
 import type { GigTab } from '../../routes/paths';
-import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface GigPageProps {
   gigId: string;
@@ -85,17 +83,16 @@ export default function GigPage({
 }: GigPageProps) {
   const canEdit = canManage(userRole);
   // #175: a parent gig can't be deleted; Delete says so (Cameron 10-13).
-  const [childGigCount, setChildGigCount] = useState(0);
   const [deleteReasonShown, setDeleteReasonShown] = useState(false);
-  const [gig, setGig] = useState<Gig | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(initialEditing && canEdit);
   const [localTab, setLocalTab] = useState<GigTab>('overview');
   const tab = tabProp ?? localTab;
   const setTab = (t: string) => (onTabChange ? onTabChange(t as GigTab) : setLocalTab(t as GigTab));
-  const [conflicts, setConflicts] = useState<Conflict[]>([]);
-  const [activity, setActivity] = useState<ActivityLogEntry[]>([]);
-  const [activityLoading, setActivityLoading] = useState(false);
+  // A10: the gig, its child count, conflicts and history come from react-query.
+  const {
+    gig, loadError, childGigCount, conflicts, activity, activityLoading,
+    reload: loadGig, afterGigChange, afterListChange,
+  } = useGigPageData(gigId, organization.id, tab === 'history');
   const [viewingOrg, setViewingOrg] = useState<Partial<Organization> | null>(null);
   // Every autosaving section in edit mode reports here: one save state, one flush (#12).
   const session = useEditSession();
@@ -114,36 +111,6 @@ export default function GigPage({
   }, []);
   const [finishing, setFinishing] = useState(false);
 
-  // A late answer for an earlier gig (or an earlier reload) is dropped (B12).
-  const startGigRequest = useLatestRequest();
-  const loadGig = useCallback(async () => {
-    const isCurrent = startGigRequest();
-    setLoadError(null);
-    try {
-      const data = await getGig(gigId);
-      if (!isCurrent()) return;
-      setGig(data);
-      countChildGigs(gigId).then((n) => { if (isCurrent()) setChildGigCount(n); }).catch(() => { if (isCurrent()) setChildGigCount(0); });
-      checkAllConflicts(gigId, data.start, data.end, data.timezone, organization.id, isGigAllDay(data))
-        .then((r) => { if (isCurrent()) setConflicts(r.conflicts); }).catch(() => {});
-    } catch (error: any) {
-      if (isCurrent()) setLoadError(error.message || 'Failed to load this gig.');
-    }
-  }, [gigId, organization.id, startGigRequest]);
-
-  useEffect(() => { loadGig(); }, [loadGig]);
-
-  useEffect(() => {
-    if (tab !== 'history') return;
-    let cancelled = false;
-    setActivityLoading(true);
-    getGigActivity(gigId)
-      .then((a) => { if (!cancelled) setActivity(a); })
-      .catch(() => { if (!cancelled) setActivity([]); })
-      .finally(() => { if (!cancelled) setActivityLoading(false); });
-    return () => { cancelled = true; };
-  }, [tab, gigId]);
-
   // Staff and Viewers never see financials (#12); keep them off that tab.
   // eslint-disable-next-line react-hooks/exhaustive-deps -- setTab is re-created each render; this reacts only to the role and the tab
   useEffect(() => { if (!canEdit && tab === 'financials') setTab('overview'); }, [canEdit, tab]);
@@ -154,13 +121,14 @@ export default function GigPage({
     await session.flushAll();
     setFinishing(false);
     setEditing(false);
-    loadGig();
+    void afterGigChange();
   };
 
   const handleDuplicate = async () => {
     try {
       await duplicateGig(gigId);
       toast.success('Gig duplicated');
+      void afterListChange();
       onBack();
     } catch (error: any) {
       toast.error(error.message || 'Failed to duplicate gig');
@@ -172,6 +140,7 @@ export default function GigPage({
     try {
       await deleteGig(gigId);
       toast.success('Gig deleted');
+      void afterListChange();
       onGigDeleted();
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete gig');
@@ -184,7 +153,7 @@ export default function GigPage({
     try {
       await setGigParticipantInactive(gigId, organization.id, true);
       toast.success(`${organization.name} is Inactive on this gig`);
-      await loadGig();
+      await afterGigChange();
     } catch (error: any) {
       toast.error(error.message || 'Failed to mark Inactive');
     }
@@ -198,6 +167,7 @@ export default function GigPage({
     try {
       await removeGigParticipant(gigId, organization.id);
       toast.success(`${organization.name} left the gig`);
+      void afterListChange();
       onBack();
     } catch (error: any) {
       const message: string = error?.message || 'Failed to leave the gig';
@@ -221,7 +191,7 @@ export default function GigPage({
     try {
       await setGigParticipantInactive(gigId, organization.id, false);
       toast.success(`${organization.name} is active on this gig again`);
-      await loadGig();
+      await afterGigChange();
     } catch (error: any) {
       toast.error(error.message || 'Failed to reactivate');
     }
