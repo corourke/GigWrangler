@@ -28,6 +28,9 @@ If the email can't be sent, you see "Invitation created, but the email couldn't 
 sent" instead. The person is still on the team. Ask them to sign up for GigWrangler
 with that address; they join the team once they confirm their email.
 
+Invitations are limited, for each person who sends them and for each organization.
+Past a limit, you see "… Try again later." and no invitation is created.
+
 ![The Add Team Member dialog on the Invite New tab, filled in with a first name, last name, email address and the Staff role, above Send Invitation](../../../assets/screenshots/team/invitations-invite-dialog.png)
 
 If the email address already belongs to an active GigWrangler user, the invitation

@@ -23,6 +23,10 @@ From **Select Organization**, choose **Create New Organization** (or
   address.
 - Choose **Create and Join**. You become the organization's **Admin**.
 
+GigWrangler limits how often you can create organizations and look businesses up
+on Google. Past a limit, creating one says "… Try again later.", and business search
+shows **Business search is paused**: type the details in by hand instead.
+
 ![The new-organization form: Organization Name, the Organization Roles checkboxes with Sound Company and Rental Company ticked, Phone Number, Website URL and Allowed Email Domains](../../../assets/screenshots/getting-started/organizations-create-form.png)
 
 :::note[Create without Joining]
@@ -55,7 +59,8 @@ You're notified of the decision by email and by the in-app notification bell
 (top-right): "Your request to join *Organization* was approved." (or "rejected").
 If it's approved, you're a **Viewer**, a read-only member, and the organization's
 card shows **Open**. You can't withdraw a request while it's pending; if it's
-rejected, you can ask again.
+rejected, you can ask again. Access requests are limited too: past the limit you see
+"… Try again later."
 
 ### Asking for a higher role
 

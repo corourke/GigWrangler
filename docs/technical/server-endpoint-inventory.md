@@ -36,7 +36,7 @@ Legend — **Auth**: 🔓 public · 🔑 any authenticated user · 👤 self onl
 | 7 | GET | `/organizations` | 🔑 | `requireUser` | World-readable to authed users by design (org discovery, security-scheme §4). |
 | 8 | POST | `/organizations` | 🔑 | `requireUser` + `rateLimited('org_create')` | Any authed user can create an org and becomes its Admin (Q-B). At most 5 per user in 24 hours (429). |
 | 9 | PUT | `/organizations/:id` | 👑 | `requireOrgRole({ roles: ['Admin'], allowUnclaimedOrgManagers })` | While the org is unclaimed, also a platform moderator or an Admin/Manager of an org sharing a gig with it (`user_can_manage_unclaimed_org`); after that only the org's own Admin. |
-| 10 | DELETE | `/organizations/:id` | 👑 | Same as #9 | |
+| 10 | DELETE | `/organizations/:id` | 👑 | Same as #9 | 409 "Cannot delete an organization that still has … Remove them first." while other members or data remain; the caller's own membership isn't counted and goes with the organization (#379). |
 | 11 | POST | `/organizations/:id/members` | 🛡️ to add others (👑 to add an Admin); 🔑 to self-join | `requireUser` + inline `verifyOrgMembership`; `canSelfJoinDirectly` (`lib/pure/authz.ts`) | Self-join only as Staff, when the confirmed sign-in email's domain is in the org's `allowed_domains`. Otherwise 403 "Request to join instead" (#37). |
 | 12 | GET | `/organizations/:id/members` | 🏢 (or platform moderator) | `requireOrgRole({ allowPlatformModerator: true })` | Lists members. |
 | 13 | GET | `/organizations/:id/members/:memberId` | 🏢 | `requireOrgRole()` | Single member detail. |

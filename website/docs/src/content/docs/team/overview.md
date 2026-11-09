@@ -35,6 +35,10 @@ You only see the pencil on organizations you can edit: your own organization if
 you're one of its Admins, or any organization that hasn't been claimed yet if
 you're an Admin of any organization. Managers can't edit organization details.
 
+Next to the pencil, **Delete Organization** (trash) deletes an organization that has no
+other members and no data left. See
+[Roles & access](/reference/roles-and-access/#what-each-role-can-do).
+
 The form has **Organization Name** and **Organization Roles** (required, with at
 least one role checked), then **Phone Number**, **Website URL**, **Allowed Email
 Domains**, **Description** (Markdown works), and the address. **Save Changes** turns
