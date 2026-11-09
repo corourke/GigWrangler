@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { 
   File, 
   Upload, 
@@ -10,19 +10,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
-import { 
-  uploadAttachment, 
-  linkAttachmentToEntity, 
-  getEntityAttachments, 
-  unlinkAttachmentFromEntity,
-  getAttachmentUrl
-} from '../services/attachment.service';
+import { getAttachmentUrl } from '../services/attachment.service';
 import { EntityType, DbAttachment } from '../utils/supabase/types';
+import { useAttachmentManagerData, type AttachmentWithEntityId } from './useAttachmentManagerData';
 import { ATTACHMENT_FILE_ACCEPT } from '../utils/fileAccept';
-
-interface AttachmentWithEntityId extends DbAttachment {
-  entity_attachment_id: string;
-}
 
 interface AttachmentManagerProps {
   organizationId: string;
@@ -41,26 +32,8 @@ export default function AttachmentManager({
   allowUpload = true,
   onAttachmentsChange,
 }: AttachmentManagerProps) {
-  const [attachments, setAttachments] = useState<AttachmentWithEntityId[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { attachments, isLoading, upload, remove } = useAttachmentManagerData(organizationId, entityType, entityId);
   const [isUploading, setIsUploading] = useState(false);
-
-  const loadAttachments = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const data = await getEntityAttachments(entityType, entityId);
-      setAttachments(data);
-    } catch (err: any) {
-      console.error('Error loading attachments:', err);
-      toast.error('Failed to load attachments');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [entityType, entityId]);
-
-  useEffect(() => {
-    loadAttachments();
-  }, [loadAttachments]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -68,12 +41,9 @@ export default function AttachmentManager({
 
     setIsUploading(true);
     try {
-      for (const file of Array.from(files)) {
-        const attachment = await uploadAttachment(organizationId, file);
-        await linkAttachmentToEntity(attachment.id, entityType, entityId);
-      }
+      // The hook refreshes the list.
+      await upload(Array.from(files));
       toast.success('Files uploaded successfully');
-      loadAttachments();
       onAttachmentsChange?.();
     } catch (err: any) {
       console.error('Error uploading files:', err);
@@ -91,9 +61,9 @@ export default function AttachmentManager({
     try {
       // For now, we always unlink. In the future, we might want to delete the file too
       // if it's not linked anywhere else. For now, let's keep it simple.
-      await unlinkAttachmentFromEntity(attachment.entity_attachment_id);
+      // The hook refreshes the list.
+      await remove(attachment.entity_attachment_id);
       toast.success('Attachment removed');
-      loadAttachments();
       onAttachmentsChange?.();
     } catch (err: any) {
       console.error('Error removing attachment:', err);

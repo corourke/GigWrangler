@@ -3,7 +3,7 @@ import { Input } from '../ui/input';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '../ui/command';
 import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover';
 import { MapPin } from 'lucide-react';
-import { getLocationSuggestions } from '../../services/inventoryManagement.service';
+import { useLocationSuggestions } from './useLocationSuggestions';
 
 interface LocationComboboxProps {
   value: string;
@@ -19,8 +19,9 @@ export function LocationCombobox({
   placeholder = 'Enter or select location...',
 }: LocationComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [fetched, setFetched] = useState(false);
+  // Read the first time the box is opened or typed in (A10).
+  const [wanted, setWanted] = useState(false);
+  const suggestions = useLocationSuggestions(organizationId, wanted);
   const inputRef = useRef<HTMLInputElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
 
@@ -28,30 +29,16 @@ export function LocationCombobox({
     s.toLowerCase().includes(value.toLowerCase())
   );
 
-  const handleOpen = async (open: boolean) => {
+  const handleOpen = (open: boolean) => {
     setIsOpen(open);
-    if (open && !fetched) {
-      try {
-        const results = await getLocationSuggestions(organizationId);
-        setSuggestions(results);
-      } catch {
-        setSuggestions([]);
-      } finally {
-        setFetched(true);
-      }
-    }
+    if (open) setWanted(true);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange(e.target.value);
     if (!isOpen) {
       setIsOpen(true);
-      if (!fetched) {
-        getLocationSuggestions(organizationId)
-          .then(setSuggestions)
-          .catch(() => setSuggestions([]))
-          .finally(() => setFetched(true));
-      }
+      setWanted(true);
     }
   };
 

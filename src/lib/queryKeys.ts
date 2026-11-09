@@ -139,6 +139,25 @@ export const queryKeys = {
   assetActivity: (assetId: string) => ['asset', assetId, 'activity'] as const,
   /** Filed tax years; nests under the taxYears(orgId) root. */
   lockedTaxYears: (orgId: string) => ['taxYears', orgId, 'locked'] as const,
+  // Lookups the equipment forms and pickers read (A10 sweep).
+  /** Types used in a category, with how often. */
+  typeUsage: (orgId: string, category: string) => ['assets', orgId, 'typeUsage', category] as const,
+  /** Distinct values of a field in use, for autocomplete. */
+  distinctValues: (orgId: string, table: 'assets' | 'kits', field: string, category?: string) =>
+    [table, orgId, 'distinct', field, category ?? null] as const,
+  locationSuggestions: (orgId: string) => ['assets', orgId, 'locationSuggestions'] as const,
+  /** One item on its own (getItem), e.g. the item a new unit is added to. */
+  itemRecord: (itemId: string, orgId: string) => ['assets', orgId, 'item', itemId, 'record'] as const,
+  /** When a unit or lot was first depreciated, if it was. */
+  assetDepreciatedOn: (assetId: string) => ['asset', assetId, 'depreciatedOn'] as const,
+  /** A record's attachments (a gig, purchase or unit). */
+  entityAttachments: (entityType: string, entityId: string) => ['attachments', entityType, entityId] as const,
+  /** A category list in Settings: an organization's, or the starter set (null). */
+  categoryList: (kind: string, orgId: string | null) => ['purchases', orgId ?? 'starter', 'categories', kind, 'list'] as const,
+  categoryUsage: (kind: string, orgId: string) => ['purchases', orgId, 'categories', kind, 'usage'] as const,
+  scheduleCLines: () => ['scheduleCLines'] as const,
+  /** The organization's gigs, for a gig picker. */
+  gigsForOrganization: (orgId: string) => ['gigs', orgId, 'all'] as const,
   // Kit views, all under kit(kitId) so a kit change reaches them.
   kitDetail: (kitId: string) => ['kit', kitId, 'detail'] as const,
   kitForm: (kitId: string) => ['kit', kitId, 'form'] as const,
@@ -490,5 +509,34 @@ export function invalidateAfterTrackingChange(queryClient: QueryClient, { organi
     queryClient.invalidateQueries({ queryKey: queryKeys.activeGigsWithTracking(organizationId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.kits(organizationId) }),
     queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'gig' && q.queryKey[2] === 'packingList' }),
+  ]);
+}
+
+// ── Sweep: equipment, settings, shared (A10, Engineer E) ──
+
+/** After a file is attached to a record or taken off it: that record's attachments. */
+export function invalidateAfterAttachmentChange(
+  queryClient: QueryClient,
+  { entityType, entityId }: { entityType: string; entityId: string },
+) {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.entityAttachments(entityType, entityId) });
+}
+
+/**
+ * After a category is added or changed in Settings: every category list and picker of that
+ * organization (or of the starter set). The list in `keepList`, which has just written the change
+ * into its own cache, is only marked stale.
+ */
+export function invalidateAfterCategoryChange(
+  queryClient: QueryClient,
+  { organizationId }: { organizationId: string | null },
+  { keepList }: { keepList?: readonly unknown[] } = {},
+) {
+  const root = ['purchases', organizationId ?? 'starter', 'categories'];
+  if (!keepList) return queryClient.invalidateQueries({ queryKey: root });
+  const kept = JSON.stringify(keepList);
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: keepList, exact: true, refetchType: 'none' }),
+    queryClient.invalidateQueries({ queryKey: root, predicate: (q) => JSON.stringify(q.queryKey) !== kept }),
   ]);
 }

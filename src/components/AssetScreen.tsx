@@ -11,24 +11,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import AppHeader from './AppHeader';
 import { PageHeader } from './layout/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { updateAsset, getAssetDepreciatedDate } from '../services/asset.service';
-import { useAssetData, useAssetMutations } from './asset/useAssetData';
+import { updateAsset } from '../services/asset.service';
+import { useAssetData, useAssetMutations, useAssetFormLookups } from './asset/useAssetData';
 import type { DbInventoryTracking, ActivityLogEntry } from '../utils/supabase/types';
 import ActivityFeed from './ActivityFeed';
 import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
 import { useAutocompleteSuggestions } from '../utils/hooks/useAutocompleteSuggestions';
-import { getEquipmentCategories, getEquipmentCategoryPeriods } from '../services/purchaseCategory.service';
-import { getLockedTaxYears } from '../services/taxYear.service';
 import { isTaxYearLocked } from '../utils/taxTreatment';
-import { RECOVERY_PERIODS, categoryPeriod, type CategoryPeriods } from '../utils/recoveryPeriod';
+import { RECOVERY_PERIODS, categoryPeriod } from '../utils/recoveryPeriod';
 import AttachmentManager from './AttachmentManager';
-import { getItem, getItems } from '../services/equipmentItem.service';
 import { recordKind } from '../utils/equipmentItems';
 import { buildLineUnits, unitRowProblems, type ItemChoice } from '../utils/lineUnits';
 import ItemSection from './equipment/form/ItemSection';
-import { emptyItemDraft, itemDraftErrors, type ItemDraft, type ItemOption } from './equipment/form/itemDraft';
+import { emptyItemDraft, itemDraftErrors, type ItemDraft } from './equipment/form/itemDraft';
 import UnitOrLotSection, { type FormUnitRow, type UnitOrLot } from './equipment/form/UnitOrLotSection';
 import InsuranceSection from './equipment/form/InsuranceSection';
 import { isStaffOrAbove } from '../utils/permissions';
@@ -75,10 +72,6 @@ interface FormData {
   purchase_id?: string;
 }
 
-const toOption = (i: { id: string; manufacturer_model: string; category: string; type?: string | null; insurance_class?: string | null; description?: string | null }): ItemOption => ({
-  id: i.id, manufacturer_model: i.manufacturer_model, category: i.category,
-  type: i.type ?? null, insurance_class: i.insurance_class ?? null, description: i.description ?? null,
-});
 const MISSING_NOTE = 'Written off as missing. To bring it back, use Undo write-off on this equipment\'s page, or Undo in the gig\'s Not returned list.';
 /** What write_off_pieces sets on a record; only Undo changes these again (#242). */
 const WRITE_OFF_LOCKED_FIELDS = ['status', 'retired_on', 'liquidation_amt'] as const;
@@ -143,7 +136,6 @@ export default function AssetScreen({
 
   // What it is (#183): an item we already have, or a new one.
   const [itemDraft, setItemDraft] = useState<ItemDraft>(emptyItemDraft());
-  const [items, setItems] = useState<ItemOption[]>([]);
   // Unit or lot. Adding: the quantity sets the serial/tag rows, one per unit.
   const [kind, setKind] = useState<UnitOrLot>('units');
   const [quantity, setQuantity] = useState(1);
@@ -156,22 +148,19 @@ export default function AssetScreen({
     initialData: {},
   });
 
-  const [equipmentCategories, setEquipmentCategories] = useState<string[]>([]);
+  // Server state (Phase 7): asset + read-only history/tracking via useQuery.
+  const { assetQuery, inventoryTrackingQuery, activityQuery } = useAssetData(assetId);
+  // The form's lookups (A10). The item: the record's own when editing, else the one added to.
+  const lookups = useAssetFormLookups(organization.id, {
+    assetId,
+    itemId: assetId ? (assetQuery.data as any)?.equipment_item_id ?? null : itemId,
+  });
+  const { categories: equipmentCategories, items, categoryPeriods, depreciatedOn, lockedYears } = lookups;
+  // Start from the record's item, or the one added to, once it is read.
+  const lookedUpItem = lookups.item;
   useEffect(() => {
-    let cancelled = false;
-    getEquipmentCategories(organization.id).then(c => { if (!cancelled) setEquipmentCategories(c); });
-    getEquipmentCategoryPeriods(organization.id).then(p => { if (!cancelled) setCategoryPeriods(p); });
-    getItems(organization.id).then((list) => { if (!cancelled) setItems(list.map(toOption)); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [organization.id]);
-
-  // Adding to a given item: start from it.
-  useEffect(() => {
-    if (assetId || !itemId) return;
-    let cancelled = false;
-    getItem(itemId).then((i) => { if (!cancelled) setItemDraft(emptyItemDraft({ mode: 'existing', existing: toOption(i) })); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [assetId, itemId]);
+    if (lookedUpItem) setItemDraft(emptyItemDraft({ mode: 'existing', existing: lookedUpItem }));
+  }, [lookedUpItem]);
 
   // Editing: choosing another item moves the record to it.
   const changeItem = (next: ItemDraft) => {
@@ -189,18 +178,7 @@ export default function AssetScreen({
     }));
   };
 
-  // Only depreciated equipment has a recovery period (#125); a filed year's,
-  // once set, stays.
-  const [categoryPeriods, setCategoryPeriods] = useState<CategoryPeriods>({});
-  const [depreciatedOn, setDepreciatedOn] = useState<string | null>(null);
-  const [lockedYears, setLockedYears] = useState<Set<number>>(new Set());
-  useEffect(() => {
-    if (!assetId) return;
-    let cancelled = false;
-    getAssetDepreciatedDate(assetId).then(d => { if (!cancelled) setDepreciatedOn(d); });
-    getLockedTaxYears(organization.id).then(y => { if (!cancelled) setLockedYears(y); });
-    return () => { cancelled = true; };
-  }, [assetId, organization.id]);
+  // Only depreciated equipment has a recovery period (#125); a filed year's, once set, stays.
   const depreciated = !!depreciatedOn;
   const defaultPeriod = categoryPeriod(categoryPeriods, formData.category);
   const periodLocked = depreciated && isTaxYearLocked(depreciatedOn, lockedYears) && !!changeDetection.originalData?.recovery_period;
@@ -212,8 +190,6 @@ export default function AssetScreen({
     enabled: true,
   });
 
-  // Server state (Phase 7): asset + read-only history/tracking via useQuery.
-  const { assetQuery, inventoryTrackingQuery, activityQuery } = useAssetData(assetId);
   const assetMutations = useAssetMutations(organization.id);
   const isLoading = assetQuery.isLoading;
   const isSaving = assetMutations.createAssets.isPending || assetMutations.updateAsset.isPending;
@@ -253,9 +229,6 @@ export default function AssetScreen({
     const loadedKind = recordKind(asset) === 'unit' ? 'units' : 'lot';
     setKind(loadedKind);
     setLoadedLotQuantity(loadedKind === 'lot' ? (asset.quantity ?? 1) : null);
-    if (asset.equipment_item_id) {
-      getItem(asset.equipment_item_id).then((i) => setItemDraft(emptyItemDraft({ mode: 'existing', existing: toOption(i) }))).catch(() => {});
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetQuery.data]);
 

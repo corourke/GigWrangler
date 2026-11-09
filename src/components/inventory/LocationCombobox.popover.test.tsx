@@ -1,6 +1,7 @@
+import { renderWithQuery as render } from '../../test/renderWithQuery';
 import { useState } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // The real Popover, unlike LocationCombobox.test.tsx: opening and closing is what's tested (#327).
