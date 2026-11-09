@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import {screen, waitFor, fireEvent} from '@testing-library/react'
 import Dashboard from './Dashboard'
 import { renderWithQuery } from '../test/renderWithQuery'
 import { createClient } from '../utils/supabase/client'
@@ -105,7 +105,7 @@ describe('Dashboard', () => {
       functions: { invoke: vi.fn().mockResolvedValue({ data: stats, error: null }) },
     } as any)
     try {
-      render(<Dashboard {...mockProps} userRole="Admin" />)
+      renderWithQuery(<Dashboard {...mockProps} userRole="Admin" />)
 
       expect(await screen.findByText('$71.3K')).toBeInTheDocument()
       expect(screen.getByText('Owned')).toBeInTheDocument()
@@ -128,7 +128,7 @@ describe('Dashboard', () => {
       functions: { invoke: vi.fn().mockResolvedValue({ data: stats, error: null }) },
     } as any)
     try {
-      render(<Dashboard {...mockProps} userRole="Admin" />)
+      renderWithQuery(<Dashboard {...mockProps} userRole="Admin" />)
       expect(await screen.findByText('1 item · 1 piece')).toBeInTheDocument()
     } finally {
       vi.mocked(createClient).mockImplementation(defaultClient!)
@@ -148,7 +148,7 @@ describe('Dashboard', () => {
       functions: { invoke: vi.fn().mockResolvedValue({ data: stats, error: null }) },
     } as any)
     try {
-      render(<Dashboard {...mockProps} userRole="Staff" />)
+      renderWithQuery(<Dashboard {...mockProps} userRole="Staff" />)
 
       expect(await screen.findByText('38 items · 339 pieces')).toBeInTheDocument()
       expect(screen.getByText('Equipment')).toBeInTheDocument()
@@ -162,7 +162,7 @@ describe('Dashboard', () => {
   })
 
   it('renders dashboard with organization and user info', () => {
-    render(<Dashboard {...mockProps} />)
+    renderWithQuery(<Dashboard {...mockProps} />)
 
     expect(screen.getByText('Welcome back, John!')).toBeInTheDocument()
     expect(screen.getByText('Test Production Company')).toBeInTheDocument()
@@ -170,7 +170,7 @@ describe('Dashboard', () => {
   })
 
   it('displays navigation tabs', async () => {
-    render(<Dashboard {...mockProps} />)
+    renderWithQuery(<Dashboard {...mockProps} />)
 
     // Wait for component to render
     await waitFor(() => {
@@ -182,7 +182,7 @@ describe('Dashboard', () => {
   })
 
   it('shows quick stats cards', async () => {
-    render(<Dashboard {...mockProps} />)
+    renderWithQuery(<Dashboard {...mockProps} />)
 
     // Wait for dashboard to load
     await waitFor(() => {
@@ -194,7 +194,7 @@ describe('Dashboard', () => {
   })
 
   it('displays upcoming events section', async () => {
-    render(<Dashboard {...mockProps} />)
+    renderWithQuery(<Dashboard {...mockProps} />)
 
     // Wait for component to render
     await waitFor(() => {
@@ -207,7 +207,7 @@ describe('Dashboard', () => {
   })
 
   it('shows recent activity section', async () => {
-    render(<Dashboard {...mockProps} />)
+    renderWithQuery(<Dashboard {...mockProps} />)
 
     // Wait for component to render
     await waitFor(() => {
@@ -220,7 +220,7 @@ describe('Dashboard', () => {
   })
 
   it('calls onNavigateToGigs when Events card is clicked', async () => {
-    render(<Dashboard {...mockProps} />)
+    renderWithQuery(<Dashboard {...mockProps} />)
 
     await waitFor(() => {
       expect(screen.getByText('Welcome back, John!')).toBeInTheDocument()
@@ -232,7 +232,7 @@ describe('Dashboard', () => {
   })
 
   it('calls onNavigateToGigs when Manage Events button is clicked', async () => {
-    render(<Dashboard {...mockProps} />)
+    renderWithQuery(<Dashboard {...mockProps} />)
 
     await waitFor(() => {
       expect(screen.getByText('Welcome back, John!')).toBeInTheDocument()
@@ -253,7 +253,7 @@ describe('Dashboard', () => {
   // Issue #158: the server zeroes money figures for non-Admin/Manager roles,
   // so those roles must not see the Equipment and Revenue cards at all.
   it.each(['Admin', 'Manager'] as const)('shows Equipment and Revenue cards to %s', async (role) => {
-    render(<Dashboard {...mockProps} userRole={role} />)
+    renderWithQuery(<Dashboard {...mockProps} userRole={role} />)
 
     expect(await screen.findByText('Status Summary')).toBeInTheDocument()
     expect(screen.getByText('Equipment')).toBeInTheDocument()
@@ -261,7 +261,7 @@ describe('Dashboard', () => {
   })
 
   it.each(['Staff', 'Viewer'] as const)('hides Equipment and Revenue cards from %s', async (role) => {
-    render(<Dashboard {...mockProps} userRole={role} />)
+    renderWithQuery(<Dashboard {...mockProps} userRole={role} />)
 
     expect(await screen.findByText('Status Summary')).toBeInTheDocument()
     expect(screen.queryByText('Equipment')).not.toBeInTheDocument()

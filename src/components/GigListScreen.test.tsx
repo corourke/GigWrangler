@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GigListScreen from './GigListScreen';
 import { renderWithQuery } from '../test/renderWithQuery';
@@ -102,7 +102,7 @@ describe('GigListScreen', () => {
       vi.mocked(getGigsForOrganization).mockResolvedValue([
         { ...futureGig, id: 'gig-today', title: 'Today Show', start: '2026-09-25T14:00:00.000Z', end: '2026-09-25T16:00:00.000Z' },
       ]);
-      render(
+      renderWithQuery(
         <GigListScreen
           organization={organization}
           user={user}
@@ -128,7 +128,7 @@ describe('GigListScreen', () => {
   });
 
   it('shows Upcoming gigs by default and hides Past gigs', async () => {
-    render(
+    renderWithQuery(
       <GigListScreen
         organization={organization}
         user={user}
@@ -153,7 +153,7 @@ describe('GigListScreen', () => {
 
   it('shows Past gigs and hides Upcoming gigs when the Past tab is selected', async () => {
     const ue = userEvent.setup();
-    render(
+    renderWithQuery(
       <GigListScreen
         organization={organization}
         user={user}
@@ -183,7 +183,7 @@ describe('GigListScreen', () => {
   });
 
   it('labels the tabs with the count of gigs in each timeframe', async () => {
-    render(
+    renderWithQuery(
       <GigListScreen
         organization={organization}
         user={user}
@@ -209,7 +209,7 @@ describe('GigListScreen', () => {
   it('opens the gig when the title cell is clicked (#27)', async () => {
     const ue = userEvent.setup();
     const onViewGig = vi.fn();
-    render(
+    renderWithQuery(
       <GigListScreen
         organization={organization}
         user={user}
@@ -241,7 +241,7 @@ describe('GigListScreen', () => {
     const moneyColumns = ['Cost of Staff', 'Revenue', 'Expenses', 'Profit'];
 
     const renderAs = (userRole: 'Admin' | 'Manager' | 'Staff' | 'Viewer') =>
-      render(
+      renderWithQuery(
         <GigListScreen
           organization={organization}
           user={user}
@@ -308,7 +308,7 @@ describe('GigListScreen', () => {
   describe('the row menu Delete action (#175)', () => {
     const openRowMenu = async (userRole: 'Admin' | 'Manager') => {
       const ue = userEvent.setup();
-      render(
+      renderWithQuery(
         <GigListScreen
           organization={organization}
           user={user}
@@ -386,7 +386,7 @@ describe('GigListScreen', () => {
     };
 
     const renderScreen = (viewMode: 'list' | 'calendar', onViewGig: (id: string, fromCalendar?: boolean) => void) =>
-      render(
+      renderWithQuery(
         <GigListScreen
           organization={organization}
           user={user}
@@ -437,7 +437,7 @@ describe('GigListScreen', () => {
       owner_organization_id: 'org-other',
       participants: [{ organization_id: 'org-1', role: 'Sound', inactive: true, organization: { id: 'org-1', name: 'Test Org' } }],
     }, pastGig]);
-    render(
+    renderWithQuery(
       <GigListScreen organization={organization} user={user} userRole="Admin" onBack={noop} onCreateGig={noop}
         onViewGig={noop} onEditGig={noop} onNavigateToDashboard={noop} onNavigateToGigs={noop}
         onNavigateToAssets={noop} onSwitchOrganization={noop} onLogout={noop} />
@@ -460,6 +460,7 @@ describe('GigListScreen: data loading (A10)', () => {
     vi.clearAllMocks();
     localStorage.clear();
     vi.mocked(getGigsForOrganization).mockResolvedValue([futureGig, pastGig]);
+    vi.mocked(checkAllConflictsForGigs).mockResolvedValue([]);
   });
 
   it('shows a load error, and Try Again loads the list', async () => {
