@@ -23,6 +23,13 @@ describe('edge function dependencies', () => {
     expect(loose).toEqual([]);
   });
 
+  // esm.sh rebuilds its output from time to time, so the same URL can return new bytes that no
+  // longer match deno.lock and the frozen check fails. npm tarballs never change once published.
+  it('takes no module from esm.sh', () => {
+    const specs = [...readFileSync(DEPS, 'utf8').matchAll(REMOTE)].map((m) => m[1]);
+    expect(specs.filter((s) => s.includes('esm.sh'))).toEqual([]);
+  });
+
   it('one supabase-js for every function', () => {
     const versions = new Set([...readFileSync(DEPS, 'utf8').matchAll(/supabase-js@([\d.]+)/g)].map((m) => m[1]));
     expect([...versions]).toEqual(['2.49.8']);
