@@ -35,7 +35,7 @@ Use this for a receipt that belongs to one gig, such as a van rental for that sh
 2. Click **Upload Receipt** and choose one file.
 3. Check the purchase and save it.
 
-Saving creates the purchase and makes each **expensed** item a cost of the gig: it's linked to the gig and added to the gig's **money out**, one row per item. Equipment you **depreciate** isn't a gig's cost, so it's saved as a purchase only.
+Saving creates the purchase and makes each **expensed** item a cost of the gig: it's linked to the gig and added to the gig's **money out**, one row per item, in the same save as the purchase. Equipment you **depreciate** isn't a gig's cost, so it's saved as a purchase only.
 
 ### 3. Equipment → Upload Invoice
 
@@ -75,6 +75,8 @@ The same screen appears for every scan, for **Add purchase**, and when you edit 
 The scan suggests which lines are equipment and suggests categories; for expensed items it picks the matching heading (a scanned "Audio" becomes **Small audio parts**). Change anything that's wrong.
 
 When you **edit** a saved purchase and the change also affects linked equipment or a gig's money out, GigWrangler lists those changes in **Confirm linked record updates** and asks you to **Confirm & Save**.
+
+An edit is saved all at once: the purchase, its lines, its equipment and the gig's money out. If any part is refused, for example because its year is filed, nothing changes.
 
 If you change a saved line's quantity, it also asks what to do with that line's equipment:
 

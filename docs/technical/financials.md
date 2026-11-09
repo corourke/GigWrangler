@@ -131,7 +131,7 @@ Each row is **money in** (`direction = 'in'`: fees, deposits, reimbursements) or
 
 Check constraints: `amount` is NULL only at `requested`, and a `paid` row has `paid_at` and `amount_settled`.
 
-**One row per payment.** A planned deposit and balance are two rows. An unplanned partial payment splits the row (`recordGigFinancialPayment`): the row becomes paid at what arrived, and a new row keeps the rest at the original stage. Alternatively the user settles for less, which lowers the agreed amount.
+**One row per payment.** A planned deposit and balance are two rows. An unplanned partial payment splits the row (`recordGigFinancialPayment`, one call to `record_gig_payment`, migration 20261108100000, B7): the row becomes paid at what arrived, and a new "{description} (remainder)" row keeps the rest at the original stage, both or neither. Alternatively the user settles for less, which lowers the agreed amount.
 
 **History.** Each write logs one `activity_log` event (`entity_type = 'financial'`): `financial.added`, `financial.updated` (with `field_changes`), `financial.paid`, `financial.removed`. The 2026-10 conversion logged `financial.converted` with the source rows in `context.sources` (migration `20261005000000_fin_direction_stage`, tested by `supabase/tests/conversion/`).
 
@@ -155,7 +155,7 @@ The assignment is the **plan** and the ledger row is the **actual**:
    - **Date:** the gig's start date in the gig's time zone. While owed, the row's year is that date, so finalizing for a gig in a filed tax year is refused.
 3. **Paid:** the same row moves to `paid`.
 
-"Undo Finalize" deletes the row.
+"Undo Finalize" deletes the row through `deleteGigFinancial`, so its receipt and history follow; if the delete is refused (a filed year, no permission), the assignment stays finalized (#374).
 
 ### 2.5 `tax_years`: filed years
 
@@ -212,11 +212,11 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 **How the rules are enforced** (migration `20261006000000`, tests in `supabase/tests/rls/40_tax_treatment.test.sql`):
 - **Check constraints** on the values and on "lines only".
 - **Default trigger:** a line written without a treatment is an expense. A row written with the old `row_type` `item` / `asset` (an app from before 10-07) is stored as `line`, taking its treatment from the old type when none is given (`asset` → depreciate, `item` → expense).
-- **Deferred constraint trigger** for "depreciate has equipment". The purchase functions (`create_purchase_transaction_v2`, and the older v1) insert a line before linking its units, so the check waits for the end of the transaction.
+- **Deferred constraint trigger** for "depreciate has equipment". The purchase functions (`create_purchase_transaction_v3` since B6, v2 before it, and the older v1) insert a line before linking its units, so the check waits for the end of the transaction.
 - **Triggers on both tables** for "never a gig expense": one on `gig_financials` (insert, or a change of `purchase_id`), and one on `purchases` (a change to depreciate).
 
 **Writers** (migration `20261007000000`, tests in `41_tax_treatment_writers.test.sql`):
-- `create_purchase_transaction_v2` stores each line's `tax_treatment` when given (and a unit's `recovery_period`; see below), and writes every line as `row_type = 'line'`. A line is tracked as equipment when `p_units` has entries for it (`line_index`). (v1, which took `track: true` and the old `row_type: 'asset'`, was dropped by 20261025000000.)
+- `create_purchase_transaction_v2` (and v3, which adds the gig link, B6) stores each line's `tax_treatment` when given (and a unit's `recovery_period`; see below), and writes every line as `row_type = 'line'`. A line is tracked as equipment when `p_units` has entries for it (`line_index`). (v1, which took `track: true` and the old `row_type: 'asset'`, was dropped by 20261025000000.)
 - `add_purchase_line_units(line, units)` (Admins and Managers, migration `20261017000000`, tests in `51_purchase_units.test.sql`) adds equipment records to a saved line and links the line to the first one if it wasn't tracked. It changes nothing else on the line, so it works on lines in a locked year. **Track as equipment** and the review screen use it. (`track_purchase_line_as_equipment`, which did this for one record before #183 D, was dropped by `20261029000000`, #325.)
 
 **Choosing the treatment** (UI, #133 step 2: `ReviewScannedDataDialog`, `src/utils/taxTreatment.ts`). Each line on the review screen has a **Track as equipment** checkbox (column "Equip") and an **Expense | Depreciate** switch with a (?) that shows:
@@ -247,7 +247,7 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 - **Defaults:** `equipment_categories.default_recovery_period`. The starter set (Cameron, 10-07): Computer, Networking, Software and Misc 5; Audio, Lighting, Video, Rigging and Truss, Staging, Power, Communications, Backline, Effects, Cases and Bags, Rack, Tools, and Vehicles and Trailers 7. An Admin can set a category to none ("Ask each time") in **Settings → Categories**.
 - **Filled in by the database** when depreciated equipment has none: when a line becomes depreciated, when equipment is created or linked for a depreciated line, and when the equipment's category changes. Expensing the line (or unlinking it) clears the period, unless another depreciated line still points at the record. `equipment_category_recovery_period(org, category)` reads the default (the starter set for an organization with no list yet).
 - **Asked by the app** when the category has no default: the Equipment details pop-up and the review screen won't save a depreciated line without one, and the equipment form shows a **Recovery period** picker on depreciated equipment.
-- **Writers:** `create_purchase_transaction_v2` takes `recovery_period` on the `p_units` entry and keeps it only if the line is depreciated. The review screen sets a period for equipment it creates while editing after the line is depreciated.
+- **Writers:** `create_purchase_transaction_v2` (v3 since B6) takes `recovery_period` on the `p_units` entry and keeps it only if the line is depreciated. The review screen sets a period for equipment it creates while editing after the line is depreciated.
 - **Filed years:** a blank period can be filled in; a set one can't change until the year is unlocked.
 - **Conversion:** depreciated equipment in unfiled years took its category's default. Filed years (2024, 2025) were left blank, to be filled in from the filed returns. `service_life` ("MACRS, 5" on 150 records, which the returns didn't use) was not carried over.
 
@@ -264,7 +264,7 @@ Files live in the `attachments` table and storage bucket, joined through `entity
 |---|---|---|
 | Financials → Purchases → **Scan invoices** (title-row button) | Header + lines; the units or lot of each line marked as equipment; the file as `purchase` attachment | Several files at once, read in the background two at a time, reviewed one at a time. RPC `create_purchase_transaction_v3` (#183, B6); on a gig, the expensed lines' gig expenses are saved in the same call. Editing a saved purchase saves through `update_purchase_v1`, all or nothing. |
 | Financials → Purchases → **Add purchase** (title-row button) | Same, without a file | Attach the file afterwards with **Attach Doc** on the report. |
-| Gig → Financials → **Upload Receipt** | Same, then each **expensed** line gets the gig's `gig_id` and its own money-out row (`createLedgerEntryForPurchaseLine`) | Scans one file. Depreciated lines are not the gig's cost (#130, fixed 10-06). |
+| Gig → Financials → **Upload Receipt** | Same; `create_purchase_transaction_v3` links each **expensed** line to the gig and adds its paid money-out row in the same transaction (B6) | Scans one file. Depreciated lines are not the gig's cost (#130, fixed 10-06). |
 | Assets list → **Upload Invoice** | Same as Scan invoices, for one file | Opens manual entry if the file can't be scanned. |
 | Purchases report → **Attach Doc** | A `purchase` attachment on the header | No scan. |
 | Import → **CSV Import** | Headers, lines, and each equipment line's units or lot; kit lines for rows that name a kit | One `create_purchase_transaction_v3` call per purchase (no gig), then the kit lines (#183 D). No gig links, no attachments. `source` 0 = header, 1 = equipment line (units or a lot), 2 = expense line. See `purchases-field-mapping.md`. |
