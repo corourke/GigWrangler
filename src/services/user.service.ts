@@ -186,3 +186,13 @@ export async function replaceTemporaryPassword(password: string): Promise<void> 
   }
   await supabase.auth.refreshSession();
 }
+
+/** Whether the signed-in user is a platform Admin (false without a session or on an error). */
+export async function isCurrentUserAdmin(): Promise<boolean> {
+  const supabase = getSupabase();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user?.id) return false;
+  const { data, error } = await supabase.rpc('user_is_admin', { user_uuid: session.user.id });
+  if (error) return false;
+  return data === true;
+}

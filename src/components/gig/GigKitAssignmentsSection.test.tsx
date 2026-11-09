@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import {screen, waitFor, fireEvent} from '@testing-library/react';
 import GigKitAssignmentsSection from './GigKitAssignmentsSection';
 import { renderWithQuery } from '../../test/renderWithQuery';
 import { getGigKits, updateGigKitAssignments } from '../../services/gig.service';
@@ -108,17 +108,17 @@ describe('GigKitAssignmentsSection', () => {
 
   it('renders without throwing errors', () => {
     expect(() => {
-      render(<GigKitAssignmentsSection {...mockProps} />);
+      renderWithQuery(<GigKitAssignmentsSection {...mockProps} />);
     }).not.toThrow();
   });
 
   it('displays loading state initially', () => {
-    render(<GigKitAssignmentsSection {...mockProps} />);
+    renderWithQuery(<GigKitAssignmentsSection {...mockProps} />);
     expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
 
   it('renders kit selector', async () => {
-    render(<GigKitAssignmentsSection {...mockProps} />);
+    renderWithQuery(<GigKitAssignmentsSection {...mockProps} />);
     
     await waitFor(() => {
       expect(screen.getByText('Select kit to assign...')).toBeInTheDocument();
@@ -126,7 +126,7 @@ describe('GigKitAssignmentsSection', () => {
   });
 
   it('does not render manual save button', async () => {
-    render(<GigKitAssignmentsSection {...mockProps} />);
+    renderWithQuery(<GigKitAssignmentsSection {...mockProps} />);
 
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: /save/i })).not.toBeInTheDocument();
@@ -153,7 +153,7 @@ describe('GigKitAssignmentsSection', () => {
         assetLabels: new Map([['asset-sm58', 'Shure SM58 (#M-12)']]) }],
     ]));
 
-    render(<GigKitAssignmentsSection {...mockProps} />);
+    renderWithQuery(<GigKitAssignmentsSection {...mockProps} />);
 
     await waitFor(() => {
       expect(screen.getByText('Overlapping equipment')).toBeInTheDocument();
@@ -182,7 +182,7 @@ describe('GigKitAssignmentsSection', () => {
       ['kit-2', { totalValue: 0, totalItems: 1, assetIds: new Set(['asset-par-can']), assetLabels: new Map() }],
     ]));
 
-    render(<GigKitAssignmentsSection {...mockProps} />);
+    renderWithQuery(<GigKitAssignmentsSection {...mockProps} />);
 
     await waitFor(() => {
       expect(screen.getByText('Mic Case')).toBeInTheDocument();
@@ -207,7 +207,7 @@ describe('GigKitAssignmentsSection', () => {
       warnings: [],
     });
 
-    render(<GigKitAssignmentsSection {...mockProps} gigStart="2024-02-01T00:00:00Z" gigEnd="2024-02-01T04:00:00Z" />);
+    renderWithQuery(<GigKitAssignmentsSection {...mockProps} gigStart="2024-02-01T00:00:00Z" gigEnd="2024-02-01T04:00:00Z" />);
 
     await waitFor(() => {
       expect(checkEquipmentConflicts).toHaveBeenCalledWith('test-gig-id', '2024-02-01T00:00:00Z', '2024-02-01T04:00:00Z', undefined, 'current-org-id', undefined, undefined);
@@ -219,7 +219,7 @@ describe('GigKitAssignmentsSection', () => {
   });
 
   it('does not check for cross-gig conflicts when gig dates are not yet known', async () => {
-    render(<GigKitAssignmentsSection {...mockProps} />);
+    renderWithQuery(<GigKitAssignmentsSection {...mockProps} />);
 
     await waitFor(() => {
       expect(screen.getByText('Select kit to assign...')).toBeInTheDocument();
@@ -247,7 +247,7 @@ describe('GigKitAssignmentsSection deletes only rows it loaded (#92)', () => {
   });
 
   it('passes the rows it loaded, so a removed one is deleted and rows added elsewhere are not', async () => {
-    const { container } = render(<GigKitAssignmentsSection {...mockProps} />);
+    const { container } = renderWithQuery(<GigKitAssignmentsSection {...mockProps} />);
     await waitFor(() => expect(screen.getByText('Another Kit')).toBeInTheDocument());
 
     fireEvent.click(removeButtons(container)[0]);
@@ -261,7 +261,7 @@ describe('GigKitAssignmentsSection deletes only rows it loaded (#92)', () => {
     vi.mocked(getGigKits).mockResolvedValue([
       { id: 'assignment-1', kit_id: 'kit-1', notes: '', kit: kit('kit-1', 'Test Kit') },
     ] as any);
-    const { container } = render(<GigKitAssignmentsSection {...mockProps} />);
+    const { container } = renderWithQuery(<GigKitAssignmentsSection {...mockProps} />);
     await waitFor(() => expect(screen.getByText('Test Kit')).toBeInTheDocument());
 
     fireEvent.change(screen.getByLabelText('Assign kit'), { target: { value: 'kit-2' } });
