@@ -1,11 +1,14 @@
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import { describe, it, expect, vi } from 'vitest'
-import { render, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import KitScreen from './KitScreen'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
 import { getKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle, updateKit } from '../services/kit.service'
 import { getAssets } from '../services/asset.service'
 import { getItems, getContainerPieces } from '../services/equipmentItem.service'
+
+
 
 // Mock all dependencies
 vi.mock('../services/kit.service', () => ({
