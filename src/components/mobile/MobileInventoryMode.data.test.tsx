@@ -106,6 +106,7 @@ describe('MobileInventoryMode: loading the packing list', () => {
 
   it('coming back online does not reload the list by itself', async () => {
     setOnline(false)
+    await act(async () => { window.dispatchEvent(new Event('offline')) })
     render(<MobileInventoryMode gigId="g1" onSelectGig={vi.fn()} />)
     expect(await screen.findByText('Cached Case g1')).toBeInTheDocument()
     setOnline(true)
