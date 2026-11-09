@@ -1,6 +1,7 @@
+import { renderWithQuery as render } from '../../../test/renderWithQuery';
 import { describe, it, expect, vi } from 'vitest';
 import { useState } from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import UnitOrLotSection, { type FormUnitRow, type UnitOrLot } from './UnitOrLotSection';
 import ItemSection from './ItemSection';
