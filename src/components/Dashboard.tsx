@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import AppHeader from './AppHeader';
@@ -11,8 +12,8 @@ import {
 } from 'lucide-react';
 import { Organization, User, UserRole, ActivityLogEntry } from '../utils/supabase/types';
 import {GIG_STATUS_CONFIG } from '../utils/supabase/constants';
-import { createClient } from '../utils/supabase/client';
-import { handleFunctionsError } from '../utils/api-error-utils';
+import { getDashboardStats } from '../services/dashboard.service';
+import { queryKeys } from '../lib/queryKeys';
 import GigTable from './tables/GigTable';
 import { PageHeader } from './layout/PageHeader';
 import { getRecentActivity } from '../services/activityLog.service';
@@ -90,57 +91,30 @@ export default function Dashboard({
   onEditProfile,
   onNavigateToGigEdit,
 }: DashboardProps) {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [recentActivity, setRecentActivity] = useState<ActivityLogEntry[]>([]);
-  const [activityLoading, setActivityLoading] = useState(false);
+  // A10: the figures and the recent activity come from react-query (a revisit shows the cached
+  // figures at once and refreshes them).
+  const statsQuery = useQuery({
+    queryKey: queryKeys.dashboard(organization.id),
+    queryFn: () => getDashboardStats(organization.id) as Promise<DashboardStats>,
+    staleTime: 0,
+  });
+  const activityQuery = useQuery({
+    queryKey: queryKeys.recentActivity(),
+    queryFn: () => getRecentActivity({ eventTypes: ['gig.status_changed', 'gig.rescheduled', 'gig.renamed', 'participant.added', 'participant.removed'] }),
+    staleTime: 0,
+  });
+  const stats = statsQuery.data ?? null;
+  const loading = statsQuery.isPending;
+  const error = statsQuery.error ? ((statsQuery.error as Error).message || 'Failed to load dashboard') : null;
+  useEffect(() => {
+    if (statsQuery.error) console.error('Error fetching dashboard stats:', statsQuery.error);
+  }, [statsQuery.error]);
+  const { refetch: refetchStats } = statsQuery;
+  const fetchDashboardStats = useCallback(() => { void refetchStats(); }, [refetchStats]);
+  const recentActivity: ActivityLogEntry[] = activityQuery.data ?? [];
+  const activityLoading = activityQuery.isPending;
   // Money figures are Admin/Manager only; the server returns 0 for everyone else.
   const showFinancials = canManage(userRole);
-
-  const fetchDashboardStats = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        console.error('Dashboard: No active session found');
-        setError('Not authenticated. Please sign in again.');
-        setLoading(false);
-        return;
-      }
-
-      const { data, error: invokeError } = await supabase.functions.invoke(`server/organizations/${organization.id}/dashboard`, {
-        method: 'GET'
-      });
-
-      if (invokeError) {
-        await handleFunctionsError(invokeError, 'fetch dashboard stats');
-      }
-
-      setStats(data);
-    } catch (err: any) {
-      console.error('Error fetching dashboard stats:', err);
-      setError(err.message || 'Failed to load dashboard');
-    } finally {
-      setLoading(false);
-    }
-  }, [organization.id]);
-
-  useEffect(() => {
-    fetchDashboardStats();
-  }, [fetchDashboardStats]);
-
-  useEffect(() => {
-    setActivityLoading(true);
-    getRecentActivity({ eventTypes: ['gig.status_changed', 'gig.rescheduled', 'gig.renamed', 'participant.added', 'participant.removed'] })
-      .then(setRecentActivity)
-      .catch(() => {})
-      .finally(() => setActivityLoading(false));
-  }, []);
 
   const formatCurrency = (value: number) => {
     if (value >= 1000000) {
