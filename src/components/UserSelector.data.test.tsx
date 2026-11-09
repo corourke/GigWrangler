@@ -89,3 +89,22 @@ describe('UserSelector: click then type', () => {
     expect(screen.getByText('Avery Tester')).toBeInTheDocument();
   });
 });
+
+// Round D: after Escape the box keeps focus; clicking it opens the results again.
+describe('UserSelector: reopen on click', () => {
+  it('shows the results again when the box is clicked after Escape', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    vi.mocked(searchUsers).mockResolvedValue([person('p1', 'Avery')]);
+    render(<UserSelector onSelect={vi.fn()} />);
+    const input = screen.getByPlaceholderText('Search for user...');
+    await user.click(input);
+    await user.type(input, 'av', { skipClick: true });
+    expect(await screen.findByText('Avery Tester')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByText('Avery Tester')).not.toBeInTheDocument());
+    expect(input).toHaveFocus();
+    await user.click(input);
+    expect(await screen.findByText('Avery Tester')).toBeInTheDocument();
+  });
+});
