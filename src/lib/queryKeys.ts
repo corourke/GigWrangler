@@ -51,6 +51,10 @@ export const queryKeys = {
   gigProjectedStaff: (gigId: string) => ['gigProjectedStaff', gigId] as const,
   purchases: (orgId: string) => ['purchases', orgId] as const,
 
+  // ── Import (A10, Engineer F) ──
+  /** The items and kit names an assets file is matched against: under assets(orgId), so equipment changes reach it. */
+  importCatalog: (orgId: string) => ['assets', orgId, 'importCatalog'] as const,
+
   // Gig participants
   gigParticipantContacts: (gigId: string, orgId: string) => ['gigParticipantContacts', gigId, orgId] as const,
 
@@ -81,6 +85,23 @@ export function invalidateAfterGigChange(
 export function invalidateAfterGigListChange(queryClient: QueryClient, organizationId: string) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.gigs(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
+  ]);
+}
+
+// ── Import (A10, Engineer F) ──
+
+/**
+ * After an assets file's purchases are imported: equipment (with the items and kits the next file
+ * is matched against), kits, purchases, the tax report and the dashboard.
+ */
+export function invalidateAfterAssetImport(queryClient: QueryClient, organizationId: string) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.assets(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.kits(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.purchases(organizationId) }),
+    // The Financials tax report (queryKeys.taxReport, A10 Financials).
+    queryClient.invalidateQueries({ queryKey: ['taxReport', organizationId] }),
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
   ]);
 }
