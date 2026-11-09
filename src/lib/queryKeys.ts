@@ -173,6 +173,13 @@ export const queryKeys = {
   mobileGig: (gigId: string) => ['gig', gigId, 'mobile'] as const,
   myUpcomingAssignments: (userId: string, orgId: string) => ['myUpcomingAssignments', userId, orgId] as const,
   myDevices: (userId: string) => ['myDevices', userId] as const,
+
+  // ── Mobile inventory (A10, Engineer O) ──
+  // Inventory Mode's packing list is local-first: the device copy, then the server's.
+  packingList: (gigId: string) => ['packingList', gigId] as const,
+  gigTitleOnDevice: (gigId: string) => ['packingList', gigId, 'title'] as const,
+  orgIndex: (orgId: string) => ['orgIndex', orgId] as const,
+  orgMemberNames: (orgId: string) => ['team', orgId, 'memberNames'] as const,
 } as const;
 
 // ── Organizations and settings (A10, Engineer O) ──

@@ -6,7 +6,6 @@
  * screens' calls into services and removes them here; the last one leaves this empty.
  */
 export const DB_ACCESS_ALLOWLIST = [
-  'src/hooks/useMobileLock.ts',
 ];
 
 /**
