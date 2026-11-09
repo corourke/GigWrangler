@@ -19,6 +19,7 @@ import { useCalendarIntegrationData } from './useCalendarIntegrationData';
 
 const org = vi.hoisted(() => ({
   getOrganizationEditPermissions: vi.fn(),
+  hasSignedInSession: vi.fn(),
   getAdminOrganizationsOverview: vi.fn(),
   deleteOrganization: vi.fn(),
   createOrganization: vi.fn(),
@@ -180,8 +181,10 @@ describe('useOrganizationSearch (debounced)', () => {
   it('searches only the settled term, under organizationSearch(term, type)', async () => {
     org.searchOrganizations.mockResolvedValue([{ id: 'o1' }]);
     const { result, rerender } = renderHook(({ q }) => useOrganizationSearch(q, { type: 'Venue', delayMs: 20 }), {
-      wrapper, initialProps: { q: 'ac' },
+      wrapper, initialProps: { q: '' },
     });
+    expect(result.current.isSearching).toBe(false);
+    rerender({ q: 'ac' });
     expect(result.current.isSearching).toBe(true);
     rerender({ q: 'acme' });
     await waitFor(() => expect(result.current.results).toHaveLength(1));

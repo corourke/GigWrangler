@@ -44,4 +44,53 @@ export const queryKeys = {
 
   // Generic notification feed (issue #52) — powers the notification bell.
   notifications: () => ['notifications'] as const,
+  // --- Organizations and settings (A10, Engineer O) ---
+  organizationPermissions: (orgId: string, userId: string) => ['organizationPermissions', orgId, userId] as const,
+  adminOrganizations: (userId: string) => ['adminOrganizations', userId] as const,
+  organizationSearch: (search: string, type?: string) => ['organizationSearch', search, type ?? null] as const,
+  userSelectorSearch: (search: string, orgIds?: string[]) => ['userSelectorSearch', search, orgIds ?? null] as const,
+  myPendingAccessRequests: (userId: string) => ['myPendingAccessRequests', userId] as const,
+  emailConfirmed: (userId: string) => ['emailConfirmed', userId] as const,
+  twoFactorStatus: () => ['twoFactorStatus'] as const,
+  calendarSettings: (userId: string) => ['calendarSettings', userId] as const,
+  googleCalendars: (userId: string) => ['googleCalendars', userId] as const,
+  calendarSyncData: (userId: string) => ['calendarSyncData', userId] as const,
+} as const;
+
+/** One cache refresh: the key prefix, and how (react-query invalidateQueries filters). */
+export interface Invalidation {
+  queryKey: readonly unknown[];
+  exact?: boolean;
+  refetchType?: 'active' | 'inactive' | 'all' | 'none';
+}
+
+/**
+ * Invalidation map — Organizations and settings (A10, Engineer O): which caches each write
+ * refreshes. Hooks pass every entry to queryClient.invalidateQueries.
+ */
+export const orgSettingsInvalidations = {
+  /** Create or edit: the edit permissions, the admin list and any open org search. */
+  organizationSaved: (orgId?: string): Invalidation[] => [
+    { queryKey: orgId ? ['organizationPermissions', orgId] : ['organizationPermissions'] },
+    { queryKey: ['adminOrganizations'] },
+    { queryKey: ['organizationSearch'] },
+  ],
+  organizationDeleted: (): Invalidation[] => [
+    { queryKey: ['adminOrganizations'] },
+    { queryKey: ['organizationSearch'] },
+  ],
+  /** Only the team list: the removed member's own detail would fail to refetch. */
+  memberRemoved: (orgId: string): Invalidation[] => [{ queryKey: queryKeys.team(orgId), exact: true }],
+  /** The request is added to the cache on success; mark it stale so the next visit refetches. */
+  accessRequested: (userId: string): Invalidation[] => [
+    { queryKey: queryKeys.myPendingAccessRequests(userId), refetchType: 'none' },
+  ],
+  twoFactorChanged: (): Invalidation[] => [{ queryKey: queryKeys.twoFactorStatus() }],
+  /** Turning calendar sync on reloads the calendar list and the sync status. */
+  calendarEnabled: (userId: string): Invalidation[] => [
+    { queryKey: queryKeys.googleCalendars(userId) },
+    { queryKey: queryKeys.calendarSyncData(userId) },
+  ],
+  /** After a sync run (or the refresh button): the sync status. */
+  calendarSynced: (userId: string): Invalidation[] => [{ queryKey: queryKeys.calendarSyncData(userId) }],
 } as const;

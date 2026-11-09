@@ -10,7 +10,7 @@
  * - Displays organization name and city.
  * - Supports filtering by organization type.
  */
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { cn } from './ui/utils';
@@ -23,7 +23,7 @@ import {
   OrganizationRole
 } from '../utils/supabase/types';
 import { ORG_ROLE_CONFIG } from '../utils/supabase/constants';
-import { searchOrganizations } from '../services/organization.service';
+import { useOrganizationSearch } from './useOrganizationSelectorData';
 import QuickCreateOrganizationDialog from './QuickCreateOrganizationDialog';
 
 interface OrganizationSelectorProps {
@@ -48,48 +48,14 @@ export default function OrganizationSelector({
 }: OrganizationSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<Organization[]>([]);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    let ignore = false;
-
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
-
-    setIsSearching(true);
-
-    const debounceTimer = setTimeout(async () => {
-      try {
-        const orgs = await searchOrganizations({
-          search: searchQuery,
-          type: organizationRole,
-        });
-        if (!ignore) {
-          setSearchResults(orgs || []);
-        }
-      } catch (error) {
-        console.error('Error searching organizations:', error);
-        if (!ignore) {
-          setSearchResults([]);
-        }
-      } finally {
-        if (!ignore) {
-          setIsSearching(false);
-        }
-      }
-    }, 1000);
-
-    return () => {
-      ignore = true;
-      clearTimeout(debounceTimer);
-    };
-  }, [searchQuery, organizationRole]);
+  // Searches once typing has settled for a second; a failed search shows no results.
+  const { results: searchResults, isSearching } = useOrganizationSearch(searchQuery, {
+    type: organizationRole,
+    delayMs: 1000,
+  });
 
   const handleSearchInputChange = (query: string) => {
     setSearchQuery(query);
@@ -102,7 +68,6 @@ export default function OrganizationSelector({
     onSelect(org);
     setIsOpen(false);
     setSearchQuery('');
-    setSearchResults([]);
   };
 
   const handleRemove = () => {
@@ -112,7 +77,6 @@ export default function OrganizationSelector({
   const handleOrganizationCreated = (org: Organization) => {
     onSelect(org);
     setSearchQuery('');
-    setSearchResults([]);
   };
 
   const compactIconRole = organizationRole || selectedOrganization?.roles?.[0];
