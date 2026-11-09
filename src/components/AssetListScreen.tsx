@@ -1,12 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {Package, Plus, Search, Loader2, AlertCircle, Upload, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { deleteAsset, duplicateAsset, updateAsset } from '../services/asset.service';
-import { getItems, getContainerPieces, type EquipmentItemWithRecords } from '../services/equipmentItem.service';
-import { itemMatchesSearch, type ContainerPieces } from '../utils/equipmentItems';
+import { itemMatchesSearch } from '../utils/equipmentItems';
+import { useAssetListData } from './asset/useAssetListData';
 import ItemsTable from './equipment/ItemsTable';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
-import { getAssetTrackingSummary } from '../services/inventoryManagement.service';
 import { scanInvoice } from '../services/purchase.service';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -63,94 +61,60 @@ export default function AssetListScreen({
   onEditProfile,
 }: AssetListScreenProps) {
   // Items (what it is), each with its units and lots (what we own) — #182
-  const [items, setItems] = useState<EquipmentItemWithRecords[]>([]);
-  const [containerPieces, setContainerPieces] = useState<ContainerPieces>({ all: new Map(), active: new Map() });
+  const {
+    items,
+    containerPieces,
+    trackingSummary: assetTrackingSummary,
+    isLoading,
+    error,
+    reload,
+    afterAssetChange,
+    updateAsset,
+    deleteAsset,
+    duplicateAsset,
+  } = useAssetListData(organization.id);
   const [view, setView] = useState<'items' | 'records'>('items');
   const allAssets = useMemo<DbAsset[]>(() => items.flatMap((i) => i.records), [items]);
   const [filteredAssets, setFilteredAssets] = useState<DbAsset[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [deletedAssetIds, setDeletedAssetIds] = useState<Set<string>>(new Set());
   const [isScanning, setIsScanning] = useState(false);
   const [scannedData, setScannedData] = useState<any>(null);
   const [scannedFile, setScannedFile] = useState<File | null>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
-  const [assetTrackingSummary, setAssetTrackingSummary] = useState<Map<string, { status: string; location?: string | null; gigTitle?: string | null }>>(new Map());
   const [trackingStatusFilter, setTrackingStatusFilter] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const refresh = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const [loadedItems, trackingSummary] = await Promise.all([
-        getItems(organization.id),
-        getAssetTrackingSummary(organization.id),
-      ]);
-      setItems(loadedItems);
-      setAssetTrackingSummary(trackingSummary);
-      setContainerPieces(await getContainerPieces(organization.id, loadedItems));
-    } catch (err: any) {
-      setError(err.message || 'Failed to load equipment');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [organization.id]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
   const handleUpdateAsset = async (id: string, updates: Partial<DbAsset>) => {
     try {
-      await updateAsset(id, updates);
-      setItems(prev => prev.map(i => ({ ...i, records: i.records.map(a => a.id === id ? { ...a, ...updates } : a) })));
+      await updateAsset({ id, updates });
       toast.success('Asset updated');
     } catch (err: any) {
+      // The hook reloads the list.
       toast.error(err.message || 'Failed to update asset');
-      refresh();
     }
   };
 
   const handleDeleteAsset = useCallback(async (assetId: string) => {
     if (!confirm('Are you sure you want to delete this asset?')) return;
 
-    // Optimistically remove the asset from the UI immediately
-    setDeletedAssetIds(prev => new Set(prev).add(assetId));
-
+    // The hook removes the asset from the list at once, puts it back if the delete fails,
+    // and reloads the list either way.
     try {
       await deleteAsset(assetId);
       toast.success('Asset deleted successfully');
-      // Refresh to ensure consistency with server state and clear the deleted set
-      refresh();
-      setDeletedAssetIds(prev => {
-        const next = new Set(prev);
-        next.delete(assetId);
-        return next;
-      });
     } catch (error: any) {
       console.error('Error deleting asset:', error);
       toast.error(error.message || 'Failed to delete asset');
-      // Restore the asset in the UI if deletion failed
-      setDeletedAssetIds(prev => {
-        const next = new Set(prev);
-        next.delete(assetId);
-        return next;
-      });
-      // Refresh to ensure consistency
-      refresh();
     }
-  }, [refresh]);
+  }, [deleteAsset]);
 
   const handleDuplicateAsset = useCallback(async (assetId: string) => {
     try {
       await duplicateAsset(assetId);
       toast.success('Asset duplicated successfully');
-      refresh();
     } catch (err: any) {
       toast.error(err.message || 'Failed to duplicate asset');
     }
-  }, [refresh]);
+  }, [duplicateAsset]);
 
   const handleUploadInvoice = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -181,7 +145,7 @@ export default function AssetListScreen({
   };
 
   const activeAssets = useMemo(() => {
-    let filtered = allAssets.filter(asset => !deletedAssetIds.has(asset.id));
+    let filtered = allAssets;
     
     // Apply tracking status filter
     if (trackingStatusFilter !== 'All') {
@@ -208,7 +172,7 @@ export default function AssetListScreen({
     }
 
     return filtered;
-  }, [allAssets, deletedAssetIds, trackingStatusFilter, assetTrackingSummary, searchQuery]);
+  }, [allAssets, trackingStatusFilter, assetTrackingSummary, searchQuery]);
 
   // By item: an item shows when it matches the search (its own fields or any
   // record's serial, tag or vendor) and, with a tracking filter, when any of
@@ -216,10 +180,9 @@ export default function AssetListScreen({
   const visibleItems = useMemo(() => {
     const visibleIds = new Set(activeAssets.map((a) => a.id));
     return items
-      .map((i) => ({ ...i, records: i.records.filter((r) => !deletedAssetIds.has(r.id)) }))
       .filter((i) => itemMatchesSearch(i, i.records, searchQuery))
       .filter((i) => trackingStatusFilter === 'All' || i.records.some((r) => visibleIds.has(r.id)));
-  }, [items, activeAssets, deletedAssetIds, searchQuery, trackingStatusFilter]);
+  }, [items, activeAssets, searchQuery, trackingStatusFilter]);
 
   const categories = useMemo(() => 
     Array.from(new Set(allAssets.map(a => a.category).filter(Boolean))),
@@ -521,7 +484,7 @@ export default function AssetListScreen({
               <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
               <h3 className="text-gray-900 mb-2">Error loading equipment</h3>
               <p className="text-gray-600 mb-6">{error}</p>
-              <Button onClick={refresh} variant="outline">
+              <Button onClick={reload} variant="outline">
                 Try Again
               </Button>
             </div>
@@ -607,7 +570,7 @@ export default function AssetListScreen({
         scannedData={scannedData}
         file={scannedFile}
         onSuccess={() => {
-          refresh();
+          afterAssetChange();
         }}
       />
     </div>
