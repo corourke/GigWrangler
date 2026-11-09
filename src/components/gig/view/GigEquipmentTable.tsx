@@ -1,20 +1,8 @@
-import { useEffect, useState } from 'react';
-import { getGigKits } from '../../../services/gig.service';
-import { getKitsFlattenedSummary } from '../../../services/kit.service';
-import { getPackingListReport } from '../../../services/inventoryManagement.service';
-import { kitLocationSummary, kitStatusSummary, summarizeKitPacking, type CellSummary, type KitPackingSummary } from '../../../utils/packingSummary';
+import { kitLocationSummary, kitStatusSummary, type CellSummary } from '../../../utils/packingSummary';
+import { useGigEquipmentTableData, type KitRow } from './useGigEquipmentTableData';
 import ColumnsPicker from './ColumnsPicker';
 import GigSection from './GigSection';
 import { useColumnVisibility, type ColumnDef } from './useColumnVisibility';
-
-interface KitRow {
-  id: string;
-  kit_id?: string;
-  notes?: string | null;
-  /** Added on the phone at pack-out (#185). */
-  added_at_pack_out?: boolean;
-  kit?: { id?: string; name?: string; tag_number?: string | null; category?: string | null; rental_value?: number | string | null } | null;
-}
 
 interface GigEquipmentTableProps {
   gigId: string;
@@ -38,8 +26,6 @@ function SummaryCell({ summary, loading }: { summary: CellSummary; loading: bool
 
 /** Read-only list of the organization's kits assigned to this gig (#12). */
 export default function GigEquipmentTable({ gigId, organizationId, showAmounts }: GigEquipmentTableProps) {
-  const [rows, setRows] = useState<KitRow[] | null>(null);
-  const [holds, setHolds] = useState<Map<string, number>>(new Map());
   const columns: ColumnDef[] = [
     { key: 'name', label: 'Kit', required: true },
     { key: 'tag', label: 'Tag #' },
@@ -56,34 +42,8 @@ export default function GigEquipmentTable({ gigId, organizationId, showAmounts }
   // Status and Location count what the packing list counts, from the same report; read only
   // once one of them is shown, and once per gig.
   const wantPacking = cols.isVisible('status') || cols.isVisible('location');
-  const packingKey = `${organizationId}:${gigId}`;
-  const [packing, setPacking] = useState<{ key: string; kits: Map<string, KitPackingSummary> } | null>(null);
-  const packingLoaded = packing?.key === packingKey;
-  useEffect(() => {
-    if (!wantPacking || packingLoaded) return;
-    let cancelled = false;
-    getPackingListReport(organizationId, gigId)
-      .then((data) => { if (!cancelled) setPacking({ key: packingKey, kits: summarizeKitPacking(data) }); })
-      .catch(() => { if (!cancelled) setPacking({ key: packingKey, kits: new Map() }); });
-    return () => { cancelled = true; };
-  }, [wantPacking, packingLoaded, packingKey, organizationId, gigId]);
-  const kitPacking = (r: KitRow) => (packing?.key === packingKey ? packing.kits.get(r.kit_id ?? r.kit?.id ?? '') : undefined);
-
-  useEffect(() => {
-    let cancelled = false;
-    getGigKits(gigId, organizationId)
-      .then((data: KitRow[]) => {
-        if (cancelled) return;
-        setRows(data);
-        // How many pieces each kit holds, "any" lines included (#185).
-        const kitIds = data.map((r) => r.kit_id ?? r.kit?.id).filter((id): id is string => !!id);
-        getKitsFlattenedSummary(kitIds)
-          .then((summary) => { if (!cancelled) setHolds(new Map([...summary].map(([id, s]) => [id, s.totalItems]))); })
-          .catch(() => {});
-      })
-      .catch(() => { if (!cancelled) setRows([]); });
-    return () => { cancelled = true; };
-  }, [gigId, organizationId]);
+  const { rows, holds, packing } = useGigEquipmentTableData(gigId, organizationId, wantPacking);
+  const kitPacking = (r: KitRow) => packing?.get(r.kit_id ?? r.kit?.id ?? '');
 
   return (
     <GigSection title="Equipment" summary={rows ? `${rows.length} kit${rows.length === 1 ? '' : 's'}` : undefined} actions={<ColumnsPicker columns={columns} {...cols} />}>
@@ -113,8 +73,8 @@ export default function GigEquipmentTable({ gigId, organizationId, showAmounts }
                   const n = holds.get(r.kit_id ?? r.kit?.id ?? '');
                   return <td className="py-1.5 pr-3 tabular-nums text-muted-foreground">{n != null ? `${n} piece${n === 1 ? '' : 's'}` : ''}</td>;
                 })()}
-                {cols.isVisible('status') && <SummaryCell summary={kitStatusSummary(kitPacking(r))} loading={!packingLoaded} />}
-                {cols.isVisible('location') && <SummaryCell summary={kitLocationSummary(kitPacking(r))} loading={!packingLoaded} />}
+                {cols.isVisible('status') && <SummaryCell summary={kitStatusSummary(kitPacking(r))} loading={!packing} />}
+                {cols.isVisible('location') && <SummaryCell summary={kitLocationSummary(kitPacking(r))} loading={!packing} />}
                 {showAmounts && cols.isVisible('value') && (
                   <td className="py-1.5 pr-3 text-right tabular-nums">
                     {r.kit?.rental_value != null ? `$${Number(r.kit.rental_value).toFixed(2)}` : '-'}

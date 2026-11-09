@@ -46,7 +46,7 @@ function AppContent() {
   }, []);
 
   const { user, selectedOrganization, setUser } = useAuth();
-  const { isLocked, lock, unlock } = useMobileLock(user?.email ?? undefined, isMobile);
+  const { isLocked, lock, unlock } = useMobileLock(user?.email ?? undefined, isMobile, user?.id);
   const navigate = useNavigate();
   const nav = useNav();
 

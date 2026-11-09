@@ -6,8 +6,8 @@ import { cn } from '../ui/utils';
 import { SCHEDULE_DEFAULT_ITEMS } from '../../utils/supabase/constants';
 import { detectScheduleConflicts } from '../../utils/scheduleConflicts';
 import { formatForDateTimeInput, parseLocalToUTC } from '../../utils/dateUtils';
-import { getGigScheduleEntries, updateGigScheduleEntries } from '../../services/gigSchedule.service';
-import { getGigParticipants } from '../../services/gig.service';
+import { updateGigScheduleEntries } from '../../services/gigSchedule.service';
+import { useGigScheduleData } from './useGigScheduleData';
 import { useReportToEditSession } from '../../utils/hooks/editSession';
 import type { ScheduleTimes } from '../../utils/scheduleWindow';
 import type { GigScheduleEntry } from '../../utils/supabase/types';
@@ -164,30 +164,29 @@ export default function GigScheduleEditor({ gigId, gigStart, timeZone, actPartic
 
   useReportToEditSession(saving ? 'saving' : saveFailed ? 'error' : 'idle', flush);
 
+  // A10: the rows and the gig's acts come from react-query; the rows seed the editor once per load.
+  const { entries, entriesLoadedAt, participants, error: loadError } = useGigScheduleData(gigId);
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    getGigScheduleEntries(gigId)
-      .then((data) => {
-        if (cancelled) return;
-        const tz = timeZoneRef.current;
-        loadedIdsRef.current = data.map((e) => e.id);
-        setAll(data.length ? data.map((e) => entryToRow(e, tz)) : SCHEDULE_DEFAULT_ITEMS.map((item) => blankRow(gigDate, item)));
-      })
-      .catch((err: any) => toast.error(err.message || 'Failed to load schedule'))
-      .finally(() => { if (!cancelled) setLoading(false); });
-    getGigParticipants(gigId)
-      .then((participants) => {
-        if (cancelled) return;
-        setActs(participants.filter((p: any) => p.role === 'Act').map((p: any) => ({ id: p.id, organization: p.organization })));
-      })
-      .catch(() => { /* keep the acts passed in */ });
-    return () => {
-      cancelled = true;
-      flushRef.current();
-    };
+    if (!entries) return;
+    const tz = timeZoneRef.current;
+    loadedIdsRef.current = entries.map((e) => e.id);
+    setAll(entries.length ? entries.map((e) => entryToRow(e, tz)) : SCHEDULE_DEFAULT_ITEMS.map((item) => blankRow(gigDate, item)));
+    setLoading(false);
     // gigDate only seeds a new gig's default rows when the schedule loads.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per load (dataUpdatedAt)
+  }, [entriesLoadedAt]);
+  useEffect(() => {
+    if (!loadError) return;
+    toast.error(loadError);
+    setLoading(false);
+  }, [loadError]);
+  useEffect(() => {
+    if (participants) setActs(participants.filter((p: any) => p.role === 'Act').map((p: any) => ({ id: p.id, organization: p.organization })));
+  }, [participants]);
+  // Another gig loads afresh; leaving one (or the page) saves what was typed.
+  useEffect(() => {
+    setLoading(true);
+    return () => { flushRef.current(); };
   }, [gigId]);
 
   // A new time zone keeps each row's moment and shows it in the new zone.

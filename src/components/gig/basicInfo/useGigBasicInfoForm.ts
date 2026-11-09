@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,6 +8,8 @@ import { useAutoSave } from '../../../utils/hooks/useAutoSave';
 import { GIG_STATUS_CONFIG } from '../../../utils/supabase/constants';
 import { isGigAllDay } from '../../../utils/dateUtils';
 import type { Gig, GigStatus } from '../../../utils/supabase/types';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '../../../lib/queryKeys';
 
 export const basicInfoSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters'),
@@ -60,7 +62,17 @@ function toFormData(gig: Gig): BasicInfoFormData {
  * form without fetching it again.
  */
 export function useGigBasicInfoForm(gigId?: string, loaded?: Gig) {
-  const [isLoading, setIsLoading] = useState(!!gigId && !loaded);
+  // A10: with no gig passed in, read it for the form, fresh each open (it seeds an autosaving
+  // form, so never from a cached copy); the form seeds once per load.
+  const fetchGig = !!gigId && !loaded;
+  const gigQuery = useQuery({
+    queryKey: queryKeys.gigForm(gigId ?? 'new'),
+    queryFn: () => getGig(gigId as string) as Promise<Gig>,
+    enabled: fetchGig,
+    staleTime: 0,
+    gcTime: 0,
+  });
+  const isLoading = fetchGig && gigQuery.isPending && !gigQuery.isError;
 
   const form = useForm<BasicInfoFormData>({
     resolver: zodResolver(basicInfoSchema),
@@ -118,20 +130,14 @@ export function useGigBasicInfoForm(gigId?: string, loaded?: Gig) {
   }, [formValues, isDirty, errors, triggerSave, gigId]);
 
   useEffect(() => {
-    if (!gigId || loaded) return;
-    let cancelled = false;
-    setIsLoading(true);
-    getGig(gigId)
-      .then((gig) => { if (!cancelled) reset(toFormData(gig)); })
-      .catch((error: any) => {
-        console.error('Error loading gig data:', error);
-        toast.error(error.message || 'Failed to load gig data');
-      })
-      .finally(() => { if (!cancelled) setIsLoading(false); });
-    return () => { cancelled = true; };
-    // A gig passed in only seeds the form; later changes to it come from this form's own saves.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gigId, reset]);
+    if (fetchGig && gigQuery.data) reset(toFormData(gigQuery.data));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per load (dataUpdatedAt); a gig passed in only seeds the form
+  }, [gigQuery.dataUpdatedAt]);
+  useEffect(() => {
+    if (!gigQuery.error) return;
+    console.error('Error loading gig data:', gigQuery.error);
+    toast.error((gigQuery.error as Error).message || 'Failed to load gig data');
+  }, [gigQuery.error]);
 
   return { form, isLoading, saveState, flushAsync };
 }
