@@ -13,6 +13,7 @@ import { registerCalendar } from './routes/calendar.ts';
 import { registerPlaces } from './routes/places.ts';
 import { registerWebauthn } from './routes/webauthn.ts';
 import { registerTwoFactor } from './routes/twoFactor.ts';
+import { log } from '../_shared/log.ts';
 
 const CORS = {
   allowMethods: 'POST, GET, PUT, DELETE, OPTIONS',
@@ -50,7 +51,7 @@ app.notFound((c) => c.json({ error: 'Not found' }, 404));
 // Top-level error handling — capture to Sentry, return a clean 500 (no leak).
 // onError responses bypass the post-`next()` CORS middleware, so stamp headers here.
 app.onError(async (err, c) => {
-  console.error('Server error:', err);
+  log('error', 'server.unhandled_error', { route: c.req.path, err });
   await captureException(err);
   return c.json({ error: 'Internal server error' }, 500, corsHeaders(c.req.header('Origin'), CORS));
 });

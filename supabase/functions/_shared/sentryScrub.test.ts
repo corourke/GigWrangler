@@ -45,6 +45,8 @@ describe('scrubEvent', () => {
 
   it('is wired into the app and the edge functions as beforeSend', () => {
     expect(readFileSync('src/main.tsx', 'utf8')).toMatch(/beforeSend:\s*scrubEvent/);
-    expect(readFileSync('supabase/functions/_shared/sentry.ts', 'utf8')).toMatch(/beforeSend:\s*scrubEvent/);
+    // The edge options are built in sentryOptions.ts (A18) and passed to Sentry.init by sentry.ts.
+    expect(readFileSync('supabase/functions/_shared/sentryOptions.ts', 'utf8')).toMatch(/beforeSend:\s*scrubEvent/);
+    expect(readFileSync('supabase/functions/_shared/sentry.ts', 'utf8')).toMatch(/Sentry\.init\(options\)/);
   });
 });

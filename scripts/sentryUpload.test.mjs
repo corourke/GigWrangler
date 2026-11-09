@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { sentryUploadOptions, buildTimestampFrom } from './sentryUpload.mjs';
 
 // A18: source maps go to Sentry only when the upload credentials exist; otherwise the build is
@@ -33,5 +35,24 @@ describe('buildTimestampFrom', () => {
 
   it('otherwise the build time', () => {
     expect(buildTimestampFrom({}, () => new Date('2026-01-02T03:04:05.000Z'))).toBe('2026-01-02T03:04:05.000Z');
+  });
+});
+
+describe('deploy_prod.sh (A18)', () => {
+  const script = readFileSync(join(__dirname, '..', 'deploy_prod.sh'), 'utf8');
+
+  it('gives the build and the edge functions the same release', () => {
+    expect(script).toMatch(/export BUILD_TIMESTAMP=/);
+    expect(script).toMatch(/supabase secrets set "SENTRY_RELEASE=gigwrangler@\$BUILD_TIMESTAMP"/);
+    expect(script.indexOf('SENTRY_RELEASE=')).toBeLessThan(script.indexOf('supabase functions deploy'));
+  });
+
+  it('checks the build (no source maps left) before uploading it', () => {
+    const build = script.indexOf('npm run build');
+    const check = script.indexOf('npm run check:bundle');
+    const upload = script.indexOf('wrangler pages deploy');
+    expect(build).toBeGreaterThan(-1);
+    expect(check).toBeGreaterThan(build);
+    expect(upload).toBeGreaterThan(check);
   });
 });

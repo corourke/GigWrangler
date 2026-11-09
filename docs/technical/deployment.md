@@ -109,8 +109,8 @@ Both are size-checked; an empty dump aborts the deploy before anything mutates.
 ### Stage 4 — Deploy, in this order
 
 1. **Migrations** — `supabase db push --yes`
-2. **Edge functions** — `supabase functions deploy`
-3. **Frontend** — `npm run build` then `npx wrangler pages deploy build/ --project-name gigwrangler`
+2. **Edge functions** — `supabase secrets set SENTRY_RELEASE=gigwrangler@$BUILD_TIMESTAMP`, then `supabase functions deploy` (see [Edge release](#edge-release))
+3. **Frontend** — `npm run build` (uploads source maps when the Sentry token is set; see [Source maps](#source-maps-a18)), `npm run check:bundle`, then `npx wrangler pages deploy build/ --project-name gigwrangler`
 
 > **Migrations ship before code, which imposes a hard constraint:** every migration in a release must be backward-compatible with the *currently deployed* code. Expand-only — add nullable columns and new tables freely, but no drops, renames, or `NOT NULL` tightening in the same release as the code that depends on them. This ordering means a failed `db push` never leaves new code running against an old schema. Contracting changes go in a *follow-up* release, after the code that stopped using the old shape is live.
 
@@ -315,8 +315,8 @@ Error monitoring across three surfaces. **All three no-op when their DSN env var
 | Surface | Init location | Env vars |
 |---|---|---|
 | Web app | [`src/main.tsx`](../../src/main.tsx) — `Sentry.init` + top-level `Sentry.ErrorBoundary` | `VITE_SENTRY_DSN` |
-| `server` edge function | [`supabase/functions/_shared/sentry.ts`](../../supabase/functions/_shared/sentry.ts), captured in the top-level catch | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` |
-| `ai-scan` edge function | same shared helper | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` |
+| `server` edge function | [`supabase/functions/_shared/sentry.ts`](../../supabase/functions/_shared/sentry.ts), captured in the top-level catch | `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE` (set by `deploy_prod.sh`) |
+| `ai-scan` edge function | same shared helper | `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE` |
 
 The web app tags events with `environment` (Vite mode) and `release` (`gigwrangler@<build timestamp>`), and sets `sendDefaultPii: false`. Edge functions flush explicitly before responding, because Deno isolates can terminate the moment a response is returned. The Sentry Deno import is version-pinned so `functions deploy` is reproducible.
 
@@ -345,9 +345,25 @@ Captured: React render errors via the `ErrorBoundary`, unhandled rejections and 
 
 Deliberately **not** captured: expected HTTP errors returned as responses (401, 403, 429) — they are returned, not thrown; performance traces (`tracesSampleRate: 0` on edge functions); and PII (`sendDefaultPii: false`).
 
-#### Known limitation — no source maps
+#### Source maps (A18)
 
-Stack traces point at minified filenames (`index-XXXXXXXX.js`) rather than real source locations, which makes production errors materially harder to read. Fixing it means adding [`@sentry/vite-plugin`](https://docs.sentry.io/platforms/javascript/sourcemaps/uploading/vite/) to `vite.config.ts` and providing a `SENTRY_AUTH_TOKEN` at build time.
+When `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and `SENTRY_PROJECT` are set at build time (in the environment, or in `.env.production.local` on the machine that runs `./deploy_prod.sh`), `npm run build`:
+
+1. emits hidden source maps (no `sourceMappingURL` in the shipped files);
+2. uploads them with `@sentry/vite-plugin` under the release `gigwrangler@<build timestamp>` (the same release `src/main.tsx` reports);
+3. deletes every `.map` from `build/`.
+
+`npm run check:bundle` fails if any `.map` is left, and `deploy_prod.sh` runs it before uploading to Pages, so maps are never served or precached. Without the three variables nothing changes: no maps, no upload (dev, CI and a deploy without the token build as before). A failed upload (Sentry down, a bad token) is logged by the plugin and does not stop the deploy; the maps are still deleted.
+
+The token is a Sentry **organization auth token** with the `project:releases` and `org:read` scopes (Sentry → Settings → Auth Tokens). It is a secret: keep it out of the repo and the chat; set it as an environment variable on the deploy environment.
+
+#### Edge release
+
+`deploy_prod.sh` exports `BUILD_TIMESTAMP` (read by the build) and sets the function secret `SENTRY_RELEASE=gigwrangler@$BUILD_TIMESTAMP` before deploying the functions, so web and edge events from one deploy share a release. Without `SENTRY_RELEASE`, edge events have no release, as before.
+
+#### Edge logs
+
+The edge functions log through `supabase/functions/_shared/log.ts`: one JSON line per event, `{"level","event","time",...fields,"err"}`, where `event` is a stable dotted name such as `calendar.token_exchange_failed`. Filter on it in the Supabase log explorer. What never gets written: request bodies or any object (an object field becomes `"[object]"`), fields named like body, password, secret, token, cookie, authorization, email, phone or address (`"[redacted]"`), and emails or tokens inside strings (`sentryScrub`'s `scrubText`). An error is reduced to its name, code and message. Tests: `supabase/functions/server/test/log_test.ts`.
 
 ### Google
 

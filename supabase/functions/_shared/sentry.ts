@@ -3,21 +3,13 @@
 // Version pinned so `supabase functions deploy` is reproducible (an unpinned
 // URL silently tracks whatever "latest" resolves to at deploy time).
 import { Sentry } from './deps.ts';
-import { scrubEvent } from './sentryScrub.ts';
+import { sentryInitOptions } from './sentryOptions.ts';
+import { log } from './log.ts';
 
-const dsn = Deno.env.get('SENTRY_DSN');
+const options = sentryInitOptions((name) => Deno.env.get(name));
+const dsn = options?.dsn;
 
-if (dsn) {
-  Sentry.init({
-    dsn,
-    environment: Deno.env.get('SENTRY_ENVIRONMENT') ?? 'development',
-    // Error monitoring only — no performance tracing on edge functions
-    tracesSampleRate: 0,
-    // Email addresses and tokens are removed from every report.
-    beforeSend: scrubEvent,
-    beforeBreadcrumb: scrubEvent,
-  });
-}
+if (options) Sentry.init(options);
 
 /**
  * Capture an exception and flush before the isolate can be torn down.
@@ -30,7 +22,7 @@ export async function captureException(error: unknown): Promise<void> {
     Sentry.captureException(error);
     await Sentry.flush(2000);
   } catch (sentryError) {
-    console.error('Sentry capture failed:', sentryError);
+    log('error', 'sentry.capture_failed', { err: sentryError });
   }
 }
 
@@ -45,7 +37,7 @@ export async function captureMessage(message: string, level: 'warning' | 'error'
     Sentry.captureMessage(message, level);
     await Sentry.flush(2000);
   } catch (sentryError) {
-    console.error('Sentry capture failed:', sentryError);
+    log('error', 'sentry.capture_failed', { err: sentryError });
   }
 }
 
@@ -63,7 +55,7 @@ export async function captureRoundTripEvent(message: string): Promise<string | n
     await Sentry.flush(2000);
     return eventId ?? null;
   } catch (sentryError) {
-    console.error('Sentry round-trip capture failed:', sentryError);
+    log('error', 'sentry.round_trip_capture_failed', { err: sentryError });
     return null;
   }
 }

@@ -16,6 +16,12 @@ export const LIMITS = {
  * build/index.html: the `<script type="module" src=...>`. Several chunks are
  * named `index-*`, so the name alone doesn't identify the entry.
  */
+/** Source maps in the build output. They are uploaded to Sentry and deleted (A18); one left over
+ * would be served publicly and precached. */
+export function findSourceMaps(names) {
+  return names.filter((name) => name.endsWith('.map'));
+}
+
 export function findEntryChunk(indexHtml) {
   const scripts = indexHtml.match(/<script\b[^>]*>/gi) ?? [];
   for (const tag of scripts) {
