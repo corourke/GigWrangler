@@ -32,9 +32,9 @@ export function useOrgAccessRequests(orgId: string, enabled: boolean = true) {
 }
 
 /** Pending access requests across all unclaimed orgs — platform moderators only. */
-export function useModeratorAccessRequests(enabled: boolean) {
+export function useModeratorAccessRequests(userId: string, enabled: boolean) {
   return useQuery<AccessRequestWithRelations[]>({
-    queryKey: queryKeys.moderatorAccessRequests(),
+    queryKey: queryKeys.moderatorAccessRequests(userId),
     queryFn: () => getModeratorAccessRequests(),
     enabled,
     ...ACCESS_REQUEST_REFRESH,
@@ -65,7 +65,7 @@ export function useDecideAccessRequest() {
       decideAccessRequest(vars.orgId, vars.requestId, vars.decision, vars.responseMessage),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orgAccessRequests(vars.orgId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.moderatorAccessRequests() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.moderatorAccessRequestsAll() });
       queryClient.invalidateQueries({ queryKey: queryKeys.team(vars.orgId) });
     },
   });
