@@ -152,6 +152,19 @@ export const queryKeys = {
     orgId: string,
     params: { kitId: string | null | undefined; filter: string; search: string; inKitIds: readonly string[] },
   ) => ['kits', orgId, 'picker', { ...params, kitId: params.kitId ?? null, inKitIds: [...params.inKitIds].sort() }] as const,
+  // Inventory: Maintenance, Locations, the reports and Not returned.
+  maintenanceList: (orgId: string) => ['assets', orgId, 'maintenance'] as const,
+  /** Where things are, for one set of Locations filters. */
+  locationItems: (orgId: string, filters: Record<string, unknown>) => ['assets', orgId, 'locations', filters] as const,
+  manifest: (orgId: string, params: { location: string; gigId: string | null }) => ['assets', orgId, 'manifest', params] as const,
+  inventoryConflictFlags: (orgId: string) => ['assets', orgId, 'conflictFlags'] as const,
+  /** The organization's items alone (no container pieces), for filters. */
+  equipmentItemList: (orgId: string) => ['assets', orgId, 'items', 'list'] as const,
+  itemWhereabouts: (itemId: string, orgId: string) => ['assets', orgId, 'item', itemId, 'whereabouts'] as const,
+  reportGigs: (orgId: string, showAll: boolean) => ['gigs', orgId, 'reportPicker', { showAll }] as const,
+  activeGigsWithTracking: (orgId: string) => ['gigs', orgId, 'activeWithTracking'] as const,
+  gigReturns: (gigId: string, orgId: string) => ['gig', gigId, 'returns', orgId] as const,
+  gigPackingList: (gigId: string, orgId: string) => ['gig', gigId, 'packingList', orgId] as const,
 
   // ── Mobile (A10, Engineer O) ──
   // The gig keys extend the shared gig keys, so a write that invalidates gigs(org) or gig(id)
@@ -440,5 +453,42 @@ export function invalidateAfterKitChange(
     kitId ? queryClient.invalidateQueries({ queryKey: queryKeys.kit(kitId) }) : null,
     queryClient.invalidateQueries({ queryKey: queryKeys.assets(organizationId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
+  ]);
+}
+
+/** After maintenance details change, or a record goes back to service: as for any unit or lot. */
+export function invalidateAfterMaintenanceChange(
+  queryClient: QueryClient,
+  { organizationId, assetId }: { organizationId: string; assetId: string },
+) {
+  return invalidateAfterAssetChange(queryClient, { organizationId, assetId });
+}
+
+/**
+ * After pieces at a gig are marked returned, written off or brought back: that gig's Not returned
+ * list and packing list, and everything a unit or lot change reaches.
+ */
+export function invalidateAfterGigReturnChange(
+  queryClient: QueryClient,
+  { organizationId, gigId, assetId }: { organizationId: string; gigId: string; assetId: string },
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: [...queryKeys.gig(gigId), 'returns'] }),
+    queryClient.invalidateQueries({ queryKey: [...queryKeys.gig(gigId), 'packingList'] }),
+    invalidateAfterAssetChange(queryClient, { organizationId, assetId }),
+  ]);
+}
+
+/**
+ * After where something is was changed by hand (a tracking override): the organization's
+ * equipment (Locations, manifests, tracking), its kits, the active gigs with their scans (Out on
+ * gigs), and every gig's packing list.
+ */
+export function invalidateAfterTrackingChange(queryClient: QueryClient, { organizationId }: { organizationId: string }) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.assets(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.activeGigsWithTracking(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.kits(organizationId) }),
+    queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'gig' && q.queryKey[2] === 'packingList' }),
   ]);
 }

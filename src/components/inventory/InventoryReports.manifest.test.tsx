@@ -1,5 +1,6 @@
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
+import { screen, waitFor, within, fireEvent } from '@testing-library/react'
 import { ManifestReport } from './InventoryReports';
 import type { ManifestLine } from '../../services/inventoryManagement.service';
 
@@ -17,6 +18,8 @@ vi.mock('./LocationCombobox', () => ({
 }));
 
 import { getManifestReport } from '../../services/inventoryManagement.service';
+
+
 
 const at = { status: 'In Transit', location: 'Truck', gig_id: 'gig-1', gig_title: 'Harvest Gala', scanned_at: '2026-10-20T17:00:00Z',
   scanned_by_name: 'Sam Roadie', notes: null };

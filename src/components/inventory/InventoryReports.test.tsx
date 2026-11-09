@@ -1,5 +1,6 @@
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { ManifestReport, PackingList } from './InventoryReports';
 import type { PackingListRow } from '../../services/inventoryManagement.service';
@@ -34,6 +35,8 @@ vi.mock('../ui/select', () => {
 });
 
 import { getGigsForReportPicker, getPackingListReport } from '../../services/inventoryManagement.service';
+
+
 
 const blank = { status: null, location: null, scanned_at: null, scanned_by_name: null, notes: null, has_conflict: false };
 const lighting = { group_kit_id: 'kit-lighting', group_kit_name: 'Lighting Kit', group_is_container: false, group_tag_number: null };

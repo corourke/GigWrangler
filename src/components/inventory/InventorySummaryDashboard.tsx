@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { ChevronDown, ChevronRight, AlertTriangle, Package, Barcode } from 'lucide-react';
 import { format } from 'date-fns';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
@@ -8,14 +8,10 @@ import { Badge } from '../ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { TrackingStatusBadge } from './TrackingStatusBadge';
 import { ManualTrackingOverrideDialog } from './ManualTrackingOverrideDialog';
-import {
-  getActiveGigsWithTracking,
-  getInventoryConflictFlags,
-} from '../../services/inventoryManagement.service';
+import { useInventorySummaryData } from './useInventorySummaryData';
 import type { GigWithTracking, KitAssignmentWithTracking } from '../../services/inventoryManagement.service';
 import type { UserRole } from '../../utils/supabase/types';
 import { plural } from '../../utils/plural';
-import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface InventorySummaryDashboardProps {
   /** Opens the scanning panel for a gig (Equipment › Out on gigs). */
@@ -353,38 +349,10 @@ export function InventorySummaryDashboard({
   userRole,
   onTrack,
 }: InventorySummaryDashboardProps) {
-  const [gigs, setGigs] = useState<GigWithTracking[]>([]);
-  const [conflictKitIds, setConflictKitIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
+  const { gigs, conflictKitIds, isLoading: loading, afterTrackingChange } = useInventorySummaryData(organizationId);
   const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null);
 
   const canOverride = userRole === 'Admin' || userRole === 'Manager';
-
-  // A late answer for an earlier organization is dropped (B12).
-  const startRequest = useLatestRequest();
-  const loadData = useCallback(async () => {
-    const isCurrent = startRequest();
-    setLoading(true);
-    try {
-      const [gigsData, conflicts] = await Promise.all([
-        getActiveGigsWithTracking(organizationId),
-        getInventoryConflictFlags(organizationId),
-      ]);
-      if (!isCurrent()) return;
-      setGigs(gigsData);
-      setConflictKitIds(conflicts);
-    } catch {
-      if (!isCurrent()) return;
-      setGigs([]);
-      setConflictKitIds(new Set());
-    } finally {
-      if (isCurrent()) setLoading(false);
-    }
-  }, [organizationId, startRequest]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
 
   if (loading) {
     return (
@@ -428,7 +396,7 @@ export function InventorySummaryDashboard({
           assetIds={overrideTarget.assetIds}
           userId={userId}
           userRole={userRole}
-          onSuccess={loadData}
+          onSuccess={() => { void afterTrackingChange(); }}
         />
       )}
     </>
