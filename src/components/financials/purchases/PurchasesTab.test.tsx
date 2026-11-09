@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
+import { screen, waitFor, fireEvent, within } from '@testing-library/react';
+import { render } from '../testRender';
 import PurchasesTab from './PurchasesTab';
-import { getLinkedGigExpenses } from '../../../services/purchase.service';
+import { getLinkedGigExpenses, getPurchases, trackPurchaseLineAsEquipment, deletePurchase, setPurchaseLineGig, createLedgerEntryForPurchaseLine } from '../../../services/purchase.service';
+import { getPurchaseIdsWithLedgerEntry } from '../../../services/gig.service';
+import { toast } from 'sonner';
 import { presetRange } from './purchaseFilters';
 
 const recent = presetRange('last-30').to; // today
@@ -37,6 +40,7 @@ vi.mock('../../../services/gig.service', () => ({
   getPurchaseIdsWithLedgerEntry: vi.fn(async () => new Set()),
 }));
 vi.mock('./PurchaseDetailPanel', () => ({ default: () => null }));
+vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }) }));
 vi.mock('../../ReviewScannedDataDialog', () => ({ default: () => null }));
 
 const props = {
@@ -213,5 +217,134 @@ describe('PurchasesTab: a line\'s gig changes in one call (B21)', () => {
     expect(source).toContain('setPurchaseLineGig(');
     expect(source).not.toMatch(/updatePurchase\([^)]*gig_id/);
     expect(source).not.toMatch(/reconcileLedgerForLineGigChange|removeLedgerEntriesForPurchaseLine/);
+  });
+});
+
+// A10 characterization: how the report loads, fails, follows the organization and refreshes after
+// each write. These pass before and after the move to TanStack Query.
+describe('Purchases report: loading and refreshing (A10)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getPurchases).mockImplementation(async () => rows as any);
+  });
+
+  const deferred = <T,>() => {
+    let resolve!: (v: T) => void;
+    let reject!: (e: unknown) => void;
+    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+    return { promise, resolve, reject };
+  };
+
+  it('shows a spinner, then the purchases', async () => {
+    const load = deferred<any>();
+    vi.mocked(getPurchases).mockReturnValueOnce(load.promise);
+    render(<PurchasesTab {...props} />);
+    expect(screen.getByText('Loading purchases...')).toBeInTheDocument();
+    load.resolve(rows);
+    expect(await screen.findByText('Sweetwater')).toBeInTheDocument();
+    expect(screen.queryByText('Loading purchases...')).not.toBeInTheDocument();
+    expect(getPurchases).toHaveBeenCalledWith('org-1');
+  });
+
+  it('says when the purchases fail to load, and loads them when opened again', async () => {
+    vi.mocked(getPurchases).mockRejectedValueOnce(new Error('offline'));
+    const first = render(<PurchasesTab {...props} />);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to load purchases'));
+    expect(screen.queryByText('Sweetwater')).not.toBeInTheDocument();
+    first.unmount();
+    render(<PurchasesTab {...props} />, { queryClient: first.queryClient });
+    expect(await screen.findByText('Sweetwater')).toBeInTheDocument();
+  });
+
+  it('switching organization shows the new organization\'s purchases', async () => {
+    const recentRow = (id: string, vendor: string) => [
+      { id: `h-${id}`, row_type: 'header', vendor, purchase_date: recent, total_inv_amount: 10 },
+      { id: `i-${id}`, row_type: 'item', parent_id: `h-${id}`, vendor, purchase_date: recent, line_cost: 10, description: 'Tape' },
+    ];
+    vi.mocked(getPurchases).mockImplementation(async (orgId: string) =>
+      (orgId === 'org-2' ? recentRow('2', 'Second Vendor') : recentRow('1', 'First Vendor')) as any);
+    const { rerender } = render(<PurchasesTab {...props} />);
+    expect(await screen.findByText('First Vendor')).toBeInTheDocument();
+    rerender(<PurchasesTab {...props} organization={{ id: 'org-2', name: 'Other' } as any} />);
+    expect(await screen.findByText('Second Vendor')).toBeInTheDocument();
+    expect(screen.queryByText('First Vendor')).not.toBeInTheDocument();
+    expect(getPurchases).toHaveBeenLastCalledWith('org-2');
+  });
+
+  it('a late answer for the earlier organization never replaces the new one (B12)', async () => {
+    const slow = deferred<any>();
+    vi.mocked(getPurchases).mockImplementation(async (orgId: string) =>
+      orgId === 'org-1' ? slow.promise : ([
+        { id: 'h-2', row_type: 'header', vendor: 'Second Vendor', purchase_date: recent, total_inv_amount: 10 },
+        { id: 'i-2', row_type: 'item', parent_id: 'h-2', vendor: 'Second Vendor', purchase_date: recent, line_cost: 10 },
+      ] as any));
+    const { rerender } = render(<PurchasesTab {...props} />);
+    rerender(<PurchasesTab {...props} organization={{ id: 'org-2', name: 'Other' } as any} />);
+    expect(await screen.findByText('Second Vendor')).toBeInTheDocument();
+    slow.resolve(rows);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByText('Second Vendor')).toBeInTheDocument();
+    expect(screen.queryByText('Sweetwater')).not.toBeInTheDocument();
+  });
+
+  it('tracking a line as equipment shows the line as equipment', async () => {
+    render(<PurchasesTab {...props} />);
+    fireEvent.click(await screen.findByText('Cables'));
+    const tracked = rows.map((r) => (r.id === 'i1' ? { ...r, asset_id: 'a-new' } : r));
+    vi.mocked(getPurchases).mockImplementation(async () => tracked as any);
+    fireEvent.click(screen.getByRole('button', { name: /Track as equipment/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Track it' }));
+    await waitFor(() => expect(trackPurchaseLineAsEquipment).toHaveBeenCalledWith('i1'));
+    const row = (await screen.findByText('Cables')).closest('tr')!;
+    expect(await within(row).findByRole('img', { name: 'Tracked as equipment' })).toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith('Now tracked as equipment');
+  });
+
+  it('deleting a purchase takes it off the report', async () => {
+    vi.mocked(deletePurchase).mockResolvedValueOnce(undefined as any);
+    render(<PurchasesTab {...props} />);
+    await screen.findByText('Sweetwater');
+    vi.mocked(getPurchases).mockImplementation(async () => rows.filter((r) => r.id !== 'h1' && r.parent_id !== 'h1') as any);
+    fireEvent.click(screen.getByTitle('Delete purchase'));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(deletePurchase).toHaveBeenCalledWith('h1'));
+    await waitFor(() => expect(screen.queryByText('Sweetwater')).not.toBeInTheDocument());
+    expect(toast.success).toHaveBeenCalledWith('Purchase deleted');
+  });
+
+  it('assigning a line to a gig, then adding it to the ledger, shows the line in the ledger', async () => {
+    const withGig = rows.map((r) => (r.id === 'i1' ? { ...r, gig_id: 'g1' } : r));
+    vi.mocked(getPurchases).mockImplementation(async () => withGig as any);
+    const events: Event[] = [];
+    const listen = (e: Event) => events.push(e);
+    window.addEventListener('gig-financials-updated', listen);
+    vi.mocked(createLedgerEntryForPurchaseLine).mockResolvedValueOnce({ created: true } as any);
+    render(<PurchasesTab {...props} />);
+    fireEvent.click(await screen.findByText('Cables'));
+    const add = await screen.findByRole('button', { name: /Add to gig ledger/ });
+    vi.mocked(getPurchaseIdsWithLedgerEntry).mockResolvedValue(new Set(['i1']));
+    const calls = vi.mocked(getPurchases).mock.calls.length;
+    fireEvent.click(add);
+    await waitFor(() => expect(createLedgerEntryForPurchaseLine).toHaveBeenCalledWith(expect.objectContaining({ id: 'i1' }), 'g1', 'org-1'));
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Add to gig ledger/ })).not.toBeInTheDocument());
+    expect(vi.mocked(getPurchases).mock.calls.length).toBeGreaterThan(calls);
+    expect(toast.success).toHaveBeenCalledWith('Added to the gig ledger');
+    expect(events).toHaveLength(1);
+    window.removeEventListener('gig-financials-updated', listen);
+    vi.mocked(getPurchaseIdsWithLedgerEntry).mockResolvedValue(new Set());
+  });
+
+  it('a failed gig change still reloads the report', async () => {
+    vi.mocked(setPurchaseLineGig).mockRejectedValueOnce(new Error('Nope'));
+    const withGig = rows.map((r) => (r.id === 'i1' ? { ...r, gig_id: 'g1' } : r));
+    vi.mocked(getPurchases).mockImplementation(async () => withGig as any);
+    render(<PurchasesTab {...props} />);
+    fireEvent.click(await screen.findByText('Cables'));
+    const calls = vi.mocked(getPurchases).mock.calls.length;
+    // Clearing the gig of a line with no ledger rows goes straight to the save.
+    fireEvent.click(await screen.findByTitle('Clear gig'));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Nope'));
+    await waitFor(() => expect(vi.mocked(getPurchases).mock.calls.length).toBeGreaterThan(calls));
   });
 });

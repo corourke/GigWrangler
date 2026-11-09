@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import { render } from './testRender';
 import userEvent from '@testing-library/user-event';
 import TaxYearsCard from './TaxYearsCard';
+import { toast } from 'sonner';
 import { getTaxYears, saveTaxYear } from '../../services/taxYear.service';
 import { getTaxYearDepreciation, saveTaxYearDepreciation, type TaxYearDepreciation } from '../../services/taxYearDepreciation.service';
 
@@ -10,6 +12,7 @@ vi.mock('../../services/taxYear.service', () => ({
   saveTaxYear: vi.fn(async () => ({})),
   deleteTaxYear: vi.fn(),
 }));
+vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }) }));
 vi.mock('../../services/taxYearDepreciation.service', () => ({
   getTaxYearDepreciation: vi.fn(async () => []),
   saveTaxYearDepreciation: vi.fn(async () => {}),
@@ -226,5 +229,77 @@ describe('TaxYearsCard: Form 4562 figures', () => {
     const est = screen.getByRole('region', { name: `Estimate inputs for ${thisYear}` });
     expect(within(est).getByLabelText('Planned Section 179')).toBeDisabled();
     expect(within(est).queryByRole('button', { name: 'Save estimate inputs' })).not.toBeInTheDocument();
+  });
+});
+
+// A10 characterization: loading, a failed load, another organization, and fresh data after each save.
+describe('TaxYearsCard: loading and refreshing (A10)', () => {
+  const row = (year: string) => screen.getByRole('row', { name: new RegExp(`^${year}`) });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getTaxYears).mockResolvedValue([
+      { organization_id: 'org-1', year: 2024, locked: false, filed_on: null, notes: null },
+    ]);
+    vi.mocked(getTaxYearDepreciation).mockResolvedValue([]);
+  });
+
+  it('shows Loading…, then the years', async () => {
+    let resolve!: (v: any) => void;
+    vi.mocked(getTaxYears).mockReturnValueOnce(new Promise((r) => { resolve = r; }));
+    render(<TaxYearsCard organizationId="org-1" userRole="Admin" />);
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+    resolve([{ organization_id: 'org-1', year: 2024, locked: false, filed_on: null, notes: null }]);
+    expect(await screen.findByText('Open')).toBeInTheDocument();
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+  });
+
+  it('says when the years fail to load, and loads them when opened again', async () => {
+    vi.mocked(getTaxYears).mockRejectedValueOnce(new Error('Could not read'));
+    vi.mocked(getTaxYearDepreciation).mockRejectedValueOnce(new Error('No figures'));
+    const first = render(<TaxYearsCard organizationId="org-1" userRole="Admin" />);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Could not read'));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('No figures'));
+    expect(await screen.findByText('No years locked yet.')).toBeInTheDocument();
+    first.unmount();
+    render(<TaxYearsCard organizationId="org-1" userRole="Admin" />, { queryClient: first.queryClient });
+    expect(await screen.findByText('Open')).toBeInTheDocument();
+  });
+
+  it('switching organization shows that organization\'s years', async () => {
+    vi.mocked(getTaxYears).mockImplementation(async (orgId: string) => [
+      { organization_id: orgId, year: orgId === 'org-2' ? 2021 : 2024, locked: false, filed_on: null, notes: null },
+    ]);
+    const { rerender } = render(<TaxYearsCard organizationId="org-1" userRole="Admin" />);
+    await waitFor(() => expect(row('2024')).toBeInTheDocument());
+    rerender(<TaxYearsCard organizationId="org-2" userRole="Admin" />);
+    await waitFor(() => expect(row('2021')).toBeInTheDocument());
+    expect(screen.queryByRole('row', { name: /^2024/ })).not.toBeInTheDocument();
+    expect(getTaxYearDepreciation).toHaveBeenLastCalledWith('org-2');
+  });
+
+  it('after locking a year, the list shows it locked', async () => {
+    render(<TaxYearsCard organizationId="org-1" userRole="Admin" />);
+    await waitFor(() => expect(row('2024')).toBeInTheDocument());
+    vi.mocked(getTaxYears).mockResolvedValue([
+      { organization_id: 'org-1', year: 2024, locked: true, filed_on: null, notes: null },
+    ]);
+    await userEvent.click(within(row('2024')).getByRole('button', { name: 'Lock' }));
+    await waitFor(() => expect(within(row('2024')).getByText('Locked')).toBeInTheDocument());
+    expect(toast.success).toHaveBeenCalledWith('2024 locked');
+  });
+
+  it('after saving the figures, the list shows the new line 22', async () => {
+    render(<TaxYearsCard organizationId="org-1" userRole="Admin" />);
+    await waitFor(() => expect(row('2024')).toBeInTheDocument());
+    expect(within(row('2024')).getByText('Not entered')).toBeInTheDocument();
+    await userEvent.click(within(row('2024')).getByRole('button', { name: 'Form 4562' }));
+    vi.mocked(getTaxYearDepreciation).mockResolvedValue([
+      { organization_id: 'org-1', year: 2024, line_22: 1000, rows: [], updated_at: null, updated_by_name: null } as any,
+    ]);
+    const form = await screen.findByRole('region', { name: /Form 4562 for 2024/ });
+    await userEvent.type(within(form).getByLabelText(/Line 22/), '1000');
+    await userEvent.click(within(form).getByRole('button', { name: 'Save Form 4562 figures' }));
+    await waitFor(() => expect(saveTaxYearDepreciation).toHaveBeenCalled());
+    await waitFor(() => expect(within(row('2024')).getByText(/Line 22: \$1,000/)).toBeInTheDocument());
   });
 });

@@ -1,4 +1,5 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
+import { render } from './testRender';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import GigAccountingTab from './GigAccountingTab';
 import * as gigService from '../../services/gig.service';
@@ -235,5 +236,45 @@ describe('GigAccountingTab', () => {
     vi.mocked(gigService.getAllGigAccountingSummaries).mockRejectedValue(new Error('Network error'));
     renderTab();
     expect(await screen.findByText('Network error')).toBeInTheDocument();
+  });
+});
+
+// A10 characterization: loading, a failed load, and another organization's gigs.
+describe('GigAccountingTab: loading (A10)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('shows the skeleton, then the gigs', async () => {
+    let resolve!: (v: GigAccountingSummary[]) => void;
+    vi.mocked(gigService.getAllGigAccountingSummaries).mockReturnValueOnce(new Promise((r) => { resolve = r; }));
+    renderTab();
+    expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+    resolve(defaultSummaries);
+    await showAllTime();
+    expect(screen.getByText('Played, unpaid')).toBeInTheDocument();
+    expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBe(0);
+    expect(gigService.getAllGigAccountingSummaries).toHaveBeenCalledWith('org-1');
+  });
+
+  it('shows why the gigs failed to load, and loads them when opened again', async () => {
+    vi.mocked(gigService.getAllGigAccountingSummaries).mockRejectedValueOnce(new Error('Could not read the gigs'));
+    const first = renderTab();
+    expect(await screen.findByText('Could not read the gigs')).toBeInTheDocument();
+    first.unmount();
+    vi.mocked(gigService.getAllGigAccountingSummaries).mockResolvedValue(defaultSummaries);
+    render(<GigAccountingTab organization={makeOrg()} userRole="Admin" onNavigateToGigDetail={vi.fn()} />, { queryClient: first.queryClient });
+    await showAllTime();
+    expect(screen.getByText('Played, unpaid')).toBeInTheDocument();
+    expect(screen.queryByText('Could not read the gigs')).not.toBeInTheDocument();
+  });
+
+  it('switching organization shows that organization\'s gigs', async () => {
+    vi.mocked(gigService.getAllGigAccountingSummaries).mockImplementation(async (orgId: string) =>
+      orgId === 'org-2' ? [makeSummary({ gigId: 'g2', gigTitle: 'Second org gig' })] : [makeSummary({ gigId: 'g1', gigTitle: 'First org gig' })]);
+    const { rerender } = renderTab();
+    await showAllTime();
+    expect(screen.getByText('First org gig')).toBeInTheDocument();
+    rerender(<GigAccountingTab organization={makeOrg('org-2')} userRole="Admin" onNavigateToGigDetail={vi.fn()} />);
+    expect(await screen.findByText('Second org gig')).toBeInTheDocument();
+    expect(screen.queryByText('First org gig')).not.toBeInTheDocument();
   });
 });
