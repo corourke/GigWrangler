@@ -1,5 +1,6 @@
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { ManifestReport, PackingList } from './InventoryReports';
 import type { PackingListRow } from '../../services/inventoryManagement.service';
@@ -22,8 +23,8 @@ vi.mock('../ui/select', () => {
       currentOnValueChange = onValueChange;
       return <div>{children}</div>;
     },
-    SelectTrigger: ({ children, 'aria-label': ariaLabel }: any) => (
-      <button role="combobox" aria-label={ariaLabel}>{children}</button>
+    SelectTrigger: ({ children, id, 'aria-label': ariaLabel }: any) => (
+      <button role="combobox" id={id} aria-label={ariaLabel}>{children}</button>
     ),
     SelectValue: ({ placeholder }: any) => <span>{placeholder}</span>,
     SelectContent: ({ children }: any) => <div>{children}</div>,
@@ -34,6 +35,8 @@ vi.mock('../ui/select', () => {
 });
 
 import { getGigsForReportPicker, getPackingListReport } from '../../services/inventoryManagement.service';
+
+
 
 const blank = { status: null, location: null, scanned_at: null, scanned_by_name: null, notes: null, has_conflict: false };
 const lighting = { group_kit_id: 'kit-lighting', group_kit_name: 'Lighting Kit', group_is_container: false, group_tag_number: null };
@@ -421,5 +424,15 @@ describe('ManifestReport — gig picker window (#109)', () => {
     await waitFor(() => expect(picker).toHaveBeenLastCalledWith('org-1', { showAll: false }));
     expect(screen.getByRole('option', { name: 'Old Gig' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Test Gig' })).toBeInTheDocument();
+  });
+});
+
+// A19: the manifest's Location and Gig fields are named by their labels.
+describe('ManifestReport: labelled fields (A19)', () => {
+  it('ties the Location and Gig labels to their fields', async () => {
+    (getGigsForReportPicker as any).mockImplementation(() => Promise.resolve([]));
+    render(<ManifestReport organizationId="org-1" organizationName="Test Org" />);
+    expect(await screen.findByLabelText(/Location/)).toHaveAttribute('placeholder', 'Select or enter location...');
+    expect(screen.getByLabelText('Gig (optional)')).toHaveAttribute('role', 'combobox');
   });
 });

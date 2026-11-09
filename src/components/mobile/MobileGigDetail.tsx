@@ -27,8 +27,7 @@ import {
 import { SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
 import type { ScheduleActivityType } from '../../utils/supabase/types';
 import { format, parseISO } from 'date-fns';
-import { getGig, updateGig, updateGigParticipants } from '../../services/gig.service';
-import { updateStaffAssignmentStatus } from '../../services/gig.service';
+import { useMobileGigDetailData } from './useMobileGigDetailData';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay, formatGigDateTimeForInput, isGigAllDay, parseGigDateTimeFromInput } from '../../utils/dateUtils';
 import { getAllTimezones } from '../../utils/timezones';
@@ -70,8 +69,9 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
   const { user, userRole, selectedOrganization } = useAuth();
   const canEdit = userRole?.toLowerCase() === 'admin' || userRole?.toLowerCase() === 'manager';
   const isAdmin = userRole === 'Admin' || userRole === 'Manager';
-  const [gig, setGig] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { gigQuery, changeStatus, answerAssignment, saveEdit } = useMobileGigDetailData(gigId, selectedOrganization?.id);
+  const gig: any = gigQuery.data ?? null;
+  const loading = gigQuery.isPending;
   const [updatingAssignment, setUpdatingAssignment] = useState<string | null>(null);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -99,25 +99,14 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
 
   const orgSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // A gig that can't be loaded (or reloaded): say why and go back.
+  const loadError = gigQuery.error;
   useEffect(() => {
-    loadGig();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when the gig changes; the loader reads the current gig and onBack
-  }, [gigId]);
-
-  const loadGig = async () => {
-    if (!gig) setLoading(true);
-    try {
-      const data = await getGig(gigId);
-      const venue = data.participants?.find((p: any) => p.role === 'Venue')?.organization;
-      const act = data.participants?.find((p: any) => p.role === 'Act')?.organization;
-      setGig({ ...data, venue, act });
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to load gig');
-      onBack();
-    } finally {
-      setLoading(false);
-    }
-  };
+    if (!loadError) return;
+    toast.error(loadError.message || 'Failed to load gig');
+    onBack();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reacts to a new load error, not to a re-created onBack callback
+  }, [loadError]);
 
   const handleStartEdit = () => {
     if (!gig) return;
@@ -213,8 +202,8 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
       };
       if (end) updatePayload.end = end;
 
-      await updateGig(gigId, updatePayload);
-      await updateGigParticipants(
+      // Saves the details, then the participants; resolves once the gig has reloaded.
+      await saveEdit.mutateAsync({ gigPayload: updatePayload, participants: [
         gigId,
         editParticipants.map(p => ({
           id: p.id,
@@ -228,10 +217,9 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
         // Only rows this screen loaded can be removed by it (#92).
         (gig.participants || []).map((p: any) => p.id),
         // …and only those the user changed are written (#175).
-        (gig.participants || []).map((p: any) => ({ id: p.id, role: p.role, notes: p.notes || null, is_client: p.is_client ?? false }))
-      );
+        (gig.participants || []).map((p: any) => ({ id: p.id, role: p.role, notes: p.notes || null, is_client: p.is_client ?? false })),
+      ] });
       toast.success('Gig updated');
-      await loadGig();
       setIsEditing(false);
     } catch (err: any) {
       toast.error(err.message || 'Failed to save');
@@ -243,9 +231,8 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
   const handleAssignmentAction = async (assignmentId: string, status: 'Confirmed' | 'Declined') => {
     setUpdatingAssignment(assignmentId);
     try {
-      await updateStaffAssignmentStatus(assignmentId, status);
+      await answerAssignment.mutateAsync({ assignmentId, status });
       toast.success(`Assignment ${status.toLowerCase()}`);
-      await loadGig();
     } catch (error: any) {
       toast.error(error.message || `Failed to ${status.toLowerCase()} assignment`);
     } finally {
@@ -256,9 +243,8 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
   const handleStatusChange = async (newStatus: GigStatus) => {
     setUpdatingStatus(true);
     try {
-      await updateGig(gigId, { status: newStatus });
+      await changeStatus.mutateAsync(newStatus);
       toast.success(`Status updated to ${GIG_STATUS_CONFIG[newStatus].label}`);
-      await loadGig();
     } catch (error: any) {
       toast.error(error.message || 'Failed to update status');
     } finally {
@@ -324,6 +310,13 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
         setOrgSearchResults([]);
       }
     }, 300);
+  };
+
+  // Choosing an organization from the search list (by tap, or Enter/Space on it).
+  const pickOrg = (org: any) => {
+    setSelectedOrgResult(org);
+    setOrgSearchQuery(org.name);
+    setOrgSearchResults([]);
   };
 
   const handleRoleSelect = (role: string) => {
@@ -718,19 +711,20 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                         value={orgSearchQuery}
                         onChange={e => handleOrgSearchChange(e.target.value)}
                         placeholder="Search organizations…"
+                        // eslint-disable-next-line jsx-a11y/no-autofocus -- "Add participant" opens to type a search, as before
                         autoFocus
                       />
                       {orgSearchResults.length > 0 && !selectedOrgResult && (
-                        <ul className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                        <ul role="listbox" aria-label="Organizations" className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
                           {orgSearchResults.map(org => (
                             <li
                               key={org.id}
+                              role="option"
+                              aria-selected={false}
+                              tabIndex={0}
                               className="px-3 py-1.5 text-sm cursor-pointer hover:bg-muted"
-                              onClick={() => {
-                                setSelectedOrgResult(org);
-                                setOrgSearchQuery(org.name);
-                                setOrgSearchResults([]);
-                              }}
+                              onClick={() => pickOrg(org)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickOrg(org); } }}
                             >
                               {org.name}
                             </li>
@@ -752,7 +746,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                         <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
                       </button>
                       {showRoleDropdown && (
-                        <ul className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                        <ul role="listbox" aria-label="Roles" className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
                           {Object.keys(ORG_ROLE_CONFIG).map(role => (
                             <li
                               key={role}
@@ -760,7 +754,11 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                                 'px-3 py-2 text-sm cursor-pointer hover:bg-muted',
                                 addParticipantRole === role && 'font-medium text-primary'
                               )}
+                              role="option"
+                              aria-selected={addParticipantRole === role}
+                              tabIndex={0}
                               onClick={() => handleRoleSelect(role)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRoleSelect(role); } }}
                             >
                               {ORG_ROLE_CONFIG[role as keyof typeof ORG_ROLE_CONFIG]?.label || role}
                             </li>

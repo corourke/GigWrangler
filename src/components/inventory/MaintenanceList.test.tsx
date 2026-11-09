@@ -1,8 +1,11 @@
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
+import { screen, waitFor, within, fireEvent } from '@testing-library/react'
 import { MaintenanceList } from './MaintenanceList';
 import { getMaintenanceList, updateMaintenance, returnToService } from '../../services/maintenance.service';
 import { toast } from 'sonner';
+
+
 
 vi.mock('../../services/maintenance.service', async () => {
   const actual = await vi.importActual<any>('../../services/maintenance.service');

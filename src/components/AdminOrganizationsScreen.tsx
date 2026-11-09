@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Edit2, Trash2, Users, Loader2, AlertCircle, Plus, Shield, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -11,8 +11,8 @@ import {
   ORG_ROLE_CONFIG, 
   getOrgRoleColor 
 } from '../utils/supabase/constants';
-import { handleFunctionsError } from '../utils/api-error-utils';
-import { createClient } from '../utils/supabase/client';
+import { useAdminOrganizationsData } from './useAdminOrganizationsData';
+import type { AdminOrganizationOverview } from '../services/organization.service';
 import { Button } from './ui/button';
 import AppHeader from './AppHeader';
 import { PageHeader } from './layout/PageHeader';
@@ -38,12 +38,7 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 
-interface OrganizationWithMembers extends Organization {
-  /** Null where the member list isn't yours to see (you aren't a member or a moderator). */
-  member_count?: number | null;
-  /** An unclaimed org you may manage: as a moderator, or an Admin/Manager of an org on a shared gig. */
-  can_manage_unclaimed?: boolean;
-}
+type OrganizationWithMembers = AdminOrganizationOverview;
 
 interface AdminOrganizationsScreenProps {
   user: User;
@@ -67,97 +62,30 @@ export default function AdminOrganizationsScreen({
   onEditProfile,
   onOrganizationDeleted,
 }: AdminOrganizationsScreenProps) {
-  const adminOrgIds = new Set(userMemberships.filter((m) => m.role === 'Admin').map((m) => m.organization.id));
-  const [organizations, setOrganizations] = useState<OrganizationWithMembers[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const adminOrgIdList = userMemberships.filter((m) => m.role === 'Admin').map((m) => m.organization.id);
+  const adminOrgIds = new Set(adminOrgIdList);
+  const { organizationsQuery, deleteOrganization } = useAdminOrganizationsData({
+    userId: user.id,
+    memberOrgIds: userMemberships.map((m) => m.organization.id),
+    adminOrgIds: adminOrgIdList,
+  });
+  const organizations: OrganizationWithMembers[] = organizationsQuery.data ?? [];
+  const isLoading = organizationsQuery.isPending;
+  const error = organizationsQuery.error ? (organizationsQuery.error.message || 'Failed to load organizations') : null;
   const [deleteOrgId, setDeleteOrgId] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  // Loads once on mount; the memberships it reads don't change while this screen is open.
-  useEffect(() => {
-    loadOrganizations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadOrganizations = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const supabase = createClient();
-      
-      // Fetch all organizations
-      const { data: orgs, error: orgError } = await supabase.functions.invoke('server/organizations', {
-        method: 'GET'
-      });
-
-      if (orgError) {
-        await handleFunctionsError(orgError, 'load organizations');
-      }
-
-      // Member counts only where the list is yours to see: your organizations, or any as a
-      // moderator. Asking for the others would only be refused.
-      const memberOrgIds = new Set(userMemberships.map((m) => m.organization.id));
-      const { data: isModerator } = await supabase.rpc('is_platform_moderator');
-      const orgsWithCounts = await Promise.all(
-        (orgs || []).map(async (org: Organization) => {
-          try {
-            let member_count: number | null = null;
-            if (isModerator === true || memberOrgIds.has(org.id)) {
-              const { data: members, error: membersError } = await supabase.functions.invoke(`server/organizations/${org.id}/members`, {
-                method: 'GET'
-              });
-              member_count = !membersError && members ? members.length : null;
-            }
-            let can_manage_unclaimed = false;
-            if (!org.claimed && !adminOrgIds.has(org.id)) {
-              const { data: canManage } = await supabase.rpc('user_can_manage_unclaimed_org', {
-                p_organization_id: org.id, p_user_id: user.id,
-              });
-              can_manage_unclaimed = canManage === true;
-            }
-            return { ...org, member_count, can_manage_unclaimed };
-          } catch {
-            return { ...org, member_count: null, can_manage_unclaimed: false };
-          }
-        })
-      );
-
-      setOrganizations(orgsWithCounts);
-      setIsLoading(false);
-    } catch (err: any) {
-      console.error('Error loading organizations:', err);
-      setError(err.message || 'Failed to load organizations');
-      setIsLoading(false);
-    }
-  };
+  const isDeleting = deleteOrganization.isPending;
 
   const handleDelete = async () => {
     if (!deleteOrgId) return;
 
-    setIsDeleting(true);
-
     try {
-      const supabase = createClient();
-      
-      const { error } = await supabase.functions.invoke(`server/organizations/${deleteOrgId}`, {
-        method: 'DELETE'
-      });
-
-      if (error) {
-        await handleFunctionsError(error, 'delete organization');
-      }
-
+      await deleteOrganization.mutateAsync(deleteOrgId);
       toast.success('Organization deleted successfully');
-      setOrganizations(prev => prev.filter(org => org.id !== deleteOrgId));
       onOrganizationDeleted?.(deleteOrgId);
       setDeleteOrgId(null);
-      setIsDeleting(false);
     } catch (err: any) {
       console.error('Error deleting organization:', err);
       toast.error(err.message || 'Failed to delete organization');
-      setIsDeleting(false);
     }
   };
 

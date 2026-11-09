@@ -116,7 +116,9 @@ export default function ItemSection({
           <div className="space-y-2">
             <Label htmlFor={id('category')}>Category <span className="text-red-500">*</span></Label>
             {newCategory ? (
-              <Input id={id('category')} autoFocus placeholder="New category" value={value.category}
+              <Input id={id('category')}
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- choosing "Add new category…" goes straight to typing it, as before
+                autoFocus placeholder="New category" value={value.category}
                 onChange={(e) => set({ category: e.target.value })}
                 onBlur={() => { if (!value.category.trim()) setNewCategory(false); }} />
             ) : (

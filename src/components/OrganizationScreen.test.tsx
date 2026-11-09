@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderWithQuery as render } from '../test/renderWithQuery';
 import userEvent from '@testing-library/user-event';
 import OrganizationScreen from './OrganizationScreen';
 import { getBackInHeaderSlot } from '../test/pageFrame';
@@ -26,6 +27,8 @@ const mockProps = {
   onCancel: vi.fn(),
   userId: 'user-1',
 };
+
+
 
 describe('OrganizationScreen — page header (#39)', () => {
   it('puts Back to Select Organization in the header slot when creating', async () => {

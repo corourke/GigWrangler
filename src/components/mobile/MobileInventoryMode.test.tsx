@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { screen, within, fireEvent } from '@testing-library/react'
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import userEvent from '@testing-library/user-event'
 import { format } from 'date-fns'
 import MobileInventoryMode from './MobileInventoryMode'
@@ -84,6 +85,8 @@ import { inventoryTrackingService } from '../../services/mobile/inventoryTrackin
 import { act } from '@testing-library/react'
 import { writeOffPieces } from '../../services/writeOff.service'
 import { packingListService } from '../../services/mobile/packingList.service'
+
+
 
 describe('MobileInventoryMode', () => {
   beforeEach(() => {
@@ -803,7 +806,8 @@ describe('MobileInventoryMode', () => {
       kits: [{ kit_id: 'case-1', kit: { id: 'case-1', name: 'Mic Case', tag_number: 'CASE-1', is_container: true, assets: [], direct_assets: [] } }],
       tracking: [], last_records: { assets: {}, kits: { 'case-1': last } },
     })
-    const away = { gig_id: 'gig-2', gig_title: 'Friday Show', status: 'On Site', scanned_at: '2026-10-10T12:00:00.000Z' }
+    // Local noon, so it reads as Oct 10 in any time zone.
+    const away = { gig_id: 'gig-2', gig_title: 'Friday Show', status: 'On Site', scanned_at: new Date(2026, 9, 10, 12, 0).toISOString() }
 
     it.each([0, 1])('mode %i asks before recording it here, and Pack anyway records it', async (mode) => {
       vi.mocked(idbStore.getPackingList).mockImplementation(async () => list(away))
@@ -1407,5 +1411,19 @@ describe('MobileInventoryMode', () => {
       expect(await screen.findByText('Maintenance')).toBeInTheDocument()
       expect(screen.queryByText(/to maintenance/i)).not.toBeInTheDocument()
     })
+  })
+})
+
+// A19: a kit's row opens and closes from the keyboard too.
+describe('MobileInventoryMode: kit rows from the keyboard (A19)', () => {
+  it('Enter or Space on a kit row toggles it, and the row says whether it is open', async () => {
+    render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+    const row = (await screen.findByText('Audio Case')).closest('[role="button"]') as HTMLElement
+    const before = row.getAttribute('aria-expanded')
+    expect(before === 'true' || before === 'false').toBe(true)
+    fireEvent.keyDown(row, { key: 'Enter' })
+    expect(row).toHaveAttribute('aria-expanded', before === 'true' ? 'false' : 'true')
+    fireEvent.keyDown(row, { key: ' ' })
+    expect(row).toHaveAttribute('aria-expanded', before)
   })
 })

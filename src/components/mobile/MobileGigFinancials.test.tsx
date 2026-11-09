@@ -1,4 +1,5 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { renderWithQuery as render } from '../../test/renderWithQuery';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import MobileGigFinancials from './MobileGigFinancials';
 import * as gigService from '../../services/gig.service';

@@ -517,9 +517,15 @@ export function SmartDataTable<T extends { id: string }>({
         </div>
       </div>
 
+      {/* A spreadsheet-style grid: the container takes focus, and Tab and Enter move between its
+          cells (handleTableKeyDown). */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- see above */}
       <div 
         ref={tableContainerRef}
+        role="group"
+        aria-label="Table"
         className="rounded-md border bg-background shadow-sm overflow-x-auto outline-none focus:ring-1 focus:ring-ring/20"
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- see above: keyboard movement between cells
         tabIndex={0}
         onKeyDown={handleTableKeyDown}
       >
@@ -549,15 +555,18 @@ export function SmartDataTable<T extends { id: string }>({
                     style={width ? { width: `${width}px` } : undefined}
                   >
                   <div className="flex items-center gap-1 w-full h-full px-2.5 py-2.5">
-                    <span 
-                      className={cn(
-                        "font-semibold text-foreground text-xs leading-tight min-w-0",
-                        column.sortable && "cursor-pointer select-none flex items-center gap-0.5"
-                      )}
-                      onClick={() => column.sortable && toggleSorting(column.id)}
-                    >
-                      {column.header}
-                      {column.sortable && (
+                    {column.sortable ? (
+                      // A sortable header is a button: Enter or Space sorts by it, as a click does.
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="font-semibold text-foreground text-xs leading-tight min-w-0 cursor-pointer select-none flex items-center gap-0.5"
+                        onClick={() => toggleSorting(column.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSorting(column.id); }
+                        }}
+                      >
+                        {column.header}
                         <span className="text-muted-foreground shrink-0">
                           {sorting?.columnId === column.id ? (
                             sorting.direction === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
@@ -565,8 +574,12 @@ export function SmartDataTable<T extends { id: string }>({
                             <ChevronsUpDown className="h-3.5 w-3.5 transition-opacity" />
                           )}
                         </span>
-                      )}
-                    </span>
+                      </span>
+                    ) : (
+                      <span className="font-semibold text-foreground text-xs leading-tight min-w-0">
+                        {column.header}
+                      </span>
+                    )}
                     
                     {column.filterable && (
                       <Popover>
@@ -595,6 +608,7 @@ export function SmartDataTable<T extends { id: string }>({
                                 value={filters[column.id] || ''}
                                 onChange={(e) => setFilter(column.id, e.target.value)}
                                 className="pl-8 h-8 text-sm"
+                                // eslint-disable-next-line jsx-a11y/no-autofocus -- a column filter opens to type, as before
                                 autoFocus
                               />
                             </div>
@@ -614,7 +628,9 @@ export function SmartDataTable<T extends { id: string }>({
                       </Popover>
                     )}
                   </div>
+                  {/* A drag handle for the column's width, a pointer-only aid. */}
                   <div
+                    role="presentation"
                     className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 z-10"
                     onMouseDown={(e) => handleResizeStart(column.id, e)}
                   />

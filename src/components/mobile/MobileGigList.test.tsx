@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import MobileGigList from './MobileGigList'
 
 const mockGigs = [
@@ -50,6 +51,9 @@ vi.mock('../../utils/timezones', () => ({
 }))
 
 import { getGigsForOrganization } from '../../services/gig.service'
+import { searchOrganizations } from '../../services/organization.service'
+
+
 
 describe('MobileGigList', () => {
   beforeEach(() => {
@@ -283,5 +287,43 @@ describe('MobileGigList', () => {
       await openMenu()
       expect(screen.queryByText('Change status:')).not.toBeInTheDocument()
     })
+  })
+})
+
+// A19: the new-gig sheet's fields are named by their labels.
+describe('MobileGigList new-gig sheet: labelled fields (A19)', () => {
+  it('names the title and notes fields, and the status, date and participants groups', async () => {
+    render(<MobileGigList onViewGig={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+    const plus = screen.getAllByRole('button').find(btn => btn.querySelector('svg.lucide-plus'))!
+    fireEvent.click(plus)
+    expect(screen.getByLabelText('Title *')).toHaveAttribute('placeholder', 'Gig title')
+    expect(screen.getByLabelText('Notes')).toHaveAttribute('placeholder', 'Optional notes…')
+    for (const name of ['Status', 'Date & Time', 'Participants']) {
+      expect(screen.getByRole('group', { name })).toBeInTheDocument()
+    }
+  })
+})
+
+// A19: the participant pickers' options can be chosen from the keyboard.
+describe('MobileGigList new-gig sheet: participant pickers from the keyboard (A19)', () => {
+  it('Enter on a role or an organization chooses it', async () => {
+    vi.mocked(searchOrganizations).mockResolvedValue([{ id: 'o1', name: 'Hall One' }] as any)
+    render(<MobileGigList onViewGig={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+    fireEvent.click(screen.getAllByRole('button').find(btn => btn.querySelector('svg.lucide-plus'))!)
+    fireEvent.click(screen.getByRole('button', { name: /Add Participant/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Select role/ }))
+    const roles = screen.getByRole('listbox', { name: 'Roles' })
+    const firstRole = within(roles).getAllByRole('option')[0]
+    const roleName = firstRole.textContent!
+    fireEvent.keyDown(firstRole, { key: 'Enter' })
+    expect(screen.queryByRole('listbox', { name: 'Roles' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: roleName })).toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText('Search organizations…'), { target: { value: 'Hall' } })
+    const org = await screen.findByRole('option', { name: 'Hall One' }, { timeout: 2000 })
+    fireEvent.keyDown(org, { key: 'Enter' })
+    expect(screen.getByPlaceholderText('Search organizations…')).toHaveValue('Hall One')
+    expect(screen.queryByRole('listbox', { name: 'Organizations' })).not.toBeInTheDocument()
   })
 })

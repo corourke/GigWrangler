@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useMobileGigListData } from './useMobileGigListData';
 import { useGigListFilters } from '../../hooks/useGigListFilters';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
@@ -17,7 +18,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { getGigsForOrganization, createGig, updateGig } from '../../services/gig.service';
+import { createGig } from '../../services/gig.service';
 import { searchOrganizations } from '../../services/organization.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
@@ -52,8 +53,6 @@ const _GIG_STATUSES: { key: GigStatus; label: string }[] = [
 
 export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPositionChange }: MobileGigListProps) {
   const { selectedOrganization, userRole } = useAuth();
-  const [gigs, setGigs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [searchQuery, setSearchQuery] = useState('');
   const { futureDateFilter, setFutureDateFilter, pastDateFilter, setPastDateFilter, activeStatuses, setActiveStatuses } = useGigListFilters();
@@ -72,24 +71,9 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
   }, []);
 
   const orgId = selectedOrganization?.id;
-  const loadGigs = useCallback(async () => {
-    if (!orgId) return;
-    setLoading(true);
-    try {
-      const data = await getGigsForOrganization(orgId);
-      setGigs(data || []);
-    } catch (error) {
-      console.error('Failed to load gigs:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [orgId]);
-
-  useEffect(() => {
-    if (orgId) {
-      loadGigs();
-    }
-  }, [orgId, loadGigs]);
+  const { gigs, gigsQuery, refreshGigs, changeStatus } = useMobileGigListData(orgId);
+  const loading = gigsQuery.isFetching || (!!orgId && gigsQuery.isPending);
+  const loadGigs = () => { refreshGigs(); };
 
   const scrollRestoredRef = useRef(false);
 
@@ -121,9 +105,9 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
   const handleStatusChange = async (gigId: string, newStatus: GigStatus) => {
     setUpdatingStatus(gigId);
     try {
-      await updateGig(gigId, { status: newStatus });
+      // Resolves once the list has reloaded.
+      await changeStatus.mutateAsync({ gigId, status: newStatus });
       toast.success(`Status updated to ${GIG_STATUS_CONFIG[newStatus].label}`);
-      await loadGigs();
     } catch (error: any) {
       toast.error(error.message || 'Failed to update status');
     } finally {
@@ -132,14 +116,10 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
     }
   };
 
-  const handleGigCreated = useCallback(() => {
+  const handleGigCreated = () => {
     setShowCreateModal(false);
-    if (selectedOrganization?.id) {
-      getGigsForOrganization(selectedOrganization.id)
-        .then(data => setGigs(data || []))
-        .catch(err => console.error('Failed to reload gigs:', err));
-    }
-  }, [selectedOrganization]);
+    refreshGigs();
+  };
 
   const filteredGigs = useMemo(() => {
     let result = gigs;
@@ -499,6 +479,13 @@ function QuickCreateGigModal({
     }, 300);
   };
 
+  // Choosing an organization from the search list (by tap, or Enter/Space on it).
+  const pickOrg = (org: any) => {
+    setSelectedOrgResult(org);
+    setOrgSearchQuery(org.name);
+    setOrgSearchResults([]);
+  };
+
   const handleRoleSelect = (role: string) => {
     setAddParticipantRole(role);
     setShowRoleDropdown(false);
@@ -577,7 +564,8 @@ function QuickCreateGigModal({
 
   return (
     <div className="fixed inset-x-0 top-0 z-50 flex items-end justify-center" style={{ bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' }}>
-      <div className="absolute inset-0 bg-black/40" onClick={saving ? undefined : onClose} />
+      {/* The backdrop closes the sheet on a tap; the Close button does the same from the keyboard. */}
+      <div role="presentation" className="absolute inset-0 bg-black/40" onClick={saving ? undefined : onClose} />
       <div className="relative w-full max-w-lg bg-background rounded-t-2xl max-h-full overflow-y-auto">
         <div className="sticky top-0 bg-background px-4 py-3 border-b border-border/50 flex items-center justify-between rounded-t-2xl">
           <h2 className="text-base font-bold">New Gig</h2>
@@ -588,20 +576,22 @@ function QuickCreateGigModal({
         <form onSubmit={handleSubmit} className="p-4 space-y-3">
 
           <div>
-            <label className="text-[11px] font-medium text-muted-foreground uppercase">Title *</label>
+            <label htmlFor="new-gig-title" className="text-[11px] font-medium text-muted-foreground uppercase">Title *</label>
             <input
+              id="new-gig-title"
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className={cn(CREATE_INPUT_CLASS, 'mt-1')}
               placeholder="Gig title"
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- the new-gig sheet opens to type its title, as before
               autoFocus
               required
             />
           </div>
 
-          <div>
-            <label className="text-[11px] font-medium text-muted-foreground uppercase">Status</label>
+          <div role="group" aria-labelledby="new-gig-status-label">
+            <span id="new-gig-status-label" className="text-[11px] font-medium text-muted-foreground uppercase">Status</span>
             <div className="mt-1">
               <button
                 type="button"
@@ -635,9 +625,9 @@ function QuickCreateGigModal({
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2" role="group" aria-labelledby="new-gig-when-label">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-medium text-muted-foreground uppercase">Date & Time</label>
+              <span id="new-gig-when-label" className="text-[11px] font-medium text-muted-foreground uppercase">Date & Time</span>
               <label className="flex items-center gap-1.5 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -705,8 +695,8 @@ function QuickCreateGigModal({
             </div>
           </div>
 
-          <div>
-            <label className="text-[11px] font-medium text-muted-foreground uppercase">Participants</label>
+          <div role="group" aria-labelledby="new-gig-participants-label">
+            <span id="new-gig-participants-label" className="text-[11px] font-medium text-muted-foreground uppercase">Participants</span>
             <div className="mt-1 space-y-1">
               {participants.map((p, idx) => {
                 const conf = ORG_ROLE_CONFIG[p.role as keyof typeof ORG_ROLE_CONFIG];
@@ -736,15 +726,20 @@ function QuickCreateGigModal({
                       value={orgSearchQuery}
                       onChange={e => handleOrgSearchChange(e.target.value)}
                       placeholder="Search organizations…"
+                      // eslint-disable-next-line jsx-a11y/no-autofocus -- "Add participant" opens to type a search, as before
                       autoFocus
                     />
                     {orgSearchResults.length > 0 && !selectedOrgResult && (
-                      <ul className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                      <ul role="listbox" aria-label="Organizations" className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
                         {orgSearchResults.map(org => (
                           <li
                             key={org.id}
+                            role="option"
+                            aria-selected={false}
+                            tabIndex={0}
                             className="px-3 py-1.5 text-sm cursor-pointer hover:bg-muted"
-                            onClick={() => { setSelectedOrgResult(org); setOrgSearchQuery(org.name); setOrgSearchResults([]); }}
+                            onClick={() => pickOrg(org)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickOrg(org); } }}
                           >
                             {org.name}
                           </li>
@@ -766,12 +761,16 @@ function QuickCreateGigModal({
                       <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
                     </button>
                     {showRoleDropdown && (
-                      <ul className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                      <ul role="listbox" aria-label="Roles" className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
                         {Object.keys(ORG_ROLE_CONFIG).map(role => (
                           <li
                             key={role}
                             className={cn('px-3 py-2 text-sm cursor-pointer hover:bg-muted', addParticipantRole === role && 'font-medium text-sky-600')}
+                            role="option"
+                            aria-selected={addParticipantRole === role}
+                            tabIndex={0}
                             onClick={() => handleRoleSelect(role)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRoleSelect(role); } }}
                           >
                             {ORG_ROLE_CONFIG[role as keyof typeof ORG_ROLE_CONFIG]?.label || role}
                           </li>
@@ -809,8 +808,9 @@ function QuickCreateGigModal({
           </div>
 
           <div>
-            <label className="text-[11px] font-medium text-muted-foreground uppercase">Notes</label>
+            <label htmlFor="new-gig-notes" className="text-[11px] font-medium text-muted-foreground uppercase">Notes</label>
             <textarea
+              id="new-gig-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={1}

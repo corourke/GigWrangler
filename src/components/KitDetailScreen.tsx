@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Package, Edit2, Trash2, Copy, Loader2, Layers, Boxes, Container } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
@@ -16,24 +16,13 @@ import {
 } from './ui/table';
 import AppHeader from './AppHeader';
 import { PageHeader } from './layout/PageHeader';
-import { Organization, User, UserRole, ActivityLogEntry } from '../utils/supabase/types';
+import { Organization, User, UserRole } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
-import {
-  getKit,
-  deleteKit,
-  duplicateKit,
-  getKitFlattenedContents,
-  getKitFlattenedItems,
-  getKitComponentTree,
-  countInventoryItems,
-  maxTreeDepth,
-  KitComponentTreeNode,
-} from '../services/kit.service';
-import { getEntityActivity } from '../services/activityLog.service';
+import { countInventoryItems, maxTreeDepth, type KitComponentTreeNode } from '../services/kit.service';
+import { useKitDetailData, type FlattenedItemRow } from './kit/useKitDetailData';
 import { pieceValue, summarizeItem } from '../utils/equipmentItems';
 import ActivityFeed from './ActivityFeed';
 import { History } from 'lucide-react';
-import { useLatestRequest } from '../utils/hooks/useLatestRequest';
 
 interface KitDetailScreenProps {
   organization: Organization;
@@ -45,15 +34,6 @@ interface KitDetailScreenProps {
   onSwitchOrganization: () => void;
   onLogout: () => void;
 }
-
-interface FlattenedAssetRow {
-  asset_id: string;
-  total_quantity: number;
-  asset: any;
-}
-
-/** An "any" line, flattened through nested kits (#184). */
-type FlattenedItemRow = Awaited<ReturnType<typeof getKitFlattenedItems>>[number];
 
 const DEPTH_WARNING_THRESHOLD = 6;
 
@@ -129,61 +109,34 @@ export default function KitDetailScreen({
   onSwitchOrganization,
   onLogout,
 }: KitDetailScreenProps) {
-  const [kit, setKit] = useState<any>(null);
-  const [flattenedAssets, setFlattenedAssets] = useState<FlattenedAssetRow[]>([]);
-  const [flattenedItems, setFlattenedItems] = useState<FlattenedItemRow[]>([]);
-  const [componentTree, setComponentTree] = useState<KitComponentTreeNode[]>([]);
   const [showContainerContents, setShowContainerContents] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [kitActivity, setKitActivity] = useState<ActivityLogEntry[]>([]);
-  const [activityLoading, setActivityLoading] = useState(false);
+  const {
+    page,
+    isLoading,
+    error: loadError,
+    reload: loadKit,
+    activity: kitActivity,
+    activityLoading,
+    duplicateKit,
+    deleteKit,
+  } = useKitDetailData(kitId, organization.id);
+  const kit = page?.kit ?? null;
+  const flattenedAssets = page?.flattenedAssets ?? [];
+  const flattenedItems = page?.flattenedItems ?? [];
+  const componentTree: KitComponentTreeNode[] = page?.tree ?? [];
 
-  // A late answer for an earlier kit is dropped (B12).
-  const startKitRequest = useLatestRequest();
-  const loadKit = useCallback(async () => {
-    const isCurrent = startKitRequest();
-    setIsLoading(true);
-    setLoadError(null);
-    try {
-      const [data, flattened, tree, items] = await Promise.all([
-        getKit(kitId),
-        getKitFlattenedContents(kitId),
-        getKitComponentTree(kitId),
-        getKitFlattenedItems(kitId),
-      ]);
-      if (!isCurrent()) return;
-      setKit(data);
-      setFlattenedAssets(flattened as FlattenedAssetRow[]);
-      setFlattenedItems(items ?? []);
-      setComponentTree(tree);
-
-      const depth = maxTreeDepth(tree);
-      if (depth > DEPTH_WARNING_THRESHOLD) {
-        toast.warning(`This kit is nested ${depth} levels deep — is that intentional?`);
-      }
-
-      setActivityLoading(true);
-      getEntityActivity('kit', kitId)
-        .then((a) => { if (isCurrent()) setKitActivity(a); })
-        .catch(() => {})
-        .finally(() => { if (isCurrent()) setActivityLoading(false); });
-    } catch (error: any) {
-      if (!isCurrent()) return;
-      console.error('Error loading kit:', error);
-      setLoadError(error.message || 'Failed to load this kit.');
-    } finally {
-      if (isCurrent()) setIsLoading(false);
-    }
-  }, [kitId, startKitRequest]);
-
+  // Each load of a deeply nested kit asks whether that's intended.
   useEffect(() => {
-    loadKit();
-  }, [loadKit]);
+    if (!page) return;
+    const depth = maxTreeDepth(page.tree);
+    if (depth > DEPTH_WARNING_THRESHOLD) {
+      toast.warning(`This kit is nested ${depth} levels deep — is that intentional?`);
+    }
+  }, [page]);
 
   const handleDuplicate = async () => {
     try {
-      const newKit = await duplicateKit(kitId);
+      const newKit = await duplicateKit();
       // Tags are scanned, so the copy can't share this kit's: it starts with
       // none, and opens for editing to give it its own (#266).
       toast.success(kit?.tag_number
@@ -200,7 +153,7 @@ export default function KitDetailScreen({
     if (!confirm(`Are you sure you want to delete "${kit?.name}"?`)) return;
 
     try {
-      await deleteKit(kitId);
+      await deleteKit();
       toast.success('Kit deleted successfully');
       onBack();
     } catch (error: any) {
@@ -481,8 +434,9 @@ export default function KitDetailScreen({
         <Card className="p-6 mt-4">
           <div className="flex items-start justify-between gap-4 mb-1">
             <h3 className="text-gray-900">Kit Structure</h3>
-            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+            <label htmlFor="kit-show-container-contents" className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap">
               <Checkbox
+                id="kit-show-container-contents"
                 checked={showContainerContents}
                 onCheckedChange={(checked) => setShowContainerContents(checked === true)}
               />

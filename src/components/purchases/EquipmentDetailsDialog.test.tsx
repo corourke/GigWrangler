@@ -1,5 +1,6 @@
+import { renderWithQuery as render } from '../../test/renderWithQuery';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EquipmentDetailsDialog, { type EquipmentDetails } from './EquipmentDetailsDialog';
 import { emptyItemDraft, type ItemOption } from '../equipment/form/itemDraft';
@@ -87,6 +88,23 @@ describe('EquipmentDetailsDialog (#183)', () => {
     await ue.selectOptions(dialog().getByLabelText('Item'), 'xlr25');
     await ue.click(dialog().getByRole('button', { name: 'Done' }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ item: expect.objectContaining({ mode: 'existing', existing: items[0] }) }));
+  });
+
+  it('a used type is chosen from the keyboard: arrows move through the list, Enter picks (A19)', async () => {
+    const ue = userEvent.setup();
+    open();
+    const field = dialog().getByRole('combobox', { name: 'Type' });
+    await ue.click(field);
+    const list = await screen.findByRole('listbox', { name: 'Types used in Power' });
+    const [first, second] = within(list).getAllByRole('option');
+    await ue.keyboard('{ArrowDown}');
+    expect(field).toHaveAttribute('aria-activedescendant', first.id);
+    await ue.keyboard('{ArrowDown}');
+    expect(field).toHaveAttribute('aria-activedescendant', second.id);
+    const chosen = second.querySelector('span')!.textContent!;
+    await ue.keyboard('{Enter}');
+    expect(field).toHaveValue(chosen);
+    expect(screen.queryByRole('listbox', { name: 'Types used in Power' })).not.toBeInTheDocument();
   });
 
   it('suggests the types used in the item’s category', async () => {

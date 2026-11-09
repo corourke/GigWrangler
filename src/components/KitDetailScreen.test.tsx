@@ -1,10 +1,13 @@
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
 import KitDetailScreen from './KitDetailScreen'
 import { toast } from 'sonner'
 import { getKit, getKitComponentTree, getKitFlattenedItems, duplicateKit } from '../services/kit.service'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
+
+
 
 // countInventoryItems/maxTreeDepth are plain, pure functions — keep the real
 // implementations so these tests actually exercise the container-aware
@@ -211,5 +214,14 @@ describe('KitDetailScreen: kit page follow-ups (#266)', () => {
     expect(screen.getByRole('columnheader', { name: 'Item' })).toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: 'Asset' })).not.toBeInTheDocument()
     expect(screen.getByText('Pieces:')).toBeInTheDocument()
+  })
+})
+
+// A19: the toggle is named by its label.
+describe('KitDetailScreen: labelled toggle (A19)', () => {
+  it('names the Show container contents checkbox by its label', async () => {
+    render(<KitDetailScreen {...mockProps} />)
+    const box = await screen.findByLabelText('Show container contents')
+    expect(box).toHaveAttribute('role', 'checkbox')
   })
 })

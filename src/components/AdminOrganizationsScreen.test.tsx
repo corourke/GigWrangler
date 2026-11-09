@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import AdminOrganizationsScreen from './AdminOrganizationsScreen'
 import { makeUser } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
@@ -10,6 +11,8 @@ const rpc = vi.fn(async (_fn: string, _args: unknown): Promise<{ data: unknown; 
 vi.mock('../utils/supabase/client', () => ({
   createClient: () => ({ functions: { invoke }, rpc }),
 }))
+
+
 
 describe('AdminOrganizationsScreen page header (#39)', () => {
   it('puts Back to Select Organization in the header slot', async () => {
