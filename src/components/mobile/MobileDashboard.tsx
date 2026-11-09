@@ -13,10 +13,8 @@ import {
   Calendar,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { fetchMyUpcomingAssignments, type StaffDashboardGig } from '../../services/mobile/staffDashboard.service';
-import { updateStaffAssignmentStatus } from '../../services/gig.service';
-import { idbStore } from '../../utils/idb/store';
-import { offlineSyncService } from '../../services/mobile/offlineSync.service';
+import type { StaffDashboardGig } from '../../services/mobile/staffDashboard.service';
+import { useMobileDashboardData } from './useMobileDashboardData';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -38,19 +36,15 @@ const ASSIGNMENT_STATUS_CONFIG: Record<string, { label: string; color: string; i
   Declined: { label: 'Declined', color: 'bg-red-100 text-red-700 border-red-200', icon: XCircle },
 };
 
-const isAbortLikeError = (error: any) => {
-  if (!error) return false;
-  const errorName = String(error?.name || '').toLowerCase();
-  const errorMessage = String(error?.message || '').toLowerCase();
-  return errorName === 'aborterror' || errorMessage.includes('aborted');
-};
-
 export default function MobileDashboard({ onViewGigDetail, onViewAllGigs }: MobileDashboardProps) {
   const { isLoading: authLoading, user, selectedOrganization } = useAuth();
-  const [assignments, setAssignments] = useState<StaffDashboardGig[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { assignments, assignmentsQuery, loadError, answer } = useMobileDashboardData({
+    userId: user?.id,
+    orgId: selectedOrganization?.id,
+    enabled: !authLoading,
+  });
+  const loading = assignmentsQuery.isFetching || assignmentsQuery.isPending;
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [updatingAssignment, setUpdatingAssignment] = useState<string | null>(null);
 
   useEffect(() => {
@@ -63,87 +57,22 @@ export default function MobileDashboard({ onViewGigDetail, onViewAllGigs }: Mobi
     };
   }, []);
 
-  useEffect(() => {
-    if (!authLoading) {
-      loadAssignments();
-    }
-  }, [authLoading, user?.id, selectedOrganization?.id]);
+  const loadAssignments = () => { assignmentsQuery.refetch(); };
 
-  const loadAssignments = async () => {
-    setLoading(true);
-    setLoadError(null);
-    try {
-      // Load from cache first
-      const cached = await idbStore.getStaffAssignments().catch(() => []);
-      if (cached.length > 0) {
-        setAssignments(cached as StaffDashboardGig[]);
-      }
-
-      if (navigator.onLine) {
-        const fresh = await fetchMyUpcomingAssignments();
-        setAssignments(fresh);
-        await idbStore.putStaffAssignments(fresh).catch(() => {});
-      }
-    } catch (error: any) {
-      if (!isAbortLikeError(error)) {
-        console.error('loadAssignments failed:', error);
-        setLoadError(error?.message || String(error));
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleConfirm = async (assignmentId: string) => {
+  // Shown as answered at once (rolled back if it fails); queued for later when offline.
+  const handleAnswer = async (assignmentId: string, status: 'Confirmed' | 'Declined') => {
     setUpdatingAssignment(assignmentId);
-    const prev = [...assignments];
-    // Optimistic update
-    setAssignments(a =>
-      a.map(item =>
-        item.assignment.id === assignmentId
-          ? { ...item, assignment: { ...item.assignment, status: 'Confirmed', confirmed_at: new Date().toISOString() } }
-          : item
-      )
-    );
     try {
-      if (navigator.onLine) {
-        await updateStaffAssignmentStatus(assignmentId, 'Confirmed');
-      } else {
-        await offlineSyncService.queueTrackingUpdate({ assignmentId, status: 'Confirmed' }, 'STAFF_ASSIGNMENT_UPDATE');
-      }
-      toast.success('Assignment confirmed');
+      await answer.mutateAsync({ assignmentId, status });
+      toast.success(status === 'Confirmed' ? 'Assignment confirmed' : 'Assignment declined');
     } catch (err: any) {
-      setAssignments(prev);
-      toast.error(err.message || 'Failed to confirm');
+      toast.error(err.message || (status === 'Confirmed' ? 'Failed to confirm' : 'Failed to decline'));
     } finally {
       setUpdatingAssignment(null);
     }
   };
-
-  const handleDecline = async (assignmentId: string) => {
-    setUpdatingAssignment(assignmentId);
-    const prev = [...assignments];
-    setAssignments(a =>
-      a.map(item =>
-        item.assignment.id === assignmentId
-          ? { ...item, assignment: { ...item.assignment, status: 'Declined' } }
-          : item
-      )
-    );
-    try {
-      if (navigator.onLine) {
-        await updateStaffAssignmentStatus(assignmentId, 'Declined');
-      } else {
-        await offlineSyncService.queueTrackingUpdate({ assignmentId, status: 'Declined' }, 'STAFF_ASSIGNMENT_UPDATE');
-      }
-      toast.success('Assignment declined');
-    } catch (err: any) {
-      setAssignments(prev);
-      toast.error(err.message || 'Failed to decline');
-    } finally {
-      setUpdatingAssignment(null);
-    }
-  };
+  const handleConfirm = (assignmentId: string) => handleAnswer(assignmentId, 'Confirmed');
+  const handleDecline = (assignmentId: string) => handleAnswer(assignmentId, 'Declined');
 
   return (
     <div className="flex flex-col">

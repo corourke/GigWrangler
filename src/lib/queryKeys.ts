@@ -119,6 +119,14 @@ export const queryKeys = {
     orgId: string,
     params: { kitId: string | null | undefined; filter: string; search: string; inKitIds: readonly string[] },
   ) => ['kits', orgId, 'picker', { ...params, kitId: params.kitId ?? null, inKitIds: [...params.inKitIds].sort() }] as const,
+
+  // ── Mobile (A10, Engineer O) ──
+  // The gig keys extend the shared gig keys, so a write that invalidates gigs(org) or gig(id)
+  // refreshes the mobile copies too.
+  mobileGigs: (orgId: string) => ['gigs', orgId, 'mobile'] as const,
+  mobileGig: (gigId: string) => ['gig', gigId, 'mobile'] as const,
+  myUpcomingAssignments: (userId: string, orgId: string) => ['myUpcomingAssignments', userId, orgId] as const,
+  myDevices: (userId: string) => ['myDevices', userId] as const,
 } as const;
 
 // ── Organizations and settings (A10, Engineer O) ──
@@ -172,6 +180,26 @@ export function invalidateAfterCalendarEnabledChange(queryClient: QueryClient, {
 /** After a sync run (or the refresh button): the sync status. */
 export function invalidateAfterCalendarSyncChange(queryClient: QueryClient, { userId }: { userId: string }) {
   return queryClient.invalidateQueries({ queryKey: queryKeys.calendarSyncData(userId) });
+}
+
+// ── Mobile (A10, Engineer O) ──
+// A gig's status, details or a new gig: invalidateAfterGigChange / invalidateAfterGigListChange.
+
+/**
+ * After accept/decline on a staff assignment. On the gig: reload the gig. My Schedule is only
+ * marked stale (refetched on its next visit): offline the service answers with the device copy,
+ * which would undo the change on screen.
+ */
+export function invalidateAfterAssignmentChange(queryClient: QueryClient, { gigId }: { gigId?: string } = {}) {
+  return Promise.all([
+    ...(gigId ? [queryClient.invalidateQueries({ queryKey: queryKeys.gig(gigId) })] : []),
+    queryClient.invalidateQueries({ queryKey: ['myUpcomingAssignments'], refetchType: 'none' }),
+  ]);
+}
+
+/** After a device is enrolled or removed for biometric unlock. */
+export function invalidateAfterDeviceChange(queryClient: QueryClient, { userId }: { userId: string }) {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.myDevices(userId) });
 }
 
 /**

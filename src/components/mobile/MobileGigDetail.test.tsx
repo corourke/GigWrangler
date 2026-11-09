@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import MobileGigDetail from './MobileGigDetail'
 
 const mockGig = {
@@ -66,6 +67,8 @@ import { getGig, updateStaffAssignmentStatus, updateGig, updateGigParticipants }
 import { searchOrganizations } from '../../services/organization.service'
 import { makeOrganization } from '../../test/factories'
 import { toast } from 'sonner'
+
+
 
 describe('MobileGigDetail', () => {
   beforeEach(() => {
