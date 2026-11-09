@@ -9,6 +9,7 @@ export function DocumentPreviewPane({ preview, existingDoc, isEditMode }: { prev
   const { previewUrl, isImage, isPdf, pdfPageImages, magnifierEnabled, setShowFullPreview } = preview;
 
   const renderMagnifiableImage = (src: string, alt: string) => (
+    // A mouse-only magnifier, a visual aid on top of the picture; Full preview is the keyboard way to see it larger.
     <img
       src={src}
       alt={alt}
@@ -113,7 +114,9 @@ export function DocumentPreviewOverlays({ preview }: { preview: Preview }) {
     )}
 
     {showFullPreview && previewUrl && (
+      // The backdrop closes on a click; the Close button does the same from the keyboard.
       <div
+        role="presentation"
         style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', padding: 16 }}
         onClick={() => setShowFullPreview(false)}
       >
@@ -127,7 +130,7 @@ export function DocumentPreviewOverlays({ preview }: { preview: Preview }) {
             <CloseIcon style={{ width: 18, height: 18 }} /> Close
           </button>
         </div>
-        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }} onClick={e => e.stopPropagation()}>
+        <div role="presentation" style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }} onClick={e => e.stopPropagation()}>
           {isImage && <img src={previewUrl} alt="Full Preview" style={{ maxWidth: '100%', objectFit: 'contain', borderRadius: 4 }} />}
           {isPdf && pdfPageImages.map((src, i) => (
             <img key={i} src={src} alt={`Page ${i + 1}`} style={{ maxWidth: '100%', objectFit: 'contain', borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }} />

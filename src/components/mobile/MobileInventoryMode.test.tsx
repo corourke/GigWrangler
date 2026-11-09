@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render as rtlRender, screen, within } from '@testing-library/react'
+import { render as rtlRender, screen, within, fireEvent } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { renderWithQuery as render, makeTestQueryClient } from '../../test/renderWithQuery'
 import { queryKeys } from '../../lib/queryKeys'
@@ -1413,6 +1413,20 @@ describe('MobileInventoryMode', () => {
       expect(await screen.findByText('Maintenance')).toBeInTheDocument()
       expect(screen.queryByText(/to maintenance/i)).not.toBeInTheDocument()
     })
+  })
+})
+
+// A19: a kit's row opens and closes from the keyboard too.
+describe('MobileInventoryMode: kit rows from the keyboard (A19)', () => {
+  it('Enter or Space on a kit row toggles it, and the row says whether it is open', async () => {
+    render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+    const row = (await screen.findByText('Audio Case')).closest('[role="button"]') as HTMLElement
+    const before = row.getAttribute('aria-expanded')
+    expect(before === 'true' || before === 'false').toBe(true)
+    fireEvent.keyDown(row, { key: 'Enter' })
+    expect(row).toHaveAttribute('aria-expanded', before === 'true' ? 'false' : 'true')
+    fireEvent.keyDown(row, { key: ' ' })
+    expect(row).toHaveAttribute('aria-expanded', before)
   })
 })
 

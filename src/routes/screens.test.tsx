@@ -20,6 +20,9 @@ vi.mock('./appShell', () => ({
 // Keep the sign-in landing prefetch out of the way
 vi.mock('./prefetch', () => ({ prefetchLandingScreen: vi.fn() }));
 
+vi.mock('../components/OrganizationSelectionScreen', () => ({
+  default: () => <div>OrganizationSelectionScreen stub</div>,
+}));
 vi.mock('../components/Dashboard', () => ({
   default: () => <div>Dashboard stub</div>,
 }));
@@ -34,9 +37,11 @@ vi.mock('../components/FinancialsScreen', () => ({
   default: () => <div>FinancialsScreen stub</div>,
 }));
 
-// Reading the module's default export throws, like a chunk that failed to fetch
+// The screen fails with a chunk-load error, as a lazy screen whose chunk failed to fetch does when
+// React renders it. (A module whose default export throws on read no longer works: React 19 also
+// reads it for its dev tools, outside render, and that error goes unhandled.)
 vi.mock('../components/TeamScreen', () => ({
-  get default(): never {
+  default: (): never => {
     throw new TypeError('Failed to fetch dynamically imported module: /assets/TeamScreen-x.js');
   },
 }));
@@ -72,6 +77,13 @@ describe('AppRoutes lazy screens', () => {
     // Lazy: the screen is not in the first paint, the Suspense fallback is
     expect(screen.queryByText('Dashboard stub')).not.toBeInTheDocument();
     expect(await screen.findByText('Dashboard stub')).toBeInTheDocument();
+  });
+
+  // A17: the organization picker (and the app header it brings) stays out of the entry chunk.
+  it('lazy-loads the organization picker the same way', async () => {
+    renderAt('/org-selection');
+    expect(screen.queryByText('OrganizationSelectionScreen stub')).not.toBeInTheDocument();
+    expect(await screen.findByText('OrganizationSelectionScreen stub')).toBeInTheDocument();
   });
 
   it('lazy-loads the gig list the same way', async () => {

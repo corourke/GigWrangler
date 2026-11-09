@@ -373,7 +373,14 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                               {isKitChecked ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
                             </div>
                           </button>
-                          <div className="flex-1 min-w-0 px-0 py-3 pr-2 cursor-pointer" onClick={() => toggleKit(kit.id)}>
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            aria-expanded={isExpanded}
+                            className="flex-1 min-w-0 px-0 py-3 pr-2 cursor-pointer"
+                            onClick={() => toggleKit(kit.id)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleKit(kit.id); } }}
+                          >
                             <h3 className="font-bold text-sm leading-tight truncate">{kit.name}</h3>
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                               <Badge variant="outline" className="text-[10px] py-0 h-4 px-1.5 font-normal">Kit</Badge>
