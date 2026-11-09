@@ -761,6 +761,7 @@ function RouteTable() {
               <Route path="/assets/new" element={<AssetEditorRoute create />} />
               <Route path="/assets/:assetId/edit" element={<AssetEditorRoute create={false} />} />
               <Route path="/financials/:tab?/:sub?" element={<FinancialsRoute />} />
+              <Route path="/import" element={<ImportRoute />} />
             </Route>
             <Route path="/assets/:assetId" element={<AssetDetailRoute />} />
             <Route path="/items/:itemId" element={<ItemDetailRoute />} />
@@ -771,7 +772,6 @@ function RouteTable() {
             <Route path="/inventory/:subTab?" element={<InventoryRoute legacy />} />
             <Route path="/equipment/:tab?" element={<InventoryRoute />} />
             <Route path="/settings/:tab?" element={<SettingsRoute />} />
-            <Route path="/import" element={<ImportRoute />} />
           </Route>
         </Route>
 
