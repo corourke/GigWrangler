@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within, fireEvent } from '@testing-library/react'
+import { screen, within, fireEvent } from '@testing-library/react'
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import userEvent from '@testing-library/user-event'
 import { format } from 'date-fns'
 import MobileInventoryMode from './MobileInventoryMode'
@@ -84,6 +85,8 @@ import { inventoryTrackingService } from '../../services/mobile/inventoryTrackin
 import { act } from '@testing-library/react'
 import { writeOffPieces } from '../../services/writeOff.service'
 import { packingListService } from '../../services/mobile/packingList.service'
+
+
 
 describe('MobileInventoryMode', () => {
   beforeEach(() => {

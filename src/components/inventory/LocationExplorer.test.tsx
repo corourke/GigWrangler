@@ -1,5 +1,6 @@
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react'
 
 vi.mock('../../services/inventoryManagement.service', () => ({
   getItemsByLocation: vi.fn(),
@@ -74,6 +75,8 @@ import {
 } from '../../services/inventoryManagement.service';
 import { getItems } from '../../services/equipmentItem.service';
 import { LocationExplorer } from './LocationExplorer';
+
+
 
 const mockGigs = [
   {

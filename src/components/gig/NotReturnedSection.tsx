@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -7,17 +7,13 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '../ui/alert-dialog';
 import GigSection from './view/GigSection';
-import {
-  getGigReturns, markReturned, undoWriteOff, writeOffPieces,
-  type NotReturnedEntry, type ReturnRecord, type WrittenOffEntry,
-} from '../../services/writeOff.service';
-import { getLockedTaxYears } from '../../services/taxYear.service';
+import type { NotReturnedEntry, ReturnRecord } from '../../services/writeOff.service';
+import { useNotReturnedData } from './useNotReturnedData';
 import { recordKind } from '../../utils/equipmentItems';
 import { formatDateDisplay } from '../../utils/dateUtils';
 import { WRITE_OFF_LOCKED_MESSAGE } from '../../utils/writeOffMessages';
 import { plural } from '../../utils/plural';
 import { NOT_RETURNED_STATUS } from '../../config/inventoryWorkflow';
-import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface NotReturnedSectionProps {
   organizationId: string;
@@ -35,29 +31,9 @@ const yearOf = (day: string | null) => (day ? Number(day.slice(0, 4)) : NaN);
  * already left behind at a return scan), kit by kit, and what was written off here.
  */
 export default function NotReturnedSection({ organizationId, gigId, gigEnd, canEdit }: NotReturnedSectionProps) {
-  const [notReturned, setNotReturned] = useState<NotReturnedEntry[]>([]);
-  const [writtenOff, setWrittenOff] = useState<WrittenOffEntry[]>([]);
-  const [locked, setLocked] = useState<Set<number>>(new Set());
+  const { notReturned, writtenOff, locked, markReturned, writeOffPieces, undoWriteOff } =
+    useNotReturnedData(organizationId, gigId, canEdit);
   const [busy, setBusy] = useState(false);
-
-  // A late answer for an earlier gig (or reload) is dropped (B12).
-  const startRequest = useLatestRequest();
-  const load = useCallback(async () => {
-    const isCurrent = startRequest();
-    try {
-      const r = await getGigReturns(organizationId, gigId);
-      if (!isCurrent()) return;
-      setNotReturned(r.notReturned);
-      setWrittenOff(r.writtenOff);
-      if (canEdit && r.writtenOff.length) {
-        const locked = await getLockedTaxYears(organizationId);
-        if (isCurrent()) setLocked(locked);
-      }
-    } catch (err) {
-      if (isCurrent()) console.error('Error loading what is still out at the gig:', err);
-    }
-  }, [organizationId, gigId, canEdit, startRequest]);
-  useEffect(() => { load(); }, [load]);
 
   const over = new Date(gigEnd).getTime() < Date.now();
   const shown = notReturned.filter((e) => over || e.status === NOT_RETURNED_STATUS);
@@ -66,9 +42,9 @@ export default function NotReturnedSection({ organizationId, gigId, gigEnd, canE
   const act = async (what: () => Promise<unknown>, done: string) => {
     setBusy(true);
     try {
+      // The hook reloads the list before a write reports done.
       await what();
       toast.success(done);
-      await load();
     } catch (err: any) {
       toast.error(err?.message || 'That didn’t work');
     } finally {
