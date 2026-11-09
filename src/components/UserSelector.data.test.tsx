@@ -61,3 +61,31 @@ describe('UserSelector: search', () => {
     await waitFor(() => expect(screen.getByPlaceholderText('Search for user...')).toHaveValue(''));
   });
 });
+
+// Round C: clicking into the box and typing shows the results. The box used to toggle the
+// results closed on the click that focused it, so typing showed nothing.
+describe('UserSelector: click then type', () => {
+  it('shows the results after clicking into the box and typing', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    vi.mocked(searchUsers).mockResolvedValue([person('p1', 'Avery')]);
+    render(<UserSelector onSelect={vi.fn()} />);
+    const input = screen.getByPlaceholderText('Search for user...');
+    await user.click(input);
+    await user.type(input, 'av', { skipClick: true });
+    expect(await screen.findByText('Avery Tester')).toBeInTheDocument();
+  });
+
+  it('keeps the results open when the box is clicked again', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    vi.mocked(searchUsers).mockResolvedValue([person('p1', 'Avery')]);
+    render(<UserSelector onSelect={vi.fn()} />);
+    const input = screen.getByPlaceholderText('Search for user...');
+    await user.click(input);
+    await user.type(input, 'av', { skipClick: true });
+    expect(await screen.findByText('Avery Tester')).toBeInTheDocument();
+    await user.click(input);
+    expect(screen.getByText('Avery Tester')).toBeInTheDocument();
+  });
+});
