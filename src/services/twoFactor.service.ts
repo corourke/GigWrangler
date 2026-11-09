@@ -58,6 +58,16 @@ export async function getTwoFactorStatus(): Promise<TwoFactorStatus> {
   };
 }
 
+/**
+ * Until when to show the setup reminder, or null for none: while the grace period still runs, for
+ * a required account with no authenticator. A Google sign-in already counts, so it gets none.
+ */
+export function reminderUntil(status: TwoFactorStatus, now: Date = new Date()): string | null {
+  if (!status.required || status.factors.length > 0 || status.setupRequired || status.signedInWithGoogle) return null;
+  if (!status.requiredAfter || new Date(status.requiredAfter).getTime() <= now.getTime()) return null;
+  return status.requiredAfter;
+}
+
 /** Starts setting up an authenticator: the QR code to scan and the key to type instead. */
 export async function startTwoFactorSetup(): Promise<{ factorId: string; qrCode: string; secret: string }> {
   const mfa = createClient().auth.mfa;

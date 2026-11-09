@@ -266,3 +266,34 @@ describe('dataAccess', () => {
     });
   });
 });
+
+// A3: reading every row, and splitting long id lists.
+describe('fetchAllPages and inChunks', () => {
+  it('fetchAllPages asks for pages until one comes back short', async () => {
+    const { fetchAllPages, PAGE_SIZE } = await import('./dataAccess');
+    const rows = Array.from({ length: PAGE_SIZE + 5 }, (_, i) => i);
+    const windows: [number, number][] = [];
+    const out = await fetchAllPages<number>(async (from, to) => { windows.push([from, to]); return { data: rows.slice(from, to + 1), error: null }; });
+    expect(out).toEqual(rows);
+    expect(windows).toEqual([[0, PAGE_SIZE - 1], [PAGE_SIZE, 2 * PAGE_SIZE - 1]]);
+  });
+  it('fetchAllPages stops on an error', async () => {
+    const { fetchAllPages } = await import('./dataAccess');
+    await expect(fetchAllPages(async () => ({ data: null, error: new Error('nope') }))).rejects.toThrow('nope');
+  });
+  it('inChunks reads ids 100 at a time and keeps their order', async () => {
+    const { inChunks, IN_CHUNK } = await import('./dataAccess');
+    const ids = Array.from({ length: 250 }, (_, i) => `id${i}`);
+    const sizes: number[] = [];
+    const out = await inChunks(ids, async (chunk) => { sizes.push(chunk.length); return chunk; });
+    expect(IN_CHUNK).toBe(100);
+    expect(sizes).toEqual([100, 100, 50]);
+    expect(out).toEqual(ids);
+  });
+  it('inChunks makes no call for no ids', async () => {
+    const { inChunks } = await import('./dataAccess');
+    const fetch = vi.fn();
+    expect(await inChunks([], fetch)).toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});

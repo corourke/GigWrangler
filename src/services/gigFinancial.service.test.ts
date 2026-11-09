@@ -28,7 +28,7 @@ import { logActivity } from './activityLog.service';
 // Chainable Supabase query builder stub that resolves to `result` when awaited.
 function makeChain(result: { data: any; error: any }) {
   const chain: any = {};
-  ['select', 'eq', 'in', 'is', 'or', 'order', 'limit', 'maybeSingle'].forEach((m) => {
+  ['select', 'eq', 'in', 'is', 'or', 'order', 'limit', 'maybeSingle', 'range'].forEach((m) => {
     chain[m] = vi.fn().mockReturnValue(chain);
   });
   chain.then = (resolve: any, reject: any) => Promise.resolve(result).then(resolve, reject);

@@ -155,15 +155,22 @@ No branch/cleanliness/test gates and no backups — dev is where unmerged work l
 
 ## Continuous Integration
 
-[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs two jobs on every push and pull request to `main`.
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs four jobs on every push and pull request to `main`.
 
 **`ci`**:
 
 1. `npm ci`
-2. `npm run typecheck` — TypeScript strict mode
+2. `npm audit --omit=dev --audit-level=high` — a high-severity advisory in what ships to the browser fails the build; dev-only tools are left out
+3. `npm run typecheck` — TypeScript strict mode
 3. `npm run lint` — ESLint flat config
 4. `npm run test:run` — full Vitest suite
 5. `npm run build` — production Vite build
+
+**`edge`**: `deno check` (Deno 2.1.4) on the `server`, `ai-scan` and `health-check` functions, with `supabase/functions/deno.lock` frozen.
+- Every external module the functions use is in [`supabase/functions/_shared/deps.ts`](../../supabase/functions/_shared/deps.ts), at an exact version; `src/test/edgeDeps.test.ts` fails on an import from anywhere else.
+- **To change one:** edit `deps.ts`, then in `supabase/functions` run `DENO_NO_PACKAGE_JSON=1 deno check --no-config --lock=deno.lock --frozen=false server/index.ts ai-scan/index.ts health-check/index.ts` (without Deno installed, `npx -y deno@2.1.4 …`), and commit both files.
+
+**`docs`**: `npm ci` and `npm run build` in `website/docs`, so a broken page fails the pull request.
 
 **`rls`**: applies every migration to a throwaway Postgres 17 service container and runs the tenant-isolation tests in
 [`supabase/tests/rls/`](../../supabase/tests/rls/README.md) (`supabase/tests/rls/run.sh`). Any new org-private table

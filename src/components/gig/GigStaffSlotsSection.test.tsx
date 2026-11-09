@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigStaffSlotsSection from './GigStaffSlotsSection';
-import { getGig, updateGigStaffSlots } from '../../services/gig.service';
+import { getGig, updateGigStaffSlots, completeAllStaffAssignments, unfinalizeStaffAssignment } from '../../services/gig.service';
+import { toast } from 'sonner';
 
 // UserSelector's quick-add affordance mounts an AddPersonDialog (closed by
 // default) which uses react-query hooks regardless of its open state, so this
@@ -40,7 +41,10 @@ vi.mock('../../services/gig.service', () => ({
     ],
   }),
   updateGigStaffSlots: vi.fn().mockResolvedValue({}),
+  completeAllStaffAssignments: vi.fn(),
+  unfinalizeStaffAssignment: vi.fn(),
 }));
+vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }) }));
 
 // Radix Select doesn't open in jsdom; a native <select> lets tests pick a role.
 vi.mock('../ui/select', () => ({
@@ -329,5 +333,33 @@ describe('GigStaffSlotsSection projected staff cost (#213)', () => {
     render(<GigStaffSlotsSection {...mockProps} />);
     expect(await screen.findByText(/Total: \$1,582\.50/)).toBeInTheDocument();
     expect(screen.getByText('$1,582.50')).toBeInTheDocument(); // projected
+  });
+});
+
+// Finalize results say what happened (Docs Lead code read, 11-09).
+describe('GigStaffSlotsSection: finalize messages', () => {
+  const props = { gigId: 'test-gig-id', currentOrganizationId: 'current-org-id', participantOrganizationIds: ['current-org-id'] };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getGig).mockResolvedValue({
+      staff_slots: [{
+        id: '99999999-9999-4999-8999-999999999999', organization_id: 'current-org-id', role: 'Stage Hand', count: 1, notes: '',
+        staff_assignments: [{ id: 'a-done', user_id: 'user-c', user: { first_name: 'Cy', last_name: 'Ng' }, status: 'Confirmed', rate: null, rate_unit: 'hour', fee: 100, notes: '', completed_at: '2026-10-12T00:00:00Z' }],
+      }],
+    } as any);
+  });
+
+  it('a refused Undo Finalize shows the reason', async () => {
+    vi.mocked(unfinalizeStaffAssignment).mockRejectedValue(new Error('The 2025 tax year is locked (filed), so its gig income and expenses can\'t be deleted.'));
+    render(<GigStaffSlotsSection {...props} />);
+    fireEvent.click(await screen.findByTitle('Undo Finalize'));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('The 2025 tax year is locked (filed), so its gig income and expenses can\'t be deleted.'));
+  });
+
+  it('Finalize All with some refused says how many were finalized and why the rest weren\'t', async () => {
+    vi.mocked(completeAllStaffAssignments).mockResolvedValue({ success: true, count: 2, failed: 1, total: 3, reason: 'The 2025 tax year is locked (filed).' } as any);
+    render(<GigStaffSlotsSection {...props} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Finalize All/ }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Finalized 2 of 3. 1 couldn\'t be finalized: The 2025 tax year is locked (filed).'));
   });
 });

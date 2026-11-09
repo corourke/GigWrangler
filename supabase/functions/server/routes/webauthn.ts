@@ -35,7 +35,8 @@ export function registerWebauthn(app: App) {
       rpName: RP_NAME,
       rpID: RP_ID,
       userID: new TextEncoder().encode(user.id),
-      userName: user.email,
+      // An account without an email (none today) is named by its id.
+      userName: user.email ?? user.id,
       attestationType: 'none',
       excludeCredentials: devices?.map((d: any) => ({ id: d.credential_id })),
       authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },

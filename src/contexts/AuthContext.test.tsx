@@ -18,7 +18,11 @@ vi.mock('../services/mobile/offlineOwner', () => ({
 import { claimOfflineStore, releaseOfflineStore } from '../services/mobile/offlineOwner';
 
 const getTwoFactorStatus = vi.fn().mockResolvedValue({ factors: [], needsCode: false, signedInWithGoogle: false });
-vi.mock('../services/twoFactor.service', () => ({ getTwoFactorStatus: (...a: unknown[]) => getTwoFactorStatus(...a) }));
+vi.mock('../services/twoFactor.service', async (importOriginal) => ({
+  // The reminder rule is pure; the tests use the real one.
+  reminderUntil: (await importOriginal<typeof import('../services/twoFactor.service')>()).reminderUntil,
+  getTwoFactorStatus: (...a: unknown[]) => getTwoFactorStatus(...a),
+}));
 
 // Mock user service to simulate database hang
 vi.mock('../services/user.service', () => ({
@@ -381,10 +385,11 @@ describe('AuthContext: a temporary password', () => {
   });
 
   it('reminds an Admin in the grace period who has no authenticator (#361)', async () => {
-    getTwoFactorStatus.mockResolvedValueOnce({ factors: [], needsCode: false, signedInWithGoogle: false, required: true, requiredAfter: '2026-12-01T00:00:00Z', setupRequired: false });
+    const until = new Date(Date.now() + 10 * 86_400_000).toISOString(); // still ahead whenever this runs
+    getTwoFactorStatus.mockResolvedValueOnce({ factors: [], needsCode: false, signedInWithGoogle: false, required: true, requiredAfter: until, setupRequired: false });
     const { result } = renderHook(() => useAuth(), { wrapper });
     await act(async () => { authChangeHandler('SIGNED_IN', { user: { id: 'user-1' } }); });
-    await vi.waitFor(() => expect(result.current.twoFactorReminderUntil).toBe('2026-12-01T00:00:00Z'), { timeout: 1000 });
+    await vi.waitFor(() => expect(result.current.twoFactorReminderUntil).toBe(until), { timeout: 1000 });
   });
 
   it('doesn\'t without the flag', async () => {

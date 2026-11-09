@@ -1,6 +1,4 @@
-import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
-import Anthropic from "npm:@anthropic-ai/sdk@0.131.0";
-import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
+import { createClient, Anthropic, encodeBase64, type SupabaseClient } from "../_shared/deps.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { buildScanParams, readScanResponse } from "./scanRequest.ts";
