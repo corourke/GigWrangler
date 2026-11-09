@@ -44,6 +44,10 @@ shows **Welcome to GigWrangler!** and asks you to complete your profile first:
 
 Select **Continue** to go on.
 
+## Two-factor sign-in
+
+If you've turned on [two-factor sign-in](/settings/security/), GigWrangler asks for the 6-digit code from your authenticator app after your password. Admins must use it after 14 days as an Admin.
+
 ## If someone gave you a password
 
 If an Admin set up your account and gave you a password, it's only for your first

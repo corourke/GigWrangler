@@ -452,6 +452,19 @@ export const shots = [
     clip: { x: 0, y: 56, width: 1200, height: 420 },
   },
   {
+    id: 'settings/security-two-factor',
+    page: 'settings/security.md',
+    user: 'admin',
+    sources: ['src/components/security/TwoFactorSettings.tsx', 'src/components/SettingsScreen.tsx'],
+    prepare: async (page, ctx) => {
+      // Shows the card only; never starts a setup.
+      await page.goto(`${ctx.base}/settings/security`);
+      await page.getByRole('button', { name: 'Set up two-factor sign-in' }).waitFor();
+    },
+    target: (page) => cardOf(page, 'Two-factor sign-in'),
+    pad: 12,
+  },
+  {
     id: 'getting-started/organizations-search-result',
     page: 'getting-started/organizations.md',
     user: 'newuser',
