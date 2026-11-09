@@ -52,6 +52,8 @@ Gig** for the owner, **Mark Inactive** and **Leave Gig** for the other organizat
 on the gig, and **Delete Gig**. Delete Gig is grayed out when you can't delete the gig;
 select it to see why. See [The gig's owner](/gigs/participating-organizations/#the-gigs-owner).
 
+**Duplicate** makes a new gig named "{title} (Copy)" at **Proposed**, with the same dates and times, tags, notes, active participants and schedule, and your staff slots and kits. The slots come without the people in them. No money comes with it: bookings, payments, expenses, staff pay, purchases and mileage are entered afresh on the copy.
+
 ## Editing a gig
 
 Admins and Managers choose **Edit**. The whole page switches to edit mode: the
