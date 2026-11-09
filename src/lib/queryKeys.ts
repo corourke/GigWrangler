@@ -227,11 +227,13 @@ export function invalidateAfterGigReturnChange(
 
 /**
  * After where something is was changed by hand (a tracking override): the organization's
- * equipment (Locations, manifests, tracking), its kits, and every gig's packing list.
+ * equipment (Locations, manifests, tracking), its kits, the active gigs with their scans (Out on
+ * gigs), and every gig's packing list.
  */
 export function invalidateAfterTrackingChange(queryClient: QueryClient, { organizationId }: { organizationId: string }) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.assets(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.activeGigsWithTracking(organizationId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.kits(organizationId) }),
     queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'gig' && q.queryKey[2] === 'packingList' }),
   ]);

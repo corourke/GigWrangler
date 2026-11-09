@@ -117,12 +117,14 @@ describe('inventory invalidation helpers (A10)', () => {
     ]))
   })
 
-  it('a tracking override refreshes the equipment, the kits and every packing list', async () => {
+  it('a tracking override refreshes the equipment, the kits, the active gigs and every packing list', async () => {
     const { client, spy, keys } = spyClient()
     client.setQueryData(queryKeys.gigPackingList('g1', 'org-1'), [])
     client.setQueryData(queryKeys.gig('g1'), {})
     await invalidateAfterTrackingChange(client, { organizationId: 'org-1' })
-    expect(keys()).toEqual(expect.arrayContaining([queryKeys.assets('org-1'), queryKeys.kits('org-1')]))
+    expect(keys()).toEqual(expect.arrayContaining([
+      queryKeys.assets('org-1'), queryKeys.kits('org-1'), queryKeys.activeGigsWithTracking('org-1'),
+    ]))
     const predicate = spy.mock.calls.map((c: any[]) => c[0]?.predicate).find(Boolean)!
     const query = (key: readonly unknown[]) => client.getQueryCache().find({ queryKey: key, exact: true })!
     expect(predicate(query(queryKeys.gigPackingList('g1', 'org-1')))).toBe(true)
