@@ -1,9 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, within, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import userEvent from '@testing-library/user-event';
 import NotReturnedSection from './NotReturnedSection';
 import { getGigReturns, writeOffPieces, undoWriteOff, markReturned } from '../../services/writeOff.service';
 import { getLockedTaxYears } from '../../services/taxYear.service';
+
+// A10: the screen reads through react-query, so each test gets a fresh client.
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
+
 
 vi.mock('../../services/writeOff.service', () => ({
   getGigReturns: vi.fn(), writeOffPieces: vi.fn(), undoWriteOff: vi.fn(), markReturned: vi.fn(),

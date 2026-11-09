@@ -1,8 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor, within, fireEvent } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MaintenanceList } from './MaintenanceList';
 import { getMaintenanceList, updateMaintenance, returnToService } from '../../services/maintenance.service';
 import { toast } from 'sonner';
+
+// A10: the screen reads through react-query, so each test gets a fresh client.
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
+
 
 vi.mock('../../services/maintenance.service', async () => {
   const actual = await vi.importActual<any>('../../services/maintenance.service');
