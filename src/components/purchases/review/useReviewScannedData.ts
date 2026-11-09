@@ -87,8 +87,9 @@ export async function loadPurchaseForEdit(purchaseId: string, organizationId: st
 }
 
 /**
- * The purchase being edited (A10). `fresh` is the purchase as read since the editor opened (never
- * an earlier cached copy, so the form starts from what is stored now); null until then.
+ * The purchase being edited (A10). It seeds an editable form, so it keeps no cached copy
+ * (gcTime 0, #402): each open reads it fresh. `fresh` is the purchase as read now, null while a
+ * read runs; `dataUpdatedAt` says when each load landed, for seeding the form once per load.
  * A failed read is reported once.
  */
 export function usePurchaseForEdit(purchaseId: string | undefined, organizationId: string, open: boolean) {
@@ -97,14 +98,19 @@ export function usePurchaseForEdit(purchaseId: string | undefined, organizationI
     queryFn: () => loadPurchaseForEdit(purchaseId!, organizationId),
     enabled: open && !!purchaseId,
     staleTime: 0,
+    gcTime: 0,
   });
-  const { error, errorUpdatedAt } = query;
+  const { error, errorUpdatedAt, refetch } = query;
   useEffect(() => {
     if (!error) return;
     console.error('Error loading purchase for edit:', error);
     toast.error('Failed to load purchase');
   }, [error, errorUpdatedAt]);
-  return { fresh: query.isSuccess && !query.isFetching ? query.data : null };
+  return {
+    fresh: query.isSuccess && !query.isFetching ? query.data : null,
+    dataUpdatedAt: query.dataUpdatedAt,
+    refetch,
+  };
 }
 
 type CreateArgs = Parameters<typeof createPurchaseWithUnits>;

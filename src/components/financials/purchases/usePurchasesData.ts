@@ -95,7 +95,7 @@ export function useLinkedGigExpenses(organizationId: string, purchaseIds: string
 
 /**
  * The report's writes (A10). Each refreshes what it changed (invalidateAfterPurchaseChange);
- * the screen keeps its own toasts, confirms and the 'gig-financials-updated' event.
+ * the gigs' money is refreshed there too. The screen keeps its own toasts and confirms.
  */
 export function usePurchasesMutations(organizationId: string) {
   const queryClient = useQueryClient();
@@ -109,9 +109,10 @@ export function usePurchasesMutations(organizationId: string) {
   });
 
   const setLineGig = useMutation({
-    mutationFn: (vars: { item: DbPurchase; gigId: string | null; removeEntries?: boolean }) =>
+    /** ledgerGigId: the gig the removed ledger rows were on, refreshed with the line's own. */
+    mutationFn: (vars: { item: DbPurchase; gigId: string | null; removeEntries?: boolean; ledgerGigId?: string }) =>
       setPurchaseLineGig(vars.item, vars.gigId, vars.removeEntries ? { removeEntries: true } : undefined),
-    onSuccess: (_res, vars) => written([vars.item.gig_id, vars.gigId]),
+    onSuccess: (_res, vars) => written([vars.item.gig_id, vars.gigId, vars.ledgerGigId]),
   });
 
   const createLedgerEntry = useMutation({

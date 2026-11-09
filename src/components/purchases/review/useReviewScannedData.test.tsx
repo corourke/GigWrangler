@@ -100,7 +100,7 @@ describe('useReviewMutations (A10)', () => {
     const { result, queryClient } = renderHook(() => useReviewMutations('org-1'));
     const spy = vi.spyOn(queryClient, 'invalidateQueries');
     await act(() => result.current.createPurchase.mutateAsync({ header: {}, items: [], units: [], gigLink: { gigId: 'g1', ledger: [] } }));
-    expect(invalidated(spy)).toEqual([['purchase', 'p-new'], ['taxReport', 'org-1'], ['gigs', 'org-1', 'accounting'], ['assets', 'org-1'], ['dashboard', 'org-1'], ['financials', 'g1'], ['gigFinancialsSummary', 'g1']]);
+    expect(invalidated(spy)).toEqual([['purchase', 'p-new'], ['taxReport', 'org-1'], ['gigs', 'org-1', 'accounting'], ['assets', 'org-1'], ['dashboard', 'org-1'], ['financials', 'g1'], ['gigFinancialsSummary', 'g1'], ['gigProjectedStaff', 'g1']]);
   });
 
   it('an edit refreshes the purchase as the editor reads it; every gig\'s money when it changed some', async () => {
@@ -110,7 +110,7 @@ describe('useReviewMutations (A10)', () => {
     const plan: any = { equipment: [], header: {}, track_lines: [], updated_items: [], new_items: [], add_units: [], removed_item_ids: [], asset_changes: [], gig_changes: [{ fin_id: 'f1', amount: 1, settle: false }] };
     await act(() => result.current.saveEdit.mutateAsync({ purchaseId: 'h1', plan }));
     expect(savePurchaseEdit).toHaveBeenCalledWith('h1', plan);
-    expect(invalidated(spy)).toEqual([['purchase', 'h1'], ['taxReport', 'org-1'], ['gigs', 'org-1', 'accounting'], ['assets', 'org-1'], ['dashboard', 'org-1'], ['financials'], ['gigFinancialsSummary']]);
+    expect(invalidated(spy)).toEqual([['purchase', 'h1'], ['taxReport', 'org-1'], ['gigs', 'org-1', 'accounting'], ['assets', 'org-1'], ['dashboard', 'org-1'], ['financials'], ['gigFinancialsSummary'], ['gigProjectedStaff']]);
     expect(queryClient.getQueryState(queryKeys.purchaseForEdit('h1', 'org-1'))?.isInvalidated).toBe(true);
   });
 });

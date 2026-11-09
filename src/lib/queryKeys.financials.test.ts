@@ -6,6 +6,7 @@ import {
   invalidateAfterPurchaseEditorSave,
   invalidateAfterPurchaseDocumentChange,
   invalidateAfterTaxYearChange,
+  invalidateAfterGigFinancialsChange,
 } from './queryKeys';
 
 const invalidated = async (run: (qc: QueryClient) => Promise<unknown>) => {
@@ -40,7 +41,8 @@ describe('Financials query keys (A10)', () => {
   it('a purchase written from the report refreshes the purchases, the purchase, the tax report, Gig Accounting, equipment, the dashboard and the gigs it touched', async () => {
     expect(await invalidated((qc) => invalidateAfterPurchaseChange(qc, { organizationId: 'o1', purchaseId: 'p1', gigIds: ['g1', null, 'g1', 'g2'] }))).toEqual([
       ['purchases', 'o1'], ['purchase', 'p1'], ['taxReport', 'o1'], ['gigs', 'o1', 'accounting'], ['assets', 'o1'], ['dashboard', 'o1'],
-      ['financials', 'g1'], ['gigFinancialsSummary', 'g1'], ['financials', 'g2'], ['gigFinancialsSummary', 'g2'],
+      ['financials', 'g1'], ['gigFinancialsSummary', 'g1'], ['gigProjectedStaff', 'g1'],
+      ['financials', 'g2'], ['gigFinancialsSummary', 'g2'], ['gigProjectedStaff', 'g2'],
     ]);
   });
 
@@ -48,13 +50,20 @@ describe('Financials query keys (A10)', () => {
     const keys = await invalidated((qc) => invalidateAfterPurchaseChange(qc, { organizationId: 'o1', allGigs: true }));
     expect(keys).toContainEqual(['financials']);
     expect(keys).toContainEqual(['gigFinancialsSummary']);
+    expect(keys).toContainEqual(['gigProjectedStaff']);
+  });
+
+  it('a gig\'s ledger changed from outside its page refreshes its money figures and the dashboard', async () => {
+    expect(await invalidated((qc) => invalidateAfterGigFinancialsChange(qc, { organizationId: 'o1', gigIds: ['g1'] }))).toEqual([
+      ['financials', 'g1'], ['gigFinancialsSummary', 'g1'], ['gigProjectedStaff', 'g1'], ['dashboard', 'o1'],
+    ]);
   });
 
   it('a save in the editor leaves the purchases report to its screen', async () => {
     const keys = await invalidated((qc) => invalidateAfterPurchaseEditorSave(qc, { organizationId: 'o1', purchaseId: 'p1', gigIds: ['g1'] }));
     expect(keys).toEqual([
       ['purchase', 'p1'], ['taxReport', 'o1'], ['gigs', 'o1', 'accounting'], ['assets', 'o1'], ['dashboard', 'o1'],
-      ['financials', 'g1'], ['gigFinancialsSummary', 'g1'],
+      ['financials', 'g1'], ['gigFinancialsSummary', 'g1'], ['gigProjectedStaff', 'g1'],
     ]);
     expect(keys).not.toContainEqual(['purchases', 'o1']);
   });

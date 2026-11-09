@@ -167,7 +167,6 @@ export default function PurchasesTab({
           toast.success(`Assigned to ${gigTitle || 'gig'}`);
           setLedgerPrompt({ item, gigId, gigTitle });
         } else if (res.action === 'moved') {
-          window.dispatchEvent(new CustomEvent('gig-financials-updated', {}));
           toast.success(`Moved to ${gigTitle || 'gig'} — its ledger entry moved too`);
         } else {
           toast.success(`Assigned to ${gigTitle || 'gig'} — already in the ledger`);
@@ -190,7 +189,6 @@ export default function PurchasesTab({
     setAssigningGigItemId(item.id);
     try {
       const { created } = await mutations.createLedgerEntry.mutateAsync({ item, gigId: item.gig_id });
-      window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId: item.gig_id } }));
       toast.success(created ? 'Added to the gig ledger' : 'This line is already in the gig ledger');
     } catch (err: any) {
       toast.error(err.message || 'Failed to add to gig ledger');
@@ -205,8 +203,7 @@ export default function PurchasesTab({
     setClearingLedger(true);
     try {
       // One call (B21): unlink the line and remove its gig expenses together, or neither.
-      await mutations.setLineGig.mutateAsync({ item, gigId: null, removeEntries: true });
-      window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId: fromGigId } }));
+      await mutations.setLineGig.mutateAsync({ item, gigId: null, removeEntries: true, ledgerGigId: fromGigId });
       toast.success('Gig association and its ledger entry removed');
       setClearLedgerConfirm(null);
     } catch (err: any) {
@@ -222,7 +219,6 @@ export default function PurchasesTab({
     setCreatingLedger(true);
     try {
       const { created } = await mutations.createLedgerEntry.mutateAsync({ item, gigId });
-      window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
       toast.success(created ? 'Gig expense ledger entry created' : 'This line is already in the gig ledger');
       setLedgerPrompt(null);
     } catch (err: any) {

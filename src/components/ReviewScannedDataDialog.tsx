@@ -118,9 +118,9 @@ export default function ReviewScannedDataDialog({
   }, [scannedData, open, editPurchaseId]);
 
   // Edit mode: the existing purchase, its linked equipment, gig ledger rows and document (A10).
-  // Each open starts again, and the form is filled once, from the purchase as read now, so a
-  // later refetch never overwrites what is being typed.
-  const { fresh } = usePurchaseForEdit(editPurchaseId, organizationId, open);
+  // Each open starts again and reads the purchase fresh; the form is filled once per load (on the
+  // query's dataUpdatedAt, #402), from the purchase as read then.
+  const { fresh, dataUpdatedAt } = usePurchaseForEdit(editPurchaseId, organizationId, open);
   const editKey = open && editPurchaseId ? `${organizationId}:${editPurchaseId}` : null;
   const [filledFor, setFilledFor] = useState<string | null>(null);
   useEffect(() => {
@@ -130,7 +130,8 @@ export default function ReviewScannedDataDialog({
     setPendingPlan(null);
   }, [editKey]);
   useEffect(() => {
-    if (!editKey || filledFor === editKey || !fresh) return;
+    const load = `${editKey}@${dataUpdatedAt}`;
+    if (!editKey || filledFor === load || !fresh) return;
     const stored = formFromStored(fresh.details);
     setAssetsById(stored.assetsById);
     setOriginalItemIds(stored.originalItemIds);
@@ -139,8 +140,8 @@ export default function ReviewScannedDataDialog({
     setFormData(stored.form);
     setLedgerByPurchaseId(fresh.ledgerByPurchaseId);
     setExistingDoc(fresh.existingDoc);
-    setFilledFor(editKey);
-  }, [editKey, filledFor, fresh]);
+    setFilledFor(load);
+  }, [editKey, dataUpdatedAt, filledFor, fresh]);
 
   // The money as loaded, once the edit form is filled.
   useEffect(() => {
@@ -261,7 +262,6 @@ export default function ReviewScannedDataDialog({
           : [])),
       } : undefined;
       const result = await createPurchase.mutateAsync({ header, items, units, gigLink });
-      if (gigId) window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
 
       if (attachmentId) {
         try {
@@ -336,9 +336,6 @@ export default function ReviewScannedDataDialog({
         }
       }
 
-      if (plan.gigChanges.length > 0) {
-        window.dispatchEvent(new CustomEvent('gig-financials-updated', {}));
-      }
       toast.success('Purchase updated successfully');
       onUpdated?.(editPurchaseId);
       if (!isPage) onOpenChange(false);
