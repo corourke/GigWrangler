@@ -17,8 +17,9 @@ interface GigAccountingRowDetailProps {
   onNavigateToGigDetail?: (gigId: string) => void;
 }
 
+// Each line's amount to the cent, as on the gig's money tab.
 const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 
 const formatDate = (dateStr: string) => {
   try {
