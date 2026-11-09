@@ -1,6 +1,6 @@
 // An in-memory stand-in for the service-role Supabase client, for route and middleware tests.
 // Tables are arrays of rows. Supports the query shapes the routes use: select (with
-// `alias:table(*)` embeds joined on `<alias>_id`, and `{ count, head }`), insert, update, delete,
+// `alias:table(...)` embeds joined on `<alias>_id`, whole rows, and `{ count, head }`), insert, update, delete,
 // eq / neq / in / is / not / gt / gte / lt / lte filters, order, range, limit, single, maybeSingle.
 // rpc() calls a handler by name; auth.getUser() looks a user up by token.
 
@@ -25,7 +25,7 @@ export function fakeSupabase(opts: FakeOptions = {}) {
 
   const embed = (row: Row, select: string): Row => {
     const out = { ...row };
-    for (const m of select.matchAll(/(\w+):(\w+)(?:!\w+)?\(\*\)/g)) {
+    for (const m of select.matchAll(/(\w+):(\w+)(?:!\w+)?\(/g)) {
       const [, alias, target] = m;
       out[alias] = table(target).find((t) => t.id === row[`${alias}_id`]) ?? null;
     }
@@ -107,7 +107,10 @@ export function fakeSupabase(opts: FakeOptions = {}) {
         const user = opts.users?.[token];
         return Promise.resolve(user ? { data: { user }, error: null } : { data: { user: null }, error: { message: 'invalid token' } });
       },
-      admin: { mfa: { listFactors: () => Promise.resolve({ data: { factors: [] }, error: null }), deleteFactor: () => Promise.resolve({ error: null }) } },
+      admin: {
+        getUserById: (id: string) => Promise.resolve({ data: { user: { id, last_sign_in_at: null } }, error: null }),
+        mfa: { listFactors: () => Promise.resolve({ data: { factors: [] }, error: null }), deleteFactor: () => Promise.resolve({ error: null }) },
+      },
     },
   };
   return { client, tables: () => tables };

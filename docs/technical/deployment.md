@@ -166,7 +166,9 @@ No branch/cleanliness/test gates and no backups — dev is where unmerged work l
 4. `npm run test:run` — full Vitest suite
 5. `npm run build` — production Vite build
 
-**`edge`**: `deno check` (Deno 2.1.4) on the `server`, `ai-scan` and `health-check` functions, with `supabase/functions/deno.lock` frozen.
+**`edge`**: `deno check` (Deno 2.1.4) on the `server`, `ai-scan` and `health-check` functions, with `supabase/functions/deno.lock` frozen, then the `server` function's route and middleware tests (`supabase/functions/server/test/`, `deno test`).
+- The tests send requests to the app (`server/app.ts`; `index.ts` only adds `Deno.serve`) with an in-memory client set through `setSupabaseAdminForTests`, which works only when `DENO_TESTING=1`.
+- **Run them locally:** in `supabase/functions`, `DENO_NO_PACKAGE_JSON=1 DENO_TESTING=1 deno test --no-config --lock=deno.lock --frozen --allow-env server/test/`.
 - Every external module the functions use is in [`supabase/functions/_shared/deps.ts`](../../supabase/functions/_shared/deps.ts), at an exact version; `src/test/edgeDeps.test.ts` fails on an import from anywhere else.
 - **To change one:** edit `deps.ts`, then in `supabase/functions` run `DENO_NO_PACKAGE_JSON=1 deno check --no-config --lock=deno.lock --frozen=false server/index.ts ai-scan/index.ts health-check/index.ts` (without Deno installed, `npx -y deno@2.1.4 …`), and commit both files.
 

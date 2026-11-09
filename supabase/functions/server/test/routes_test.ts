@@ -20,12 +20,12 @@ function assertEquals(actual: unknown, expected: unknown, msg = '') {
 function assert(cond: unknown, msg: string) { if (!cond) throw new Error(msg); }
 
 const ORIGIN = 'https://gigwrangler.com';
-const ADMIN = token('admin'), MANAGER = token('manager'), VIEWER = token('viewer'), MOD = token('mod');
+const ADMIN = token('admin'), ADMIN_STEP2 = token('admin', { aal: 'aal2' }), MANAGER = token('manager'), VIEWER = token('viewer'), MOD = token('mod');
 
 /** An organization with an Admin, a Manager and a Viewer, plus a platform moderator elsewhere. */
 function world(extra: FakeOptions = {}) {
   const fake = fakeSupabase({
-    users: { [ADMIN]: { id: 'u-admin', email: 'a@example.test' }, [MANAGER]: { id: 'u-manager' }, [VIEWER]: { id: 'u-viewer' }, [MOD]: { id: 'u-mod' } },
+    users: { [ADMIN]: { id: 'u-admin', email: 'a@example.test' }, [ADMIN_STEP2]: { id: 'u-admin', email: 'a@example.test' }, [MANAGER]: { id: 'u-manager' }, [VIEWER]: { id: 'u-viewer' }, [MOD]: { id: 'u-mod' } },
     tables: {
       organizations: [{ id: 'o1', name: 'Org One', claimed: true }, { id: 'o2', name: 'Solo', claimed: true }],
       users: [{ id: 'u-admin' }, { id: 'u-manager' }, { id: 'u-viewer' }, { id: 'u-mod', platform_moderator: true }],
@@ -94,9 +94,8 @@ Deno.test('the second sign-in step is asked for when it is required', async () =
   const res = await call('GET', '/organizations/o1/members', { bearer: ADMIN });
   assertEquals(res.status, 403);
   assertEquals((await res.json()).error, TWO_FACTOR_REQUIRED);
-  world({ rpc: { mfa_required_for: () => true } });
-  const done = await call('GET', '/organizations/o1/members', { bearer: token('admin2', { aal: 'aal2' }) });
-  assertEquals(done.status, 401, 'an unknown user is still refused after the second step');
+  const done = await call('GET', '/organizations/o1/members', { bearer: ADMIN_STEP2 });
+  assertEquals(done.status, 200, 'after the second step the request goes through');
 });
 
 Deno.test('member changes', async (t) => {
