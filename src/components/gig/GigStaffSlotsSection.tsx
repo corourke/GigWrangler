@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
-import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { createClient } from '../../utils/supabase/client';
 import {FileText, Loader2, Plus, Trash2, Users, CheckCircle2, Circle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -24,72 +22,21 @@ import {
 import { Textarea } from '../ui/textarea';
 import UserSelector from '../UserSelector';
 import { 
-  getGig, 
   updateGigStaffSlots, 
   completeStaffAssignment, 
   completeAllStaffAssignments,
   unfinalizeStaffAssignment
 } from '../../services/gig.service';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
+import { useGigStaffSlotsData } from './staff/useGigStaffSlotsData';
+import { openAssignment, staffSlotsFormSchema, type StaffSlotsFormData } from './staff/staffSlotsForm';
 import { useRowBaseline } from '../../utils/hooks/useRowBaseline';
 import SaveStateIndicator from './SaveStateIndicator';
 import { RotateCcw } from 'lucide-react';
-import { RATE_UNITS, formatRate, rateUnit, unitPlural, type RateUnit } from './view/staffRows';
+import { RATE_UNITS, formatRate, unitPlural } from './view/staffRows';
 import { dollars, projectedStaffCost, type GigTimes } from '../../utils/rateEstimate';
 
-const staffAssignmentSchema = z.object({
-  id: z.string(),
-  user_id: z.string(),
-  user_name: z.string(),
-  status: z.enum(['Open', 'Requested', 'Confirmed', 'Declined']),
-  compensation_type: z.enum(['rate', 'fee']),
-  rate_unit: z.enum(['hour', 'day', 'half_day']),
-  amount: z.string().refine((val) => {
-    if (!val.trim()) return true;
-    const num = parseFloat(val);
-    return !isNaN(num) && num >= 0;
-  }, 'Amount must be a positive number'),
-  notes: z.string().optional(),
-  completed_at: z.string().optional().nullable(),
-  units_completed: z.number().optional().nullable(),
-});
-
-const staffSlotSchema = z.object({
-  id: z.string(),
-  organization_id: z.string().optional(),
-  role: z.string().min(1, 'Role is required'),
-  count: z.number().min(1, 'Count must be at least 1'),
-  notes: z.string().optional(),
-  assignments: z.array(staffAssignmentSchema),
-});
-
-const staffSlotsFormSchema = z.object({
-  slots: z.array(staffSlotSchema),
-});
-
-type StaffSlotsFormData = z.infer<typeof staffSlotsFormSchema>;
-
-interface StaffAssignmentData {
-  id: string;
-  user_id: string;
-  user_name: string;
-  status: 'Open' | 'Requested' | 'Confirmed' | 'Declined';
-  compensation_type: 'rate' | 'fee';
-  rate_unit: RateUnit;
-  amount: string;
-  notes: string;
-  completed_at?: string | null;
-  units_completed?: number | null;
-}
-
-interface _StaffSlotData {
-  id: string;
-  organization_id?: string;
-  role: string;
-  count: number;
-  notes: string;
-  assignments: StaffAssignmentData[];
-}
+const NO_ROLES: string[] = [];
 
 interface GigStaffSlotsSectionProps {
   gigId: string;
@@ -104,9 +51,12 @@ export default function GigStaffSlotsSection({
   participantOrganizationIds,
   canEdit = true,
 }: GigStaffSlotsSectionProps) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingRoles, setIsLoadingRoles] = useState(false);
-  const [staffRoles, setStaffRoles] = useState<string[]>([]);
+  // A10: the slots (as form values) and the role names come from react-query.
+  const { slots: slotsQuery, roles: rolesQuery, reload: loadStaffSlotsData, afterStaffingChange } =
+    useGigStaffSlotsData(gigId, currentOrganizationId);
+  const isLoading = slotsQuery.isPending;
+  const isLoadingRoles = rolesQuery.isFetching;
+  const staffRoles = rolesQuery.data ?? NO_ROLES;
   const [showSlotNotes, setShowSlotNotes] = useState<number | null>(null);
   const [currentSlotNotes, setCurrentSlotNotes] = useState('');
   const [showAssignmentNotes, setShowAssignmentNotes] = useState<{ slotIndex: number; assignmentIndex: number } | null>(null);
@@ -248,103 +198,27 @@ export default function GigStaffSlotsSection({
     }
   }, [formValues, isDirty, errors, triggerSave]);
 
+  // Each load seeds the form: the gig's times, the baseline of loaded rows, and the slots.
   useEffect(() => {
-    loadStaffRoles();
-    loadStaffSlotsData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when the gig changes; the loaders also read form helpers that change every render
-  }, [gigId]);
+    const data = slotsQuery.data;
+    if (!data) return;
+    setGigTimes(data.gigTimes);
+    baseline.loaded(data.loadedIds);
+    reset({ slots: data.slots });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seeds once per load (dataUpdatedAt), not when the form helpers change
+  }, [slotsQuery.dataUpdatedAt]);
 
-  const loadStaffRoles = async () => {
-    setIsLoadingRoles(true);
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        setIsLoadingRoles(false);
-        return;
-      }
+  useEffect(() => {
+    if (!slotsQuery.error) return;
+    console.error('Error loading staff slots:', slotsQuery.error);
+    toast.error('Failed to load staff slots');
+  }, [slotsQuery.error]);
 
-      const { data, error } = await supabase
-        .from('staff_roles')
-        .select('name')
-        .order('name');
-
-      if (error) throw error;
-      setStaffRoles(data?.map(r => r.name) || []);
-    } catch (error: any) {
-      console.error('Error loading staff roles:', error);
-      toast.error('Failed to load staff roles');
-    } finally {
-      setIsLoadingRoles(false);
-    }
-  };
-
-  const loadStaffSlotsData = async () => {
-    setIsLoading(true);
-    try {
-      const gig = await getGig(gigId);
-      setGigTimes({ start: gig.start, end: gig.end, timezone: gig.timezone });
-      const loadedSlots = gig.staff_slots || [];
-      
-      const organizationSlots = loadedSlots.filter(
-        (slot: any) => slot.organization_id === currentOrganizationId
-      );
-      
-      const formattedSlots = organizationSlots.map((slot: any) => {
-        const assignments = (slot.staff_assignments || []).map((assignment: any) => ({
-          id: assignment.id,
-          user_id: assignment.user_id,
-          user_name: `${assignment.user?.first_name || ''} ${assignment.user?.last_name || ''}`.trim(),
-          status: (assignment.status as any) || 'Open',
-          compensation_type: assignment.rate !== null ? 'rate' : 'fee',
-          rate_unit: rateUnit(assignment.rate_unit),
-          amount: assignment.rate !== null ? assignment.rate.toString() : (assignment.fee !== null ? assignment.fee.toString() : ''),
-          notes: assignment.notes || '',
-          completed_at: assignment.completed_at,
-          units_completed: assignment.units_completed,
-        }));
-
-        const count = slot.count || 1;
-        // Count non-declined assignments
-        const activeAssignmentsCount = assignments.filter((a: { status?: string }) => a.status !== 'Declined').length;
-        
-        // Pad with 'Open' assignments if active count is less than required count
-        if (activeAssignmentsCount < count) {
-          for (let i = 0; i < (count - activeAssignmentsCount); i++) {
-            assignments.push({
-              id: `temp-${Math.random().toString(36).substr(2, 9)}`,
-              user_id: '',
-              user_name: '',
-              status: 'Open',
-              compensation_type: 'rate',
-              rate_unit: 'hour',
-              amount: '',
-              notes: '',
-              completed_at: null,
-              units_completed: null,
-            });
-          }
-        }
-
-        return {
-          id: slot.id,
-          organization_id: slot.organization_id,
-          role: slot.role,
-          count: count,
-          notes: slot.notes || '',
-          assignments: assignments,
-        };
-      });
-      
-      baseline.loaded(organizationSlots.flatMap((slot: any) => [slot.id, ...(slot.staff_assignments || []).map((a: any) => a.id)]));
-      reset({ slots: formattedSlots });
-    } catch (error: any) {
-      console.error('Error loading staff slots:', error);
-      toast.error('Failed to load staff slots');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!rolesQuery.error) return;
+    console.error('Error loading staff roles:', rolesQuery.error);
+    toast.error('Failed to load staff roles');
+  }, [rolesQuery.error]);
 
   const handleAddStaffSlot = () => {
     append({
@@ -353,23 +227,10 @@ export default function GigStaffSlotsSection({
       count: 1,
       notes: '',
       // Pad with one 'Open' assignment row to match count: 1, matching the
-      // padding loadStaffSlotsData applies on load — otherwise the slot's
+      // padding toStaffSlotsForm applies on load — otherwise the slot's
       // assignment row doesn't render until count is bumped or the page
       // is reloaded.
-      assignments: [
-        {
-          id: `temp-${Math.random().toString(36).substr(2, 9)}`,
-          user_id: '',
-          user_name: '',
-          status: 'Open',
-          compensation_type: 'rate',
-          rate_unit: 'hour',
-          amount: '',
-          notes: '',
-          completed_at: null,
-          units_completed: null,
-        },
-      ],
+      assignments: [openAssignment()],
     });
   };
 
@@ -397,7 +258,7 @@ export default function GigStaffSlotsSection({
         setShowCompleteModal(null);
         loadStaffSlotsData();
         // Dispatch event to refresh financials
-        window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
+        void afterStaffingChange();
       } else {
         toast.error('Failed to finalize staff assignment');
       }
@@ -418,7 +279,7 @@ export default function GigStaffSlotsSection({
         toast.success('Staff assignment un-finalized');
         loadStaffSlotsData();
         // Dispatch event to refresh financials
-        window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
+        void afterStaffingChange();
       } else {
         toast.error('Failed to un-finalize staff assignment');
       }
@@ -438,12 +299,12 @@ export default function GigStaffSlotsSection({
       if (result.success && result.failed > 0) {
         toast.error(`Finalized ${result.count} of ${result.total}. ${result.failed} couldn't be finalized: ${result.reason}`);
         loadStaffSlotsData();
-        window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
+        void afterStaffingChange();
       } else if (result.success) {
         toast.success(`Finalized ${result.count} staff assignments`);
         loadStaffSlotsData();
         // Dispatch event to refresh financials
-        window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
+        void afterStaffingChange();
       } else {
         toast.error('Failed to finalize all staff assignments');
       }

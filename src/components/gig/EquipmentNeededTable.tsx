@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { queryKeys } from '../../lib/queryKeys';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { getEquipmentNeeded } from '../../services/conflictDetection.service';
 import type { ItemNeedRow } from '../../utils/equipmentNeeds';
@@ -35,16 +36,17 @@ function Status({ row }: { row: ItemNeedRow }) {
  * and "any" lines both count; container contents travel in their container.
  */
 export default function EquipmentNeededTable({ gigId, gigStart, gigEnd, gigTimezone, gigAllDay, organizationId, refreshKey }: EquipmentNeededTableProps) {
-  const [result, setResult] = useState<{ overlapping: number; rows: ItemNeedRow[] } | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let live = true;
-    getEquipmentNeeded(gigId, gigStart, gigEnd, gigTimezone, organizationId, gigAllDay)
-      .then((r) => { if (live) { setResult(r); setFailed(false); } })
-      .catch(() => { if (live) { setResult(null); setFailed(true); } });
-    return () => { live = false; };
-  }, [gigId, gigStart, gigEnd, gigTimezone, gigAllDay, organizationId, refreshKey]);
+  // A10: keyed by the gig, its times, the organization and refreshKey; the last counts stay on
+  // screen while new ones load (as before).
+  const when = { start: gigStart, end: gigEnd, timezone: gigTimezone, allDay: !!gigAllDay };
+  const query = useQuery({
+    queryKey: queryKeys.gigEquipmentNeeded(gigId, organizationId, when, refreshKey ?? 0),
+    queryFn: () => getEquipmentNeeded(gigId, gigStart, gigEnd, gigTimezone, organizationId, gigAllDay),
+    placeholderData: keepPreviousData,
+    staleTime: 0,
+  });
+  const result = query.isError ? null : query.data ?? null;
+  const failed = query.isError;
 
   if (failed) return <p className="text-xs text-gray-500">Couldn't load equipment counts.</p>;
   if (!result || result.rows.length === 0) return null;

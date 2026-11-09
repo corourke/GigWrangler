@@ -390,6 +390,7 @@ export default function GigPage({
                 />
                 <GigParticipantsSection
                   gigId={gigId}
+                  userId={user.id}
                   currentOrganizationId={organization.id}
                   currentOrganizationName={organization.name}
                   currentOrganizationRole={organization.roles?.[0] || 'Production'}
