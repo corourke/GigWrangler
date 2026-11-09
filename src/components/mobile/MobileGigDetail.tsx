@@ -381,7 +381,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
     <div className="flex flex-col">
       <div className="sticky top-0 z-40 bg-background/90 backdrop-blur-md px-4 py-3 border-b border-border/50">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack} className="h-9 w-9 -ml-2">
+          <Button aria-label="Back" variant="ghost" size="icon" onClick={onBack} className="h-9 w-9 -ml-2">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="min-w-0 flex-1">
@@ -815,7 +815,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                       <span className="text-base font-medium flex-1 truncate px-2">{org?.name || 'Unknown'}</span>
                       <div className="flex gap-0.5 shrink-0 w-12 justify-end">
                         {org?.phone_number && (
-                          <button
+                          <button aria-label={`Call ${org.name}`}
                             onClick={() => handleCall(org.phone_number)}
                             className="p-1 rounded hover:bg-muted"
                           >
@@ -823,7 +823,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                           </button>
                         )}
                         {hasLocation(org) && (
-                          <button
+                          <button aria-label={`Directions to ${org.name}`}
                             onClick={() => handleDirections(org)}
                             className="p-1 rounded hover:bg-muted"
                           >
@@ -961,7 +961,6 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
               {isEditing ? (
                 <textarea
                   className={cn(INPUT_CLASS, 'h-auto py-2')}
-                  style={{ fontSize: '14px' }}
                   rows={3}
                   value={editNotes}
                   onChange={e => setEditNotes(e.target.value)}

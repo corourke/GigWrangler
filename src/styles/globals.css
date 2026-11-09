@@ -293,3 +293,13 @@ html {
     padding-bottom: 0;
   }
 }
+
+/* A19: zoom is allowed, so iOS zooms into a focused field whose text is under 16px. On phone-width
+   screens, small-text fields use 16px. Unlayered, so it wins over the Tailwind utilities. */
+@media (max-width: 767px) {
+  input.text-sm, input.text-xs,
+  textarea.text-sm, textarea.text-xs,
+  select.text-sm, select.text-xs {
+    font-size: 16px;
+  }
+}

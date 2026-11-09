@@ -697,7 +697,7 @@ function RowActionsMenu<T>({ row, actions }: { row: T; actions: RowAction<T>[] }
   return (
     <DropdownMenu onOpenChange={(open) => { if (!open) setReason(null); }}>
       <DropdownMenuTrigger asChild>
-        <Button
+        <Button aria-label="Row actions"
           variant="ghost"
           size="sm"
           className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"

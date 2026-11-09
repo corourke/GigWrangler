@@ -160,7 +160,7 @@ export default function MobileDashboard({ onViewGigDetail, onViewAllGigs }: Mobi
               <span className="text-[10px]">Offline</span>
             </Badge>
           )}
-          <Button variant="ghost" size="icon" onClick={loadAssignments} disabled={loading} className="h-9 w-9">
+          <Button aria-label="Refresh" variant="ghost" size="icon" onClick={loadAssignments} disabled={loading} className="h-9 w-9">
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </Button>
         </div>

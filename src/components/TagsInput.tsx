@@ -111,7 +111,7 @@ const TagsInput = forwardRef<TagsInputHandle, TagsInputProps>(function TagsInput
           className="pl-2 pr-1 py-0 h-6 text-xs bg-sky-100 text-sky-700 hover:bg-sky-200 border-none"
         >
           {tag}
-          <button
+          <button aria-label={`Remove tag ${tag}`}
             type="button"
             onClick={(e) => {
               e.stopPropagation();

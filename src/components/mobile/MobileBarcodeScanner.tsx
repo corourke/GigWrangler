@@ -264,7 +264,7 @@ export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
               ? <Camera style={{ width: 20, height: 20, color: '#ffffff' }} />
               : <Keyboard style={{ width: 20, height: 20, color: '#ffffff' }} />}
           </button>
-          <button
+          <button aria-label="Close scanner"
             style={{
               width: 44,
               height: 44,

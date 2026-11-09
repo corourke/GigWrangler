@@ -1,6 +1,7 @@
 import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
 
 export default tseslint.config(
   {
@@ -61,6 +62,27 @@ export default tseslint.config(
         'error',
         { args: 'none', varsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true },
       ],
+    },
+  },
+  // A19: accessibility. jsx-a11y's recommended rules are errors; the ones listed after the spread
+  // still have hits in existing screens and are warnings until those are fixed (burn-down tracked
+  // in docs/development/coding-guide.md).
+  {
+    files: ['src/**/*.tsx'],
+    // Tests render stand-in markup for mocked components.
+    ignores: ['src/**/*.test.tsx'],
+    ...jsxA11y.flatConfigs.recommended,
+    rules: {
+      ...jsxA11y.flatConfigs.recommended.rules,
+      // Open on 2026-11-09 (count): burn down, then make each an error.
+      'jsx-a11y/click-events-have-key-events': 'warn', // 16: clickable divs/spans without key handling
+      'jsx-a11y/label-has-associated-control': 'warn', // 14: <label> not tied to its field
+      'jsx-a11y/no-static-element-interactions': 'warn', // 12: onClick on a div/span with no role
+      'jsx-a11y/no-autofocus': 'warn', // 8: autoFocus in dialogs and search boxes
+      'jsx-a11y/heading-has-content': 'warn', // 7: headings whose text comes in through props (ui/card, markdown)
+      'jsx-a11y/no-noninteractive-element-interactions': 'warn', // 5: mobile suggestion lists
+      'jsx-a11y/anchor-has-content': 'warn', // 2: links whose text comes in through props (markdown, pagination)
+      'jsx-a11y/no-noninteractive-tabindex': 'warn', // 1: SmartDataTable's keyboard-navigable container
     },
   }
 );
