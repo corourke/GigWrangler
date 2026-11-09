@@ -656,7 +656,8 @@ export default function GigListScreen({
               mode="single"
               selected={calendarDate}
               onSelect={(date) => date && setCalendarDate(date)}
-              initialFocus
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- the date grid takes focus when its popover opens, as before (initialFocus in react-day-picker 8)
+              autoFocus
             />
           </PopoverContent>
         </Popover>

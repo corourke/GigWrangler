@@ -46,8 +46,9 @@ describe('Calendar', () => {
     }
   });
 
-  it('takes focus when opened with initial focus, so the keyboard can pick a day', () => {
-    render(<Calendar mode="single" selected={new Date(2026, 9, 15)} defaultMonth={new Date(2026, 9, 1)} onSelect={() => {}} initialFocus />);
+  // react-day-picker 9 ignores initialFocus; the app passes autoFocus.
+  it('takes focus when opened with autoFocus, so the keyboard can pick a day', () => {
+    render(<Calendar mode="single" selected={new Date(2026, 9, 15)} defaultMonth={new Date(2026, 9, 1)} onSelect={() => {}} autoFocus />);
     expect(screen.getByRole('grid').contains(document.activeElement)).toBe(true);
   });
 });
