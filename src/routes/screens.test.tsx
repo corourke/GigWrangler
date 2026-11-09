@@ -33,6 +33,7 @@ vi.mock('../components/GigListScreen', () => ({
 vi.mock('../components/AssetScreen', () => ({
   default: () => <div>AssetScreen stub</div>,
 }));
+vi.mock('../components/ImportScreen', () => ({ default: () => <div>ImportScreen stub</div> }));
 vi.mock('../components/FinancialsScreen', () => ({
   default: () => <div>FinancialsScreen stub</div>,
 }));
@@ -124,6 +125,7 @@ describe('AppRoutes manage-only URLs', () => {
     ['/assets/new', 'AssetScreen stub'],
     ['/assets/a1/edit', 'AssetScreen stub'],
     ['/financials', 'FinancialsScreen stub'],
+    ['/import', 'ImportScreen stub'],
   ];
   const landing: Record<string, string> = { Staff: 'Dashboard stub', Viewer: 'GigListScreen stub' };
 
