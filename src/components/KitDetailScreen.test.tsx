@@ -1,10 +1,13 @@
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
 import KitDetailScreen from './KitDetailScreen'
 import { toast } from 'sonner'
 import { getKit, getKitComponentTree, getKitFlattenedItems, duplicateKit } from '../services/kit.service'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
+
+
 
 // countInventoryItems/maxTreeDepth are plain, pure functions — keep the real
 // implementations so these tests actually exercise the container-aware

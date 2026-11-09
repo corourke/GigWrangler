@@ -106,6 +106,19 @@ export const queryKeys = {
   assetActivity: (assetId: string) => ['asset', assetId, 'activity'] as const,
   /** Filed tax years; nests under the taxYears(orgId) root. */
   lockedTaxYears: (orgId: string) => ['taxYears', orgId, 'locked'] as const,
+  // Kit views, all under kit(kitId) so a kit change reaches them.
+  kitDetail: (kitId: string) => ['kit', kitId, 'detail'] as const,
+  kitForm: (kitId: string) => ['kit', kitId, 'form'] as const,
+  kitActivity: (kitId: string) => ['kit', kitId, 'activity'] as const,
+  kitFlattenedSummary: (kitId: string) => ['kit', kitId, 'flattenedSummary'] as const,
+  /** The kit editor's items, with container pieces counted without the kit being edited. */
+  kitEditorItems: (orgId: string, kitId: string | null | undefined) =>
+    ['assets', orgId, 'items', 'forKit', kitId ?? 'new'] as const,
+  /** The kit editor's picker: units, kits and their flattened contents for one search. */
+  kitPicker: (
+    orgId: string,
+    params: { kitId: string | null | undefined; filter: string; search: string; inKitIds: readonly string[] },
+  ) => ['kits', orgId, 'picker', { ...params, kitId: params.kitId ?? null, inKitIds: [...params.inKitIds].sort() }] as const,
 } as const;
 
 // ── Organizations and settings (A10, Engineer O) ──
