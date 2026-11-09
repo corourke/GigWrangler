@@ -351,3 +351,29 @@ export async function updateStaffAssignmentStatus(
     return handleApiError(err, 'update staff assignment status');
   }
 }
+
+/**
+ * The organization's staff assignments on a gig that still count as projected costs: not yet
+ * finalized, with a fee or a rate, and Confirmed or Requested (as the profitability summary
+ * counts them). For the gig's Financials tab.
+ */
+export async function getProjectedStaffAssignments(gigId: string, organizationId: string) {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('gig_staff_assignments')
+    .select(`
+      id,
+      fee,
+      rate,
+      rate_unit,
+      status,
+      user:user_id(id, first_name, last_name),
+      slot:gig_staff_slots!inner(gig_id, organization_id, role_info:staff_roles(name))
+    `)
+    .eq('slot.gig_id', gigId)
+    .eq('slot.organization_id', organizationId)
+    .is('completed_at', null)
+    .or('fee.gt.0,rate.gt.0');
+  if (error) throw error;
+  return (data || []).filter((a: { status?: string | null }) => a.status === 'Confirmed' || a.status === 'Requested');
+}

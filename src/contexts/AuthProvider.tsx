@@ -4,6 +4,7 @@ import type { User, Organization, OrganizationMembership } from '../utils/supaba
 import { getCompleteUserData, createUserProfile } from '../services/user.service';
 import { convertPendingToActive } from '../services/organization.service';
 import { claimOfflineStore, releaseOfflineStore } from '../services/mobile/offlineOwner';
+import { claimQueryCache, releaseQueryCache } from '../lib/queryCacheOwner';
 import { getTwoFactorStatus, reminderUntil } from '../services/twoFactor.service';
 
 /** Clearing the phone's offline copy must never block signing in or out. */
@@ -66,6 +67,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (session?.user) {
         if (import.meta.env.DEV) console.log('[TRACE] AuthContext: Session found for user', session.user.id);
+        // Nothing cached for someone else survives into this person's screens.
+        claimQueryCache(session.user.id);
         
         setMustChangePassword((session.user as any).app_metadata?.must_change_password === true);
 
@@ -205,7 +208,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }, 0);
         } else if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !session)) {
           if (import.meta.env.DEV) console.log(`[TRACE] AuthContext: Handling ${event} (no session)`);
-          if (event === 'SIGNED_OUT') void quietly(releaseOfflineStore());
+          if (event === 'SIGNED_OUT') {
+            void quietly(releaseOfflineStore());
+            releaseQueryCache();
+          }
           setProfileLoadError(null);
           setUser(null);
           setOrganizations([]);
@@ -282,6 +288,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const supabase = createClient();
     await quietly(releaseOfflineStore());
     await supabase.auth.signOut();
+    releaseQueryCache();
     setMustChangePassword(false);
     setTwoFactorPending(false);
     setTwoFactorSetupRequired(false);

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigStaffSlotsSection from './GigStaffSlotsSection';
+import { renderWithQuery } from '../../test/renderWithQuery';
 import { getGig, updateGigStaffSlots, completeAllStaffAssignments, unfinalizeStaffAssignment } from '../../services/gig.service';
 import { toast } from 'sonner';
 
@@ -361,5 +362,42 @@ describe('GigStaffSlotsSection: finalize messages', () => {
     render(<GigStaffSlotsSection {...props} />);
     fireEvent.click(await screen.findByRole('button', { name: /Finalize All/ }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Finalized 2 of 3. 1 couldn\'t be finalized: The 2025 tax year is locked (filed).'));
+  });
+});
+
+// A10: how the staffing section loads, fails, follows the gig and reloads after finalizing.
+// These hold before and after the move to react-query.
+describe('GigStaffSlotsSection: data loading (A10)', () => {
+  const props = { gigId: 'test-gig-id', currentOrganizationId: 'current-org-id', participantOrganizationIds: ['current-org-id'] };
+  const slotFor = (gigTitle: string) => ({
+    staff_slots: [{ id: `slot-${gigTitle}`, organization_id: 'current-org-id', role: gigTitle, count: 1, notes: '',
+      staff_assignments: [{ id: `a-${gigTitle}`, user_id: 'user-1', user: { first_name: 'John', last_name: 'Doe' }, status: 'Confirmed', rate: null, fee: 100, notes: '' }] }],
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getGig).mockImplementation(async (id: string) => slotFor(id === 'gig-2' ? 'Lighting Tech' : 'Sound Engineer') as any);
+  });
+
+  it('says the slots failed to load', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(getGig).mockRejectedValueOnce(new Error('down'));
+    renderWithQuery(<GigStaffSlotsSection {...props} />);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to load staff slots'));
+  });
+
+  it("loads the other gig's slots when the gig changes", async () => {
+    const { rerender } = renderWithQuery(<GigStaffSlotsSection {...props} />);
+    await waitFor(() => expect(screen.getByDisplayValue('Sound Engineer')).toBeInTheDocument());
+    rerender(<GigStaffSlotsSection {...props} gigId="gig-2" />);
+    await waitFor(() => expect(screen.getByDisplayValue('Lighting Tech')).toBeInTheDocument());
+    expect(getGig).toHaveBeenCalledWith('gig-2');
+  });
+
+  it('loads the slots again after Finalize All', async () => {
+    vi.mocked(completeAllStaffAssignments).mockResolvedValue({ success: true, count: 1, failed: 0, total: 1 } as any);
+    renderWithQuery(<GigStaffSlotsSection {...props} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Finalize All/ }));
+    await waitFor(() => expect(vi.mocked(getGig).mock.calls.length).toBeGreaterThanOrEqual(2));
   });
 });

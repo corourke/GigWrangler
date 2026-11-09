@@ -1,5 +1,6 @@
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import {screen, fireEvent } from '@testing-library/react'
 import AssetDetailScreen from './AssetDetailScreen'
 import { getAsset } from '../services/asset.service'
 import { undoWriteOff } from '../services/writeOff.service'
@@ -8,6 +9,8 @@ import { waitFor } from '@testing-library/react'
 import { WRITE_OFF_LOCKED_MESSAGE } from '../utils/writeOffMessages'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
+
+
 
 vi.mock('../services/asset.service', () => ({
   getAsset: vi.fn(),

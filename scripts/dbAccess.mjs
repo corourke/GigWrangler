@@ -6,11 +6,6 @@
  * screens' calls into services and removes them here; the last one leaves this empty.
  */
 export const DB_ACCESS_ALLOWLIST = [
-  'src/components/AdminOrganizationsScreen.tsx',
-  'src/components/OrganizationScreen.tsx',
-  'src/components/gig/GigParticipantsSection.tsx',
-  'src/components/gig/GigStaffSlotsSection.tsx',
-  'src/components/gig/useGigFinancialsData.ts',
   'src/hooks/useMobileLock.ts',
 ];
 
