@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { suggestedAsEquipment } from '../utils/scanSuggestion';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -110,6 +111,8 @@ interface ScannedItem {
   /** The user (or a saved purchase) chose the treatment, so price changes don't re-suggest it. */
   _taxChosen?: boolean;
   is_durable?: boolean;
+  /** The scan's suggestion: 'Asset' for a durable item of $50 or more (ai-scan/classifyItem). */
+  suggested_type?: 'Asset' | 'Expense';
   /** Make and model as read by the scan; the equipment record's Manufacturer/Model. */
   manufacturer_model?: string;
   /** Expensed: the expense category. Depreciated: the equipment category (see utils/purchaseCategories). */
@@ -357,7 +360,8 @@ export default function ReviewScannedDataDialog({
           item_cost: Number.isFinite(Number(item.item_cost)) && item.item_cost != null ? Number(item.item_cost) : 0,
           category: item.category ? tidyAssetCategory(item.category) : item.category,
           tax_treatment: item._taxChosen ? item.tax_treatment : 'depreciate',
-          is_asset: item.is_asset ?? item.is_durable ?? false,
+          // The scan's suggestion: durable and $50 or more (B18).
+          is_asset: suggestedAsEquipment(item),
         }))
       }));
     } else if (open && !editPurchaseId) {

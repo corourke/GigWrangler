@@ -1,4 +1,5 @@
 import { createClient } from '../utils/supabase/client';
+import { unwrapFunctionsError } from '../utils/api-error-utils';
 
 /**
  * Two-factor sign-in with an authenticator app (#361): Supabase Auth's TOTP factors. A session
@@ -98,6 +99,6 @@ export async function resetTwoFactorForAccount(email: string): Promise<void> {
     method: 'POST',
     body: { email: email.trim() },
   });
-  if (error) throw error;
+  if (error) throw await unwrapFunctionsError(error);
   if (data?.error) throw new Error(data.error);
 }

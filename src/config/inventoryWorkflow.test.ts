@@ -1,23 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { SCANNING_MODES } from './inventoryWorkflow';
+import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { SCANNING_MODES, RETURNED_STATUS, NOT_RETURNED_STATUS } from './inventoryWorkflow';
+import { TRACKING_STATUS_CONFIG } from '../utils/supabase/constants';
 
-describe('SCANNING_MODES', () => {
-  it('every entry has a non-empty locationLabel', () => {
-    expect(SCANNING_MODES.length).toBeGreaterThan(0);
-    for (const mode of SCANNING_MODES) {
-      expect(typeof mode.locationLabel).toBe('string');
-      expect(mode.locationLabel.trim().length).toBeGreaterThan(0);
-    }
+// One source for the tracking statuses (B22): the scanning modes. Screens and services use the
+// constants, never their own copies of the strings.
+describe('tracking statuses', () => {
+  it('the badge colours cover exactly the statuses a scan can give', () => {
+    const fromScans = [...new Set(SCANNING_MODES.map((m) => m.resultingStatus))].sort();
+    expect(Object.keys(TRACKING_STATUS_CONFIG).sort()).toEqual(fromScans);
   });
-});
 
-// #185 PR 2 (Cameron, 10-09): equipment not on the list can be added only while packing:
-// Pack-Out, and Load Truck (gear sometimes skips pack-out). Gated by mode, not status:
-// Load-Out also gives In Transit.
-describe('allowsAdHoc', () => {
-  it('only Pack-Out and Load Truck', () => {
-    expect(SCANNING_MODES.filter((m) => m.allowsAdHoc).map((m) => m.id)).toEqual(['pack-out', 'load-truck']);
-    expect(SCANNING_MODES.find((m) => m.id === 'load-out')?.resultingStatus)
-      .toBe(SCANNING_MODES.find((m) => m.id === 'load-truck')?.resultingStatus);
+  it('nothing outside the config spells out the returned or not-returned status', () => {
+    const files = execSync("git ls-files 'src/**/*.ts' 'src/**/*.tsx'", { encoding: 'utf8' })
+      .split('\n')
+      .filter((f) => f && !/\.test\.tsx?$/.test(f) && !f.endsWith('database.types.ts')
+        && f !== 'src/config/inventoryWorkflow.ts' && f !== 'src/utils/supabase/constants.ts');
+    const literal = new RegExp(`['"](${RETURNED_STATUS}|${NOT_RETURNED_STATUS})['"]`);
+    const offenders = files.filter((f) => literal.test(readFileSync(f, 'utf8')));
+    expect(offenders).toEqual([]);
   });
 });

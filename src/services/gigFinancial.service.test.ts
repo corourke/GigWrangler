@@ -10,6 +10,7 @@ import {
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
+vi.mock('@sentry/react', () => ({ captureMessage: vi.fn() }));
 vi.mock('../utils/supabase/client', () => ({
   createClient: vi.fn(),
 }));
@@ -71,6 +72,23 @@ describe('getGigProfitabilitySummary projected staff costs (#213)', () => {
     expect(summary.projectedStaffCosts).toBe(350 + 400 + 200);
   });
 
+  it('totals and profit are whole cents (B16)', async () => {
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'gigs') return makeChain({ data: nightGig, error: null });
+      if (table === 'gig_financials') return makeChain({ data: [
+        { direction: 'in', stage: 'accepted', amount: '1.1' },
+        { direction: 'out', stage: 'accepted', amount: '0.2' },
+      ], error: null });
+      if (table === 'gig_staff_assignments') return makeChain({ data: [
+        { fee: 0.1, rate: null, rate_unit: 'hour', status: 'Confirmed', completed_at: null },
+      ], error: null });
+      return makeChain({ data: [], error: null });
+    });
+    const summary = await getGigProfitabilitySummary('gig-1', 'org-1');
+    expect(summary.totalCosts).toBe(0.3);
+    expect(summary.profit).toBe(0.8);
+  });
+
   it("reads the gig's start, end and timezone", async () => {
     setup([]);
     await getGigProfitabilitySummary('gig-1', 'org-1');
@@ -102,6 +120,24 @@ describe('getGigExportAggregates', () => {
       return makeChain({ data: [], error: null });
     });
   }
+
+  it('sums are whole cents (B16)', async () => {
+    setup({
+      participants: [{ gig_id: 'g1' }],
+      financials: [
+        { gig_id: 'g1', direction: 'in', stage: 'accepted', amount: '0.1', staff_assignment_id: null },
+        { gig_id: 'g1', direction: 'in', stage: 'accepted', amount: '0.2', staff_assignment_id: null },
+        { gig_id: 'g1', direction: 'out', stage: 'accepted', amount: '0.1', staff_assignment_id: null },
+        { gig_id: 'g1', direction: 'out', stage: 'accepted', amount: '0.2', staff_assignment_id: null },
+        { gig_id: 'g1', direction: 'out', stage: 'paid', amount: '0.1', amount_settled: '0.1', staff_assignment_id: 's1' },
+        { gig_id: 'g1', direction: 'out', stage: 'paid', amount: '0.2', amount_settled: '0.2', staff_assignment_id: 's2' },
+      ],
+    });
+    const g1 = (await getGigExportAggregates('org-1')).get('g1')!;
+    expect(g1.revenue).toBe(0.3);
+    expect(g1.expenses).toBe(0.3);
+    expect(g1.costOfStaff).toBe(0.3);
+  });
 
   it('returns an empty map when the org participates in no gigs', async () => {
     setup({ participants: [] });
@@ -417,5 +453,21 @@ describe('deleteGigFinancial and its receipt', () => {
     setup([]);
     await expect(deleteGigFinancial('fin-1')).rejects.toThrow(/not found|permission/i);
     expect(remove).not.toHaveBeenCalled();
+  });
+});
+
+// B21: receipt files go once their rows are gone; a storage failure is reported without paths.
+describe('removeReceiptFiles', () => {
+  it('reports a storage failure to Sentry with a count, never the paths', async () => {
+    const Sentry = await import('@sentry/react');
+    const remove = vi.fn(async () => ({ data: null, error: { message: 'storage down' } }));
+    (createClient as any).mockReturnValue({ storage: { from: () => ({ remove }) } });
+    const { removeReceiptFiles } = await import('./gigFinancial.service');
+    await removeReceiptFiles(['org-1/a.pdf', 'org-1/b.pdf']);
+    expect(remove).toHaveBeenCalledWith(['org-1/a.pdf', 'org-1/b.pdf']);
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+    const sent = JSON.stringify(vi.mocked(Sentry.captureMessage).mock.calls[0]);
+    expect(sent).toContain('"count":2');
+    expect(sent).not.toContain('org-1/');
   });
 });

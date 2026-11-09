@@ -136,3 +136,21 @@ describe('moneyFlow', () => {
     expect(nextStage('declined')).toBeNull();
   });
 });
+
+// Sums are rounded to cents (B16): adding stored amounts in floating point leaves noise like
+// 0.30000000000000004, which reached CSV cells that aren't formatted.
+describe('summarizeMoney rounds to cents', () => {
+  it('sums and net are whole cents', () => {
+    const s = summarizeMoney([
+      row({ direction: 'in', stage: 'accepted', amount: '0.1' }),
+      row({ direction: 'in', stage: 'accepted', amount: '0.2' }),
+      row({ direction: 'out', stage: 'paid', amount: '0.7', amount_settled: '0.7' }),
+      row({ direction: 'out', stage: 'paid', amount: '0.1', amount_settled: '0.1' }),
+    ], null, now);
+    expect(s.expectedIn).toBe(0.3);
+    expect(s.outstandingIn).toBe(0.3);
+    expect(s.paidOut).toBe(0.8);
+    expect(s.expectedOut).toBe(0.8);
+    expect(s.net).toBe(-0.5);
+  });
+});

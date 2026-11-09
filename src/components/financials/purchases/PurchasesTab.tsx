@@ -57,10 +57,8 @@ import {
   trackPurchaseLineAsEquipment,
   deletePurchase,
   getLinkedGigExpenses,
-  updatePurchase,
-  reconcileLedgerForLineGigChange,
+  setPurchaseLineGig,
   createLedgerEntryForPurchaseLine,
-  removeLedgerEntriesForPurchaseLine,
   purchaseLineLedgerAmount,
 } from '../../../services/purchase.service';
 import { getEntityAttachments, uploadAttachment, linkAttachmentToEntity } from '../../../services/attachment.service';
@@ -317,15 +315,10 @@ export default function PurchasesTab({
 
     setAssigningGigItemId(item.id);
     try {
-      await updatePurchase(item.id, { gig_id: gigId });
+      // One call (B21): the line and its gig expenses change together, or nothing does.
+      const res = await setPurchaseLineGig(item, gigId);
 
       if (gigId) {
-        const res = await reconcileLedgerForLineGigChange({
-          item,
-          previousGigId,
-          newGigId: gigId,
-          organizationId: organization.id,
-        });
         if (res.action === 'needs-entry') {
           toast.success(`Assigned to ${gigTitle || 'gig'}`);
           setLedgerPrompt({ item, gigId, gigTitle });
@@ -367,11 +360,11 @@ export default function PurchasesTab({
 
   const handleConfirmClearLedger = async () => {
     if (!clearLedgerConfirm) return;
-    const { item, financialIds, fromGigId } = clearLedgerConfirm;
+    const { item, fromGigId } = clearLedgerConfirm;
     setClearingLedger(true);
     try {
-      await updatePurchase(item.id, { gig_id: null });
-      await removeLedgerEntriesForPurchaseLine(financialIds);
+      // One call (B21): unlink the line and remove its gig expenses together, or neither.
+      await setPurchaseLineGig(item, null, { removeEntries: true });
       window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId: fromGigId } }));
       toast.success('Gig association and its ledger entry removed');
       setClearLedgerConfirm(null);

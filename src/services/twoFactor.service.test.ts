@@ -122,4 +122,13 @@ describe('a lost device', () => {
     await resetTwoFactorForAccount(' pat@example.com ');
     expect(invoke).toHaveBeenCalledWith('server/moderator/two-factor/reset', { method: 'POST', body: { email: 'pat@example.com' } });
   });
+
+  it("shows the server's reason when the reset is refused (B22)", async () => {
+    const response = new Response(JSON.stringify({ error: 'No account with that email' }), { status: 404 });
+    const err: any = new Error('Edge Function returned a non-2xx status code');
+    err.name = 'FunctionsHttpError';
+    err.context = response;
+    invoke.mockResolvedValue({ data: null, error: err });
+    await expect(resetTwoFactorForAccount('nobody@example.com')).rejects.toThrow('No account with that email');
+  });
 });

@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-11-07 (coordinator: **Prod deployed from the cloud 11-07** (Cameron away; his OK): migrations through `20261107100000`, edge functions and website at 32af7c5, security headers verified live. Guide #336, #340, #343 merged. **Audit remediation in progress** (details private): security fixes merged and live; open: #362, #363 (two-factor sign-in, plan #361), rate limits, enforcing the content-security rule; code-review fixes next (payment dates, deleting linked purchases, then the rest). **Rule (Cameron, 11-04):** the repo is public: no tax-return figures, prod amounts, client or gig names, payment details or personal information in the board, docs, issues, PRs, commits or tests. **Rule (Cameron, 11-07):** the coordinator always asks Cameron questions with the AskUserQuestion prompt, never as plain text)
+- **Last updated:** 2026-11-09 (coordinator: **Mobile features chosen (Cameron 11-09), after the audits: §3e.** **Prod deployed from the cloud 11-07** (Cameron away; his OK): migrations through `20261107100000`, edge functions and website at 32af7c5, security headers verified live. Guide #336, #340, #343 merged. **Audit remediation in progress** (details private): security fixes merged and live; open: #362, #363 (two-factor sign-in, plan #361), rate limits, enforcing the content-security rule; code-review fixes next (payment dates, deleting linked purchases, then the rest). **Rule (Cameron, 11-04):** the repo is public: no tax-return figures, prod amounts, client or gig names, payment details or personal information in the board, docs, issues, PRs, commits or tests. **Rule (Cameron, 11-07):** the coordinator always asks Cameron questions with the AskUserQuestion prompt, never as plain text)
 
 ---
 
@@ -134,6 +134,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 - **#257 (the fix for #255) tested on dev @ 093edc0 (Docs Lead, 10-10 23:15 UTC):** the full result is on #257.
   - Pass: no per-gig duplicates; the Cedar Hall gig filter is empty; the T58 split shows at both places; the status and location filters work.
   - Fail: a container still gets two headings after a case-only override moves it away from its contents, and one of its items (PDI-1) is hidden. The cause is `LocationExplorer.tsx:289-291`, which turns the first content row into the heading. Prod has this today. Whether it holds the deploy is Cameron's call.
+- **Docs Lead status, 11-09 02:05 UTC:** #370 checked against prod (35b381c): ready to merge. A22 docs drift pass done, in three ready PRs: **#382** (payments, staff pay, duplicating a gig, purchase saves; technical docs), **#383** (two-factor sign-in: new settings/security.md and links), **#384** (usage limits without numbers; deleting your own organization). Password length, join requests and attachment types checked clean. Open question for the coordinator: whether the scan limits keep their numbers.
 - **Docs Lead status, 11-08 04:50 UTC:** #372 merged. **PR #373** (head da72e02) retakes the organizations notification shot without the reply; it's green, with no deploy needed. **PR #375** (head 1cdc4f4) lets the demo seed run after a demo user has created an organization on dev: before the users go, it deletes orgs whose members are all demo users and removes demo memberships elsewhere. Merging needs Cameron's OK. Pre-deploy smoke test for #367/#371 done and reported privately; dev is reseeded.
 - **Docs Lead status, 11-08 04:10 UTC:** Dev smoke test for #362, #363, #365, #366, #368 and #369 is done, reported privately. Notification-shot fix, option (a): **PR #372** (head b2da9b5) drops the seeded reply on the rejected access request. No deploy needed; dev is seeded from it. Once it merges, a docs PR retakes `getting-started/organizations-notification` and fixes its alt text.
 - **Docs Lead status, 11-08 04:00 UTC:** PR #370 (head 74d5507) covers #366 (deleting a purchase removes its gig expenses, with the new confirmation line) and #369 (scan-limit wording, file pickers). Checked on dev at 1693023, dialogs cancelled. **Merge after #366 and #369 deploy.** The alt-text item is open for the coordinator: the organizations-notification shot shows a reply under a rejected request, but the app can't send one (the server accepts `response_message`; no screen sends it). The reply comes from the demo seed, so the guide's "You can't add a reply" is right and the shot is what's misleading.
@@ -305,6 +306,14 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - **Icon-only buttons have no labels:** add tag (+) and remove line (X).
   - **Tracking Type descriptions promise packing and scanning behaviour** from #185/#186.
   - **A kit can hold both "4 × any HX-12P" and a specific HX-12P,** which totals 5. Intended?
+
+### 3e. Mobile features, after the audits (Cameron, 11-09)
+
+Cameron chose three mobile features. They start **after** the audit remediation (Parts B and A) is done. Each needs a plan approved by Cameron before code (AGENTS.md rule 1).
+
+1. **Receipt capture.** Take a photo of a receipt (or pick a file) on the phone and add it to the purchase scan queue (`purchase_scan_queue`). **No review on the phone**: scanning and review happen on desktop, as today.
+2. **Notifications.** Phone push alerts (web push for the installed app) for events such as assignment invites and declines, join requests, gig status changes and payments due. The plan asks Cameron which events, and who gets them.
+3. **Day-of-show sheet.** One "Today" screen for the current gig: schedule, venue and directions, one-tap contacts, and the gig's documents, available offline.
 
 ## 4. Agents and documentation
 

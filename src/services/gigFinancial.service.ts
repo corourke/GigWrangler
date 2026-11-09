@@ -1,4 +1,5 @@
 import { FinCategory, FinDirection, FinStage, DbGigFinancial, FieldChange } from '../utils/supabase/types';
+import * as Sentry from '@sentry/react';
 import { handleApiError } from '../utils/api-error-utils';
 import { getSupabase, getCurrentUser, listRecords } from './base/dataAccess';
 import { writeActivity, actorNameOf } from './writeActivity';
@@ -6,6 +7,7 @@ import { computeFieldChanges } from '../utils/fieldChanges';
 import type { ActivityEventType } from '../utils/activityLog.events';
 import { expectedAmount, summarizeMoney, toDateKey, type MoneyRow, type MoneySummary } from '../utils/moneyFlow';
 import { projectedStaffCost, type GigTimes } from '../utils/rateEstimate';
+import { money as toCents } from '../utils/money';
 
 /**
  * Gig financial / bid operations (Phase 7, Step 4 — extracted from
@@ -28,23 +30,18 @@ export async function getGigFinancials(gigId: string, organizationId?: string) {
     if (error) throw error;
 
     const rows = data || [];
-    // Attach a receipt/document count per row in one round-trip (entity_attachments
+    if (rows.length === 0) return [];
+    // A receipt/document count per row in one round-trip (entity_attachments
     // is polymorphic with no FK, so it can't be embedded via PostgREST). Non-fatal:
     // a failure here just leaves attachment_count at 0.
-    if (rows.length > 0) {
-      const ids = rows.map((r: any) => r.id);
-      const { data: links } = await supabase
-        .from('entity_attachments')
-        .select('entity_id')
-        .eq('entity_type', 'gig_financial')
-        .in('entity_id', ids);
-      const counts = new Map<string, number>();
-      for (const l of links || []) {
-        counts.set((l as any).entity_id, (counts.get((l as any).entity_id) || 0) + 1);
-      }
-      for (const r of rows as any[]) r.attachment_count = counts.get(r.id) || 0;
-    }
-    return rows;
+    const { data: links } = await supabase
+      .from('entity_attachments')
+      .select('entity_id')
+      .eq('entity_type', 'gig_financial')
+      .in('entity_id', rows.map((r) => r.id));
+    const counts = new Map<string, number>();
+    for (const { entity_id } of links || []) counts.set(entity_id, (counts.get(entity_id) || 0) + 1);
+    return rows.map((r) => ({ ...r, attachment_count: counts.get(r.id) || 0 }));
   } catch (err) {
     return handleApiError(err, 'fetch gig financials');
   }
@@ -96,8 +93,9 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
       }
     });
 
-    const totalCosts = money.expectedOut + projectedStaffCosts;
-    const profit = money.expectedIn - totalCosts;
+    projectedStaffCosts = toCents(projectedStaffCosts);
+    const totalCosts = toCents(money.expectedOut + projectedStaffCosts);
+    const profit = toCents(money.expectedIn - totalCosts);
     const margin = money.expectedIn > 0 ? (profit / money.expectedIn) * 100 : 0;
 
     return {
@@ -241,9 +239,9 @@ export async function getGigExportAggregates(
     const result = new Map<string, GigExportAggregates>();
     for (const [gigId, a] of acc) {
       result.set(gigId, {
-        revenue: a.revenue,
-        costOfStaff: a.costOfStaff,
-        expenses: a.expenses,
+        revenue: toCents(a.revenue),
+        costOfStaff: toCents(a.costOfStaff),
+        expenses: toCents(a.expenses),
         staffCount: a.staffCount,
       });
     }
@@ -489,16 +487,32 @@ async function soleAttachmentPathsForGigFinancial(finId: string): Promise<string
   }
 }
 
+/** The sole-owned receipt files of several financial records (see above). Never throws. */
+export async function soleReceiptPathsFor(finIds: string[]): Promise<string[]> {
+  const all = await Promise.all(finIds.map((id) => soleAttachmentPathsForGigFinancial(id)));
+  return all.flat();
+}
+
 /**
- * Best-effort removal of those files, once the row is gone. The storage backend can only be
- * written through the Storage API, so this is done here. Never throws.
+ * Best-effort removal of receipt files, once their rows are gone. Storage can only be written
+ * through the Storage API, outside the database transaction, so a failure leaves the files
+ * orphaned (the rows are already gone). It is reported to Sentry with a count only: no paths or
+ * user data. Never throws.
  */
-async function removeAttachmentFiles(paths: string[]): Promise<void> {
+export async function removeReceiptFiles(paths: string[]): Promise<void> {
   if (paths.length === 0) return;
+  let failed = false;
   try {
-    await getSupabase().storage.from('attachments').remove(paths);
-  } catch (err) {
-    console.warn('removeAttachmentFiles: non-fatal', err);
+    const { error } = await getSupabase().storage.from('attachments').remove(paths);
+    failed = !!error;
+  } catch {
+    failed = true;
+  }
+  if (failed) {
+    Sentry.captureMessage('Receipt files could not be removed after their rows were deleted', {
+      level: 'warning',
+      extra: { count: paths.length },
+    });
   }
 }
 
@@ -516,7 +530,7 @@ export async function deleteGigFinancial(finId: string) {
       throw new Error('Financial record not found, or you do not have permission to delete it.');
     }
     // Only now that the row is gone (B3): a refused delete (a filed year, no permission) keeps its receipt.
-    await removeAttachmentFiles(receiptPaths);
+    await removeReceiptFiles(receiptPaths);
     await logFinancialEvent('financial.removed', data[0] as DbGigFinancial);
     return { success: true };
   } catch (err) {
@@ -530,6 +544,9 @@ export async function deleteGigFinancial(finId: string) {
  */
 export async function logGigFinancialAdded(row: DbGigFinancial): Promise<void> {
   await logFinancialEvent('financial.added', row);
+}
+export async function logGigFinancialRemoved(row: DbGigFinancial): Promise<void> {
+  await logFinancialEvent('financial.removed', row);
 }
 export async function logGigFinancialChanged(before: DbGigFinancial, after: DbGigFinancial): Promise<void> {
   const changes = computeFieldChanges(before, after, LOGGED_FIELDS);

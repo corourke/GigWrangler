@@ -26,7 +26,7 @@ export interface LineEquipment {
 }
 
 /** One unit or lot as the database functions take it. */
-export interface LineUnitInput {
+export type LineUnitInput = {
   organization_id: string;
   line_index?: number;
   equipment_item_id?: string;
@@ -41,7 +41,7 @@ export interface LineUnitInput {
   replacement_value?: number | null;
   insurance_policy_added?: boolean;
   recovery_period?: number | null;
-}
+};
 
 const blank = (s: string | null | undefined) => !s || s.trim() === '';
 const key = (s: string) => s.trim().toUpperCase();

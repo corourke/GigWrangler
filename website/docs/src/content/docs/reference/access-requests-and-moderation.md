@@ -45,10 +45,11 @@ When the request is decided, the requester gets a notification in the bell: "You
 
 ## Platform moderators
 
-A **platform moderator** is an account that GigWrangler marks with extra rights across all organizations. There's no setting for this in the app. Moderators do two things:
+A **platform moderator** is an account that GigWrangler marks with extra rights across all organizations. There's no setting for this in the app. Moderators do three things:
 
 - **Decide access requests for unclaimed organizations.** An organization is unclaimed until it has an Admin, for example a venue someone registered with **Create without Joining**. Nobody there can let people in or give them a role, so requests to join it and role requests both go to the moderators. To take one over, ask to join it, then, once you're in, request **Admin**.
 - **Maintain the starter category lists.** These are the expense and equipment categories an organization is given the first time it needs a list.
+- **Reset a lost authenticator**, so someone who lost their phone can sign in again. See [Resetting a lost authenticator](#resetting-a-lost-authenticator).
 
 A moderator has no say once an organization has an Admin, and has no access to its gigs or data.
 
@@ -60,6 +61,10 @@ Moderators have two extra items in the avatar menu (top right):
 - **Starter categories** opens the **Starter sets** that new organizations copy. Changing them doesn't change organizations that already have their own lists. See [Expense and equipment categories](/settings/categories/).
 
 Moderators get a notification in the bell for each new request, and selecting it opens the queue.
+
+### Resetting a lost authenticator
+
+At the bottom of **Access Requests**, the **Lost authenticator** card resets someone's [two-factor sign-in](/settings/security/) when they've lost their phone: "Confirm who is asking first. This removes the account's two-factor sign-in; they set it up again when they next sign in." Enter their **Account email**, select **Reset two-factor sign-in**, then **Yes, reset**. You see "Two-factor sign-in reset for {email}", or "No account with that email".
 
 ### When a moderator approves an Admin request
 

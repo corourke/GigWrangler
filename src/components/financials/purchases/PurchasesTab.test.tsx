@@ -21,10 +21,8 @@ vi.mock('../../../services/purchase.service', () => ({
   trackPurchaseLineAsEquipment: vi.fn(async () => 'a-new'),
   scanInvoice: vi.fn(),
   deletePurchase: vi.fn(),
-  updatePurchase: vi.fn(),
-  reconcileLedgerForLineGigChange: vi.fn(),
+  setPurchaseLineGig: vi.fn(),
   createLedgerEntryForPurchaseLine: vi.fn(),
-  removeLedgerEntriesForPurchaseLine: vi.fn(),
   purchaseLineLedgerAmount: vi.fn(),
   getLinkedGigExpenses: vi.fn(async () => ({ entries: 0, gigs: 0, amount: 0 })),
 }));
@@ -203,5 +201,17 @@ describe('Deleting a purchase removes its gig expenses (B2)', () => {
     await waitFor(() => expect(getLinkedGigExpenses).toHaveBeenCalled());
     expect(within(dialog).queryByText(/This also removes/)).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/will not be automatically deleted/)).not.toBeInTheDocument();
+  });
+});
+
+// B21: the tab changes a line's gig in one call (setPurchaseLineGig), never as a purchase update
+// followed by separate gig-expense moves or deletes.
+describe('PurchasesTab: a line\'s gig changes in one call (B21)', () => {
+  it('uses setPurchaseLineGig, not a gig_id update plus ledger steps', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync('src/components/financials/purchases/PurchasesTab.tsx', 'utf8');
+    expect(source).toContain('setPurchaseLineGig(');
+    expect(source).not.toMatch(/updatePurchase\([^)]*gig_id/);
+    expect(source).not.toMatch(/reconcileLedgerForLineGigChange|removeLedgerEntriesForPurchaseLine/);
   });
 });
