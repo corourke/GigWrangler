@@ -34,9 +34,11 @@ vi.mock('../components/FinancialsScreen', () => ({
   default: () => <div>FinancialsScreen stub</div>,
 }));
 
-// Reading the module's default export throws, like a chunk that failed to fetch
+// The screen fails with a chunk-load error, as a lazy screen whose chunk failed to fetch does when
+// React renders it. (A module whose default export throws on read no longer works: React 19 also
+// reads it for its dev tools, outside render, and that error goes unhandled.)
 vi.mock('../components/TeamScreen', () => ({
-  get default(): never {
+  default: (): never => {
     throw new TypeError('Failed to fetch dynamically imported module: /assets/TeamScreen-x.js');
   },
 }));
