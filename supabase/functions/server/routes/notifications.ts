@@ -1,6 +1,7 @@
 import type { App, AppContext } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
+import { log } from '../../_shared/log.ts';
 
 export function registerNotifications(app: App) {
   // Unread notifications for the caller — powers the notification bell.
@@ -13,7 +14,7 @@ export function registerNotifications(app: App) {
       .eq('recipient_id', user.id).is('read_at', null)
       .order('created_at', { ascending: false });
     if (error) {
-      console.error('Error fetching notifications:', error);
+      log('error', 'notifications.fetch_failed', { err: error });
       return c.json({ error: error.message }, 400);
     }
     return c.json(data || []);
@@ -29,7 +30,7 @@ export function registerNotifications(app: App) {
       .eq('id', id).eq('recipient_id', user.id)
       .select('id').maybeSingle();
     if (error) {
-      console.error('Error marking notification read:', error);
+      log('error', 'notifications.mark_read_failed', { err: error });
       return c.json({ error: error.message }, 400);
     }
     if (!data) {
