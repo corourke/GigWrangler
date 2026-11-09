@@ -14,6 +14,7 @@ import {
 import { sendEmail } from '../lib/email.ts';
 import { accessRequestOutcomeEmail } from '../lib/pure/accessRequestEmail.ts';
 import { rateLimited } from '../lib/rateLimit.ts';
+import { log } from '../../_shared/log.ts';
 
 /**
  * Best-effort side-channel insert into the generic notifications table
@@ -26,7 +27,7 @@ async function notify(recipientIds: string[], type: string, payload: Record<stri
     .from('notifications')
     .insert(recipientIds.map((recipient_id) => ({ recipient_id, type, payload })));
   if (error) {
-    console.warn(`Error inserting '${type}' notifications:`, error);
+    log('warn', 'access_requests.notification_insert_failed', { type, err: error });
   }
 }
 
@@ -269,7 +270,7 @@ export function registerAccessRequests(app: App) {
       });
       const emailResult = await sendEmail({ to: requesterEmail, ...email });
       if (!emailResult.sent) {
-        console.warn('Access-request outcome email not sent:', emailResult.error);
+        log('warn', 'access_requests.outcome_email_failed', { err: emailResult.error });
       }
     }
 
@@ -284,7 +285,7 @@ export function registerAccessRequests(app: App) {
       .eq('requester_id', user.id).eq('status', 'pending')
       .order('created_at', { ascending: true });
     if (error) {
-      console.error('Error fetching own access requests:', error);
+      log('error', 'access_requests.fetch_own_failed', { err: error });
       return c.json({ error: 'Could not load your requests' }, 400);
     }
     return c.json(data || []);

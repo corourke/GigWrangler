@@ -16,6 +16,12 @@ export const LIMITS = {
  * build/index.html: the `<script type="module" src=...>`. Several chunks are
  * named `index-*`, so the name alone doesn't identify the entry.
  */
+/** Source maps in the build output. They are uploaded to Sentry and deleted (A18); one left over
+ * would be served publicly and precached. */
+export function findSourceMaps(names) {
+  return names.filter((name) => name.endsWith('.map'));
+}
+
 /**
  * Libraries that must stay out of the entry chunk (A21), each with a string its built code always
  * contains. react-big-calendar belongs to the lazy gig list screen; recharts is not a dependency.

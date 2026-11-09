@@ -8,6 +8,7 @@ import { normalizeWebsiteUrl } from '../lib/pure/websiteUrl.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
 import { fail } from '../lib/fail.ts';
 import { rateLimited } from '../lib/rateLimit.ts';
+import { log } from '../../_shared/log.ts';
 
 const ORG_UPDATE_FIELDS = [
   'name', 'roles', 'url', 'phone_number', 'description',
@@ -144,7 +145,7 @@ export function registerOrganizations(app: App) {
       if (ref.exceptCallerColumn) query = query.neq(ref.exceptCallerColumn, c.get('user').id);
       const { count, error: countError } = await query;
       if (countError) {
-        console.error(`Error checking ${ref.table} for org delete:`, countError);
+        log('error', 'organizations.delete_check_failed', { table: ref.table, err: countError });
         return c.json({ error: `Failed to check ${ref.label}` }, 500);
       }
       counts[ref.label] = count ?? 0;
@@ -292,7 +293,7 @@ export function registerOrganizations(app: App) {
     const { data: updatedMember, error: fetchError } = await supabaseAdmin
       .from('organization_members').select('*, user:users(*)').eq('id', memberId).single();
     if (fetchError) {
-      console.error('Error fetching updated member:', fetchError);
+      log('error', 'organizations.member_fetch_failed', { err: fetchError });
     }
     return c.json(updatedMember || { success: true });
   });
@@ -393,7 +394,7 @@ export function registerOrganizations(app: App) {
       data: { organization_id: orgId, invited_by: user.id, first_name: first_name || '', last_name: last_name || '' },
     });
     if (emailError) {
-      console.warn('Error sending invitation email:', emailError);
+      log('warn', 'organizations.invitation_email_failed', { err: emailError });
       return c.json({ ...data, email_sent: false, email_error: 'The invitation email could not be sent' });
     }
     return c.json({ ...data, email_sent: true });

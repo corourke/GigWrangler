@@ -5,6 +5,7 @@ import { buildScanParams, readScanResponse } from "./scanRequest.ts";
 import { mediaTypeFor, queueUpdateFor, staleScanCutoff } from "./scanQueue.ts";
 import { canScanInvoices, scanLimitError, scanFailure } from "./scanLimits.ts";
 import { classifyItem } from "./classifyItem.ts";
+import { log } from "../_shared/log.ts";
 
 function getCorsHeaders(req: Request): Record<string, string> {
   return corsHeaders(req.headers.get('Origin'), {
@@ -135,7 +136,7 @@ async function scanFile(file: File, organizationId: string, userId: string, admi
   ]);
 
   if (userUsage.error || orgUsage.error) {
-    console.error('Failed to check scan usage:', userUsage.error ?? orgUsage.error);
+    log('error', 'ai_scan.usage_check_failed', { err: userUsage.error ?? orgUsage.error });
     throw new Error('Unable to verify scan quota');
   }
 
@@ -148,7 +149,7 @@ async function scanFile(file: File, organizationId: string, userId: string, admi
     .from('ai_scan_usage')
     .insert({ user_id: userId, organization_id: organizationId });
   if (insertError) {
-    console.error('Failed to record scan usage:', insertError);
+    log('error', 'ai_scan.usage_record_failed', { err: insertError });
     throw new Error('Unable to record scan usage');
   }
 
@@ -195,7 +196,7 @@ async function scanFile(file: File, organizationId: string, userId: string, admi
   try {
     response = await anthropic.beta.messages.create(buildScanParams(content, EXTRACTION_PROMPT));
   } catch (err: any) {
-    console.error('Anthropic API Error:', err.status, err.message);
+    log('error', 'ai_scan.anthropic_failed', { status: err.status ?? null, err });
     
     if (err.status === 404 || err.status === 400) {
       return {
@@ -211,7 +212,7 @@ async function scanFile(file: File, organizationId: string, userId: string, admi
   }
 
   if (response.stop_reason === 'max_tokens') {
-    console.warn('AI response was truncated (max_tokens reached)');
+    log('warn', 'ai_scan.response_truncated');
   }
 
   const rawOutput = readScanResponse(response);
@@ -253,7 +254,7 @@ async function scanFile(file: File, organizationId: string, userId: string, admi
 
     try {
       parsed = JSON.parse(jsonStr);
-      console.warn('Repaired truncated JSON successfully');
+      log('info', 'ai_scan.truncated_json_repaired');
     } catch (repairErr: any) {
       throw new Error(`AI returned malformed JSON that could not be repaired: ${repairErr.message}`);
     }
@@ -352,7 +353,7 @@ Deno.serve(async (req) => {
         result = await scanFile(file, item.organization_id, user.id, adminClient);
       } catch (err: any) {
         const reference = crypto.randomUUID();
-        console.error(`Error scanning a queued invoice (reference ${reference}):`, err);
+        log('error', 'ai_scan.queued_scan_failed', { reference, err });
         await captureException(err);
         result = scanFailure(reference);
       }
@@ -394,7 +395,7 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     const reference = crypto.randomUUID();
-    console.error(`Error in ai-scan (reference ${reference}):`, error);
+    log('error', 'ai_scan.failed', { reference, err: error });
     await captureException(error);
     const failure = scanFailure(reference);
     return new Response(JSON.stringify(failure.body), {
