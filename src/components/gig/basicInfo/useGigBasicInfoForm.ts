@@ -41,6 +41,37 @@ export function computeEffectiveEnd(data: BasicInfoFormData): string | undefined
   return new Date(data.start_time.getTime() + 4 * 60 * 60 * 1000).toISOString();
 }
 
+const sameTime = (a?: Date | null, b?: Date | null) => (a?.getTime() ?? null) === (b?.getTime() ?? null);
+
+/**
+ * The gig fields that differ from what was last saved (all of them when nothing was). The start,
+ * end, all-day flag and time zone go together: the saved end depends on all of them.
+ */
+export function changedGigFields(
+  saved: BasicInfoFormData | null,
+  data: BasicInfoFormData,
+  effectiveEnd: string | undefined,
+): Parameters<typeof updateGig>[1] {
+  const changes: Parameters<typeof updateGig>[1] = {};
+  if (!saved || data.title !== saved.title) changes.title = data.title;
+  if (!saved || data.status !== saved.status) changes.status = data.status;
+  if (!saved || (data.notes ?? '') !== (saved.notes ?? '')) changes.notes = data.notes;
+  if (!saved || JSON.stringify(data.tags ?? []) !== JSON.stringify(saved.tags ?? [])) changes.tags = data.tags;
+  if (
+    !saved
+    || !sameTime(data.start_time, saved.start_time)
+    || !sameTime(data.end_time, saved.end_time)
+    || data.all_day !== saved.all_day
+    || data.timezone !== saved.timezone
+  ) {
+    changes.start = data.start_time.toISOString();
+    changes.end = effectiveEnd;
+    changes.all_day = data.all_day;
+    changes.timezone = data.timezone;
+  }
+  return changes;
+}
+
 function toFormData(gig: Gig): BasicInfoFormData {
   return {
     title: gig.title || '',
@@ -90,24 +121,22 @@ export function useGigBasicInfoForm(gigId?: string, loaded?: Gig) {
   });
   const { formState: { errors, isDirty }, watch, reset } = form;
 
+  // What was last loaded or saved. A save writes only what differs from it, so two people editing
+  // different fields of the same gig don't overwrite each other's saved changes.
+  const saved = useRef<BasicInfoFormData | null>(loaded ? toFormData(loaded) : null);
+
   const handleSave = useCallback(async (data: BasicInfoFormData) => {
     if (!gigId) return;
     if (!data.start_time) return;
     const effectiveEnd = computeEffectiveEnd(data);
     if (!data.all_day && effectiveEnd && new Date(effectiveEnd) <= data.start_time) return;
-    await updateGig(gigId, {
-      title: data.title,
-      start: data.start_time.toISOString(),
-      end: effectiveEnd,
-      all_day: data.all_day,
-      timezone: data.timezone,
-      status: data.status,
-      tags: data.tags,
-      notes: data.notes,
-    });
+    const changes = changedGigFields(saved.current, data, effectiveEnd);
+    if (Object.keys(changes).length === 0) return;
+    await updateGig(gigId, changes);
   }, [gigId]);
 
   const handleSaveSuccess = useCallback((data: BasicInfoFormData) => {
+    saved.current = data;
     reset(data, { keepDirty: false, keepValues: true });
   }, [reset]);
 
@@ -135,7 +164,8 @@ export function useGigBasicInfoForm(gigId?: string, loaded?: Gig) {
   useEffect(() => {
     if (!fetchGig || !gigQuery.data || seededFor.current === gigId) return;
     seededFor.current = gigId ?? null;
-    reset(toFormData(gigQuery.data));
+    saved.current = toFormData(gigQuery.data);
+    reset(saved.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per gig; a gig passed in only seeds the form
   }, [gigQuery.dataUpdatedAt, gigId]);
   useEffect(() => {
