@@ -473,6 +473,12 @@ function QuickCreateGigModal({
     setSelectedOrgResult(null);
   };
 
+  // Choosing an organization from the search list (by tap, or Enter/Space on it).
+  const pickOrg = (org: any) => {
+    setSelectedOrgResult(org);
+    setOrgSearchQuery(org.name);
+  };
+
   const handleRoleSelect = (role: string) => {
     setAddParticipantRole(role);
     setShowRoleDropdown(false);
@@ -549,7 +555,8 @@ function QuickCreateGigModal({
 
   return (
     <div className="fixed inset-x-0 top-0 z-50 flex items-end justify-center" style={{ bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' }}>
-      <div className="absolute inset-0 bg-black/40" onClick={saving ? undefined : onClose} />
+      {/* The backdrop closes the sheet on a tap; the Close button does the same from the keyboard. */}
+      <div role="presentation" className="absolute inset-0 bg-black/40" onClick={saving ? undefined : onClose} />
       <div className="relative w-full max-w-lg bg-background rounded-t-2xl max-h-full overflow-y-auto">
         <div className="sticky top-0 bg-background px-4 py-3 border-b border-border/50 flex items-center justify-between rounded-t-2xl">
           <h2 className="text-base font-bold">New Gig</h2>
@@ -714,12 +721,16 @@ function QuickCreateGigModal({
                       autoFocus
                     />
                     {orgSearchResults.length > 0 && !selectedOrgResult && (
-                      <ul className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                      <ul role="listbox" aria-label="Organizations" className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
                         {orgSearchResults.map(org => (
                           <li
                             key={org.id}
+                            role="option"
+                            aria-selected={false}
+                            tabIndex={0}
                             className="px-3 py-1.5 text-sm cursor-pointer hover:bg-muted"
-                            onClick={() => { setSelectedOrgResult(org); setOrgSearchQuery(org.name); }}
+                            onClick={() => pickOrg(org)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickOrg(org); } }}
                           >
                             {org.name}
                           </li>
@@ -741,12 +752,16 @@ function QuickCreateGigModal({
                       <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
                     </button>
                     {showRoleDropdown && (
-                      <ul className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                      <ul role="listbox" aria-label="Roles" className="absolute z-50 top-full mt-1 w-full bg-background border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
                         {Object.keys(ORG_ROLE_CONFIG).map(role => (
                           <li
                             key={role}
                             className={cn('px-3 py-2 text-sm cursor-pointer hover:bg-muted', addParticipantRole === role && 'font-medium text-sky-600')}
+                            role="option"
+                            aria-selected={addParticipantRole === role}
+                            tabIndex={0}
                             onClick={() => handleRoleSelect(role)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRoleSelect(role); } }}
                           >
                             {ORG_ROLE_CONFIG[role as keyof typeof ORG_ROLE_CONFIG]?.label || role}
                           </li>

@@ -435,10 +435,13 @@ export default function ImportScreen({
               )}
             </div>
             <div
+              role="button"
+              tabIndex={0}
               onDrop={handleFileDrop}
               onDragOver={(e) => e.preventDefault()}
               className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-sky-400 transition-colors cursor-pointer"
               onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
             >
               <input
                 ref={fileInputRef}

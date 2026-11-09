@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { screen, within, fireEvent } from '@testing-library/react'
 import { renderWithQuery as render } from '../../test/renderWithQuery'
 import userEvent from '@testing-library/user-event'
 import { format } from 'date-fns'
@@ -1411,5 +1411,19 @@ describe('MobileInventoryMode', () => {
       expect(await screen.findByText('Maintenance')).toBeInTheDocument()
       expect(screen.queryByText(/to maintenance/i)).not.toBeInTheDocument()
     })
+  })
+})
+
+// A19: a kit's row opens and closes from the keyboard too.
+describe('MobileInventoryMode: kit rows from the keyboard (A19)', () => {
+  it('Enter or Space on a kit row toggles it, and the row says whether it is open', async () => {
+    render(<MobileInventoryMode gigId="gig-1" onSelectGig={vi.fn()} />)
+    const row = (await screen.findByText('Audio Case')).closest('[role="button"]') as HTMLElement
+    const before = row.getAttribute('aria-expanded')
+    expect(before === 'true' || before === 'false').toBe(true)
+    fireEvent.keyDown(row, { key: 'Enter' })
+    expect(row).toHaveAttribute('aria-expanded', before === 'true' ? 'false' : 'true')
+    fireEvent.keyDown(row, { key: ' ' })
+    expect(row).toHaveAttribute('aria-expanded', before)
   })
 })

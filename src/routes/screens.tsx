@@ -26,13 +26,15 @@ import { ChunkLoadBoundary } from './ChunkLoadBoundary';
 import type { Organization, OrganizationMembership } from '../utils/supabase/types';
 
 // Shell screen, kept eager so sign-in lands without a chunk fetch
-import OrganizationSelectionScreen from '../components/OrganizationSelectionScreen';
 
 // Screens load on demand, keeping the main bundle well under the offline
 // cache's 2 MiB per-file limit (#193; guarded by `npm run check:bundle`). The
 // service worker still precaches every chunk, so they work offline too. Only
 // the shell (org picker, mobile layout) and the auth guards stay eager.
 // Desktop screens
+// Lazy too (A17): it brings the app header, notifications and navigation, which every screen after
+// it shares, so they load with the first screen instead of in the entry chunk.
+const OrganizationSelectionScreen = lazy(() => import('../components/OrganizationSelectionScreen'));
 const Dashboard = lazy(() => import('../components/Dashboard'));
 const GigListScreen = lazy(() => import('../components/GigListScreen'));
 const GigScreen = lazy(() => import('../components/GigScreen'));
