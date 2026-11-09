@@ -1,18 +1,12 @@
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import { describe, it, expect, vi } from 'vitest'
-import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
-import type { ReactElement } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
 import KitDetailScreen from './KitDetailScreen'
 import { toast } from 'sonner'
 import { getKit, getKitComponentTree, getKitFlattenedItems, duplicateKit } from '../services/kit.service'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
 
-// A10: the screen reads through react-query, so each test gets a fresh client.
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-}
 
 
 // countInventoryItems/maxTreeDepth are plain, pure functions — keep the real

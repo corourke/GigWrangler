@@ -1,6 +1,6 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery, useQueries, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { queryKeys, equipmentInvalidation, invalidateKeys } from '../../lib/queryKeys';
+import { queryKeys, invalidateAfterKitChange } from '../../lib/queryKeys';
 import {
   getKit,
   getKits,
@@ -43,8 +43,8 @@ export function useKitScreenData({ kitId, organizationId, childKitIds }: {
     queryFn: () => getKit(kitId as string),
     enabled: !!kitId,
     staleTime: 0,
-    // The form is seeded once from this and saves its whole component list, so it must never
-    // start from a cached copy: each visit reads the kit afresh, as before A10.
+    // The form is seeded from this and saves its whole component list, so it must never start
+    // from a cached copy: each visit reads the kit afresh, as before A10.
     gcTime: 0,
   });
 
@@ -82,6 +82,12 @@ export function useKitScreenData({ kitId, organizationId, childKitIds }: {
     combine: combineSummaries,
   });
 
+  const afterKitChange = useCallback(
+    (savedKitId?: string) => invalidateAfterKitChange(queryClient, { organizationId, kitId: savedKitId ?? kitId ?? undefined }),
+    [queryClient, organizationId, kitId],
+  );
+
+  // A save refreshes the kit, so the form reseeds from what was saved (and its loaded lines).
   const saveKitMutation = useMutation({
     mutationFn: async ({ kitData, loadedComponentIds }: SaveKitVars): Promise<{ id: string }> => {
       if (kitId) {
@@ -90,16 +96,28 @@ export function useKitScreenData({ kitId, organizationId, childKitIds }: {
       }
       return createKit(kitData);
     },
-    onSuccess: (saved) => invalidateKeys(queryClient, equipmentInvalidation.kit(organizationId, saved.id)),
+    onSuccess: (saved) => afterKitChange(saved.id),
   });
 
-  return {
-    kitQuery,
+  const { refetch } = kitQuery;
+  /** Load the kit again. */
+  const reload = useCallback(() => { void refetch(); }, [refetch]);
+  const error = kitQuery.error ? ((kitQuery.error as Error).message || 'Failed to load kit') : null;
+
+  return useMemo(() => ({
+    kit: kitQuery.data ?? null,
+    /** When the kit last loaded: the form seeds once per load. */
+    kitLoadedAt: kitQuery.dataUpdatedAt,
+    isLoading: !!kitId && kitQuery.isPending,
+    error,
+    reload,
     items: itemsQuery.data?.items ?? EMPTY_ITEMS,
     containerPieces: itemsQuery.data?.containerPieces ?? NO_PIECES,
     childKitSummaries,
-    saveKit: saveKitMutation,
-  };
+    afterKitChange,
+    saveKit: saveKitMutation.mutateAsync,
+  }), [kitQuery.data, kitQuery.dataUpdatedAt, kitId, kitQuery.isPending, error, reload, itemsQuery.data,
+    childKitSummaries, afterKitChange, saveKitMutation.mutateAsync]);
 }
 
 const EMPTY_ITEMS = new Map<string, KitItem>();

@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { useAssetListData } from './useAssetListData'
-import { queryKeys, equipmentInvalidation } from '../../lib/queryKeys'
+import { queryKeys } from '../../lib/queryKeys'
+import { makeTestQueryClient } from '../../test/renderWithQuery'
 import { getItems, getContainerPieces } from '../../services/equipmentItem.service'
 import { deleteAsset, duplicateAsset, updateAsset } from '../../services/asset.service'
 import { getAssetTrackingSummary } from '../../services/inventoryManagement.service'
@@ -16,13 +17,14 @@ const items = [{ id: 'i1', records: [{ id: 'u1', category: 'Audio' }, { id: 'u2'
 const pieces = { all: new Map(), active: new Map() }
 
 function setup() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  const client = makeTestQueryClient()
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
   const invalidate = vi.spyOn(client, 'invalidateQueries')
   const hook = renderHook(() => useAssetListData('org-1'), { wrapper })
-  return { client, invalidate, hook }
+  const keys = () => invalidate.mock.calls.map((c: any[]) => c[0]?.queryKey)
+  return { client, invalidate, keys, hook }
 }
-const invalidatedKeys = (spy: ReturnType<typeof vi.spyOn>) => spy.mock.calls.map((c: any[]) => c[0]?.queryKey)
+const recordIds = (client: any) => client.getQueryData(queryKeys.equipmentItems('org-1')).items[0].records.map((r: any) => r.id)
 
 beforeEach(() => {
   vi.mocked(getItems).mockReset().mockResolvedValue(items as any)
@@ -41,22 +43,31 @@ describe('useAssetListData (A10)', () => {
     expect(client.getQueryData(queryKeys.assetTrackingSummary('org-1'))).toEqual(new Map())
     expect(client.getQueryCache().find({ queryKey: queryKeys.equipmentItems('org-1') })!.isStale()).toBe(true)
     expect(getContainerPieces).toHaveBeenCalledWith('org-1', items)
+    expect(hook.result.current.error).toBeNull()
   })
 
-  it('Duplicate invalidates through the equipment map', async () => {
-    const { invalidate, hook } = setup()
+  it('returns a stable reload', async () => {
+    const { hook } = setup()
+    const first = hook.result.current.reload
     await waitFor(() => expect(hook.result.current.isLoading).toBe(false))
-    await act(() => hook.result.current.duplicateAsset.mutateAsync('u1'))
-    expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining(equipmentInvalidation.asset('org-1', 'u1')))
+    expect(hook.result.current.reload).toBe(first)
   })
 
-  it('an inline edit writes the value into the cache and invalidates through the map', async () => {
+  it('Duplicate refreshes the equipment and the dashboard', async () => {
+    const { keys, hook } = setup()
+    await waitFor(() => expect(hook.result.current.isLoading).toBe(false))
+    await act(() => hook.result.current.duplicateAsset('u1'))
+    expect(keys()).toEqual(expect.arrayContaining([queryKeys.assets('org-1'), queryKeys.asset('u1'), queryKeys.dashboard('org-1')]))
+  })
+
+  it('an inline edit writes the value into the cache and marks the list stale without reloading it', async () => {
     const { client, invalidate, hook } = setup()
     await waitFor(() => expect(hook.result.current.isLoading).toBe(false))
-    await act(() => hook.result.current.updateAsset.mutateAsync({ id: 'u1', updates: { category: 'Lighting' } }))
+    await act(() => hook.result.current.updateAsset({ id: 'u1', updates: { category: 'Lighting' } }))
     const cached: any = client.getQueryData(queryKeys.equipmentItems('org-1'))
     expect(cached.items[0].records[0].category).toBe('Lighting')
-    expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining(equipmentInvalidation.asset('org-1', 'u1')))
+    expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: queryKeys.equipmentItems('org-1'), refetchType: 'none' }))
+    expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: queryKeys.dashboard('org-1') }))
   })
 
   it('Delete takes the record out of the cache at once and puts it back if the delete fails', async () => {
@@ -65,13 +76,9 @@ describe('useAssetListData (A10)', () => {
     const { client, hook } = setup()
     await waitFor(() => expect(hook.result.current.isLoading).toBe(false))
     let done!: Promise<unknown>
-    act(() => { done = hook.result.current.deleteAsset.mutateAsync('u2').catch(() => {}) })
-    await waitFor(() => {
-      const cached: any = client.getQueryData(queryKeys.equipmentItems('org-1'))
-      expect(cached.items[0].records.map((r: any) => r.id)).toEqual(['u1'])
-    })
+    act(() => { done = hook.result.current.deleteAsset('u2').catch(() => {}) })
+    await waitFor(() => expect(recordIds(client)).toEqual(['u1']))
     await act(async () => { fail(new Error('nope')); await done })
-    const cached: any = client.getQueryData(queryKeys.equipmentItems('org-1'))
-    expect(cached.items[0].records.map((r: any) => r.id)).toEqual(['u1', 'u2'])
+    expect(recordIds(client)).toEqual(['u1', 'u2'])
   })
 })

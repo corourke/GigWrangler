@@ -1,7 +1,6 @@
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import { describe, it, expect, vi } from 'vitest'
-import { render as rtlRender, fireEvent, screen, waitFor, within } from '@testing-library/react'
-import type { ReactElement } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import KitScreen from './KitScreen'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
@@ -9,11 +8,6 @@ import { getKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle, update
 import { getAssets } from '../services/asset.service'
 import { getItems, getContainerPieces } from '../services/equipmentItem.service'
 
-// A10: the screen reads through react-query, so each test gets a fresh client.
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-}
 
 
 // Mock all dependencies

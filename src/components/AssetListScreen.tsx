@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import {Package, Plus, Search, Loader2, AlertCircle, Upload, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { itemMatchesSearch, type ContainerPieces } from '../utils/equipmentItems';
+import { itemMatchesSearch } from '../utils/equipmentItems';
 import { useAssetListData } from './asset/useAssetListData';
 import ItemsTable from './equipment/ItemsTable';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
@@ -62,20 +62,17 @@ export default function AssetListScreen({
 }: AssetListScreenProps) {
   // Items (what it is), each with its units and lots (what we own) — #182
   const {
-    items: loadedItems,
-    containerPieces: loadedPieces,
-    trackingSummary,
+    items,
+    containerPieces,
+    trackingSummary: assetTrackingSummary,
     isLoading,
     error,
-    refresh,
-    invalidate,
-    updateAsset: updateAssetMutation,
-    deleteAsset: deleteAssetMutation,
-    duplicateAsset: duplicateAssetMutation,
+    reload,
+    afterAssetChange,
+    updateAsset,
+    deleteAsset,
+    duplicateAsset,
   } = useAssetListData(organization.id);
-  const items = useMemo(() => loadedItems ?? [], [loadedItems]);
-  const containerPieces = useMemo<ContainerPieces>(() => loadedPieces ?? { all: new Map(), active: new Map() }, [loadedPieces]);
-  const assetTrackingSummary = useMemo(() => trackingSummary ?? new Map<string, { status: string; location?: string | null; gigTitle?: string | null }>(), [trackingSummary]);
   const [view, setView] = useState<'items' | 'records'>('items');
   const allAssets = useMemo<DbAsset[]>(() => items.flatMap((i) => i.records), [items]);
   const [filteredAssets, setFilteredAssets] = useState<DbAsset[]>([]);
@@ -88,7 +85,7 @@ export default function AssetListScreen({
 
   const handleUpdateAsset = async (id: string, updates: Partial<DbAsset>) => {
     try {
-      await updateAssetMutation.mutateAsync({ id, updates });
+      await updateAsset({ id, updates });
       toast.success('Asset updated');
     } catch (err: any) {
       // The hook reloads the list.
@@ -96,30 +93,28 @@ export default function AssetListScreen({
     }
   };
 
-  const { mutateAsync: deleteAssetAsync } = deleteAssetMutation;
   const handleDeleteAsset = useCallback(async (assetId: string) => {
     if (!confirm('Are you sure you want to delete this asset?')) return;
 
     // The hook removes the asset from the list at once, puts it back if the delete fails,
     // and reloads the list either way.
     try {
-      await deleteAssetAsync(assetId);
+      await deleteAsset(assetId);
       toast.success('Asset deleted successfully');
     } catch (error: any) {
       console.error('Error deleting asset:', error);
       toast.error(error.message || 'Failed to delete asset');
     }
-  }, [deleteAssetAsync]);
+  }, [deleteAsset]);
 
-  const { mutateAsync: duplicateAssetAsync } = duplicateAssetMutation;
   const handleDuplicateAsset = useCallback(async (assetId: string) => {
     try {
-      await duplicateAssetAsync(assetId);
+      await duplicateAsset(assetId);
       toast.success('Asset duplicated successfully');
     } catch (err: any) {
       toast.error(err.message || 'Failed to duplicate asset');
     }
-  }, [duplicateAssetAsync]);
+  }, [duplicateAsset]);
 
   const handleUploadInvoice = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -489,7 +484,7 @@ export default function AssetListScreen({
               <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
               <h3 className="text-gray-900 mb-2">Error loading equipment</h3>
               <p className="text-gray-600 mb-6">{error}</p>
-              <Button onClick={() => refresh()} variant="outline">
+              <Button onClick={reload} variant="outline">
                 Try Again
               </Button>
             </div>
@@ -575,7 +570,7 @@ export default function AssetListScreen({
         scannedData={scannedData}
         file={scannedFile}
         onSuccess={() => {
-          invalidate();
+          afterAssetChange();
         }}
       />
     </div>

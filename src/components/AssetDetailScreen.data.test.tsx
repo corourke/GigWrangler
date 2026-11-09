@@ -2,23 +2,14 @@
  * A10 characterization: how a unit or lot page loads and refreshes its data. Written against the
  * pre-react-query screen and kept unchanged through the move, so the move is behaviour-neutral.
  */
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, waitFor, fireEvent, act } from '@testing-library/react'
-import type { ReactElement } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, waitFor, fireEvent, act } from '@testing-library/react'
 import AssetDetailScreen from './AssetDetailScreen'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getAsset, getAssetHistory, getAssetInventoryTracking, deleteAsset, duplicateAsset } from '../services/asset.service'
 import { undoWriteOff } from '../services/writeOff.service'
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  const result = rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-  return {
-    ...result,
-    rerender: (next: ReactElement) => result.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>),
-  }
-}
 
 vi.mock('../services/asset.service', () => ({
   getAsset: vi.fn(),

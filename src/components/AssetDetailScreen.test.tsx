@@ -1,7 +1,6 @@
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import { describe, it, expect, vi } from 'vitest'
-import {render as rtlRender, screen, fireEvent } from '@testing-library/react'
-import type { ReactElement } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {screen, fireEvent } from '@testing-library/react'
 import AssetDetailScreen from './AssetDetailScreen'
 import { getAsset } from '../services/asset.service'
 import { undoWriteOff } from '../services/writeOff.service'
@@ -11,11 +10,6 @@ import { WRITE_OFF_LOCKED_MESSAGE } from '../utils/writeOffMessages'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
 
-// A10: the screen reads through react-query, so each test gets a fresh client.
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-}
 
 
 vi.mock('../services/asset.service', () => ({

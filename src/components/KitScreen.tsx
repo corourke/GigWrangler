@@ -74,11 +74,10 @@ export default function KitScreen({
     [kitComponents],
   );
   // The organization's items and how many of each sit in container kits (#184).
-  const { kitQuery, items, containerPieces, childKitSummaries, saveKit } = useKitScreenData({
-    kitId, organizationId: organization.id, childKitIds,
-  });
+  const {
+    kit: loadedKit, kitLoadedAt, isLoading, error: kitLoadError, items, containerPieces, childKitSummaries, saveKit,
+  } = useKitScreenData({ kitId, organizationId: organization.id, childKitIds });
   const lookups: KitLineLookups = { items, containerPieces, childKitSummaries };
-  const isLoading = !!kitId && kitQuery.isPending;
 
   const isEditMode = !!kitId;
 
@@ -114,20 +113,17 @@ export default function KitScreen({
 
   // Data changes are automatically detected by the simplified hook
 
-  // The form loads once per kit, when its data arrives; a load error leaves the screen.
-  const loadedKitIdRef = useRef<string | null>(null);
+  // The form seeds once per load of the kit (each open, and after a save); a load error leaves
+  // the screen.
   useEffect(() => {
-    if (!kitId || !kitQuery.data || loadedKitIdRef.current === kitId) return;
-    loadedKitIdRef.current = kitId;
-    applyLoadedKit(kitQuery.data);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when the kit's data arrives, not on every change-tracker render
-  }, [kitId, kitQuery.data]);
+    if (kitId && loadedKit) applyLoadedKit(loadedKit);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- once per load, not on every change-tracker render
+  }, [kitLoadedAt]);
 
-  const kitLoadError = kitQuery.error;
   useEffect(() => {
     if (!kitLoadError) return;
     console.error('Error loading kit:', kitLoadError);
-    toast.error((kitLoadError as Error).message || 'Failed to load kit');
+    toast.error(kitLoadError);
     onCancel();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- once per failed load
   }, [kitLoadError]);
@@ -279,7 +275,7 @@ export default function KitScreen({
       }));
 
       if (isEditMode && kitId) {
-        await saveKit.mutateAsync({ kitData, loadedComponentIds: loadedComponentIdsRef.current });
+        await saveKit({ kitData, loadedComponentIds: loadedComponentIdsRef.current });
         toast.success('Kit updated successfully');
 
         // Mark as saved for change detection
@@ -296,7 +292,7 @@ export default function KitScreen({
 
         onKitUpdated();
       } else {
-        const newKit = await saveKit.mutateAsync({ kitData, loadedComponentIds: [] });
+        const newKit = await saveKit({ kitData, loadedComponentIds: [] });
         toast.success('Kit created successfully');
         onKitCreated(newKit.id);
       }
