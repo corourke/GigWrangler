@@ -6,6 +6,20 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 // Drop that override once a release declares ESLint 10.
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 
+import { DB_ACCESS_ALLOWLIST, DB_ACCESS_SELECTOR, DB_ACCESS_MESSAGE } from './scripts/dbAccess.mjs';
+
+// B11: a date column is a calendar day; new Date('2026-03-01') is the evening before west of UTC.
+const DATE_COLUMN_RULES = [
+  {
+    selector: "NewExpression[callee.name='Date'][arguments.length=1] > MemberExpression.arguments[property.name=/^(date|due_date|purchase_date|acquisition_date|retired_on|filed_on|tax_date|disposed_on)$/]",
+    message: 'A date column is a calendar day: use parseDateOnly / formatDateOnly (src/utils/dateOnly.ts), not new Date().',
+  },
+  {
+    selector: "NewExpression[callee.name='Date'][arguments.length=1] > Identifier.arguments[name=/^(dueDate|due_date|purchase_date|purchaseDate|acquisition_date|retired_on|retiredOn|filed_on)$/]",
+    message: 'A date column is a calendar day: use parseDateOnly / formatDateOnly (src/utils/dateOnly.ts), not new Date().',
+  },
+];
+
 export default tseslint.config(
   {
     ignores: [
@@ -52,21 +66,20 @@ export default tseslint.config(
       // unused locals/imports remain errors
       // B11: a date column is a calendar day; new Date('2026-03-01') is the evening before west
       // of UTC. Use parseDateOnly / formatDateOnly (src/utils/dateOnly.ts).
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "NewExpression[callee.name='Date'][arguments.length=1] > MemberExpression.arguments[property.name=/^(date|due_date|purchase_date|acquisition_date|retired_on|filed_on|tax_date|disposed_on)$/]",
-          message: 'A date column is a calendar day: use parseDateOnly / formatDateOnly (src/utils/dateOnly.ts), not new Date().',
-        },
-        {
-          selector: "NewExpression[callee.name='Date'][arguments.length=1] > Identifier.arguments[name=/^(dueDate|due_date|purchase_date|purchaseDate|acquisition_date|retired_on|retiredOn|filed_on)$/]",
-          message: 'A date column is a calendar day: use parseDateOnly / formatDateOnly (src/utils/dateOnly.ts), not new Date().',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...DATE_COLUMN_RULES],
       '@typescript-eslint/no-unused-vars': [
         'error',
         { args: 'none', varsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true },
       ],
+    },
+  },
+  // A14: components and hooks reach the database through src/services. The files still on
+  // DB_ACCESS_ALLOWLIST (scripts/dbAccess.mjs) are moved over by the A10/A14 PRs.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/services/**', 'src/test/**', 'src/**/*.test.{ts,tsx}', ...DB_ACCESS_ALLOWLIST],
+    rules: {
+      'no-restricted-syntax': ['error', ...DATE_COLUMN_RULES, { selector: DB_ACCESS_SELECTOR, message: DB_ACCESS_MESSAGE }],
     },
   },
   // A19: accessibility. jsx-a11y's recommended rules are errors; the ones listed after the spread
