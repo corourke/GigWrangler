@@ -1,4 +1,4 @@
-import { getSupabase, getCurrentUser, getRecord, listRecords } from './base/dataAccess';
+import { getSupabase, getCurrentUser, getRecord, listRecords, fetchAllPages, inChunks } from './base/dataAccess';
 import { handleApiError } from '../utils/api-error-utils';
 import type { DbAsset, DbEquipmentItem } from '../utils/supabase/types';
 import { containerPiecesByItem, recordItemMaps, type ContainerPieces, type ItemRecord } from '../utils/equipmentItems';
@@ -18,12 +18,14 @@ const withRecords = (row: any): EquipmentItemWithRecords => ({ ...row, records: 
 export async function getItems(organizationId: string): Promise<EquipmentItemWithRecords[]> {
   const supabase = getSupabase();
   try {
-    const { data, error } = await (supabase.from('equipment_items') as any)
+    // Every item, a page at a time (A3); id breaks ties so pages don't overlap.
+    const data = await fetchAllPages<any>((from, to) => (supabase.from('equipment_items') as any)
       .select('*, records:assets(*)')
       .eq('organization_id', organizationId)
-      .order('manufacturer_model');
-    if (error) throw error;
-    return (data ?? []).map(withRecords);
+      .order('manufacturer_model')
+      .order('id')
+      .range(from, to));
+    return data.map(withRecords);
   } catch (err) {
     return handleApiError(err, 'fetch equipment items');
   }

@@ -1,4 +1,4 @@
-import { getSupabase, getCurrentUser, getRecord, countRecords } from './base/dataAccess';
+import { getSupabase, getCurrentUser, getRecord, countRecords, fetchAllPages, inChunks } from './base/dataAccess';
 import { verifyGigAccess } from './gigService.shared';
 import {
   GigStatus,
@@ -775,33 +775,34 @@ export async function getAllGigAccountingSummaries(
 ): Promise<GigAccountingSummary[]> {
   const supabase = getSupabase();
   try {
-    const { data: participants, error: partError } = await supabase
+    // Every row, a page at a time (A3); id breaks ties so pages don't overlap.
+    const participants = await fetchAllPages<{ gig_id: string }>((from, to) => supabase
       .from('gig_participants')
       .select('gig_id')
-      .eq('organization_id', organizationId);
+      .eq('organization_id', organizationId)
+      .order('id')
+      .range(from, to));
 
-    if (partError) throw partError;
+    if (participants.length === 0) return [];
 
-    if (!participants || participants.length === 0) return [];
+    const gigIds = participants.map((p) => p.gig_id);
 
-    const gigIds = participants.map((p: { gig_id: string }) => p.gig_id);
-
-    const { data: gigs, error: gigsError } = await supabase
+    const gigs = await fetchAllPages<any>((from, to) => supabase
       .from('gigs')
       .select('id, title, status, start, end, timezone')
-      .in('id', gigIds);
+      .in('id', gigIds)
+      .order('id')
+      .range(from, to));
 
-    if (gigsError) throw gigsError;
-
-    const { data: financials, error: finError } = await supabase
+    const financials = await fetchAllPages<any>((from, to) => supabase
       .from('gig_financials')
       .select('id, gig_id, direction, stage, amount, amount_settled, due_date, paid_at')
       .in('gig_id', gigIds)
-      .eq('organization_id', organizationId);
+      .eq('organization_id', organizationId)
+      .order('id')
+      .range(from, to));
 
-    if (finError) throw finError;
-
-    const { data: assignments, error: staffError } = await supabase
+    const assignments = await fetchAllPages<any>((from, to) => supabase
       .from('gig_staff_assignments')
       .select(`
         id,
@@ -813,9 +814,9 @@ export async function getAllGigAccountingSummaries(
         slot:gig_staff_slots!inner(gig_id, organization_id)
       `)
       .in('slot.gig_id', gigIds)
-      .eq('slot.organization_id', organizationId);
-
-    if (staffError) throw staffError;
+      .eq('slot.organization_id', organizationId)
+      .order('id')
+      .range(from, to));
 
     type RawFinancial = MoneyRow & { id: string; gig_id: string };
 

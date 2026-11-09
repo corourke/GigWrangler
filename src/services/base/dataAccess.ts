@@ -62,6 +62,34 @@ export interface ListOptions extends HelperContext {
 /** Rows per page for listAllRecords, PostgREST's default cap. */
 export const PAGE_SIZE = 1000;
 
+/**
+ * Every row a query returns, a page at a time: PostgREST returns at most PAGE_SIZE rows and drops
+ * the rest without saying so (A3). `query(from, to)` builds the query afresh and applies
+ * `.range(from, to)`; it needs an order that ends in a unique column (e.g. `id`), so the pages
+ * neither overlap nor skip rows.
+ */
+export async function fetchAllPages<T>(
+  query: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await query(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) return out;
+  }
+}
+
+/** Ids per `.in()` filter: a longer list makes the request URL too long (A3). */
+export const IN_CHUNK = 100;
+
+/** `fetch` for each run of up to IN_CHUNK ids, one after another; the results in the ids' order. */
+export async function inChunks<T>(ids: readonly string[], fetch: (chunk: string[]) => Promise<T[]>): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += IN_CHUNK) out.push(...(await fetch(ids.slice(i, i + IN_CHUNK))));
+  return out;
+}
+
 function applyFilters<Q>(query: Q, filters?: QueryFilter[]): Q {
   if (!filters || filters.length === 0) return query;
   return filters.reduce((q: any, f) => q[f.operator](f.column, f.value), query as any);

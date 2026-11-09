@@ -78,6 +78,7 @@ describe('purchase.service', () => {
       ilike: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
+      range: vi.fn().mockReturnThis(),
       insert: vi.fn().mockReturnThis(),
       delete: vi.fn().mockReturnThis(),
       single: vi.fn().mockReturnThis(),
