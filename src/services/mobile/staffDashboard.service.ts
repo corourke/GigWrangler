@@ -9,6 +9,7 @@ export interface StaffDashboardGig {
     start: string;
     end: string;
     timezone: string;
+    all_day?: boolean | null;
     status: GigStatus;
   };
   assignment: {
@@ -54,6 +55,7 @@ export async function fetchMyUpcomingAssignments(): Promise<StaffDashboardGig[]>
             start,
             end,
             timezone,
+            all_day,
             status
           )
         )
@@ -118,6 +120,7 @@ export async function fetchMyUpcomingAssignments(): Promise<StaffDashboardGig[]>
           start: gig.start,
           end: gig.end,
           timezone: gig.timezone,
+          all_day: gig.all_day,
           status: gig.status as GigStatus,
         },
         assignment: {

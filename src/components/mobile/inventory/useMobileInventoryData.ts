@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { queryKeys } from '../../../lib/queryKeys';
 import {
@@ -15,6 +15,20 @@ import type { OrgIndex } from '../../../services/mobile/orgIndex.service';
 // by itself on reconnect, so a scan made offline isn't replaced before it syncs.
 const LOCAL_FIRST = { staleTime: 0, networkMode: 'always', refetchOnReconnect: false } as const;
 const NO_NAMES: ReadonlyMap<string, string> = new Map();
+
+/** A gig's title from the gig, or a list of the org's gigs, the app already loaded (round B). */
+function cachedGigTitle(queryClient: QueryClient, gigId: string | undefined, orgId: string | undefined): string | null {
+  if (!gigId) return null;
+  const gig = queryClient.getQueryData<{ title?: string } | null>(queryKeys.mobileGig(gigId));
+  if (gig?.title) return gig.title;
+  if (!orgId) return null;
+  for (const [, data] of queryClient.getQueriesData<unknown>({ queryKey: queryKeys.gigs(orgId) })) {
+    if (!Array.isArray(data)) continue;
+    const found = data.find((g: { id?: string; title?: string } | null) => g?.id === gigId);
+    if (found?.title) return found.title;
+  }
+  return null;
+}
 
 /**
  * Server state for Inventory Mode (A10): the gig's packing list (device copy, then the server's),
@@ -92,8 +106,13 @@ export function useMobileInventoryData(gigId: string | undefined, orgId: string 
 
   return {
     packingList,
-    gigTitle: useMemo(() => packingList?.gig_title || titleQuery.data || null, [packingList, titleQuery.data]),
+    gigTitle: useMemo(
+      () => packingList?.gig_title || titleQuery.data || cachedGigTitle(queryClient, gigId, orgId),
+      [packingList, titleQuery.data, queryClient, gigId, orgId],
+    ),
     loading: packingListQuery.isFetching,
+    /** The first load: no list yet (device or server) and one on its way. */
+    loadingFirst: !packingList && packingListQuery.isFetching,
     orgIndex: orgIndexQuery.data ?? null,
     memberNames,
     refreshPackingList,

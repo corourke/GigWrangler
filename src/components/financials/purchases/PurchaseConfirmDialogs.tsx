@@ -87,24 +87,27 @@ export function DeletePurchaseDialog({ confirm, linked, onClose, onConfirm }: {
           <AlertDialogTitle>
             {confirm?.type === 'header' ? 'Delete Purchase?' : 'Delete Line Item?'}
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-2">
-            {confirm?.type === 'header' ? (
-              <>
-                <p>This will delete the purchase header and all {confirm.childCount} line item(s).</p>
-              </>
-            ) : (
-              <>
-                <p>This will permanently remove this line item.</p>
-                {confirm?.purchase.asset_id && (
-                  <p className="text-amber-600">This item is linked to an asset. Deleting it will unlink the asset (the asset will not be deleted).</p>
-                )}
-              </>
-            )}
-            {linked && linked.entries > 0 && (
-              <p className="text-amber-600">
-                This also removes ${linked.amount.toFixed(2)} of expenses from {linked.gigs} {linked.gigs === 1 ? 'gig' : 'gigs'}.
-              </p>
-            )}
+          {/* A div, not the default <p>: it holds paragraphs. */}
+          <AlertDialogDescription asChild>
+            <div className="space-y-2">
+              {confirm?.type === 'header' ? (
+                <>
+                  <p>This will delete the purchase header and all {confirm.childCount} line item(s).</p>
+                </>
+              ) : (
+                <>
+                  <p>This will permanently remove this line item.</p>
+                  {confirm?.purchase.asset_id && (
+                    <p className="text-amber-600">This item is linked to an asset. Deleting it will unlink the asset (the asset will not be deleted).</p>
+                  )}
+                </>
+              )}
+              {linked && linked.entries > 0 && (
+                <p className="text-amber-600">
+                  This also removes ${linked.amount.toFixed(2)} of expenses from {linked.gigs} {linked.gigs === 1 ? 'gig' : 'gigs'}.
+                </p>
+              )}
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

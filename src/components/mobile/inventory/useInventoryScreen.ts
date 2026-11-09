@@ -21,7 +21,7 @@ export function useInventoryScreen(gigId: string | null) {
   const { user, selectedOrganization, userRole } = useAuth();
   // The packing list (device copy, then the server's), title, equipment index and names (A10).
   const {
-    packingList, gigTitle, loading, orgIndex, memberNames, refreshPackingList, reloadPackingList,
+    packingList, gigTitle, loading, loadingFirst, orgIndex, memberNames, refreshPackingList, reloadPackingList,
   } = useMobileInventoryData(gigId ?? undefined, selectedOrganization?.id);
   const [selectedMode, setSelectedMode] = useState<ScanningMode>(SCANNING_MODES[0]);
   // Who's who, for "Scanned by" (#246): the person signed in, then the organization's members.
@@ -848,6 +848,7 @@ export function useInventoryScreen(gigId: string | null) {
     packingList,
     gigTitle,
     loading,
+    loadingFirst,
     orgIndex,
     memberNames,
     refreshPackingList,

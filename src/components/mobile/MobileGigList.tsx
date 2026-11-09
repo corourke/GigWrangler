@@ -3,13 +3,11 @@ import { useMobileGigListData } from './useMobileGigListData';
 import { useGigListFilters } from '../../hooks/useGigListFilters';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
 import {
   Search,
   MapPin,
   ChevronRight,
   Loader2,
-  WifiOff,
   RefreshCw,
   Calendar,
   X,
@@ -17,16 +15,17 @@ import {
   Music,
   ChevronDown,
 } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
 import { createGig } from '../../services/gig.service';
 import { searchOrganizations } from '../../services/organization.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
 import { cn } from '../ui/utils';
+import { OfflineBadge } from './OfflineBadge';
+import { useIsOffline } from './useIsOffline';
 import type { GigStatus } from '../../utils/supabase/types';
 import type { OrganizationRole } from '../../utils/supabase/types';
 import { getAllTimezones } from '../../utils/timezones';
-import { parseGigDateTimeFromInput } from '../../utils/dateUtils';
+import { formatGigCardWhen, parseGigDateTimeFromInput } from '../../utils/dateUtils';
 import { isGigPast } from '../../utils/gigTimeframe';
 import { managesGigOwner } from '../../utils/gigOwnership';
 import { toast } from 'sonner';
@@ -53,22 +52,13 @@ const _GIG_STATUSES: { key: GigStatus; label: string }[] = [
 
 export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPositionChange }: MobileGigListProps) {
   const { selectedOrganization, userRole } = useAuth();
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const isOffline = useIsOffline();
   const [searchQuery, setSearchQuery] = useState('');
   const { futureDateFilter, setFutureDateFilter, pastDateFilter, setPastDateFilter, activeStatuses, setActiveStatuses } = useGigListFilters();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [statusMenuGigId, setStatusMenuGigId] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
-  useEffect(() => {
-    const handleStatusChange = () => setIsOffline(!navigator.onLine);
-    window.addEventListener('online', handleStatusChange);
-    window.addEventListener('offline', handleStatusChange);
-    return () => {
-      window.removeEventListener('online', handleStatusChange);
-      window.removeEventListener('offline', handleStatusChange);
-    };
-  }, []);
 
   const orgId = selectedOrganization?.id;
   const { gigs, gigsQuery, refreshGigs, changeStatus } = useMobileGigListData(orgId);
@@ -175,12 +165,7 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
             </p>
           </div>
           <div className="flex items-center gap-1">
-            {isOffline && (
-              <Badge variant="outline" className="gap-1 text-amber-600 border-amber-200">
-                <WifiOff className="w-3 h-3" />
-                <span className="text-[10px]">Offline</span>
-              </Badge>
-            )}
+            {isOffline && <OfflineBadge />}
             <Button aria-label="New gig" variant="ghost" size="icon" onClick={() => setShowCreateModal(true)} className="h-9 w-9">
               <Plus className="w-5 h-5" />
             </Button>
@@ -318,7 +303,6 @@ function GigListCard({
   onStatusChange: (gigId: string, status: GigStatus) => void;
   updatingStatus: string | null;
 }) {
-  const startTime = parseISO(gig.start);
   const venue = gig.participants?.find((p: any) => p.role === 'Venue')?.organization;
   const acts = gig.participants?.filter((p: any) => p.role === 'Act') || [];
   const actLabel = acts.length > 1 ? 'Multiple' : acts[0]?.organization?.name;
@@ -339,7 +323,7 @@ function GigListCard({
             <div className="flex items-center gap-1.5 mt-0.5 text-sky-700">
               <Calendar className="w-3 h-3 shrink-0" />
               <span className="text-[11px] font-medium">
-                {format(startTime, 'EEE, MMM d · h:mm a')}
+                {formatGigCardWhen(gig)}
               </span>
             </div>
             {venue && (
