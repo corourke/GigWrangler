@@ -103,7 +103,9 @@ export default function ScanInvoiceTab({ organizationId, queue, onSaved }: ScanI
   );
 
   return (
+    // A drop target for files; the same files can be chosen with the file button.
     <div
+      role="presentation"
       className="space-y-4"
       onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}

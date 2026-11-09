@@ -178,18 +178,25 @@ export function KitComponentPicker({
                 const notNow = assetRecord && !isAvailable(assetRecord)
                   ? `${STATUS_LABEL[assetRecord.status ?? ''] ?? assetRecord.status}: not available now` : null;
                 return (
+                  // A click anywhere on the row chooses it; its checkbox is the control for the keyboard
+                  // and for assistive tech (Space toggles it), and stops its own click from reaching the row.
                   <div
                     key={key}
                     data-candidate
+                    role="presentation"
                     className={`p-4 flex items-start gap-3 ${
                       disabled ? 'cursor-not-allowed bg-gray-50/60' : 'hover:bg-gray-50 cursor-pointer'
                     }`}
                     onClick={() => toggleSelected(c)}
                   >
-                    {/* Selection is handled by the row's onClick — this checkbox is
-                        purely a controlled visual indicator, no handler of its own,
-                        so a click on it doesn't double-fire via event bubbling. */}
-                    <Checkbox checked={selected} disabled={disabled} className="mt-0.5 pointer-events-none" />
+                    <Checkbox
+                      checked={selected}
+                      disabled={disabled}
+                      aria-label={`Choose ${c.name}`}
+                      onClick={(e) => e.stopPropagation()}
+                      onCheckedChange={() => toggleSelected(c)}
+                      className="mt-0.5"
+                    />
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <div className={`text-sm ${disabled ? 'text-gray-400' : 'text-gray-900'}`}>{c.name}</div>
@@ -224,7 +231,8 @@ export function KitComponentPicker({
                         always exactly one instance (enforced when adding and
                         again on save). */}
                     {(c.type === 'asset' || c.type === 'item') && (
-                      <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
+                      // The quantity takes its own clicks and keys, without also choosing the row.
+                      <div role="presentation" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
                         <Label htmlFor={`qty-${key}`} className="text-xs text-gray-500">
                           Qty
                         </Label>
