@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SmartDataTable, ColumnDef, RowAction } from './SmartDataTable';
+import { useTableState } from '../../utils/hooks/useTableState';
 import { TableCell } from '../ui/table';
 
 // Mock the useTableState hook since it uses localStorage
@@ -449,5 +450,20 @@ describe('SmartDataTable', () => {
     await waitFor(() => {
       expect(cells[1]).toHaveClass('selected');
     });
+  });
+});
+
+// A19: a sortable header is a button the keyboard can use.
+describe('SmartDataTable: sorting from the keyboard (A19)', () => {
+  it('a sortable header is a button; Enter and Space sort by it; other headers are plain text', () => {
+    render(<SmartDataTable tableId="test-table" data={data} columns={columns} />);
+    const state = vi.mocked(useTableState).mock.results.at(-1)!.value;
+    const name = screen.getByRole('button', { name: 'Name' });
+    expect(name).toHaveAttribute('tabindex', '0');
+    fireEvent.keyDown(name, { key: 'Enter' });
+    expect(state.toggleSorting).toHaveBeenCalledWith('name');
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Age' }), { key: ' ' });
+    expect(state.toggleSorting).toHaveBeenCalledWith('age');
+    expect(screen.queryByRole('button', { name: 'Status' })).not.toBeInTheDocument();
   });
 });

@@ -1,6 +1,7 @@
 import { renderWithQuery as render } from '../test/renderWithQuery'
 import { describe, it, expect, vi } from 'vitest'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import KitScreen from './KitScreen'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
@@ -532,6 +533,21 @@ describe('KitScreen: "any" lines and availability (#184)', () => {
     const row = (await screen.findAllByText('QSC K12.2')).map((e) => e.closest('tr')).find(Boolean)!
     expect(within(row).getByText('Any')).toBeInTheDocument()
     expect(within(row).getByDisplayValue('3')).toBeInTheDocument()
+  })
+
+  it('a candidate is chosen from the keyboard: its checkbox is named and Space toggles it (A19)', async () => {
+    reset()
+    render(<KitScreen {...mockProps} />)
+    fireEvent.click(screen.getByText('Add Components'))
+    const group = await screen.findByRole('group', { name: 'Any of an item' })
+    const box = within(group).getByRole('checkbox', { name: 'Choose QSC K12.2' })
+    box.focus()
+    await userEvent.keyboard(' ')
+    expect(box).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('button', { name: 'Add 1 Selected' })).toBeInTheDocument()
+    // A click on the checkbox itself toggles once (not again via its row).
+    fireEvent.click(box)
+    expect(box).toHaveAttribute('aria-checked', 'false')
   })
 
   it('the pick list leaves out retired units, and marks ones not available now', async () => {

@@ -364,3 +364,23 @@ describe('ImportScreen: loading and refreshing (A10)', () => {
     expect(toast.error).toHaveBeenCalledWith('Failed to import 1 row(s). Check errors below.')
   })
 })
+
+// A19: the file drop zone is a button the keyboard can use.
+describe('ImportScreen: choosing a file from the keyboard (A19)', () => {
+  it('Enter or Space on the drop zone opens the file chooser', () => {
+    const { container } = render(<ImportScreen {...props} />)
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    const click = vi.spyOn(input, 'click')
+    const zone = screen.getByRole('button', { name: /Drop CSV file here or click to browse/ })
+    // (The input's click bubbles back to the zone; a browser ignores that nested click, so the
+    // chooser opens once, as with the mouse. Each key is checked on its own.)
+    fireEvent.keyDown(zone, { key: 'Enter' })
+    expect(click).toHaveBeenCalled()
+    click.mockClear()
+    fireEvent.keyDown(zone, { key: ' ' })
+    expect(click).toHaveBeenCalled()
+    click.mockClear()
+    fireEvent.keyDown(zone, { key: 'a' })
+    expect(click).not.toHaveBeenCalled()
+  })
+})

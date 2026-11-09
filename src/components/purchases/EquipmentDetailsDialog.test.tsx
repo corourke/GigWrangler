@@ -89,6 +89,23 @@ describe('EquipmentDetailsDialog (#183)', () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ item: expect.objectContaining({ mode: 'existing', existing: items[0] }) }));
   });
 
+  it('a used type is chosen from the keyboard: arrows move through the list, Enter picks (A19)', async () => {
+    const ue = userEvent.setup();
+    open();
+    const field = dialog().getByRole('combobox', { name: 'Type' });
+    await ue.click(field);
+    const list = await screen.findByRole('listbox', { name: 'Types used in Power' });
+    const [first, second] = within(list).getAllByRole('option');
+    await ue.keyboard('{ArrowDown}');
+    expect(field).toHaveAttribute('aria-activedescendant', first.id);
+    await ue.keyboard('{ArrowDown}');
+    expect(field).toHaveAttribute('aria-activedescendant', second.id);
+    const chosen = second.querySelector('span')!.textContent!;
+    await ue.keyboard('{Enter}');
+    expect(field).toHaveValue(chosen);
+    expect(screen.queryByRole('listbox', { name: 'Types used in Power' })).not.toBeInTheDocument();
+  });
+
   it('suggests the types used in the item’s category', async () => {
     const ue = userEvent.setup();
     open();
