@@ -7,8 +7,10 @@ import type { QueryClient } from '@tanstack/react-query';
  *   queryClient.invalidateQueries({ queryKey: queryKeys.team(orgId) })
  *
  * Convention: list keys are scoped by the org (or parent) id; detail keys by
- * the entity id. Services remain the single Supabase access layer — these keys
- * only identify cache entries; the query functions call the services.
+ * the entity id; answers that depend on who is signed in, by the user id (the
+ * cache is also cleared when the signed-in person changes, lib/queryCacheOwner).
+ * Services remain the single Supabase access layer — these keys only identify
+ * cache entries; the query functions call the services.
  */
 export const queryKeys = {
   // Gigs. Everything about one organization's gigs sits under gigs(orgId), everything about one
@@ -27,7 +29,8 @@ export const queryKeys = {
 
   // Dashboard
   dashboard: (orgId: string) => ['dashboard', orgId] as const,
-  recentActivity: () => ['activity', 'recent'] as const,
+  /** Recent activity across the signed-in person's organizations. */
+  recentActivity: (userId: string) => ['activity', 'recent', userId] as const,
 
   // Assets
   assets: (orgId: string) => ['assets', orgId] as const,
@@ -56,10 +59,12 @@ export const queryKeys = {
 
   // Access requests (issue #33 cluster)
   orgAccessRequests: (orgId: string) => ['orgAccessRequests', orgId] as const,
-  moderatorAccessRequests: () => ['moderatorAccessRequests'] as const,
+  /** The platform moderator queue, as the signed-in person may see it. */
+  moderatorAccessRequests: (userId: string) => ['moderatorAccessRequests', userId] as const,
+  moderatorAccessRequestsAll: () => ['moderatorAccessRequests'] as const,
 
   // Generic notification feed (issue #52) — powers the notification bell.
-  notifications: () => ['notifications'] as const,
+  notifications: (userId: string) => ['notifications', userId] as const,
 } as const;
 
 /**
