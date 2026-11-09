@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import micKitCsv from '../config/import-examples/mic-kit-purchase.csv?raw'
 import ImportScreen from './ImportScreen'
 import { makeUser, makeOrganization } from '../test/factories'
@@ -7,6 +8,9 @@ import { getBackInHeaderSlot } from '../test/pageFrame'
 import { getItems } from '../services/equipmentItem.service'
 import { importPurchases } from '../services/purchase.service'
 import { createClient } from '../utils/supabase/client'
+import { getKitOptions } from '../services/kit.service'
+import { createGig } from '../services/gig.service'
+import { toast } from 'sonner'
 
 // Lets a test make the preview's planning fail (#183 D review).
 const planControl = vi.hoisted(() => ({ fail: null as string | null }))
@@ -26,6 +30,7 @@ vi.mock('../services/purchase.service', () => ({ importPurchases: vi.fn() }))
 vi.mock('../services/organization.service', () => ({ searchOrganizations: vi.fn(), createOrganization: vi.fn() }))
 vi.mock('../services/equipmentItem.service', () => ({ getItems: vi.fn(async () => []) }))
 vi.mock('../services/kit.service', () => ({ getKitOptions: vi.fn(async () => []) }))
+vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }) }))
 
 const props = {
   organization: makeOrganization({ name: 'Test Org' }),
@@ -254,5 +259,108 @@ describe('ImportScreen assets import: held, failed and broken purchases (#183 D)
     const { container } = render(<ImportScreen {...assetsProps} />)
     upload(container, [COLS, '1,2025-01-01,Vendor A,,Item A1,Audio,1e1,S1,,100'])
     expect(await screen.findByText('Invalid quantity "1e1". Must be a whole number.')).toBeInTheDocument()
+  })
+})
+
+// A10 characterization: the items and kits an assets file is matched against are read for the
+// organization when a file is chosen, again after an import, and a failed read is said once.
+describe('ImportScreen: loading and refreshing (A10)', () => {
+  const upload = (container: HTMLElement, lines: string[], name = 'purchases.csv') => {
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File([lines.join('\n')], name, { type: 'text/csv' })] } })
+  }
+  const assetsProps = { ...props, backLabel: 'Back to Assets', initialImportType: 'assets' as const }
+  const COLS = 'source,acquisition_date,vendor,total_inv_amount,manufacturer_model,category,quantity,serial_number,kit,item_price'
+  const FILE = [COLS, '0,2025-01-01,Vendor A,100,,,,,,', '1,,,,Shure SM58,Audio,1,,,100']
+  const card = (name: string) => within(screen.getByRole('group', { name }))
+  const stored = { id: 'item-58', organization_id: 'org-1', manufacturer_model: 'Shure SM58', category: 'Audio', type: null, description: null, insurance_class: null, records: [] } as any
+  const signedIn = () => vi.mocked(createClient).mockReturnValue({
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) },
+  } as any)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(getItems).mockReset().mockResolvedValue([])
+    vi.mocked(getKitOptions).mockReset().mockResolvedValue([])
+    vi.mocked(importPurchases).mockReset()
+    vi.mocked(createGig).mockReset()
+  })
+
+  it('reads nothing until a file is chosen, then the organization\'s items and kits, before the preview', async () => {
+    let resolve!: (v: any) => void
+    vi.mocked(getItems).mockReturnValueOnce(new Promise((r) => { resolve = r }))
+    const { container } = render(<ImportScreen {...assetsProps} />)
+    expect(getItems).not.toHaveBeenCalled()
+    upload(container, FILE)
+    expect(await screen.findByText('Processing CSV file...')).toBeInTheDocument()
+    await waitFor(() => expect(getItems).toHaveBeenCalledWith(props.organization.id))
+    expect(getKitOptions).toHaveBeenCalledWith(props.organization.id)
+    resolve([stored])
+    await screen.findByRole('group', { name: 'Items' })
+    expect(card('Items').getByText('0 new · 1 existing')).toBeInTheDocument()
+  })
+
+  it('a gigs file reads no items or kits', async () => {
+    const { container } = render(<ImportScreen {...props} />)
+    upload(container, ['title,start,end,timezone,status', 'Spring Show,2026-05-01T18:00:00,2026-05-01T22:00:00,America/Los_Angeles,Booked'], 'gigs.csv')
+    expect(await screen.findByText('Spring Show')).toBeInTheDocument()
+    expect(getItems).not.toHaveBeenCalled()
+  })
+
+  it('when the items and kits can\'t be read, says so, and the preview counts every item as new; choosing again reads them', async () => {
+    vi.mocked(getItems).mockRejectedValueOnce(new Error('offline'))
+    const { container } = render(<ImportScreen {...assetsProps} />)
+    upload(container, FILE)
+    await screen.findByRole('group', { name: 'Items' })
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(expect.stringMatching(/Couldn’t load your items and kits/)))
+    expect(card('Items').getByText('1 new · 0 existing')).toBeInTheDocument()
+    vi.mocked(getItems).mockResolvedValue([stored])
+    upload(container, FILE, 'again.csv')
+    await waitFor(() => expect(card('Items').getByText('0 new · 1 existing')).toBeInTheDocument())
+  })
+
+  it('another organization\'s file is matched against that organization\'s items', async () => {
+    vi.mocked(getItems).mockImplementation(async (orgId: string) => (orgId === 'org-2' ? [stored] : []) as any)
+    const { container, rerender } = render(<ImportScreen {...assetsProps} />)
+    upload(container, FILE)
+    await screen.findByRole('group', { name: 'Items' })
+    expect(card('Items').getByText('1 new · 0 existing')).toBeInTheDocument()
+    rerender(<ImportScreen {...assetsProps} organization={makeOrganization({ id: 'org-2', name: 'Other' })} />)
+    upload(container, FILE, 'again.csv')
+    await waitFor(() => expect(getItems).toHaveBeenCalledWith('org-2'))
+    await waitFor(() => expect(card('Items').getByText('0 new · 1 existing')).toBeInTheDocument())
+  })
+
+  it('after an import, the items and kits are read again, so the next file matches what it made', async () => {
+    signedIn()
+    vi.mocked(importPurchases).mockResolvedValue({ successCount: 2, errors: [], results: [{ rowIndexes: [2, 3], status: 'success' }] })
+    const { container } = render(<ImportScreen {...assetsProps} />)
+    upload(container, FILE)
+    await screen.findByRole('group', { name: 'Items' })
+    const reads = vi.mocked(getItems).mock.calls.length
+    vi.mocked(getItems).mockResolvedValue([stored])
+    fireEvent.click(screen.getByRole('button', { name: 'Import 1 Complete Purchase(s)' }))
+    await waitFor(() => expect(importPurchases).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(vi.mocked(getItems).mock.calls.length).toBeGreaterThan(reads))
+    expect(toast.success).toHaveBeenCalledWith('Successfully imported 2 row(s)')
+    upload(container, FILE, 'next.csv')
+    await waitFor(() => expect(card('Items').getByText('0 new · 1 existing')).toBeInTheDocument())
+  })
+
+  it('imports a gigs file row by row, showing each row\'s result', async () => {
+    signedIn()
+    vi.mocked(createGig).mockResolvedValueOnce({ id: 'g1' } as any).mockRejectedValueOnce(new Error('duplicate key value violates'))
+    const { container } = render(<ImportScreen {...props} />)
+    upload(container, [
+      'title,start,end,timezone,status',
+      'Spring Show,2026-05-01T18:00:00,2026-05-01T22:00:00,America/Los_Angeles,Booked',
+      'Summer Show,2026-06-01T18:00:00,2026-06-01T22:00:00,America/Los_Angeles,Booked',
+    ], 'gigs.csv')
+    fireEvent.click(await screen.findByRole('button', { name: /Import 2/ }))
+    await waitFor(() => expect(createGig).toHaveBeenCalledTimes(2))
+    expect(createGig).toHaveBeenCalledWith(expect.objectContaining({ title: 'Spring Show', primary_organization_id: props.organization.id }), { skipActivityLog: true })
+    expect(await screen.findByText(/A gig with similar data already exists/)).toBeInTheDocument()
+    expect(toast.success).toHaveBeenCalledWith('Successfully imported 1 gig(s)')
+    expect(toast.error).toHaveBeenCalledWith('Failed to import 1 row(s). Check errors below.')
   })
 })

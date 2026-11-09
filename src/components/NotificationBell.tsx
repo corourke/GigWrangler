@@ -42,8 +42,8 @@ export default function NotificationBell() {
   const { user, organizations, selectOrganization } = useAuth();
   const nav = useNav();
 
-  const notificationsQuery = useNotifications(!!user);
-  const markRead = useMarkNotificationRead();
+  const notificationsQuery = useNotifications(user?.id);
+  const markRead = useMarkNotificationRead(user?.id);
 
   const notifications = notificationsQuery.data ?? [];
   const totalCount = notifications.length;
