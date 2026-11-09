@@ -39,7 +39,7 @@ import { canManage } from '../../utils/permissions';
 import { deleteGigBlockedReason, gigOwnerName, inactiveBannerText, inactiveStaffEquipmentText, isInactiveOn, managesGigOwner, markInactiveConfirmText, offersMarkInactive } from '../../utils/gigOwnership';
 import { removeGigParticipant, setGigParticipantInactive } from '../../services/gigParticipant.service';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
-import { formatDateTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
+import { formatDateTimeDisplay, gigStartDay, isGigAllDay } from '../../utils/dateUtils';
 import type { Organization, User, UserRole } from '../../utils/supabase/types';
 import type { GigTab } from '../../routes/paths';
 
@@ -475,7 +475,7 @@ export default function GigPage({
                 gigId={gigId}
                 currentOrganizationId={organization.id}
                 userRole={userRole}
-                gigStartDate={gig.start?.substring(0, 10)}
+                gigStartDate={gig.start ? gigStartDay({ ...gig, start: gig.start }) : undefined}
                 gigStart={gig.start}
                 gigTimezone={gig.timezone}
                 gigEnd={gig.end}
