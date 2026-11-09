@@ -24,6 +24,7 @@ export default function CalendarAuthCallback({
 
   useEffect(() => {
     handleAuthCallback();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the code in the URL is exchanged once, on mount
   }, []);
 
   const handleAuthCallback = async () => {

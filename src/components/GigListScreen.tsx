@@ -160,11 +160,7 @@ export default function GigListScreen({
   // from Staff/Viewers, and they can't see staff pay either (#168).
   const showFinancials = canManage(userRole);
 
-  useEffect(() => {
-    loadGigs();
-  }, [organization.id]);
-
-  const loadGigs = async () => {
+  const loadGigs = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -191,7 +187,11 @@ export default function GigListScreen({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [organization.id]);
+
+  useEffect(() => {
+    loadGigs();
+  }, [loadGigs]);
 
   const filteredGigs = useMemo(() => {
     let result = applyDateFilter(gigs, futureDateFilter, pastDateFilter);

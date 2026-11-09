@@ -38,6 +38,7 @@ export default function TeamMemberDetailScreen({
 
   useEffect(() => {
     loadMember();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when the member changes, not when the onBack callback is re-created
   }, [memberId]);
 
   const loadMember = async () => {

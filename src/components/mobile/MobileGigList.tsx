@@ -71,11 +71,25 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
     };
   }, []);
 
+  const orgId = selectedOrganization?.id;
+  const loadGigs = useCallback(async () => {
+    if (!orgId) return;
+    setLoading(true);
+    try {
+      const data = await getGigsForOrganization(orgId);
+      setGigs(data || []);
+    } catch (error) {
+      console.error('Failed to load gigs:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [orgId]);
+
   useEffect(() => {
-    if (selectedOrganization?.id) {
+    if (orgId) {
       loadGigs();
     }
-  }, [selectedOrganization?.id]);
+  }, [orgId, loadGigs]);
 
   const scrollRestoredRef = useRef(false);
 
@@ -88,6 +102,7 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
     };
     target.addEventListener('scroll', handleScroll, { passive: true });
     return () => target.removeEventListener('scroll', handleScroll);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- subscribes once on mount
   }, []);
 
   useEffect(() => {
@@ -100,20 +115,8 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
         window.scrollTo(0, initialScrollTop);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- restores the starting scroll position once, when the list first has gigs
   }, [loading, gigs]);
-
-  const loadGigs = async () => {
-    if (!selectedOrganization?.id) return;
-    setLoading(true);
-    try {
-      const data = await getGigsForOrganization(selectedOrganization.id);
-      setGigs(data || []);
-    } catch (error) {
-      console.error('Failed to load gigs:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleStatusChange = async (gigId: string, newStatus: GigStatus) => {
     setUpdatingStatus(gigId);

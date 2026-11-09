@@ -173,7 +173,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
       isRefreshing.current = false;
     }
-  }, [selectedOrganization]); // Removed organizations from deps to reduce re-creation
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- re-created only when the selected organization changes, as before
+  }, [selectedOrganization]);
 
   const refreshProfileRef = React.useRef(refreshProfile);
   refreshProfileRef.current = refreshProfile;
@@ -221,7 +222,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []); // Remove refreshProfile from dependencies to avoid infinite loop
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- subscribes once; the current refreshProfile is read through refreshProfileRef
+  }, []);
 
   // Real-time listener for profile and membership changes
   useEffect(() => {

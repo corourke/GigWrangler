@@ -251,6 +251,7 @@ export default function GigStaffSlotsSection({
   useEffect(() => {
     loadStaffRoles();
     loadStaffSlotsData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when the gig changes; the loaders also read form helpers that change every render
   }, [gigId]);
 
   const loadStaffRoles = async () => {

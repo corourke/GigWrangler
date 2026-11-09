@@ -148,6 +148,7 @@ export default function GigKitAssignmentsSection({
   useEffect(() => {
     loadData();
     checkCrossGigConflicts();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when the gig changes; the loaders also read form helpers that change every render
   }, [gigId]);
 
   // Same-gig overlap check — no DB write required, so it reacts to the

@@ -1,4 +1,4 @@
-import {useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {Package, Plus, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { getKits, deleteKit, duplicateKit, updateKit, getKitsFlattenedSummary, KitFlattenedSummary } from '../services/kit.service';
@@ -84,7 +84,7 @@ export default function KitListScreen({
   const [kitPacking, setKitPacking] = useState<Map<string, KitPackingSummary>>(new Map());
   const [trackingStatusFilter, setTrackingStatusFilter] = useState<string>('All');
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -109,11 +109,11 @@ export default function KitListScreen({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [organization.id]);
 
   useEffect(() => {
     refresh();
-  }, [organization.id]);
+  }, [refresh]);
 
   const handleUpdateKit = async (id: string, updates: Partial<any>) => {
     try {
@@ -126,7 +126,7 @@ export default function KitListScreen({
     }
   };
 
-  const handleDuplicateKit = async (kitId: string, kitName: string) => {
+  const handleDuplicateKit = useCallback(async (kitId: string, kitName: string) => {
     try {
       await duplicateKit(kitId);
       toast.success(`Kit "${kitName}" duplicated successfully`);
@@ -135,9 +135,9 @@ export default function KitListScreen({
       console.error('Error duplicating kit:', error);
       toast.error(error.message || 'Failed to duplicate kit');
     }
-  };
+  }, [refresh]);
 
-  const handleDeleteKit = async (kitId: string, kitName: string) => {
+  const handleDeleteKit = useCallback(async (kitId: string, kitName: string) => {
     if (!confirm(`Are you sure you want to delete "${kitName}"?`)) return;
 
     try {
@@ -149,7 +149,7 @@ export default function KitListScreen({
       toast.error(error.message || 'Failed to delete kit');
       refresh();
     }
-  };
+  }, [refresh]);
 
   const displayedKits = useMemo(() => {
     if (trackingStatusFilter === 'All') return allKits;

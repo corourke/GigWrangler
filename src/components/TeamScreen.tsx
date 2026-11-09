@@ -74,8 +74,9 @@ export default function TeamScreen({
   const accessRequestsQuery = useOrgAccessRequests(orgId, canDecideRequests);
   const decideAccessRequest = useDecideAccessRequest();
 
-  const members = membersQuery.data ?? [];
-  const staffRoles = staffRolesQuery.data ?? [];
+  // Memoized so an empty result is the same array each render (the memos below depend on it).
+  const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
+  const staffRoles = useMemo(() => staffRolesQuery.data ?? [], [staffRolesQuery.data]);
   const invitations = invitationsQuery.data?.invitations ?? [];
   const invitationsTableExists = invitationsQuery.data?.tableExists ?? true;
   const accessRequests = accessRequestsQuery.data ?? [];
