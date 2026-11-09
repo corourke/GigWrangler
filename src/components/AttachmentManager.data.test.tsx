@@ -56,6 +56,17 @@ describe('AttachmentManager data (A10 characterization)', () => {
     expect(await screen.findByText('Plot for g2.pdf')).toBeInTheDocument()
   })
 
+  // New with A10: the list had no stale-response guard; keying the cache by record adds one.
+  it('another record loads its files; a slow earlier answer never shows', async () => {
+    const slow = deferred<any>()
+    vi.mocked(getEntityAttachments).mockImplementationOnce(() => slow.promise)
+    const { rerender } = render(<AttachmentManager {...props} />)
+    rerender(<AttachmentManager {...props} entityId="g2" />)
+    expect(await screen.findByText('Plot for g2.pdf')).toBeInTheDocument()
+    await act(async () => slow.resolve([file('x', 'Plot for g1.pdf')]))
+    expect(screen.queryByText('Plot for g1.pdf')).not.toBeInTheDocument()
+  })
+
   it('after an upload the list is read again, and the parent is told', async () => {
     const onAttachmentsChange = vi.fn()
     const { container } = render(<AttachmentManager {...props} onAttachmentsChange={onAttachmentsChange} />)
