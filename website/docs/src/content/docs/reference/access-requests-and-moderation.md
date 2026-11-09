@@ -22,7 +22,7 @@ Only Viewers and Staff see the button; Admins and Managers don't.
 4. Optionally, enter a **Message (optional)** saying why you need it.
 5. Select **Submit Request**.
 
-You see "Access request submitted". You can have one pending request per organization at a time; if you try to send a second, GigWrangler tells you that you already have one. Your role doesn't change until someone approves the request.
+You see "Access request submitted". You can have one pending request per organization at a time; if you try to send a second, GigWrangler tells you that you already have one. Your role doesn't change until someone approves the request. Access requests are limited: past the limit you see "… Try again later."
 
 ## Reviewing requests as an Admin or Manager
 
