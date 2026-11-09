@@ -15,6 +15,7 @@
  * Needs attention lists what would leave the year's reports wrong or incomplete.
  */
 import { toCsv } from './csv';
+import type { Tables } from './supabase/database.types';
 import { calculateMileageAmount } from './financials.utils';
 import { getDiscrepancy } from '../components/financials/purchases/reconciliation';
 import {
@@ -184,26 +185,12 @@ export function scheduleCCsv(r: ScheduleCSummary, line13?: Line13): string {
 
 // ---- Needs attention ---------------------------------------------------------------
 
-/** Equipment, as loaded by services/taxReport.service. */
-export interface ReportAsset {
-  id: string;
-  manufacturer_model: string | null;
-  description: string | null;
-  category: string | null;
-  acquisition_date: string | null;
-  item_cost: number | null;
-  status: string | null;
-  retired_on: string | null;
-  recovery_period: number | null;
-  purchase_line_id: string | null;
-  quantity?: number | null;
-  liquidation_amt?: number | null;
-  serial_number?: string | null;
-  tag_number?: string | null;
-  equipment_item_id?: string | null;
-  /** The lot a written-off piece was split off (#185), set only by write_off_pieces. */
-  written_off_from?: string | null;
-}
+/** Equipment, as loaded by services/taxReport.service: columns of `assets` (B20). */
+export type ReportAsset = Pick<Tables<'assets'>,
+  'id' | 'manufacturer_model' | 'description' | 'category' | 'acquisition_date' | 'item_cost' | 'status'
+  | 'retired_on' | 'recovery_period' | 'purchase_line_id'>
+  /** written_off_from: the lot a written-off piece was split off (#185), set only by write_off_pieces. */
+  & Partial<Pick<Tables<'assets'>, 'quantity' | 'liquidation_amt' | 'serial_number' | 'tag_number' | 'equipment_item_id' | 'written_off_from'>>;
 
 /**
  * Pieces split off a lot when written off (#185): the record says which lot (written_off_from),
@@ -216,13 +203,8 @@ export function isSplitOffPiece(a: ReportAsset, all: readonly ReportAsset[]): bo
 }
 
 /** A purchase's invoice (its header row). */
-export interface ReportInvoice {
-  id: string;
-  purchase_date: string | null;
-  vendor: string | null;
-  description: string | null;
-  total_inv_amount: number | null;
-}
+/** An invoice (purchase header) as the tax reports read it (B20). */
+export type ReportInvoice = Pick<Tables<'purchases'>, 'id' | 'purchase_date' | 'vendor' | 'description' | 'total_inv_amount'>;
 
 export type AttentionKey = 'no-category' | 'no-recovery-period' | 'no-cost' | 'no-disposal-date' | 'invoice-mismatch';
 

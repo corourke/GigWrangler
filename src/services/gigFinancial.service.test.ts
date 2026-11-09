@@ -10,6 +10,7 @@ import {
 import { createClient } from '../utils/supabase/client';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
+vi.mock('@sentry/react', () => ({ captureMessage: vi.fn() }));
 vi.mock('../utils/supabase/client', () => ({
   createClient: vi.fn(),
 }));
@@ -452,5 +453,21 @@ describe('deleteGigFinancial and its receipt', () => {
     setup([]);
     await expect(deleteGigFinancial('fin-1')).rejects.toThrow(/not found|permission/i);
     expect(remove).not.toHaveBeenCalled();
+  });
+});
+
+// B21: receipt files go once their rows are gone; a storage failure is reported without paths.
+describe('removeReceiptFiles', () => {
+  it('reports a storage failure to Sentry with a count, never the paths', async () => {
+    const Sentry = await import('@sentry/react');
+    const remove = vi.fn(async () => ({ data: null, error: { message: 'storage down' } }));
+    (createClient as any).mockReturnValue({ storage: { from: () => ({ remove }) } });
+    const { removeReceiptFiles } = await import('./gigFinancial.service');
+    await removeReceiptFiles(['org-1/a.pdf', 'org-1/b.pdf']);
+    expect(remove).toHaveBeenCalledWith(['org-1/a.pdf', 'org-1/b.pdf']);
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+    const sent = JSON.stringify(vi.mocked(Sentry.captureMessage).mock.calls[0]);
+    expect(sent).toContain('"count":2');
+    expect(sent).not.toContain('org-1/');
   });
 });
