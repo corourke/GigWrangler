@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import Dashboard from './Dashboard'
+import { renderWithQuery } from '../test/renderWithQuery'
 import { createClient } from '../utils/supabase/client'
 import { makeUser, makeOrganization } from '../test/factories'
 import { Organization, User } from '../utils/supabase/types'
@@ -265,5 +266,42 @@ describe('Dashboard', () => {
     expect(await screen.findByText('Status Summary')).toBeInTheDocument()
     expect(screen.queryByText('Equipment')).not.toBeInTheDocument()
     expect(screen.queryByText('Revenue')).not.toBeInTheDocument()
+  })
+})
+
+// A10: how the dashboard loads, fails and follows the organization. These hold before and after
+// the move to react-query.
+describe('Dashboard: data loading (A10)', () => {
+  const props = {
+    organization: makeOrganization({ id: 'org-1', name: 'Org A' }),
+    user: makeUser({ first_name: 'John' }),
+    onBackToSelection: vi.fn(), onLogout: vi.fn(), onNavigateToGigs: vi.fn(),
+  }
+  const stats = {
+    gigsByStatus: { Booked: 7, Proposed: 0, DateHold: 0, Completed: 0, Cancelled: 0, Settled: 0 },
+    assetValues: { totalAssetValue: 0, totalInsuredValue: 0, totalRentalValue: 0 },
+    revenue: { thisMonth: 0, lastMonth: 0, thisYear: 0 },
+    upcomingGigs: [],
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockInvoke.mockResolvedValue({ data: stats, error: null })
+  })
+
+  it('shows a load error, and Retry loads the figures', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    mockInvoke.mockRejectedValueOnce(new Error('Server unavailable'))
+    renderWithQuery(<Dashboard {...props} />)
+    expect(await screen.findByText('Server unavailable')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('7')).toBeInTheDocument()
+  })
+
+  it("loads the other organization's figures after a switch", async () => {
+    const { rerender } = renderWithQuery(<Dashboard {...props} />)
+    await screen.findByText('7')
+    rerender(<Dashboard {...props} organization={makeOrganization({ id: 'org-2', name: 'Org B' })} />)
+    await waitFor(() => expect(mockInvoke).toHaveBeenCalledWith('server/organizations/org-2/dashboard', { method: 'GET' }))
   })
 })

@@ -3,6 +3,7 @@ import { act, render, screen, fireEvent, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { useEffect } from 'react';
 import GigPage from './GigPage';
+import { renderWithQuery } from '../../test/renderWithQuery';
 import { getGig, updateGig } from '../../services/gig.service';
 
 vi.mock('../AppHeader', () => ({ default: () => <div data-testid="app-header" /> }));
@@ -581,5 +582,41 @@ describe('GigPage: a late answer for another gig', () => {
     await act(async () => { resolveFirst(gig); });
     expect(screen.queryByText('Riverside Summer Series')).not.toBeInTheDocument();
     expect(screen.getAllByText('Harbor Lights Gala').length).toBeGreaterThan(0);
+  });
+});
+
+// A10: how the page loads, fails and refreshes after a change. These hold before and after the
+// move to react-query.
+describe('GigPage: data loading (A10)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getGig).mockImplementation(() => Promise.resolve(gig as any));
+  });
+
+  it('shows a load error, and Retry loads the gig', async () => {
+    vi.mocked(getGig).mockRejectedValueOnce(new Error('Gig not found'));
+    renderWithQuery(<GigPage {...baseProps} />);
+    expect(await screen.findByText('Gig not found')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Riverside Summer Series')).toBeInTheDocument();
+  });
+
+  it('loads the gig again after the organization reactivates itself', async () => {
+    const inactiveGig = { ...gig, participants: gig.participants.map((p) => (p.organization_id === 'org-1' ? { ...p, inactive: true } : p)) };
+    vi.mocked(getGig).mockResolvedValue(inactiveGig as any);
+    const user = userEvent.setup();
+    renderWithQuery(<GigPage {...baseProps} userRole="Manager" />);
+    await user.click(await screen.findByRole('button', { name: 'Reactivate' }));
+    await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-1', false));
+    await waitFor(() => expect(getGig).toHaveBeenCalledTimes(2));
+  });
+
+  it('loads the gig again when editing is done', async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<GigPage {...baseProps} userRole="Admin" initialEditing />);
+    await screen.findByRole('textbox', { name: 'Gig title' });
+    const before = vi.mocked(getGig).mock.calls.length;
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(vi.mocked(getGig).mock.calls.length).toBeGreaterThan(before));
   });
 });
