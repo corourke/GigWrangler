@@ -37,7 +37,7 @@ export const queryKeys = {
   kitsFlattenedSummary: (kitIds: readonly string[]) => ['kits', 'flattened', [...kitIds].sort().join(',')] as const,
   staffRoleNames: () => ['staffRoles', 'names'] as const,
   /** Whether the signed-in user is a platform Admin. */
-  currentUserIsAdmin: () => ['currentUser', 'isAdmin'] as const,
+  currentUserIsAdmin: (userId: string) => ['currentUser', userId, 'isAdmin'] as const,
 
   // Dashboard
   dashboard: (orgId: string) => ['dashboard', orgId] as const,
