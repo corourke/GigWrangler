@@ -414,7 +414,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                                       {canOverride && (
                                         <TableCell>
                                           {representative && (
-                                            <Button
+                                            <Button aria-label="Override tracking"
                                               size="sm"
                                               variant="ghost"
                                               onClick={() => setOverrideTarget({
@@ -439,7 +439,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                                         <TableCell className="text-muted-foreground text-xs">{formatLastScanned(child.scanned_at)}</TableCell>
                                         {canOverride && (
                                           <TableCell>
-                                            <Button
+                                            <Button aria-label="Override tracking"
                                               size="sm"
                                               variant="ghost"
                                               onClick={() => setOverrideTarget({
@@ -482,7 +482,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                                       <TableCell className="text-muted-foreground text-xs">{formatLastScanned(child.scanned_at)}</TableCell>
                                       {canOverride && (
                                         <TableCell>
-                                          <Button
+                                          <Button aria-label="Override tracking"
                                             size="sm"
                                             variant="ghost"
                                             onClick={() => setOverrideTarget({
@@ -509,7 +509,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
                                       <TableCell className="text-muted-foreground text-xs">{formatLastScanned(group.kitLevelItem.scanned_at)}</TableCell>
                                       {canOverride && (
                                         <TableCell>
-                                          <Button
+                                          <Button aria-label="Override tracking"
                                             size="sm"
                                             variant="ghost"
                                             onClick={() => setOverrideTarget({

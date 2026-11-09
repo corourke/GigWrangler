@@ -91,7 +91,7 @@ export default function DocumentDetailView({ headerId }: DocumentDetailViewProps
         <div className="flex items-center gap-2 min-w-0">
           {attachments.length > 1 && (
             <div className="flex items-center gap-1 flex-shrink-0">
-              <Button
+              <Button aria-label="Previous document"
                 variant="ghost"
                 size="sm"
                 className="h-6 w-6 p-0"
@@ -103,7 +103,7 @@ export default function DocumentDetailView({ headerId }: DocumentDetailViewProps
               <span className="text-xs text-gray-500 whitespace-nowrap">
                 {index + 1} / {attachments.length}
               </span>
-              <Button
+              <Button aria-label="Next document"
                 variant="ghost"
                 size="sm"
                 className="h-6 w-6 p-0"

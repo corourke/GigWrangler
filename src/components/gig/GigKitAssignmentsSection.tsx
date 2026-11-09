@@ -345,7 +345,7 @@ export default function GigKitAssignmentsSection({
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button
+                            <Button aria-label="Kit notes"
                               type="button"
                               variant="ghost"
                               size="sm"
@@ -354,7 +354,7 @@ export default function GigKitAssignmentsSection({
                             >
                               <Info className="w-4 h-4" />
                             </Button>
-                            <Button
+                            <Button aria-label="Remove kit"
                               type="button"
                               variant="ghost"
                               size="sm"

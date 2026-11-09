@@ -178,7 +178,7 @@ describe('SmartDataTable', () => {
       />
     );
 
-    const menuTriggers = screen.getAllByRole('button', { name: '' });
+    const menuTriggers = screen.getAllByRole('button', { name: 'Row actions' });
     const actionTriggers = menuTriggers.filter(btn => btn.querySelector('.lucide-ellipsis'));
     expect(actionTriggers).toHaveLength(3);
 

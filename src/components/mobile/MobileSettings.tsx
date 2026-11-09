@@ -154,7 +154,7 @@ export default function MobileSettings({ onLogout, onLock }: MobileSettingsProps
                       </p>
                     </div>
                   </div>
-                  <Button 
+                  <Button aria-label="Remove device" 
                     variant="ghost" 
                     size="icon" 
                     className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8"
