@@ -142,6 +142,18 @@ describe('AssetListScreen data (A10 characterization)', () => {
     expect(getItems).toHaveBeenLastCalledWith('org-2')
   })
 
+  // New with A10: the list had no stale-response guard; keying the cache by organization adds one.
+  it('a slow answer for the earlier organization never replaces the newer one', async () => {
+    const slow = deferred<any>()
+    vi.mocked(getItems).mockImplementationOnce(() => slow.promise)
+    const { rerender } = render(<AssetListScreen {...props} />)
+    rerender(<AssetListScreen {...props} organization={makeOrganization({ id: 'org-2' })} />)
+    expect(await screen.findByText('Console B')).toBeInTheDocument()
+    await act(async () => slow.resolve(org1Items()))
+    expect(screen.getByText('Console B')).toBeInTheDocument()
+    expect(screen.queryByText('Speaker A')).not.toBeInTheDocument()
+  })
+
   it('after Duplicate the list is reloaded and shows the copy', async () => {
     render(<AssetListScreen {...props} />)
     await openRecordsView()
