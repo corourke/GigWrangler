@@ -39,7 +39,9 @@ export default function TwoFactorChallengeScreen({ onVerified, onSignOut }: { on
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="two-factor-code">6-digit code</Label>
-            <Input id="two-factor-code" inputMode="numeric" autoComplete="one-time-code" autoFocus maxLength={7}
+            <Input id="two-factor-code" inputMode="numeric" autoComplete="one-time-code"
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- the sign-in step is this one field, as before
+              autoFocus maxLength={7}
               value={code} onChange={(e) => setCode(e.target.value)} disabled={verifying} />
           </div>
           {error && (

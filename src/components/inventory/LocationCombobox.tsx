@@ -10,6 +10,8 @@ interface LocationComboboxProps {
   onChange: (value: string) => void;
   organizationId: string;
   placeholder?: string;
+  /** For a <label htmlFor>. */
+  id?: string;
 }
 
 export function LocationCombobox({
@@ -17,6 +19,7 @@ export function LocationCombobox({
   onChange,
   organizationId,
   placeholder = 'Enter or select location...',
+  id,
 }: LocationComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
   // Read the first time the box is opened or typed in (A10).
@@ -57,6 +60,7 @@ export function LocationCombobox({
           <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
           <Input
             ref={inputRef}
+            id={id}
             type="text"
             value={value}
             onChange={handleInputChange}

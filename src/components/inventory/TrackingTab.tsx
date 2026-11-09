@@ -29,9 +29,9 @@ export default function TrackingTab({ organizationId, initialGigId }: TrackingTa
   return (
     <div className="space-y-4">
       <Card className="p-4">
-        <label className="text-sm text-gray-600 mb-2 block">Gig</label>
+        <label htmlFor="tracking-gig" className="text-sm text-gray-600 mb-2 block">Gig</label>
         <Select value={selectedGigId} onValueChange={setSelectedGigId}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger id="tracking-gig" className="w-full">
             {isLoading ? (
               <span className="flex items-center gap-2 text-gray-500">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading gigs...

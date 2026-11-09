@@ -216,3 +216,12 @@ describe('KitDetailScreen: kit page follow-ups (#266)', () => {
     expect(screen.getByText('Pieces:')).toBeInTheDocument()
   })
 })
+
+// A19: the toggle is named by its label.
+describe('KitDetailScreen: labelled toggle (A19)', () => {
+  it('names the Show container contents checkbox by its label', async () => {
+    render(<KitDetailScreen {...mockProps} />)
+    const box = await screen.findByLabelText('Show container contents')
+    expect(box).toHaveAttribute('role', 'checkbox')
+  })
+})

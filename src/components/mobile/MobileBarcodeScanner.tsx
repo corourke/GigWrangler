@@ -296,6 +296,7 @@ export const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
                 onChange={(e) => setManualEntry(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
                 placeholder="Tag number..."
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- manual entry opens to type a tag, as before
                 autoFocus
                 style={{
                   flex: 1,
