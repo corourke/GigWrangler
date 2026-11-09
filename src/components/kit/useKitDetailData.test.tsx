@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { makeTestQueryClient } from '../../test/renderWithQuery'
 import { useKitDetailData } from './useKitDetailData'
 import { queryKeys } from '../../lib/queryKeys'
 import { getKit, getKitFlattenedContents, getKitComponentTree, getKitFlattenedItems, deleteKit, duplicateKit } from '../../services/kit.service'
@@ -14,7 +15,7 @@ vi.mock('../../services/kit.service', () => ({
 vi.mock('../../services/activityLog.service', () => ({ getEntityActivity: vi.fn() }))
 
 function setup() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  const client = makeTestQueryClient()
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
   const invalidate = vi.spyOn(client, 'invalidateQueries')
   const hook = renderHook(() => useKitDetailData('k1', 'org-1'), { wrapper })

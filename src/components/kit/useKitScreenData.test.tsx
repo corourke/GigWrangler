@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { makeTestQueryClient } from '../../test/renderWithQuery'
 import { useKitScreenData, useKitPickerData } from './useKitScreenData'
 import { queryKeys } from '../../lib/queryKeys'
 import { getKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle, createKit, updateKit } from '../../services/kit.service'
@@ -18,7 +19,7 @@ vi.mock('../../services/equipmentItem.service', () => ({ getItems: vi.fn(), getC
 const summary = (v: number) => ({ totalValue: v, totalItems: 1, assetIds: new Set<string>(), assetLabels: new Map(), itemQuantities: new Map() })
 
 function wrap() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  const client = makeTestQueryClient()
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
   const invalidate = vi.spyOn(client, 'invalidateQueries')
   return { client, wrapper, invalidate }
