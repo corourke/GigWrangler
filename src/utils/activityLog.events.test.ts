@@ -154,11 +154,12 @@ describe('ACTIVITY_EVENTS', () => {
       context_version: 1,
       actor_display_name: '',
       actor_org_name: '',
-      schedule_changes: [{ activity_type: 'Load-in', label: null, start_time: '2026-09-20T14:00:00.000Z' }],
+      // A local 2pm, so the expected day and time hold in any time zone.
+      schedule_changes: [{ activity_type: 'Load-in', label: null, start_time: new Date(2026, 8, 20, 14, 0).toISOString() }],
       change_count: 1,
     });
     expect(result).toContain('Load-in at');
-    expect(result).toContain('20 Sep 2026');
+    expect(result).toContain('20 Sep 2026 14:00');
   });
 
   it('schedule_entry.added format with no changes returns fallback text', () => {

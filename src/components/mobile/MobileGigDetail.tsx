@@ -687,6 +687,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                         value={orgSearchQuery}
                         onChange={e => handleOrgSearchChange(e.target.value)}
                         placeholder="Search organizations…"
+                        // eslint-disable-next-line jsx-a11y/no-autofocus -- "Add participant" opens to type a search, as before
                         autoFocus
                       />
                       {orgSearchResults.length > 0 && !selectedOrgResult && (

@@ -3,13 +3,15 @@ import { Input } from '../ui/input';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '../ui/command';
 import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover';
 import { MapPin } from 'lucide-react';
-import { getLocationSuggestions } from '../../services/inventoryManagement.service';
+import { useLocationSuggestions } from './useLocationSuggestions';
 
 interface LocationComboboxProps {
   value: string;
   onChange: (value: string) => void;
   organizationId: string;
   placeholder?: string;
+  /** For a <label htmlFor>. */
+  id?: string;
 }
 
 export function LocationCombobox({
@@ -17,10 +19,12 @@ export function LocationCombobox({
   onChange,
   organizationId,
   placeholder = 'Enter or select location...',
+  id,
 }: LocationComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [fetched, setFetched] = useState(false);
+  // Read the first time the box is opened or typed in (A10).
+  const [wanted, setWanted] = useState(false);
+  const suggestions = useLocationSuggestions(organizationId, wanted);
   const inputRef = useRef<HTMLInputElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
 
@@ -28,30 +32,16 @@ export function LocationCombobox({
     s.toLowerCase().includes(value.toLowerCase())
   );
 
-  const handleOpen = async (open: boolean) => {
+  const handleOpen = (open: boolean) => {
     setIsOpen(open);
-    if (open && !fetched) {
-      try {
-        const results = await getLocationSuggestions(organizationId);
-        setSuggestions(results);
-      } catch {
-        setSuggestions([]);
-      } finally {
-        setFetched(true);
-      }
-    }
+    if (open) setWanted(true);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange(e.target.value);
     if (!isOpen) {
       setIsOpen(true);
-      if (!fetched) {
-        getLocationSuggestions(organizationId)
-          .then(setSuggestions)
-          .catch(() => setSuggestions([]))
-          .finally(() => setFetched(true));
-      }
+      setWanted(true);
     }
   };
 
@@ -70,6 +60,7 @@ export function LocationCombobox({
           <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
           <Input
             ref={inputRef}
+            id={id}
             type="text"
             value={value}
             onChange={handleInputChange}

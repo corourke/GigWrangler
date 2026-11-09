@@ -560,20 +560,22 @@ function QuickCreateGigModal({
         <form onSubmit={handleSubmit} className="p-4 space-y-3">
 
           <div>
-            <label className="text-[11px] font-medium text-muted-foreground uppercase">Title *</label>
+            <label htmlFor="new-gig-title" className="text-[11px] font-medium text-muted-foreground uppercase">Title *</label>
             <input
+              id="new-gig-title"
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className={cn(CREATE_INPUT_CLASS, 'mt-1')}
               placeholder="Gig title"
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- the new-gig sheet opens to type its title, as before
               autoFocus
               required
             />
           </div>
 
-          <div>
-            <label className="text-[11px] font-medium text-muted-foreground uppercase">Status</label>
+          <div role="group" aria-labelledby="new-gig-status-label">
+            <span id="new-gig-status-label" className="text-[11px] font-medium text-muted-foreground uppercase">Status</span>
             <div className="mt-1">
               <button
                 type="button"
@@ -607,9 +609,9 @@ function QuickCreateGigModal({
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2" role="group" aria-labelledby="new-gig-when-label">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-medium text-muted-foreground uppercase">Date & Time</label>
+              <span id="new-gig-when-label" className="text-[11px] font-medium text-muted-foreground uppercase">Date & Time</span>
               <label className="flex items-center gap-1.5 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -677,8 +679,8 @@ function QuickCreateGigModal({
             </div>
           </div>
 
-          <div>
-            <label className="text-[11px] font-medium text-muted-foreground uppercase">Participants</label>
+          <div role="group" aria-labelledby="new-gig-participants-label">
+            <span id="new-gig-participants-label" className="text-[11px] font-medium text-muted-foreground uppercase">Participants</span>
             <div className="mt-1 space-y-1">
               {participants.map((p, idx) => {
                 const conf = ORG_ROLE_CONFIG[p.role as keyof typeof ORG_ROLE_CONFIG];
@@ -708,6 +710,7 @@ function QuickCreateGigModal({
                       value={orgSearchQuery}
                       onChange={e => handleOrgSearchChange(e.target.value)}
                       placeholder="Search organizations…"
+                      // eslint-disable-next-line jsx-a11y/no-autofocus -- "Add participant" opens to type a search, as before
                       autoFocus
                     />
                     {orgSearchResults.length > 0 && !selectedOrgResult && (
@@ -780,8 +783,9 @@ function QuickCreateGigModal({
           </div>
 
           <div>
-            <label className="text-[11px] font-medium text-muted-foreground uppercase">Notes</label>
+            <label htmlFor="new-gig-notes" className="text-[11px] font-medium text-muted-foreground uppercase">Notes</label>
             <textarea
+              id="new-gig-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={1}

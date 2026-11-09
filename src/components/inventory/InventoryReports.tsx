@@ -258,10 +258,11 @@ function ManifestTab({
 
       <div className="flex flex-wrap gap-3 items-end no-print">
         <div className="flex flex-col gap-1 min-w-[220px] flex-1">
-          <label className="text-xs font-medium text-muted-foreground">
+          <label htmlFor="inventory-report-location" className="text-xs font-medium text-muted-foreground">
             Location <span className="text-red-500">*</span>
           </label>
           <LocationCombobox
+            id="inventory-report-location"
             value={location}
             onChange={setLocation}
             organizationId={organizationId}
@@ -269,9 +270,9 @@ function ManifestTab({
           />
         </div>
         <div className="flex flex-col gap-1 min-w-[180px]">
-          <label className="text-xs font-medium text-muted-foreground">Gig (optional)</label>
+          <label htmlFor="inventory-report-gig" className="text-xs font-medium text-muted-foreground">Gig (optional)</label>
           <Select value={gigFilter} onValueChange={setGigFilter}>
-            <SelectTrigger aria-label="Filter by gig">
+            <SelectTrigger id="inventory-report-gig" aria-label="Filter by gig">
               <SelectValue placeholder="All gigs" />
             </SelectTrigger>
             <SelectContent>

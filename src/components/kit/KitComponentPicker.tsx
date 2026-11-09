@@ -142,8 +142,9 @@ export function KitComponentPicker({
                 </Badge>
               ))}
             </div>
-            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+            <label htmlFor="kit-picker-show-in-kit" className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap">
               <Checkbox
+                id="kit-picker-show-in-kit"
                 checked={showAlreadyInKit}
                 onCheckedChange={(checked) => setShowAlreadyInKit(checked === true)}
               />

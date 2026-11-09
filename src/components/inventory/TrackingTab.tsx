@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { format } from 'date-fns';
 import { Barcode, Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Card } from '../ui/card';
-import { getGigsForOrganization } from '../../services/gig.service';
+import { useTrackingTabData } from './useTrackingTabData';
 import MobileInventoryMode from '../mobile/MobileInventoryMode';
 
 interface TrackingTabProps {
@@ -20,37 +20,18 @@ interface TrackingTabProps {
  * to select one from first.
  */
 export default function TrackingTab({ organizationId, initialGigId }: TrackingTabProps) {
-  const [gigs, setGigs] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { gigs, isLoading } = useTrackingTabData(organizationId);
   // '' means "no gig selected" — Select must stay controlled for its whole
   // lifetime (a `value` of `undefined` on first render, then a real string
   // once picked, trips React's uncontrolled->controlled warning).
   const [selectedGigId, setSelectedGigId] = useState(initialGigId ?? '');
 
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    getGigsForOrganization(organizationId)
-      .then((data) => {
-        if (!cancelled) setGigs(data || []);
-      })
-      .catch(() => {
-        if (!cancelled) setGigs([]);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [organizationId]);
-
   return (
     <div className="space-y-4">
       <Card className="p-4">
-        <label className="text-sm text-gray-600 mb-2 block">Gig</label>
+        <label htmlFor="tracking-gig" className="text-sm text-gray-600 mb-2 block">Gig</label>
         <Select value={selectedGigId} onValueChange={setSelectedGigId}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger id="tracking-gig" className="w-full">
             {isLoading ? (
               <span className="flex items-center gap-2 text-gray-500">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading gigs...

@@ -199,6 +199,7 @@ export default function QuickCreateOrganizationDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Organization name"
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog opens to type a name, as before
               autoFocus
               disabled={isSubmitting}
             />

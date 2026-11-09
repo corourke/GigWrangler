@@ -1,19 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Switch } from '../ui/switch';
 import {
-  listCategories,
   addCategory,
   updateCategory,
-  getScheduleCLines,
-  getCategoryUsage,
   type CategoryKind,
   type CategoryRow,
-  type ScheduleCLine,
 } from '../../services/purchaseCategory.service';
+import { useCategoryListData } from './useCategoryListData';
 import { RECOVERY_PERIODS, asRecoveryPeriod } from '../../utils/recoveryPeriod';
 
 /** Shown with the equipment categories: how each item's Type is written. */
@@ -44,9 +41,7 @@ interface CategoryListEditorProps {
  * records already use can't be renamed here (records store the name).
  */
 export default function CategoryListEditor({ kind, organizationId, canEdit }: CategoryListEditorProps) {
-  const [rows, setRows] = useState<CategoryRow[] | null>(null);
-  const [lines, setLines] = useState<ScheduleCLine[]>([]);
-  const [usage, setUsage] = useState<Record<string, number> | null>(null);
+  const { rows, lines, usage, setRows, afterCategoryChange } = useCategoryListData(kind, organizationId);
   const [names, setNames] = useState<Record<string, string>>({});
   const [newName, setNewName] = useState('');
   const [newLine, setNewLine] = useState('27b');
@@ -54,25 +49,15 @@ export default function CategoryListEditor({ kind, organizationId, canEdit }: Ca
   const [adding, setAdding] = useState(false);
   const isExpense = kind === 'expense';
 
-  useEffect(() => {
-    let cancelled = false;
-    setRows(null);
-    listCategories(kind, organizationId)
-      .then(r => { if (!cancelled) { setRows(r); setNames(Object.fromEntries(r.map(x => [x.id, x.name]))); } })
-      .catch(err => { console.error(err); if (!cancelled) { setRows([]); toast.error('Failed to load categories'); } });
-    if (isExpense) getScheduleCLines().then(l => { if (!cancelled) setLines(l); }).catch(() => {});
-    if (organizationId) getCategoryUsage(kind, organizationId).then(u => { if (!cancelled) setUsage(u); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [kind, organizationId, isExpense]);
-
   const usedBy = (name: string) => usage?.[name.trim().toLowerCase()] ?? 0;
 
   const save = async (row: CategoryRow, patch: Partial<CategoryRow>) => {
-    setRows(prev => prev?.map(r => (r.id === row.id ? { ...r, ...patch } : r)) ?? prev);
+    setRows(prev => prev.map(r => (r.id === row.id ? { ...r, ...patch } : r)));
     try {
       await updateCategory(kind, row.id, patch);
+      void afterCategoryChange();
     } catch (err: any) {
-      setRows(prev => prev?.map(r => (r.id === row.id ? row : r)) ?? prev);
+      setRows(prev => prev.map(r => (r.id === row.id ? row : r)));
       setNames(prev => ({ ...prev, [row.id]: row.name }));
       toast.error(err?.message?.includes('duplicate') ? 'That name is already in the list' : 'Failed to save the change');
     }
@@ -94,7 +79,8 @@ export default function CategoryListEditor({ kind, organizationId, canEdit }: Ca
       const created = await addCategory(kind, organizationId, isExpense
         ? { name, schedule_c_line: newLine, sort_order }
         : { name, default_recovery_period: asRecoveryPeriod(newPeriod), sort_order });
-      setRows(prev => [...(prev ?? []), created]);
+      setRows(prev => [...prev, created]);
+      void afterCategoryChange();
       setNames(prev => ({ ...prev, [created.id]: created.name }));
       setNewName('');
       setNewPeriod('');
