@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, useNavigate } from 'react-router';
 import { Toaster } from './components/ui/sonner';
-import { NavigationProvider } from './contexts/NavigationContext';
+import { NavigationProvider } from './contexts/NavigationProvider';
 import { useAuth } from './contexts/AuthContext';
 import { useMobileLock } from './hooks/useMobileLock';
 import { useAppUpdateNotice } from './hooks/useAppUpdateNotice';

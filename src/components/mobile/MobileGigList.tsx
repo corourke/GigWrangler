@@ -29,12 +29,8 @@ import { parseGigDateTimeFromInput } from '../../utils/dateUtils';
 import { isGigPast } from '../../utils/gigTimeframe';
 import { managesGigOwner } from '../../utils/gigOwnership';
 import { toast } from 'sonner';
-import {
-  GigDateFilterDropdown,
-  applyDateFilter,
-  FUTURE_FILTER_LABEL,
-  PAST_FILTER_LABEL,
-} from '../gigs/GigDateFilterDropdown';
+import { GigDateFilterDropdown } from '../gigs/GigDateFilterDropdown';
+import { applyDateFilter, FUTURE_FILTER_LABEL, PAST_FILTER_LABEL } from '../gigs/gigDateFilter';
 import { GigStatusFilterDropdown } from '../gigs/GigStatusFilterDropdown';
 import { plural } from '../../utils/plural';
 

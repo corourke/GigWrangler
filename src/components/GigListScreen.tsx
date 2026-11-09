@@ -41,7 +41,8 @@ import AppHeader from './AppHeader';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import { GigListEmptyState } from './gigs/GigListEmptyState';
 import { ConflictWarning } from './ConflictWarning';
-import { GigDateFilterDropdown, applyDateFilter } from './gigs/GigDateFilterDropdown';
+import { GigDateFilterDropdown } from './gigs/GigDateFilterDropdown';
+import { applyDateFilter } from './gigs/gigDateFilter';
 import { GigStatusFilterDropdown } from './gigs/GigStatusFilterDropdown';
 import {
   Plus,

@@ -28,7 +28,8 @@ import {
   type OrganizationMember,
   type Invitation,
 } from './team/useTeamData';
-import { useMemberColumns, useInvitationColumns, useAccessRequestColumns, AccessRequestActions } from './team/teamColumns';
+import { useMemberColumns, useInvitationColumns, useAccessRequestColumns } from './team/teamColumns';
+import { AccessRequestActions } from './team/AccessRequestActions';
 import AddTeamMemberDialog from './team/AddTeamMemberDialog';
 import EditMemberDialog from './team/EditMemberDialog';
 import RequestAccessDialog from './team/RequestAccessDialog';
