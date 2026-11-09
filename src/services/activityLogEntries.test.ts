@@ -81,7 +81,8 @@ const logged = () => vi.mocked(logActivity).mock.calls.map((c: any[]) => JSON.st
 
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date('2026-01-15T12:00:00.000Z'));
+  // Local noon on Jan 15: 'today' (a paid date) is a local calendar day, the same in any time zone.
+  vi.setSystemTime(new Date(2026, 0, 15, 12, 0));
   vi.mocked(logActivity).mockClear();
   vi.spyOn(console, 'error').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
