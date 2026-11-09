@@ -77,7 +77,7 @@ describe('gig section keys (A10, PR 2)', () => {
       queryKeys.gigParticipants('g1'),
       queryKeys.gigKitAssignments('g1', 'org-1'),
       queryKeys.gigEquipmentConflicts('g1', 'org-1', { start: 's', end: 'e', timezone: 'UTC', allDay: false }),
-      queryKeys.gigEquipmentNeeded('g1', 'org-1', { start: 's', end: 'e', timezone: 'UTC', allDay: false }, 0),
+      queryKeys.gigEquipmentNeeded('g1', 'org-1', { start: 's', end: 'e', timezone: 'UTC', allDay: false }),
     ]) expect(startsWith(key, gig)).toBe(true);
   });
 
@@ -86,10 +86,8 @@ describe('gig section keys (A10, PR 2)', () => {
     expect(queryKeys.currentUserIsAdmin('user-a')).not.toEqual(queryKeys.currentUserIsAdmin('user-b'));
   });
 
-  it('keys equipment needed by its refresh count', () => {
-    const when = { start: 's', end: 'e', timezone: 'UTC', allDay: false };
-    expect(queryKeys.gigEquipmentNeeded('g1', 'org-1', when, 0)).not.toEqual(queryKeys.gigEquipmentNeeded('g1', 'org-1', when, 1));
-  });
+  // A10 sweep: Equipment needed is refreshed by invalidateAfterGigKitsChange, not a refresh count
+  // (queryKeys.sweepGig.test.ts).
 
   it("a staffing change refreshes the gig's money figures and the dashboard", async () => {
     const qc = new QueryClient();

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+
 import { Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Button } from '../ui/button';
@@ -8,6 +8,8 @@ import { GigAccountingSummary, FinDirection, FinStage } from '../../utils/supaba
 import { settledAmount, stageLabel } from '../../utils/moneyFlow';
 import { DetailLine } from './purchases/DetailLine';
 import { owedToYou } from '../../utils/gigAccountingSections';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '../../lib/queryKeys';
 
 interface GigAccountingRowDetailProps {
   gig: GigAccountingSummary;
@@ -46,31 +48,16 @@ export default function GigAccountingRowDetail({
   organizationId,
   onNavigateToGigDetail,
 }: GigAccountingRowDetailProps) {
-  const [records, setRecords] = useState<FinancialRecord[] | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-    getGigFinancials(gig.gigId, organizationId)
-      .then((data) => {
-        if (!cancelled) {
-          setRecords(data as unknown as FinancialRecord[]);
-          setIsLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err?.message ?? 'Failed to load financial details');
-          setIsLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [gig.gigId, organizationId]);
+  // The gig's ledger, sharing the gig page's cache (A10). Keyed by the gig, so a late answer
+  // for another gig never shows.
+  const ledger = useQuery({
+    queryKey: queryKeys.financials(gig.gigId),
+    queryFn: () => getGigFinancials(gig.gigId, organizationId),
+    staleTime: 0,
+  });
+  const records = (ledger.data as unknown as FinancialRecord[] | undefined) ?? null;
+  const isLoading = ledger.isPending && !ledger.isError;
+  const error = ledger.error ? ((ledger.error as any)?.message ?? 'Failed to load financial details') : null;
 
   const moneyIn = records?.filter((r) => r.direction === 'in') ?? [];
   const moneyOut = records?.filter((r) => r.direction === 'out') ?? [];

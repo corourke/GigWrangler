@@ -16,7 +16,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { createGig } from '../../services/gig.service';
-import { searchOrganizations } from '../../services/organization.service';
+import { useOrganizationSearch } from '../useOrganizationSelectorData';
 import { useAuth } from '../../contexts/AuthContext';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
 import { cn } from '../ui/utils';
@@ -422,11 +422,15 @@ function QuickCreateGigModal({
 
   const [showAddParticipant, setShowAddParticipant] = useState(false);
   const [orgSearchQuery, setOrgSearchQuery] = useState('');
-  const [orgSearchResults, setOrgSearchResults] = useState<any[]>([]);
   const [selectedOrgResult, setSelectedOrgResult] = useState<any>(null);
   const [addParticipantRole, setAddParticipantRole] = useState('');
+  // A10: the search runs through react-query, 300 ms after typing stops, narrowed by the role
+  // once one is picked; a late answer for an earlier term never shows. Not once a result is chosen.
+  const { results: orgSearchResults } = useOrganizationSearch(selectedOrgResult ? '' : orgSearchQuery, {
+    type: (addParticipantRole || undefined) as OrganizationRole | undefined,
+    delayMs: 300,
+  });
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
-  const orgSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const timezones = useMemo(() => getAllTimezones(), []);
   const statusConfig = GIG_STATUS_CONFIG[status];
@@ -448,32 +452,20 @@ function QuickCreateGigModal({
     }
   };
 
-  const handleOrgSearchChange = (query: string, roleOverride?: string) => {
+  const handleOrgSearchChange = (query: string) => {
     setOrgSearchQuery(query);
     setSelectedOrgResult(null);
-    if (orgSearchTimerRef.current) clearTimeout(orgSearchTimerRef.current);
-    if (!query.trim()) { setOrgSearchResults([]); return; }
-    const role = roleOverride !== undefined ? roleOverride : addParticipantRole;
-    orgSearchTimerRef.current = setTimeout(async () => {
-      try {
-        const filters: { search: string; type?: OrganizationRole } = { search: query };
-        if (role) filters.type = role as OrganizationRole;
-        setOrgSearchResults(await searchOrganizations(filters));
-      } catch { setOrgSearchResults([]); }
-    }, 300);
   };
 
   // Choosing an organization from the search list (by tap, or Enter/Space on it).
   const pickOrg = (org: any) => {
     setSelectedOrgResult(org);
     setOrgSearchQuery(org.name);
-    setOrgSearchResults([]);
   };
 
   const handleRoleSelect = (role: string) => {
     setAddParticipantRole(role);
     setShowRoleDropdown(false);
-    if (orgSearchQuery.trim() && !selectedOrgResult) handleOrgSearchChange(orgSearchQuery, role);
   };
 
   const handleAddParticipantConfirm = () => {
@@ -485,7 +477,6 @@ function QuickCreateGigModal({
     }]);
     setShowAddParticipant(false);
     setOrgSearchQuery('');
-    setOrgSearchResults([]);
     setSelectedOrgResult(null);
     setAddParticipantRole('');
     setShowRoleDropdown(false);
@@ -769,7 +760,6 @@ function QuickCreateGigModal({
                     <Button size="sm" type="button" variant="ghost" className="flex-1 h-8 text-xs" onClick={() => {
                       setShowAddParticipant(false);
                       setOrgSearchQuery('');
-                      setOrgSearchResults([]);
                       setSelectedOrgResult(null);
                       setAddParticipantRole('');
                       setShowRoleDropdown(false);

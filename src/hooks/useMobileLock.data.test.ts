@@ -3,6 +3,15 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useMobileLock } from './useMobileLock';
 import { startAuthentication } from '@simplewebauthn/browser';
+import { createElement, type ReactNode } from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { makeTestQueryClient } from '../test/renderWithQuery';
+
+// A10: the device check reads through react-query, keyed by the signed-in user.
+const queryWrapper = () => {
+  const client = makeTestQueryClient();
+  return ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
+};
 
 const db = vi.hoisted(() => ({ devices: [] as { id: string }[], fail: false, invoke: vi.fn(), tables: [] as string[] }));
 vi.mock('../utils/supabase/client', () => ({
@@ -32,7 +41,7 @@ beforeEach(() => {
 describe('useMobileLock: arming', () => {
   it('locks once an enrolled device is known', async () => {
     db.devices = [{ id: 'd1' }];
-    const { result } = renderHook(() => useMobileLock('pat@example.com', true));
+    const { result } = renderHook(() => useMobileLock('pat@example.com', true, 'user-1'), { wrapper: queryWrapper() });
     await waitFor(() => expect(db.tables).toContain('user_devices'));
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     act(() => result.current.lock());
@@ -41,7 +50,7 @@ describe('useMobileLock: arming', () => {
   });
 
   it('never locks without an enrolled device', async () => {
-    const { result } = renderHook(() => useMobileLock('pat@example.com', true));
+    const { result } = renderHook(() => useMobileLock('pat@example.com', true, 'user-1'), { wrapper: queryWrapper() });
     await waitFor(() => expect(db.tables).toContain('user_devices'));
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     act(() => result.current.lock());
@@ -51,7 +60,7 @@ describe('useMobileLock: arming', () => {
   it('never locks when the device check fails', async () => {
     db.fail = true;
     db.devices = [{ id: 'd1' }];
-    const { result } = renderHook(() => useMobileLock('pat@example.com', true));
+    const { result } = renderHook(() => useMobileLock('pat@example.com', true, 'user-1'), { wrapper: queryWrapper() });
     await waitFor(() => expect(db.tables).toContain('user_devices'));
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     act(() => result.current.lock());
@@ -59,7 +68,7 @@ describe('useMobileLock: arming', () => {
   });
 
   it('does not check devices on desktop', async () => {
-    renderHook(() => useMobileLock('pat@example.com', false));
+    renderHook(() => useMobileLock('pat@example.com', false, 'user-1'), { wrapper: queryWrapper() });
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     expect(db.tables).toEqual([]);
   });
@@ -71,7 +80,7 @@ describe('useMobileLock: unlock', () => {
     db.invoke.mockImplementation(async (path: string) =>
       path.endsWith('/options') ? { data: { challenge: 'c' }, error: null } : { data: { success: true }, error: null });
     vi.mocked(startAuthentication).mockResolvedValue({ id: 'cred' } as any);
-    const { result } = renderHook(() => useMobileLock('pat@example.com', true));
+    const { result } = renderHook(() => useMobileLock('pat@example.com', true, 'user-1'), { wrapper: queryWrapper() });
     await waitFor(() => expect(db.tables).toContain('user_devices'));
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     act(() => result.current.lock());
@@ -88,10 +97,21 @@ describe('useMobileLock: unlock', () => {
   it('stays locked and says why when the server refuses', async () => {
     const { toast } = await import('sonner');
     db.invoke.mockResolvedValue({ data: { error: 'No registered devices found' }, error: null });
-    const { result } = renderHook(() => useMobileLock('pat@example.com', true));
+    const { result } = renderHook(() => useMobileLock('pat@example.com', true, 'user-1'), { wrapper: queryWrapper() });
     let ok: boolean | undefined;
     await act(async () => { ok = await result.current.unlock(); });
     expect(ok).toBe(false);
     expect(toast.error).toHaveBeenCalledWith('No registered devices found');
+  });
+});
+
+describe('useMobileLock: the device check is cached per user (A10)', () => {
+  it('under enrolledDevice(userId), so a device change refreshes it', async () => {
+    const { queryKeys } = await import('../lib/queryKeys');
+    const client = makeTestQueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
+    db.devices = [{ id: 'd1' }];
+    renderHook(() => useMobileLock('pat@example.com', true, 'user-1'), { wrapper });
+    await waitFor(() => expect(client.getQueryData(queryKeys.enrolledDevice('user-1'))).toBe(true));
   });
 });

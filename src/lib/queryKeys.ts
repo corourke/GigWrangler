@@ -33,8 +33,9 @@ export const queryKeys = {
   gigEquipmentConflicts: (gigId: string, orgId: string, when: { start: string; end: string; timezone?: string; allDay: boolean }) =>
     ['gig', gigId, 'equipmentConflicts', orgId, when.start, when.end, when.timezone ?? null, when.allDay] as const,
   /** refresh: a count the kit section bumps after each save, so the table reloads. */
-  gigEquipmentNeeded: (gigId: string, orgId: string, when: { start: string; end: string; timezone?: string; allDay: boolean }, refresh: number) =>
-    ['gig', gigId, 'equipmentNeeded', orgId, when.start, when.end, when.timezone ?? null, when.allDay, refresh] as const,
+  /** Refreshed after the gig's kits save (invalidateAfterGigKitsChange), not by a reload token. */
+  gigEquipmentNeeded: (gigId: string, orgId: string, when: { start: string; end: string; timezone?: string; allDay: boolean }) =>
+    ['gig', gigId, 'equipmentNeeded', orgId, when.start, when.end, when.timezone ?? null, when.allDay] as const,
   /** Kits' flattened contents, for the same-gig overlap check. */
   kitsFlattenedSummary: (kitIds: readonly string[]) => ['kits', 'flattened', [...kitIds].sort().join(',')] as const,
   staffRoleNames: () => ['staffRoles', 'names'] as const,
@@ -158,6 +159,17 @@ export const queryKeys = {
   scheduleCLines: () => ['scheduleCLines'] as const,
   /** The organization's gigs, for a gig picker. */
   gigsForOrganization: (orgId: string) => ['gigs', orgId, 'all'] as const,
+  // Gig sections and the phone (A10 sweep).
+  /** The gig as its basic info form reads it (fresh each open: it seeds an autosaving form). */
+  gigForm: (gigId: string) => ['gig', gigId, 'form'] as const,
+  /** The gig's schedule rows (fresh each open: they seed the schedule editor). */
+  gigScheduleEntries: (gigId: string) => ['gig', gigId, 'schedule'] as const,
+  /** The gig's participants as a list (getGigParticipants), e.g. its acts for the schedule. */
+  gigParticipantList: (gigId: string) => ['gig', gigId, 'participantList'] as const,
+  /** The gig page's Equipment card: { rows, holds } for this organization's view. */
+  gigKits: (gigId: string, orgId: string) => ['gig', gigId, 'kits', orgId] as const,
+  /** Whether the signed-in user has a device enrolled to unlock the phone with. */
+  enrolledDevice: (userId: string) => ['myDevices', userId, 'enrolled'] as const,
   // Kit views, all under kit(kitId) so a kit change reaches them.
   kitDetail: (kitId: string) => ['kit', kitId, 'detail'] as const,
   kitForm: (kitId: string) => ['kit', kitId, 'form'] as const,
@@ -545,5 +557,16 @@ export function invalidateAfterCategoryChange(
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: keepList, exact: true, refetchType: 'none' }),
     queryClient.invalidateQueries({ queryKey: root, predicate: (q) => JSON.stringify(q.queryKey) !== kept }),
+  ]);
+}
+
+// ── Sweep: gig, financials, mobile (A10, Engineer E) ──
+
+/** After the gig's kits save: its Equipment needed, its Equipment card and its packing list. */
+export function invalidateAfterGigKitsChange(queryClient: QueryClient, { gigId }: { gigId: string }) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: [...queryKeys.gig(gigId), 'equipmentNeeded'] }),
+    queryClient.invalidateQueries({ queryKey: [...queryKeys.gig(gigId), 'kits'] }),
+    queryClient.invalidateQueries({ queryKey: [...queryKeys.gig(gigId), 'packingList'] }),
   ]);
 }

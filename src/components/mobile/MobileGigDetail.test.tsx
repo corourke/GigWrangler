@@ -615,3 +615,42 @@ describe('MobileGigDetail', () => {
     })
   })
 })
+
+// A10 characterization: the add-participant organization search.
+describe('MobileGigDetail: organization search (A10 characterization)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(getGig).mockResolvedValue(mockGig as unknown as Awaited<ReturnType<typeof getGig>>)
+    vi.mocked(searchOrganizations).mockImplementation(async (f: any) => [
+      makeOrganization({ id: `o-${f.search}-${f.type ?? 'any'}`, name: `${f.search} (${f.type ?? 'any'})` }),
+    ])
+    mockUseAuth.mockReturnValue({ user: { id: 'user-1' }, userRole: 'Admin', selectedOrganization: { id: 'org-1' } })
+  })
+
+  const openSearch = async () => {
+    render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+    await screen.findByText('Summer Festival')
+    fireEvent.click(screen.getByRole('button', { name: /edit gig/i }))
+    fireEvent.click(await screen.findByText('Add Participant'))
+    return screen.findByPlaceholderText('Search organizations…')
+  }
+
+  it('searches what was typed, then again by type once a role is picked', async () => {
+    const box = await openSearch()
+    fireEvent.change(box, { target: { value: 'Hall' } })
+    expect(await screen.findByText('Hall (any)', {}, { timeout: 1000 })).toBeInTheDocument()
+    expect(searchOrganizations).toHaveBeenCalledWith({ search: 'Hall' })
+    fireEvent.click(screen.getByText('Select role…'))
+    fireEvent.click((await screen.findAllByText('Venue')).find((el) => el.tagName === 'LI')!)
+    expect(await screen.findByText('Hall (Venue)', {}, { timeout: 1000 })).toBeInTheDocument()
+    expect(searchOrganizations).toHaveBeenCalledWith({ search: 'Hall', type: 'Venue' })
+  })
+
+  it('clearing the box clears the results', async () => {
+    const box = await openSearch()
+    fireEvent.change(box, { target: { value: 'Hall' } })
+    expect(await screen.findByText('Hall (any)', {}, { timeout: 1000 })).toBeInTheDocument()
+    fireEvent.change(box, { target: { value: '' } })
+    await waitFor(() => expect(screen.queryByText('Hall (any)')).not.toBeInTheDocument())
+  })
+})

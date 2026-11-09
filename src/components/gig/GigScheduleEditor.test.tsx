@@ -1,5 +1,6 @@
+import { renderWithQuery as render } from '../../test/renderWithQuery';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import GigScheduleEditor from './GigScheduleEditor';
 import { getGigScheduleEntries, updateGigScheduleEntries } from '../../services/gigSchedule.service';
 
