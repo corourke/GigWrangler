@@ -157,8 +157,9 @@ export function registerGigs(app: App) {
 
         return {
           id: gp.gigs.id, title: gp.gigs.title, start: gp.gigs.start, status: gp.gigs.status,
-          act: actParticipant?.organization?.name || 'N/A',
-          venue: venueParticipant?.organization?.name || 'N/A',
+          // A to-one embed: an object at runtime, typed as a list without generated types.
+          act: (actParticipant?.organization as unknown as { name?: string } | null)?.name || 'N/A',
+          venue: (venueParticipant?.organization as unknown as { name?: string } | null)?.name || 'N/A',
           staffing: { unfilledSlots, unconfirmedAssignments, rejectedAssignments, confirmedAssignments },
         };
       })
