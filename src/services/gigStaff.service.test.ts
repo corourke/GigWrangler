@@ -83,6 +83,26 @@ describe('updateGigStaffSlots (issue #55 — logs adds even without an explicit 
     expect(mockSupabase.from).not.toHaveBeenCalled();
   });
 
+  // A typed $0 is an amount, not a blank: it's saved as 0, not NULL (Docs Lead smoke test, 11-08).
+  it('saves a $0 fee or rate as 0, and a blank as NULL', async () => {
+    const assignmentChain = makeChain({ singleData: { id: 'asg-new' } });
+    const base = mockSupabase.from.getMockImplementation();
+    mockSupabase.from.mockImplementation((table: string) =>
+      table === 'gig_staff_assignments' ? assignmentChain : base(table));
+    await updateGigStaffSlots('gig-1', [{
+      organization_id: 'org-1', role: 'Stagehand',
+      assignments: [
+        { user_id: 'u-fee', status: 'Confirmed', fee: 0, rate: null },
+        { user_id: 'u-rate', status: 'Confirmed', rate: 0, fee: null, rate_unit: 'hour' },
+        { user_id: 'u-blank', status: 'Confirmed', fee: null, rate: null },
+      ],
+    } as any]);
+    const inserted = assignmentChain.insert.mock.calls.map(([row]: any[]) => row);
+    expect(inserted.find((r: any) => r.user_id === 'u-fee')).toMatchObject({ fee: 0, rate: null });
+    expect(inserted.find((r: any) => r.user_id === 'u-rate')).toMatchObject({ rate: 0, fee: null });
+    expect(inserted.find((r: any) => r.user_id === 'u-blank')).toMatchObject({ fee: null, rate: null });
+  });
+
   it('does not log when no slots actually change', async () => {
     await updateGigStaffSlots('gig-1', []);
     expect(logActivity).not.toHaveBeenCalled();
