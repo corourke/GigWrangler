@@ -1,10 +1,19 @@
 import {describe, it, expect, vi } from 'vitest'
-import {render, screen, waitFor } from '@testing-library/react'
+import {render as rtlRender, screen, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import userEvent from '@testing-library/user-event'
 import KitListScreen from './KitListScreen'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getKits, getKitsFlattenedSummary } from '../services/kit.service'
 import { getKitTrackingSummary, getPackingListReport } from '../services/inventoryManagement.service'
+
+// A10: the screen reads through react-query, so each test gets a fresh client.
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
+
 
 // Mock localStorage
 const localStorageMock = (() => {
