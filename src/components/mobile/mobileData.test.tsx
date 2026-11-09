@@ -38,11 +38,6 @@ afterEach(() => onlineManager.setOnline(true))
 
 describe('invalidation map (mobile)', () => {
   it('names the caches each write refreshes', () => {
-    expect(mobileInvalidations.gigChanged('org-1', 'g1')).toEqual([
-      { queryKey: queryKeys.gigs('org-1') },
-      { queryKey: queryKeys.gig('g1') },
-    ])
-    expect(mobileInvalidations.gigCreated('org-1')).toEqual([{ queryKey: queryKeys.gigs('org-1') }])
     expect(mobileInvalidations.assignmentAnswered('g1')).toEqual([
       { queryKey: queryKeys.gig('g1') },
       { queryKey: ['myUpcomingAssignments'], refetchType: 'none' },
@@ -73,7 +68,12 @@ describe('useMobileGigListData', () => {
     const { result } = renderHook(() => useMobileGigListData('org-1'), { wrapper })
     await act(() => result.current.changeStatus.mutateAsync({ gigId: 'g1', status: 'Completed' }))
     expect(gigs.updateGig).toHaveBeenCalledWith('g1', { status: 'Completed' })
-    expect(invalidated()).toEqual(mobileInvalidations.gigChanged('org-1', 'g1'))
+    // The shared map: the gig, the org's gig lists and the dashboard.
+    expect(invalidated()).toEqual([
+      { queryKey: queryKeys.gig('g1') },
+      { queryKey: queryKeys.gigs('org-1') },
+      { queryKey: queryKeys.dashboard('org-1') },
+    ])
   })
 })
 

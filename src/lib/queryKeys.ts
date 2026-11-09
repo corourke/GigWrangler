@@ -78,12 +78,7 @@ export interface Invalidation {
 
 /** Invalidation map — Mobile (A10, Engineer O): which caches each mobile write refreshes. */
 export const mobileInvalidations = {
-  /** Status or details of a gig: every list of the org's gigs and every copy of the gig. */
-  gigChanged: (orgId: string, gigId: string): Invalidation[] => [
-    { queryKey: queryKeys.gigs(orgId) },
-    { queryKey: queryKeys.gig(gigId) },
-  ],
-  gigCreated: (orgId: string): Invalidation[] => [{ queryKey: queryKeys.gigs(orgId) }],
+  // A gig's status, details or a new gig: invalidateAfterGigChange / invalidateAfterGigListChange.
   /** Accept/decline on the gig: reload the gig; My Schedule refetches on its next visit. */
   assignmentAnswered: (gigId: string): Invalidation[] => [
     { queryKey: queryKeys.gig(gigId) },

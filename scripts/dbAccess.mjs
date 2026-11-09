@@ -11,7 +11,6 @@ export const DB_ACCESS_ALLOWLIST = [
   'src/components/gig/GigParticipantsSection.tsx',
   'src/components/gig/GigStaffSlotsSection.tsx',
   'src/components/gig/useGigFinancialsData.ts',
-  'src/components/mobile/MobileSettings.tsx',
   'src/hooks/useMobileLock.ts',
 ];
 

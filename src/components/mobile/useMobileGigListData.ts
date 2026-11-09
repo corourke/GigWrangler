@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, mobileInvalidations } from '../../lib/queryKeys';
+import { queryKeys, invalidateAfterGigChange, invalidateAfterGigListChange } from '../../lib/queryKeys';
 import { getGigsForOrganization, updateGig } from '../../services/gig.service';
 import type { GigStatus } from '../../utils/supabase/types';
 
@@ -26,14 +26,14 @@ export function useMobileGigListData(orgId: string | undefined) {
   });
 
   const refreshGigs = () =>
-    orgId ? Promise.all(mobileInvalidations.gigCreated(orgId).map((f) => queryClient.invalidateQueries(f))) : Promise.resolve();
+    orgId ? invalidateAfterGigListChange(queryClient, orgId) : Promise.resolve();
 
   const changeStatus = useMutation({
     mutationFn: ({ gigId, status }: { gigId: string; status: GigStatus }) => updateGig(gigId, { status }),
     networkMode: 'always',
     // Resolves once the list has reloaded, as the screen awaited its reload before.
     onSuccess: (_r, { gigId }) =>
-      orgId ? Promise.all(mobileInvalidations.gigChanged(orgId, gigId).map((f) => queryClient.invalidateQueries(f))) : undefined,
+      orgId ? invalidateAfterGigChange(queryClient, { gigId, organizationId: orgId }) : undefined,
   });
 
   return {
