@@ -65,3 +65,45 @@ describe('kit query keys (A10)', () => {
       .toEqual(['kits', 'org-1', 'picker', { kitId: 'k1', filter: 'all', search: 'mic', inKitIds: ['k2', 'k3'] }])
   })
 })
+
+describe('inventory query keys (A10)', () => {
+  it('scopes lists by organization or gig', () => {
+    expect(queryKeys.maintenanceList('org-1')).toEqual(['maintenanceList', 'org-1'])
+    expect(queryKeys.gigReturns('g1', 'org-1')).toEqual(['gigReturns', 'g1', 'org-1'])
+    expect(queryKeys.gigPackingList('g1', 'org-1')).toEqual(['gigPackingList', 'g1', 'org-1'])
+    expect(queryKeys.manifest('org-1', { location: 'Truck', gigId: null })).toEqual(['manifest', 'org-1', { location: 'Truck', gigId: null }])
+    expect(queryKeys.reportGigs('org-1', true)).toEqual(['reportGigs', 'org-1', { showAll: true }])
+    expect(queryKeys.inventoryConflictFlags('org-1')).toEqual(['inventoryConflictFlags', 'org-1'])
+    expect(queryKeys.activeGigsWithTracking('org-1')).toEqual(['activeGigsWithTracking', 'org-1'])
+    expect(queryKeys.equipmentItemList('org-1')).toEqual(['equipmentItems', 'org-1', 'list'])
+    expect(queryKeys.itemWhereabouts('i1', 'org-1')).toEqual(['equipmentItem', 'i1', 'whereabouts', 'org-1'])
+    expect(queryKeys.locationItems('org-1', { location: 'Truck' })).toEqual(['locationItems', 'org-1', { location: 'Truck' }])
+  })
+
+  it('a maintenance write refreshes the maintenance list and everything a unit write does', () => {
+    expect(equipmentInvalidation.maintenance('org-1', 'a1')).toEqual(expect.arrayContaining([
+      queryKeys.maintenanceList('org-1'),
+      ...equipmentInvalidation.asset('org-1', 'a1'),
+    ]))
+  })
+
+  it('a return or write-off at a gig refreshes that gig’s lists and the unit', () => {
+    expect(equipmentInvalidation.gigReturn('org-1', 'g1', 'a1')).toEqual(expect.arrayContaining([
+      queryKeys.allGigReturns('g1'),
+      queryKeys.allGigPackingLists('g1'),
+      queryKeys.maintenanceList('org-1'),
+      ...equipmentInvalidation.asset('org-1', 'a1'),
+    ]))
+  })
+
+  it('a tracking override refreshes where things are', () => {
+    expect(equipmentInvalidation.tracking('org-1')).toEqual(expect.arrayContaining([
+      queryKeys.allLocationItems('org-1'),
+      queryKeys.allManifests('org-1'),
+      queryKeys.allGigPackingLists(),
+      queryKeys.assetTrackingSummary('org-1'),
+      queryKeys.kits('org-1'),
+      queryKeys.allEquipmentItems(),
+    ]))
+  })
+})
