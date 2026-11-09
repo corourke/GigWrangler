@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ReactElement } from 'react'
-import { render as rtlRender, screen, within } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, within } from '@testing-library/react'
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import userEvent from '@testing-library/user-event'
 import { format } from 'date-fns'
 import MobileInventoryMode from './MobileInventoryMode'
@@ -88,12 +87,6 @@ import { writeOffPieces } from '../../services/writeOff.service'
 import { packingListService } from '../../services/mobile/packingList.service'
 
 
-// Screens read through react-query (A10), so each render gets its own QueryClient.
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  const utils = rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-  return { ...utils, rerender: (next: ReactElement) => utils.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>) }
-}
 
 describe('MobileInventoryMode', () => {
   beforeEach(() => {

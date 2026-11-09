@@ -2,10 +2,9 @@
  * Characterization tests (A10): how Inventory Mode loads its packing list, the org's equipment
  * index and member names, online and offline, and that a scan re-reads the device copy.
  */
-import type { ReactElement } from 'react'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { render as rtlRender, screen, waitFor, fireEvent, act } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import MobileInventoryMode from './MobileInventoryMode'
 import { idbStore } from '../../utils/idb/store'
 import { packingListService } from '../../services/mobile/packingList.service'
@@ -38,11 +37,6 @@ vi.mock('../../services/mobile/inventoryTracking.service', async (importOriginal
 vi.mock('./MobileBarcodeScanner', () => ({ MobileBarcodeScanner: () => null }))
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), warning: vi.fn() }) }))
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  const utils = rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-  return { ...utils, rerender: (next: ReactElement) => utils.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>) }
-}
 
 const list = (gigId: string, title: string, kitName: string, tracking: any[] = []) => ({
   gig_id: gigId,
