@@ -63,6 +63,11 @@ describe('gig section keys (A10, PR 2)', () => {
     ]) expect(startsWith(key, gig)).toBe(true);
   });
 
+  it("keys the platform-Admin answer by the signed-in person", () => {
+    expect(queryKeys.currentUserIsAdmin('user-a')).toContain('user-a');
+    expect(queryKeys.currentUserIsAdmin('user-a')).not.toEqual(queryKeys.currentUserIsAdmin('user-b'));
+  });
+
   it('keys equipment needed by its refresh count', () => {
     const when = { start: 's', end: 'e', timezone: 'UTC', allDay: false };
     expect(queryKeys.gigEquipmentNeeded('g1', 'org-1', when, 0)).not.toEqual(queryKeys.gigEquipmentNeeded('g1', 'org-1', when, 1));
