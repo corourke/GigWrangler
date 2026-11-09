@@ -97,3 +97,17 @@ describe('MobileGigList: fresh data after writes', () => {
     expect(screen.queryByText('New Gig')).not.toBeInTheDocument()
   })
 })
+
+describe('MobileGigList: reconnecting', () => {
+  it('coming back online does not reload by itself', async () => {
+    const { act } = await import('@testing-library/react')
+    render(<MobileGigList onViewGig={vi.fn()} />)
+    await screen.findByText('Alpha Show')
+    setOnline(false)
+    await act(async () => { window.dispatchEvent(new Event('offline')) })
+    setOnline(true)
+    await act(async () => { window.dispatchEvent(new Event('online')) })
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)) })
+    expect(getGigsForOrganization).toHaveBeenCalledTimes(1)
+  })
+})

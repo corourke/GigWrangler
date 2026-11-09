@@ -129,3 +129,17 @@ describe('MobileDashboard: confirm and decline', () => {
     expect(await screen.findByText('Declined')).toBeInTheDocument()
   })
 })
+
+describe('MobileDashboard: reconnecting', () => {
+  it('coming back online does not reload by itself (an offline answer would flash back)', async () => {
+    const { act } = await import('@testing-library/react')
+    render(screenUi)
+    await screen.findByText('Fresh Show')
+    setOnline(false)
+    await act(async () => { window.dispatchEvent(new Event('offline')) })
+    setOnline(true)
+    await act(async () => { window.dispatchEvent(new Event('online')) })
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)) })
+    expect(fetchMyUpcomingAssignments).toHaveBeenCalledTimes(1)
+  })
+})
