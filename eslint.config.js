@@ -82,9 +82,7 @@ export default tseslint.config(
       'no-restricted-syntax': ['error', ...DATE_COLUMN_RULES, { selector: DB_ACCESS_SELECTOR, message: DB_ACCESS_MESSAGE }],
     },
   },
-  // A19: accessibility. jsx-a11y's recommended rules are errors; the ones listed after the spread
-  // still have hits in existing screens and are warnings until those are fixed (burn-down tracked
-  // in docs/development/coding-guide.md).
+  // A19: accessibility. jsx-a11y's recommended rules are errors.
   {
     files: ['src/**/*.tsx'],
     // Tests render stand-in markup for mocked components.
@@ -92,12 +90,8 @@ export default tseslint.config(
     ...jsxA11y.flatConfigs.recommended,
     rules: {
       ...jsxA11y.flatConfigs.recommended.rules,
-      // Open on 2026-11-09 (count): burn down, then make each an error. Labels, heading and link content
-      // and autofocus are errors since (a kept autoFocus says why, in an eslint-disable comment).
-      'jsx-a11y/click-events-have-key-events': 'warn', // 16: clickable divs/spans without key handling
-      'jsx-a11y/no-static-element-interactions': 'warn', // 12: onClick on a div/span with no role
-      'jsx-a11y/no-noninteractive-element-interactions': 'warn', // 5: mobile suggestion lists
-      'jsx-a11y/no-noninteractive-tabindex': 'warn', // 1: SmartDataTable's keyboard-navigable container
+      // Every recommended rule is an error (A19). Where a rule doesn't fit (a pointer-only aid, a
+      // focus move into a field just opened), the line says why in an eslint-disable comment.
     },
   }
 );

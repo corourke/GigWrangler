@@ -18,6 +18,8 @@ interface TypeFieldProps {
 export default function TypeField({ id, organizationId, category, value, onChange }: TypeFieldProps) {
   const types = useTypeUsage(organizationId, category);
   const [open, setOpen] = useState(false);
+  /** The option the arrow keys are on (A19): -1 for none. */
+  const [active, setActive] = useState(-1);
 
   const typed = value.trim();
   const shown = useMemo(
@@ -25,6 +27,32 @@ export default function TypeField({ id, organizationId, category, value, onChang
     [types, typed],
   );
   const isNew = !!typed && !types.some((t) => t.type.toLowerCase() === typed.toLowerCase());
+  const listShown = open && !!category && (shown.length > 0 || isNew);
+  const optionCount = shown.length + (isNew ? 1 : 0);
+  const optionId = (i: number) => `${id}-option-${i}`;
+  // Choosing an option: a used type fills the field; "Use … as a new type" keeps what was typed.
+  const choose = (i: number) => {
+    if (i < shown.length) onChange(shown[i].type);
+    setOpen(false);
+    setActive(-1);
+  };
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') { setOpen(false); setActive(-1); return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!category || optionCount === 0) return;
+      e.preventDefault();
+      setOpen(true);
+      setActive((a) => (e.key === 'ArrowDown' ? Math.min(a + 1, optionCount - 1) : Math.max(a - 1, 0)));
+      return;
+    }
+    if (e.key === 'Enter' && listShown && active >= 0 && active < optionCount) {
+      e.preventDefault();
+      choose(active);
+    }
+  };
+  const optionKeys = (i: number) => (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(i); }
+  };
 
   return (
     <div className="space-y-2">
@@ -34,35 +62,38 @@ export default function TypeField({ id, organizationId, category, value, onChang
         role="combobox"
         aria-expanded={open}
         aria-controls={`${id}-list`}
+        aria-activedescendant={listShown && active >= 0 && active < optionCount ? optionId(active) : undefined}
         autoComplete="off"
         value={value}
         placeholder={category ? 'e.g., Microphone, Vocal, Dynamic' : 'Choose a category first'}
         onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
-        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
-        onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}
+        onBlur={() => { setOpen(false); setActive(-1); }}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); setActive(-1); }}
+        onKeyDown={onKeyDown}
       />
-      {open && category && (shown.length > 0 || isNew) && (
+      {listShown && (
         <div className="rounded-md border bg-white shadow-md overflow-hidden">
           <div className="px-2.5 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground bg-gray-50">Types used in {category}</div>
           <div id={`${id}-list`} role="listbox" aria-label={`Types used in ${category}`} className="max-h-48 overflow-y-auto text-sm">
-            {shown.map((t) => {
+            {shown.map((t, i) => {
               const cut = t.type.lastIndexOf(',') + 1;
               return (
-                <div key={t.type} role="option" aria-selected={t.type === value} tabIndex={-1}
+                <div key={t.type} id={optionId(i)} role="option" aria-selected={t.type === value} tabIndex={-1}
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { onChange(t.type); setOpen(false); }}
-                  className="flex justify-between gap-3 px-2.5 py-1.5 cursor-pointer hover:bg-sky-50">
+                  onClick={() => choose(i)}
+                  onKeyDown={optionKeys(i)}
+                  className={`flex justify-between gap-3 px-2.5 py-1.5 cursor-pointer hover:bg-sky-50${active === i ? ' bg-sky-50' : ''}`}>
                   <span className="min-w-0 truncate"><span className="text-muted-foreground">{t.type.slice(0, cut)}</span><strong>{t.type.slice(cut)}</strong></span>
                   <span className="text-xs text-muted-foreground tabular-nums">{t.count}</span>
                 </div>
               );
             })}
             {isNew && (
-              <div role="option" aria-selected={false} tabIndex={-1}
+              <div id={optionId(shown.length)} role="option" aria-selected={false} tabIndex={-1}
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setOpen(false)}
-                className="px-2.5 py-1.5 cursor-pointer text-sky-700 border-t hover:bg-sky-50">
+                onClick={() => choose(shown.length)}
+                onKeyDown={optionKeys(shown.length)}
+                className={`px-2.5 py-1.5 cursor-pointer text-sky-700 border-t hover:bg-sky-50${active === shown.length ? ' bg-sky-50' : ''}`}>
                 + Use "{typed}" as a new type
               </div>
             )}

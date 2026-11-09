@@ -138,7 +138,8 @@ export default function PurchaseLineRow({ item, expanded, onToggle, actions }: P
               </p>
             )}
             {isAdmin && lineTaxTreatment(item) === 'expense' && (
-              <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+              // Keeps clicks in the gig picker from also opening or closing the line.
+              <div role="presentation" className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                 <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Assign Gig:</span>
                 <div className="w-[360px] max-w-full">
                   <GigCombobox
@@ -167,7 +168,7 @@ export default function PurchaseLineRow({ item, expanded, onToggle, actions }: P
               </div>
             )}
             {!item.asset_id && (userRole === 'Admin' || userRole === 'Manager') && (
-              <div className="mt-3 pt-3 border-t border-gray-200" onClick={(e) => e.stopPropagation()}>
+              <div role="presentation" className="mt-3 pt-3 border-t border-gray-200" onClick={(e) => e.stopPropagation()}>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="outline" size="sm" className="h-7 px-3 text-xs text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700">
