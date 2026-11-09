@@ -78,6 +78,8 @@ Everything is orchestrated by [`deploy_prod.sh`](../../deploy_prod.sh) at the re
 ./deploy_prod.sh
 ```
 
+**Node ≥ 22.22** is required to build (react-router 8; `engines` in `package.json`). Check `node -v` on the machine or cloud session that runs the deploy; CI's `ci` job uses Node 22.22.
+
 The script mirrors all output to a timestamped log at `./backups/deploy-<timestamp>.log` for post-mortems.
 
 ### Stage 1 — Pre-flight gates (nothing is touched yet)
@@ -157,7 +159,7 @@ No branch/cleanliness/test gates and no backups — dev is where unmerged work l
 
 [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs four jobs on every push and pull request to `main`.
 
-**`ci`**:
+**`ci`** (Node 22.22):
 
 1. `npm ci`
 2. `npm audit --omit=dev --audit-level=high` — a high-severity advisory in what ships to the browser fails the build; dev-only tools are left out
