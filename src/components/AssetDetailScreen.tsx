@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Edit2, Trash2, Copy, Loader2, History, CreditCard, ExternalLink, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -13,17 +13,13 @@ import { PageHeader } from './layout/PageHeader';
 import AttachmentManager from './AttachmentManager';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 import { canManage } from '../utils/permissions';
-import { getAsset, deleteAsset, duplicateAsset, getAssetHistory, getAssetInventoryTracking } from '../services/asset.service';
-import type { DbInventoryTracking, ActivityLogEntry } from '../utils/supabase/types';
 import ActivityFeed from './ActivityFeed';
 import { ASSET_STATUS_CONFIG } from '../utils/supabase/constants';
 import { KindPill } from './equipment/ItemsTable';
 import { recordKind } from '../utils/equipmentItems';
-import { undoWriteOff } from '../services/writeOff.service';
-import { getLockedTaxYears } from '../services/taxYear.service';
+import { useAssetDetailData } from './asset/useAssetDetailData';
 import { WRITE_OFF_LOCKED_MESSAGE } from '../utils/writeOffMessages';
 import { formatDateOnly } from '../utils/dateOnly';
-import { useLatestRequest } from '../utils/hooks/useLatestRequest';
 
 interface AssetDetailScreenProps {
   organization: Organization;
@@ -53,34 +49,34 @@ export default function AssetDetailScreen({
   onLogout,
   onNavigateToPurchases,
 }: AssetDetailScreenProps) {
-  const [asset, setAsset] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [assetActivity, setAssetActivity] = useState<ActivityLogEntry[]>([]);
-  const [inventoryTracking, setInventoryTracking] = useState<DbInventoryTracking[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  // A Missing record (#242): Undo right here, unless its tax year is filed.
-  const [lockedYears, setLockedYears] = useState<Set<number>>(new Set());
   const [undoing, setUndoing] = useState(false);
+  const {
+    assetQuery,
+    activity: assetActivity,
+    inventoryTracking,
+    isLoadingHistory,
+    lockedYears,
+    undoWriteOff: undoWriteOffMutation,
+    duplicateAsset: duplicateAssetMutation,
+    deleteAsset: deleteAssetMutation,
+  } = useAssetDetailData(assetId, organization.id, { canUndoWriteOff: canManage(userRole) });
+  const asset: any = assetQuery.data ?? null;
+  const isLoading = assetQuery.isPending;
+  const loadError = assetQuery.error ? (assetQuery.error as Error).message || 'Failed to load this asset.' : null;
+  // A Missing record (#242): Undo right here, unless its tax year is filed.
   const isMissing = asset?.status === 'Missing' && canManage(userRole);
   const writeOffYear = asset?.retired_on ? Number(String(asset.retired_on).slice(0, 4)) : null;
   const undoLocked = writeOffYear != null && lockedYears.has(writeOffYear);
-
-  useEffect(() => {
-    if (!isMissing) return;
-    let live = true;
-    getLockedTaxYears(organization.id).then((y) => { if (live) setLockedYears(y); }).catch(() => {});
-    return () => { live = false; };
-  }, [isMissing, organization.id]);
+  const loadAsset = () => { assetQuery.refetch(); };
 
   const handleUndoWriteOff = async () => {
     setUndoing(true);
     try {
-      const back = await undoWriteOff(assetId);
+      const back = await undoWriteOffMutation.mutateAsync();
       toast.success('Write-off undone');
       // Pieces split off a lot go back into it: this record is gone, so go to the item.
+      // Otherwise the hook reloads this record.
       if (back && back !== assetId && asset?.equipment_item_id && onBackToItem) onBackToItem(asset.equipment_item_id);
-      else await loadAsset();
     } catch (err) {
       toast.error(err instanceof Error && err.message ? err.message : 'Could not undo the write-off');
     } finally {
@@ -88,48 +84,9 @@ export default function AssetDetailScreen({
     }
   };
 
-  // A late answer for an earlier record is dropped (B12).
-  const startAssetRequest = useLatestRequest();
-  const loadAsset = useCallback(async () => {
-    const isCurrent = startAssetRequest();
-    setIsLoading(true);
-    setLoadError(null);
-    try {
-      const data = await getAsset(assetId);
-      if (!isCurrent()) return;
-      setAsset(data);
-
-      // Load history tables concurrently
-      setIsLoadingHistory(true);
-      try {
-        const [history, tracking] = await Promise.all([
-          getAssetHistory(assetId),
-          getAssetInventoryTracking(assetId),
-        ]);
-        if (!isCurrent()) return;
-        setAssetActivity(history);
-        setInventoryTracking(tracking);
-      } catch (err) {
-        if (isCurrent()) console.error('Error loading asset history:', err);
-      } finally {
-        if (isCurrent()) setIsLoadingHistory(false);
-      }
-    } catch (error: any) {
-      if (!isCurrent()) return;
-      console.error('Error loading asset:', error);
-      setLoadError(error.message || 'Failed to load this asset.');
-    } finally {
-      if (isCurrent()) setIsLoading(false);
-    }
-  }, [assetId, startAssetRequest]);
-
-  useEffect(() => {
-    loadAsset();
-  }, [loadAsset]);
-
   const handleDuplicate = async () => {
     try {
-      const _newAsset = await duplicateAsset(assetId);
+      await duplicateAssetMutation.mutateAsync();
       toast.success('Asset duplicated successfully');
       onBack(); // Go back to list, where the new asset will appear
     } catch (error: any) {
@@ -142,7 +99,7 @@ export default function AssetDetailScreen({
     if (!confirm(`Are you sure you want to delete "${asset?.manufacturer_model}"?`)) return;
 
     try {
-      await deleteAsset(assetId);
+      await deleteAssetMutation.mutateAsync();
       toast.success('Asset deleted successfully');
       onBack();
     } catch (error: any) {

@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {Package, Plus, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { getKits, deleteKit, duplicateKit, updateKit, getKitsFlattenedSummary, KitFlattenedSummary } from '../services/kit.service';
-import { getKitTrackingSummary, getPackingListReport, KitTrackingSummary } from '../services/inventoryManagement.service';
-import { kitStatusLead, kitStatusSummary, summarizeKitPacking, type KitPackingSummary } from '../utils/packingSummary';
+import type { KitFlattenedSummary } from '../services/kit.service';
+import type { KitTrackingSummary } from '../services/inventoryManagement.service';
+import { kitStatusLead, kitStatusSummary, type KitPackingSummary } from '../utils/packingSummary';
+import { useKitListData } from './kit/useKitListData';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -33,31 +34,6 @@ interface KitListScreenProps {
   onLogout: () => void;
 }
 
-/**
- * Each out kit's pieces at its active gig, counted by that gig's packing list (#278), one report
- * per gig. A kit at home, a container (one piece) or a gig whose report fails gets no count.
- */
-async function packingAtActiveGigs(organizationId: string, tracking: Map<string, KitTrackingSummary>): Promise<Map<string, KitPackingSummary>> {
-  const kitsByGig = new Map<string, string[]>();
-  for (const t of tracking.values()) {
-    if (t.isContainer || !t.gigId) continue;
-    kitsByGig.set(t.gigId, [...(kitsByGig.get(t.gigId) ?? []), t.kitId]);
-  }
-  const result = new Map<string, KitPackingSummary>();
-  await Promise.all([...kitsByGig].map(async ([gigId, kitIds]) => {
-    try {
-      const byKit = summarizeKitPacking(await getPackingListReport(organizationId, gigId));
-      for (const kitId of kitIds) {
-        const summary = byKit.get(kitId);
-        if (summary) result.set(kitId, summary);
-      }
-    } catch {
-      // No count for this gig's kits; the status still shows.
-    }
-  }));
-  return result;
-}
-
 export default function KitListScreen({
   organization,
   user,
@@ -74,82 +50,56 @@ export default function KitListScreen({
   onSwitchOrganization,
   onLogout,
 }: KitListScreenProps) {
-  // Memoize filters to prevent infinite re-renders
-  const [allKits, setAllKits] = useState<any[]>([]);
+  const {
+    data,
+    isLoading,
+    error,
+    refresh,
+    updateKit: updateKitMutation,
+    duplicateKit: duplicateKitMutation,
+    deleteKit: deleteKitMutation,
+  } = useKitListData(organization.id);
+  const allKits = useMemo<any[]>(() => data?.kits ?? [], [data]);
+  const kitTrackingSummary = useMemo(() => data?.tracking ?? new Map<string, KitTrackingSummary>(), [data]);
+  const kitFlattenedSummary = useMemo(() => data?.flattened ?? new Map<string, KitFlattenedSummary>(), [data]);
+  const kitPacking = useMemo(() => data?.packing ?? new Map<string, KitPackingSummary>(), [data]);
   const [_filteredKits, setFilteredKits] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [kitTrackingSummary, setKitTrackingSummary] = useState<Map<string, KitTrackingSummary>>(new Map());
-  const [kitFlattenedSummary, setKitFlattenedSummary] = useState<Map<string, KitFlattenedSummary>>(new Map());
-  const [kitPacking, setKitPacking] = useState<Map<string, KitPackingSummary>>(new Map());
   const [trackingStatusFilter, setTrackingStatusFilter] = useState<string>('All');
-
-  const refresh = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const [kits, trackingSummary] = await Promise.all([
-        getKits(organization.id),
-        getKitTrackingSummary(organization.id),
-      ]);
-      setAllKits(kits);
-      setKitTrackingSummary(trackingSummary);
-      // Items/Total Value must reflect each kit's fully-flattened contents,
-      // not just its direct kit_components rows — a sub-kit row carries no
-      // asset/quantity of its own, so summing those directly silently drops
-      // every nested kit's contribution (see getKitsFlattenedSummary).
-      const [flattened, packing] = await Promise.all([
-        getKitsFlattenedSummary(kits.map((k: any) => k.id)),
-        packingAtActiveGigs(organization.id, trackingSummary),
-      ]);
-      setKitFlattenedSummary(flattened);
-      setKitPacking(packing);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load kits');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [organization.id]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
 
   const handleUpdateKit = async (id: string, updates: Partial<any>) => {
     try {
-      await updateKit(id, updates);
-      setAllKits(prev => prev.map(k => k.id === id ? { ...k, ...updates } : k));
+      await updateKitMutation.mutateAsync({ id, updates });
       toast.success('Kit updated');
     } catch (err: any) {
+      // The hook reloads the list.
       toast.error(err.message || 'Failed to update kit');
-      refresh();
     }
   };
 
+  const { mutateAsync: duplicateKitAsync } = duplicateKitMutation;
   const handleDuplicateKit = useCallback(async (kitId: string, kitName: string) => {
     try {
-      await duplicateKit(kitId);
+      await duplicateKitAsync(kitId);
       toast.success(`Kit "${kitName}" duplicated successfully`);
-      refresh();
     } catch (error: any) {
       console.error('Error duplicating kit:', error);
       toast.error(error.message || 'Failed to duplicate kit');
     }
-  }, [refresh]);
+  }, [duplicateKitAsync]);
 
+  const { mutateAsync: deleteKitAsync } = deleteKitMutation;
   const handleDeleteKit = useCallback(async (kitId: string, kitName: string) => {
     if (!confirm(`Are you sure you want to delete "${kitName}"?`)) return;
 
+    // The hook reloads the list either way.
     try {
-      await deleteKit(kitId);
+      await deleteKitAsync(kitId);
       toast.success('Kit deleted successfully');
-      refresh();
     } catch (error: any) {
       console.error('Error deleting kit:', error);
       toast.error(error.message || 'Failed to delete kit');
-      refresh();
     }
-  }, [refresh]);
+  }, [deleteKitAsync]);
 
   const displayedKits = useMemo(() => {
     if (trackingStatusFilter === 'All') return allKits;
@@ -366,7 +316,7 @@ export default function KitListScreen({
               <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
               <h3 className="text-gray-900 mb-2">Error loading kits</h3>
               <p className="text-gray-600 mb-6">{error}</p>
-              <Button onClick={refresh} variant="outline">
+              <Button onClick={() => refresh()} variant="outline">
                 Try Again
               </Button>
             </div>

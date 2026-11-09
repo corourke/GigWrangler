@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, Layers, Loader2, Pencil, Plus, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import AppHeader from './AppHeader';
@@ -13,11 +13,9 @@ import { cn } from './ui/utils';
 import { EditSaveStatus } from './gig/edit/GigEditParts';
 import { KindPill, StatusBadge } from './equipment/ItemsTable';
 import { TrackingStatusBadge } from './inventory/TrackingStatusBadge';
-import {
-  getItem, getContainerPieces, getItemKitLines, updateItem,
-  type EquipmentItemWithRecords, type ItemFields, type ItemKitLine,
-} from '../services/equipmentItem.service';
-import { getAssetTrackingSummary, getItemWhereabouts, type ItemWhereabout } from '../services/inventoryManagement.service';
+import type { ItemFields, ItemKitLine } from '../services/equipmentItem.service';
+import type { ItemWhereabout } from '../services/inventoryManagement.service';
+import { useItemDetailData } from './equipment/useItemDetailData';
 import { whereTheyAreLines } from '../utils/whereaboutText';
 import { recordKind, summarizeItem } from '../utils/equipmentItems';
 import { useAutoSave } from '../utils/hooks/useAutoSave';
@@ -82,52 +80,32 @@ export default function ItemDetailScreen({
   organization, user, userRole, itemId, onBack, onViewAsset, onAddRecord, onViewKit,
   onSwitchOrganization, onEditProfile, onLogout,
 }: ItemDetailScreenProps) {
-  const [item, setItem] = useState<EquipmentItemWithRecords | null>(null);
-  const [tracking, setTracking] = useState<Tracking>(new Map());
-  const [places, setPlaces] = useState<ItemWhereabout[]>([]);
-  const [inContainers, setInContainers] = useState<[number, number]>([0, 0]);
-  const [kitLines, setKitLines] = useState<ItemKitLine[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const { data, tracking: loadedTracking, error: loadError, retry, updateItem: updateItemMutation } =
+    useItemDetailData(itemId, organization.id);
+  const item = data?.item ?? null;
+  const tracking: Tracking = useMemo(() => loadedTracking ?? new Map(), [loadedTracking]);
+  const places: ItemWhereabout[] = useMemo(() => data?.places ?? [], [data]);
+  const inContainers = useMemo<[number, number]>(() => data?.inContainers ?? [0, 0], [data]);
+  const kitLines: ItemKitLine[] = data?.kitLines ?? [];
+  const load = () => { retry(); };
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Required<ItemFields>>({ category: '', manufacturer_model: '', type: '', description: '', insurance_class: '' });
   const canEdit = canManage(userRole);
-
-  const load = useCallback(async () => {
-    try {
-      setLoadError(null);
-      const loaded = await getItem(itemId);
-      setItem(loaded);
-      const recordIds = loaded.records.map((r) => r.id);
-      const [summary, containers, lines, where] = await Promise.all([
-        getAssetTrackingSummary(organization.id),
-        getContainerPieces(organization.id, [loaded]),
-        getItemKitLines(loaded.id, recordIds),
-        getItemWhereabouts(organization.id, loaded.records),
-      ]);
-      setTracking(summary);
-      setPlaces(where);
-      setInContainers([containers.all.get(loaded.id) ?? 0, containers.active.get(loaded.id) ?? 0]);
-      setKitLines(lines);
-    } catch (err: any) {
-      setLoadError(err.message || 'Failed to load this item');
-    }
-  }, [itemId, organization.id]);
-
-  useEffect(() => { load(); }, [load]);
 
   // Whether the latest save failed; Done keeps the page in edit mode if so.
   const saveFailedRef = useRef(false);
   // Stable, as useAutoSave needs: a new onSave each render makes it send the
   // pending save on every render, skipping the debounce.
+  const { mutateAsync: saveItemFields } = updateItemMutation;
   const saveItem = useCallback(async (fields: Required<ItemFields>) => {
     saveFailedRef.current = true;
     if (!fields.manufacturer_model.trim() || !fields.category.trim()) {
       throw new Error('An item needs a manufacturer & model and a category.');
     }
-    await updateItem(itemId, fields);
+    // The hook writes the saved fields into the page's cache.
+    await saveItemFields(fields);
     saveFailedRef.current = false;
-    setItem((prev) => (prev ? { ...prev, ...fields } : prev));
-  }, [itemId]);
+  }, [saveItemFields]);
   const { saveState, triggerSave, flushAsync, saveNow } = useAutoSave<Required<ItemFields>>({
     gigId: itemId,
     onSave: saveItem,

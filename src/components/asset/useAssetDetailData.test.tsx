@@ -14,11 +14,11 @@ vi.mock('../../services/asset.service', () => ({
 vi.mock('../../services/writeOff.service', () => ({ undoWriteOff: vi.fn() }))
 vi.mock('../../services/taxYear.service', () => ({ getLockedTaxYears: vi.fn() }))
 
-function setup(lockedYears = false) {
+function setup(canUndoWriteOff = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
   const invalidate = vi.spyOn(client, 'invalidateQueries')
-  const hook = renderHook(() => useAssetDetailData('a1', 'org-1', { lockedYears }), { wrapper })
+  const hook = renderHook(() => useAssetDetailData('a1', 'org-1', { canUndoWriteOff }), { wrapper })
   return { client, invalidate, hook }
 }
 const invalidatedKeys = (spy: ReturnType<typeof vi.spyOn>) => spy.mock.calls.map((c: any[]) => c[0]?.queryKey)
@@ -43,9 +43,12 @@ describe('useAssetDetailData (A10)', () => {
     expect(client.getQueryCache().find({ queryKey: queryKeys.asset('a1') })!.isStale()).toBe(true)
   })
 
-  it('reads the filed tax years only when asked', async () => {
-    const off = setup(false)
-    await waitFor(() => expect(off.hook.result.current.assetQuery.isSuccess).toBe(true))
+  it('reads the filed tax years only for a Missing record the role may bring back', async () => {
+    const active = setup(true)
+    await waitFor(() => expect(active.hook.result.current.assetQuery.isSuccess).toBe(true))
+    vi.mocked(getAsset).mockResolvedValue({ id: 'a1', status: 'Missing' } as any)
+    const staff = setup(false)
+    await waitFor(() => expect(staff.hook.result.current.assetQuery.isSuccess).toBe(true))
     expect(getLockedTaxYears).not.toHaveBeenCalled()
     const on = setup(true)
     await waitFor(() => expect(on.hook.result.current.lockedYears).toEqual(new Set([2025])))
