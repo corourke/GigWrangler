@@ -27,7 +27,7 @@ export function useSimpleFormChanges<T extends FieldValues>({
   const [nestedDataChanged, setNestedDataChanged] = useState(false);
 
   // Track previous data for comparison
-  const prevDataRef = useRef<Partial<T>>();
+  const prevDataRef = useRef<Partial<T> | undefined>(undefined);
 
   /**
    * Check if data has changed using simple reference comparison
