@@ -595,6 +595,7 @@ export function SmartDataTable<T extends { id: string }>({
                                 value={filters[column.id] || ''}
                                 onChange={(e) => setFilter(column.id, e.target.value)}
                                 className="pl-8 h-8 text-sm"
+                                // eslint-disable-next-line jsx-a11y/no-autofocus -- a column filter opens to type, as before
                                 autoFocus
                               />
                             </div>

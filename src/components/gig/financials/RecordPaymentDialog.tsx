@@ -100,7 +100,7 @@ export default function RecordPaymentDialog({ row, onOpenChange, onSubmit }: Rec
               other {formatMoney(short, row.currency)}?
             </legend>
             <RadioGroup value={remainder} onValueChange={(v) => setRemainder(v as 'split' | 'settle')}>
-              <label className="flex gap-3 items-start border rounded-md p-3 cursor-pointer has-[button[data-state=checked]]:border-sky-700">
+              <label htmlFor="rp-split" className="flex gap-3 items-start border rounded-md p-3 cursor-pointer has-[button[data-state=checked]]:border-sky-700">
                 <RadioGroupItem value="split" id="rp-split" className="mt-0.5" />
                 <span>
                   <span className="font-medium">Still owed: split it into its own row</span>
@@ -110,7 +110,7 @@ export default function RecordPaymentDialog({ row, onOpenChange, onSubmit }: Rec
                   </span>
                 </span>
               </label>
-              <label className="flex gap-3 items-start border rounded-md p-3 cursor-pointer has-[button[data-state=checked]]:border-sky-700">
+              <label htmlFor="rp-settle" className="flex gap-3 items-start border rounded-md p-3 cursor-pointer has-[button[data-state=checked]]:border-sky-700">
                 <RadioGroupItem value="settle" id="rp-settle" className="mt-0.5" />
                 <span>
                   <span className="font-medium">Not coming: settle for {formatMoney(value, row.currency)}</span>

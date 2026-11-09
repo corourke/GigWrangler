@@ -434,8 +434,9 @@ export default function KitDetailScreen({
         <Card className="p-6 mt-4">
           <div className="flex items-start justify-between gap-4 mb-1">
             <h3 className="text-gray-900">Kit Structure</h3>
-            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap">
+            <label htmlFor="kit-show-container-contents" className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer whitespace-nowrap">
               <Checkbox
+                id="kit-show-container-contents"
                 checked={showContainerContents}
                 onCheckedChange={(checked) => setShowContainerContents(checked === true)}
               />

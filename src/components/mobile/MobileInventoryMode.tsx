@@ -1777,8 +1777,9 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
                   <div key={`${item.kit_id}|${item.asset_id ?? ''}`} className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2">
                     <span className="text-sm truncate">{item.name} · {item.quantity}</span>
                     {item.asset_id && canManage(userRole) && navigator.onLine ? (
-                      <label className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                      <label htmlFor={`finish-missing-${index}`} className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
                         <Checkbox
+                          id={`finish-missing-${index}`}
                           aria-label={`${item.name} missing`}
                           checked={item.missing}
                           onCheckedChange={(checked) => setFinishing((current) => current?.map((c, i) => (i === index ? { ...c, missing: checked === true } : c)) ?? null)}
