@@ -117,6 +117,7 @@ export default function CalendarIntegrationSettings({
 
   useEffect(() => {
     loadSettings();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads once per user; loadSettings and the loaders it calls read only userId
   }, [userId]);
 
   const loadSettings = async () => {

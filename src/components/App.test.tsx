@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
 import App from '../App'
-import { AuthProvider } from '../contexts/AuthContext'
+import { AuthProvider } from '../contexts/AuthProvider'
 import * as _userService from '../services/user.service'
 
 // Mock user service functions
@@ -26,8 +26,10 @@ vi.mock('../utils/supabase/client', () => ({
 }))
 
 // Mock NavigationContext
-vi.mock('../contexts/NavigationContext', () => ({
+vi.mock('../contexts/NavigationProvider', () => ({
   NavigationProvider: ({ children }: { children: React.ReactNode }) => children,
+}))
+vi.mock('../contexts/NavigationContext', () => ({
   useNavigation: vi.fn(() => ({
     navigateToGigs: vi.fn(),
     navigateToAssets: vi.fn(),

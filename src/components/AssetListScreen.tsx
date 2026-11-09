@@ -1,4 +1,4 @@
-import {useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {Package, Plus, Search, Loader2, AlertCircle, Upload, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { deleteAsset, duplicateAsset, updateAsset } from '../services/asset.service';
@@ -79,7 +79,7 @@ export default function AssetListScreen({
   const [trackingStatusFilter, setTrackingStatusFilter] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -95,11 +95,11 @@ export default function AssetListScreen({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [organization.id]);
 
   useEffect(() => {
     refresh();
-  }, [organization.id]);
+  }, [refresh]);
 
   const handleUpdateAsset = async (id: string, updates: Partial<DbAsset>) => {
     try {
@@ -112,7 +112,7 @@ export default function AssetListScreen({
     }
   };
 
-  const handleDeleteAsset = async (assetId: string) => {
+  const handleDeleteAsset = useCallback(async (assetId: string) => {
     if (!confirm('Are you sure you want to delete this asset?')) return;
 
     // Optimistically remove the asset from the UI immediately
@@ -140,9 +140,9 @@ export default function AssetListScreen({
       // Refresh to ensure consistency
       refresh();
     }
-  };
+  }, [refresh]);
 
-  const handleDuplicateAsset = async (assetId: string) => {
+  const handleDuplicateAsset = useCallback(async (assetId: string) => {
     try {
       await duplicateAsset(assetId);
       toast.success('Asset duplicated successfully');
@@ -150,7 +150,7 @@ export default function AssetListScreen({
     } catch (err: any) {
       toast.error(err.message || 'Failed to duplicate asset');
     }
-  };
+  }, [refresh]);
 
   const handleUploadInvoice = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

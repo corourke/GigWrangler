@@ -1,21 +1,25 @@
-import { useEffect, useState } from 'react';
+import { lazy, useEffect, useState } from 'react';
 import { Navigate, Outlet, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppShell } from './appShell';
 import { prefetchLandingScreen } from './prefetch';
 import LoginScreen from '../components/LoginScreen';
-import UserProfileCompletionScreen from '../components/UserProfileCompletionScreen';
-import TemporaryPasswordScreen from '../components/TemporaryPasswordScreen';
-import TwoFactorChallengeScreen from '../components/security/TwoFactorChallengeScreen';
-import TwoFactorSetupRequiredScreen from '../components/security/TwoFactorSetupRequiredScreen';
 import TwoFactorReminder from '../components/security/TwoFactorReminder';
-import AcceptInvitationScreen from '../components/AcceptInvitationScreen';
-import ResetPasswordScreen from '../components/ResetPasswordScreen';
 import InvitationErrorScreen from '../components/InvitationErrorScreen';
-import CalendarAuthCallback from '../components/CalendarAuthCallback';
 import { Button } from '../components/ui/button';
 import { canManage } from '../utils/permissions';
 import type { User } from '../utils/supabase/types';
+
+// Screens most sessions never see (first sign-in, a temporary password, two-factor, a reset link,
+// an invitation, the calendar callback) load on demand, keeping them out of the entry chunk (A21).
+// The route table's Suspense and ChunkLoadBoundary cover them. LoginScreen stays eager.
+const UserProfileCompletionScreen = lazy(() => import('../components/UserProfileCompletionScreen'));
+const TemporaryPasswordScreen = lazy(() => import('../components/TemporaryPasswordScreen'));
+const TwoFactorChallengeScreen = lazy(() => import('../components/security/TwoFactorChallengeScreen'));
+const TwoFactorSetupRequiredScreen = lazy(() => import('../components/security/TwoFactorSetupRequiredScreen'));
+const AcceptInvitationScreen = lazy(() => import('../components/AcceptInvitationScreen'));
+const ResetPasswordScreen = lazy(() => import('../components/ResetPasswordScreen'));
+const CalendarAuthCallback = lazy(() => import('../components/CalendarAuthCallback'));
 
 export function LoadingSpinner() {
   return (

@@ -2,10 +2,10 @@
 // be unit-tested).
 
 export const LIMITS = {
-  // Our own budget for the entry chunk (main bundle). Well under the per-file
-  // limit so there is headroom for growth, such as a real Sentry DSN pulling
-  // in ~72 KB more.
-  entryMax: 1_200_000,
+  // Our own budget for the entry chunk (main bundle): about 10% over its size after A21
+  // (799,302 bytes, measured as CI does, with a dummy Sentry DSN so @sentry is included).
+  // Raise it only with a reason; prefer lazy-loading what grew.
+  entryMax: 880_000,
   // Workbox's default `maximumFileSizeToCacheInBytes`. A larger file is
   // silently dropped from the service worker's precache, which breaks offline.
   fileMax: 2_097_152,
@@ -20,6 +20,20 @@ export const LIMITS = {
  * would be served publicly and precached. */
 export function findSourceMaps(names) {
   return names.filter((name) => name.endsWith('.map'));
+}
+
+/**
+ * Libraries that must stay out of the entry chunk (A21), each with a string its built code always
+ * contains. react-big-calendar belongs to the lazy gig list screen; recharts is not a dependency.
+ */
+export const ENTRY_FORBIDDEN = [
+  { name: 'react-big-calendar', marker: 'rbc-calendar' },
+  { name: 'recharts', marker: 'recharts-wrapper' },
+];
+
+/** Names of the ENTRY_FORBIDDEN libraries whose marker appears in the entry chunk's source. */
+export function forbiddenInEntry(source, forbidden = ENTRY_FORBIDDEN) {
+  return forbidden.filter(({ marker }) => source.includes(marker)).map(({ name }) => name);
 }
 
 export function findEntryChunk(indexHtml) {

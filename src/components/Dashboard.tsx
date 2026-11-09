@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import AppHeader from './AppHeader';
@@ -98,19 +98,7 @@ export default function Dashboard({
   // Money figures are Admin/Manager only; the server returns 0 for everyone else.
   const showFinancials = canManage(userRole);
 
-  useEffect(() => {
-    fetchDashboardStats();
-  }, [organization.id]);
-
-  useEffect(() => {
-    setActivityLoading(true);
-    getRecentActivity({ eventTypes: ['gig.status_changed', 'gig.rescheduled', 'gig.renamed', 'participant.added', 'participant.removed'] })
-      .then(setRecentActivity)
-      .catch(() => {})
-      .finally(() => setActivityLoading(false));
-  }, []);
-
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -140,7 +128,19 @@ export default function Dashboard({
     } finally {
       setLoading(false);
     }
-  };
+  }, [organization.id]);
+
+  useEffect(() => {
+    fetchDashboardStats();
+  }, [fetchDashboardStats]);
+
+  useEffect(() => {
+    setActivityLoading(true);
+    getRecentActivity({ eventTypes: ['gig.status_changed', 'gig.rescheduled', 'gig.renamed', 'participant.added', 'participant.removed'] })
+      .then(setRecentActivity)
+      .catch(() => {})
+      .finally(() => setActivityLoading(false));
+  }, []);
 
   const formatCurrency = (value: number) => {
     if (value >= 1000000) {

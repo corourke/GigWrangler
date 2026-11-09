@@ -19,7 +19,8 @@ import type { PersonMatch, UserRole } from '../../utils/supabase/types';
 import { useUserSearch, useTeamMutations } from './useTeamData';
 import { useOrganizationContactMutations } from '../organization/useOrganizationContacts';
 import { usePersonMatches } from '../organization/usePersonMatches';
-import PersonMatchResults, { personMatchDetail } from '../organization/PersonMatchResults';
+import PersonMatchResults from '../organization/PersonMatchResults';
+import { personMatchDetail } from '../organization/personMatchDetail';
 import { canAssignRole } from '../../utils/permissions';
 
 const ROLE_OPTIONS: Array<{ value: UserRole; label: string; icon: ReactNode }> = [

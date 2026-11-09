@@ -361,6 +361,15 @@ The token is a Sentry **organization auth token** with the `project:releases` an
 
 `deploy_prod.sh` exports `BUILD_TIMESTAMP` (read by the build) and sets the function secret `SENTRY_RELEASE=gigwrangler@$BUILD_TIMESTAMP` before deploying the functions, so web and edge events from one deploy share a release. Without `SENTRY_RELEASE`, edge events have no release, as before.
 
+#### Cloud deploy (without deploy_prod.sh)
+
+While deploys run from cloud sessions instead of `./deploy_prod.sh` (the functions from one session, the website from a deploy session with `npx vite build --mode production` and `npx wrangler pages deploy build/ --project-name gigwrangler`), do by hand what the script does for Sentry:
+
+1. Pick one timestamp for the deploy: `BUILD_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)`.
+2. Before deploying the functions, set `supabase secrets set "SENTRY_RELEASE=gigwrangler@$BUILD_TIMESTAMP"` (after checking `supabase/.temp/project-ref`).
+3. Build the website with the same value: `BUILD_TIMESTAMP=<that value> npx vite build --mode production`, then `npm run check:bundle` before `wrangler pages deploy`.
+4. `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and `SENTRY_PROJECT` are environment variables on the cloud deploy environment (never in the repo); without them the build uploads nothing and emits no maps.
+
 #### Edge logs
 
 The edge functions log through `supabase/functions/_shared/log.ts`: one JSON line per event, `{"level","event","time",...fields,"err"}`, where `event` is a stable dotted name such as `calendar.token_exchange_failed`. Filter on it in the Supabase log explorer. What never gets written: request bodies or any object (an object field becomes `"[object]"`), fields named like body, password, secret, token, cookie, authorization, email, phone or address (`"[redacted]"`), and emails or tokens inside strings (`sentryScrub`'s `scrubText`). An error is reduced to its name, code and message. Tests: `supabase/functions/server/test/log_test.ts`.
