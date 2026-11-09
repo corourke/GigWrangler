@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 import { AuthProvider } from './AuthProvider';
 import { createClient } from '../utils/supabase/client';
 import * as userService from '../services/user.service';
+import { queryClient } from '../lib/queryClient';
 
 // Mock Supabase client
 vi.mock('../utils/supabase/client', () => ({
@@ -325,6 +326,80 @@ describe('AuthContext: offline store', () => {
     renderHook(() => useAuth(), { wrapper });
     await act(async () => { authChangeHandler('SIGNED_OUT', null); });
     expect(releaseOfflineStore).toHaveBeenCalled();
+  });
+});
+
+// The app's query cache holds one person's answers: cleared at sign-out and when someone else signs
+// in on the tab, before their screens load.
+describe('AuthContext: query cache', () => {
+  let mockSupabase: any;
+  let authChangeHandler: any;
+  const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
+  const cached = () => queryClient.getQueryCache().getAll().map((q) => q.queryKey);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    queryClient.clear();
+    mockSupabase = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+        getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+        signOut: vi.fn().mockResolvedValue({ error: null }),
+        onAuthStateChange: vi.fn().mockImplementation((handler: any) => {
+          authChangeHandler = handler;
+          return { data: { subscription: { unsubscribe: vi.fn() } } };
+        }),
+      },
+      channel: vi.fn().mockReturnValue({ on: vi.fn().mockReturnThis(), subscribe: vi.fn().mockReturnThis() }),
+      removeChannel: vi.fn().mockResolvedValue({}),
+    };
+    (createClient as any).mockReturnValue(mockSupabase);
+    (userService.getCompleteUserData as any).mockImplementation(async (id: string) => ({ profile: { id, email: `${id}@example.com` }, organizations: [] }));
+  });
+
+  const signIn = async (result: { current: ReturnType<typeof useAuth> }, id: string, event = 'SIGNED_IN') => {
+    await act(async () => { authChangeHandler(event, { user: { id } }); });
+    await vi.waitFor(() => expect(result.current.user?.id).toBe(id), { timeout: 1000 });
+  };
+
+  it('is empty after logout', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await signIn(result, 'user-a');
+    queryClient.setQueryData(['gigs', 'org-1'], ['a gig']);
+    await act(async () => { await result.current.logout(); });
+    expect(cached()).toEqual([]);
+  });
+
+  it('is empty when the session ends elsewhere', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await signIn(result, 'user-a');
+    queryClient.setQueryData(['gigs', 'org-1'], ['a gig']);
+    await act(async () => { authChangeHandler('SIGNED_OUT', null); });
+    expect(cached()).toEqual([]);
+  });
+
+  it('keeps nothing of user A once user B signs in, cleared before B is loaded', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await signIn(result, 'user-a');
+    queryClient.setQueryData(['gigs', 'org-1'], ['a gig']);
+    let cacheWhenBLoaded: unknown[] | undefined;
+    (userService.getCompleteUserData as any).mockImplementation(async (id: string) => {
+      cacheWhenBLoaded = cached();
+      return { profile: { id, email: `${id}@example.com` }, organizations: [] };
+    });
+    await signIn(result, 'user-b');
+    expect(cacheWhenBLoaded).toEqual([]);
+    expect(cached()).toEqual([]);
+  });
+
+  it('keeps the cache when the same person\'s session is refreshed', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await signIn(result, 'user-a');
+    queryClient.setQueryData(['gigs', 'org-1'], ['a gig']);
+    await act(async () => { authChangeHandler('TOKEN_REFRESHED', { user: { id: 'user-a' } }); });
+    await vi.waitFor(() => expect(userService.getCompleteUserData).toHaveBeenCalledTimes(2), { timeout: 1000 });
+    expect(queryClient.getQueryData(['gigs', 'org-1'])).toEqual(['a gig']);
   });
 });
 

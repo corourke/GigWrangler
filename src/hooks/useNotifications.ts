@@ -9,23 +9,23 @@ import type { Notification } from '../utils/supabase/types';
  * this replaces: the bell has to reflect an event from another session or
  * browser tab, and the app's default query options don't refetch on their own.
  */
-export function useNotifications(enabled: boolean = true) {
+export function useNotifications(userId: string | undefined) {
   return useQuery<Notification[]>({
-    queryKey: queryKeys.notifications(),
+    queryKey: queryKeys.notifications(userId ?? ''),
     queryFn: () => getMyNotifications(),
-    enabled,
+    enabled: !!userId,
     refetchOnWindowFocus: true,
     refetchInterval: 60_000,
   });
 }
 
 /** Dismiss a notification from the bell. */
-export function useMarkNotificationRead() {
+export function useMarkNotificationRead(userId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (notificationId: string) => markNotificationRead(notificationId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notifications() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications(userId ?? '') });
     },
   });
 }

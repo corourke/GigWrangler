@@ -99,7 +99,7 @@ export default function Dashboard({
     staleTime: 0,
   });
   const activityQuery = useQuery({
-    queryKey: queryKeys.recentActivity(),
+    queryKey: queryKeys.recentActivity(user.id),
     queryFn: () => getRecentActivity({ eventTypes: ['gig.status_changed', 'gig.rescheduled', 'gig.renamed', 'participant.added', 'participant.removed'] }),
     staleTime: 0,
   });
