@@ -1,5 +1,6 @@
+import { renderWithQuery as render } from '../../test/renderWithQuery';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EquipmentDetailsDialog, { type EquipmentDetails } from './EquipmentDetailsDialog';
 import { emptyItemDraft, type ItemOption } from '../equipment/form/itemDraft';

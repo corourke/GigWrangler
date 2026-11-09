@@ -81,7 +81,9 @@ describe('timeframes', () => {
   });
 
   it('filters on the gig start date', () => {
-    const g = gig({ gigStart: '2026-10-03T19:00:00Z' });
+    // 7pm local on Oct 3: the filter reads the start as a local calendar date, so build it locally
+    // (19:00Z is already Oct 4 east of UTC+5).
+    const g = gig({ gigStart: new Date(2026, 9, 3, 19, 0).toISOString() });
     expect(inTimeframe(g, { from: '2026-10-01', to: '2026-10-31' })).toBe(true);
     expect(inTimeframe(g, { from: '2026-10-04', to: '' })).toBe(false);
     expect(inTimeframe(g, { from: '', to: '' })).toBe(true);
