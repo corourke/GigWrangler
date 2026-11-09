@@ -92,6 +92,7 @@ vi.mock('../OrganizationSelector', () => ({
 
 describe('GigParticipantsSection', () => {
   const mockProps = {
+    userId: 'user-1',
     gigId: 'test-gig-id',
     currentOrganizationId: 'current-org-id',
     currentOrganizationName: 'Current Org',
@@ -283,6 +284,7 @@ describe('GigParticipantsSection deletes only rows it loaded (#92)', () => {
   const OTHER = '22222222-2222-4222-8222-222222222222';
   const NEW = '33333333-3333-4333-8333-333333333333';
   const props = {
+    userId: 'user-1',
     gigId: 'test-gig-id',
     currentOrganizationId: 'org-1',
     currentOrganizationName: 'Test Org',
@@ -380,6 +382,7 @@ describe('GigParticipantsSection: owner and Inactive (#175)', () => {
     ],
   });
   const props = (orgId: string, orgName: string, userRole = 'Manager') => ({
+    userId: 'user-1',
     gigId: 'g1', currentOrganizationId: orgId, currentOrganizationName: orgName,
     currentOrganizationRole: 'Production' as const, userRole,
   });
@@ -558,7 +561,7 @@ describe('GigParticipantsSection: owner and Inactive (#175)', () => {
 // A10: how the participants section loads, fails and follows the gig. These hold before and
 // after the move to react-query.
 describe('GigParticipantsSection: data loading (A10)', () => {
-  const props = { gigId: 'test-gig-id', currentOrganizationId: 'current-org-id', currentOrganizationName: 'Current Org', currentOrganizationRole: 'Production' as const };
+  const props = { userId: 'user-1', gigId: 'test-gig-id', currentOrganizationId: 'current-org-id', currentOrganizationName: 'Current Org', currentOrganizationRole: 'Production' as const };
 
   beforeEach(() => {
     vi.clearAllMocks();

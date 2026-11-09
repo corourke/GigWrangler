@@ -59,6 +59,8 @@ interface _ParticipantData {
 
 interface GigParticipantsSectionProps {
   gigId: string;
+  /** The signed-in person: whether they are a platform Admin is cached per person. */
+  userId: string;
   currentOrganizationId: string;
   currentOrganizationName: string;
   currentOrganizationRole: OrganizationRole;
@@ -69,6 +71,7 @@ interface GigParticipantsSectionProps {
 
 export default function GigParticipantsSection({
   gigId,
+  userId,
   currentOrganizationId,
   currentOrganizationName,
   currentOrganizationRole,
@@ -85,7 +88,7 @@ export default function GigParticipantsSection({
     gcTime: 0,
   });
   const isLoading = participantsQuery.isPending;
-  const isUserAdmin = useQuery({ queryKey: queryKeys.currentUserIsAdmin(), queryFn: isCurrentUserAdmin, staleTime: 0 }).data ?? false;
+  const isUserAdmin = useQuery({ queryKey: queryKeys.currentUserIsAdmin(userId), queryFn: isCurrentUserAdmin, staleTime: 0 }).data ?? false;
   const [showParticipantNotes, setShowParticipantNotes] = useState<number | null>(null);
   const [currentParticipantNotes, setCurrentParticipantNotes] = useState('');
   const [viewingParticipant, setViewingParticipant] = useState<{ organization: Organization; notes: string } | null>(null);
