@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithQuery as render } from '../../test/renderWithQuery';
 import TwoFactorSettings from './TwoFactorSettings';
 
 const svc = {
@@ -17,6 +18,8 @@ vi.mock('../../services/twoFactor.service', () => ({
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 beforeEach(() => vi.clearAllMocks());
+
+
 
 describe('TwoFactorSettings', () => {
   it('sets up an authenticator: QR code, key, then a code to confirm', async () => {
