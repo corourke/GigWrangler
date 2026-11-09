@@ -65,6 +65,8 @@ export default function UserSelector({
               setIsOpen(true);
             }}
             onFocus={() => setIsOpen(true)}
+            // Escape closes the results but leaves the box focused; a click opens them again.
+            onClick={() => setIsOpen(true)}
             placeholder={placeholder}
             disabled={disabled}
             className="pl-9"
