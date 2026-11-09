@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Card } from '../ui/card';
 import { Skeleton } from '../ui/skeleton';
 import { Organization, UserRole, GigAccountingSummary } from '../../utils/supabase/types';
-import { getAllGigAccountingSummaries } from '../../services/gig.service';
+import { useGigAccountingData } from './useGigAccountingData';
 import {
   classifyGig,
   DEFAULT_TIMEFRAME,
@@ -36,9 +36,7 @@ export default function GigAccountingTab({
   userRole,
   onNavigateToGigDetail,
 }: GigAccountingTabProps) {
-  const [summaries, setSummaries] = useState<GigAccountingSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { summaries, isLoading, error } = useGigAccountingData(organization.id);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [timeframe, setTimeframe] = useState<TimeframePreset>(DEFAULT_TIMEFRAME);
@@ -46,26 +44,6 @@ export default function GigAccountingTab({
   const [customTo, setCustomTo] = useState('');
   const [visibleSections, setVisibleSections] = useState(DEFAULT_SECTIONS);
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-    getAllGigAccountingSummaries(organization.id)
-      .then((data) => {
-        if (!cancelled) {
-          setSummaries(data);
-          setIsLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err?.message ?? 'Failed to load gig accounting data.');
-          setIsLoading(false);
-        }
-      });
-    return () => { cancelled = true; };
-  }, [organization.id]);
 
   // Every gig in the timeframe (and search), sorted into its one section.
   const allSections = useMemo((): GigSection[] => {

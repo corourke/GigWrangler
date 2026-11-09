@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { Lock, LockOpen } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,11 +7,8 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
-import { getTaxYears, saveTaxYear, type TaxYear } from '../../services/taxYear.service';
-import {
-  getTaxYearDepreciation, saveTaxYearDepreciation,
-  type DepreciationFigures, type DepreciationRow, type TaxYearDepreciation,
-} from '../../services/taxYearDepreciation.service';
+import type { DepreciationFigures, DepreciationRow } from '../../services/taxYearDepreciation.service';
+import { useTaxYears, useTaxYearDepreciation, useTaxYearMutations } from './useTaxYearsData';
 import type { PlacedItem } from '../../utils/depreciationEstimate';
 import Form4562Form from './Form4562Form';
 import { usd } from './form4562Figures';
@@ -29,6 +26,8 @@ interface TaxYearsCardProps {
 
 const NO_PURCHASES: readonly PlacedItem[] = [];
 
+const reportFiguresError = (err: unknown) => toast.error((err as { message?: string })?.message || 'Failed to load the Form 4562 figures');
+
 /**
  * Filed tax years (#133). Locking a year keeps its purchases' costs, dates,
  * categories and tax treatment as filed; the database enforces it. Admins lock
@@ -40,47 +39,26 @@ const NO_PURCHASES: readonly PlacedItem[] = [];
 export default function TaxYearsCard({ organizationId, userRole, purchases = NO_PURCHASES, onChanged }: TaxYearsCardProps) {
   const thisYear = new Date().getFullYear();
   const isAdmin = userRole === 'Admin';
-  const [years, setYears] = useState<TaxYear[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { years, isLoading: loading } = useTaxYears(organizationId);
+  const depreciation = useTaxYearDepreciation(organizationId, reportFiguresError);
+  const { saveYear, saveFigures: saveFiguresMutation } = useTaxYearMutations(organizationId);
   const [busyYear, setBusyYear] = useState<number | null>(null);
   const [newYear, setNewYear] = useState(String(new Date().getFullYear() - 1));
   const [filedOn, setFiledOn] = useState('');
-  const [depreciation, setDepreciation] = useState<TaxYearDepreciation[] | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
   const [savingFigures, setSavingFigures] = useState(false);
   // Bumped after a save, so the estimate inputs start again from what was saved.
   const [version, setVersion] = useState(0);
 
-  const load = useCallback(async () => {
-    try {
-      setYears(await getTaxYears(organizationId));
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to load tax years');
-    } finally {
-      setLoading(false);
-    }
-  }, [organizationId]);
-
-  const loadDepreciation = useCallback(async () => {
-    try {
-      setDepreciation(await getTaxYearDepreciation(organizationId));
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to load the Form 4562 figures');
-      setDepreciation([]);
-    }
-  }, [organizationId]);
-
-  useEffect(() => { load(); loadDepreciation(); }, [load, loadDepreciation]);
-
   const figuresFor = (year: number) => depreciation?.find(d => d.year === year) ?? null;
 
+  // Each save waits for the years and figures to be read again before it says it's done (A10).
   const saveFigures = async (year: number, figures: DepreciationFigures, rows: DepreciationRow[], done: string, close: boolean) => {
     setSavingFigures(true);
     try {
-      await saveTaxYearDepreciation(organizationId, year, figures, rows);
+      await saveFiguresMutation.mutateAsync({ year, figures, rows });
       toast.success(done);
       if (close) setEditing(null);
-      await loadDepreciation();
       setVersion(v => v + 1);
       onChanged?.();
     } catch (err: any) {
@@ -93,9 +71,8 @@ export default function TaxYearsCard({ organizationId, userRole, purchases = NO_
   const save = async (year: number, values: { locked: boolean; filed_on?: string | null }, done: string) => {
     setBusyYear(year);
     try {
-      await saveTaxYear(organizationId, year, values);
+      await saveYear.mutateAsync({ year, values });
       toast.success(done);
-      await load();
       onChanged?.();
     } catch (err: any) {
       toast.error(err.message || 'Failed to save the tax year');

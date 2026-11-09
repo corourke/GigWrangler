@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
 import { Loader2, ExternalLink, Pencil } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { DetailLine } from './DetailLine';
-import { getAsset } from '../../../services/asset.service';
+import { usePanelAsset } from './usePanelData';
 
 interface AssetDetailViewProps {
   assetId: string;
@@ -11,29 +10,7 @@ interface AssetDetailViewProps {
 }
 
 export default function AssetDetailView({ assetId, onViewAsset, onEditAsset }: AssetDetailViewProps) {
-  const [asset, setAsset] = useState<Record<string, any> | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    setError(null);
-    getAsset(assetId)
-      .then((data) => {
-        if (!cancelled) {
-          setAsset(data);
-          setIsLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err?.message ?? 'Failed to load asset');
-          setIsLoading(false);
-        }
-      });
-    return () => { cancelled = true; };
-  }, [assetId]);
+  const { asset, isLoading, error } = usePanelAsset(assetId);
 
   if (isLoading) {
     return (

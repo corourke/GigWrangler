@@ -1,6 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { AlertCircle, Download, Lock } from 'lucide-react';
-import { toast } from 'sonner';
 import { Card } from '../ui/card';
 import { Metric, Empty } from './ReportParts';
 import ScheduleCView from './ScheduleCView';
@@ -9,9 +8,7 @@ import NeedsAttentionView from './NeedsAttentionView';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '../ui/table';
-import { getTaxReportData, type TaxReportData } from '../../services/taxReport.service';
-import { getLockedTaxYears } from '../../services/taxYear.service';
-import { getTaxYearDepreciation, type TaxYearDepreciation } from '../../services/taxYearDepreciation.service';
+import { useReportingData } from './useReportingData';
 import { buildLine13, line13Source } from '../../utils/scheduleCDepreciation';
 import type { UserRole } from '../../utils/supabase/types';
 import {
@@ -54,36 +51,9 @@ export default function ReportingTab({ organizationId, organizationName, userRol
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
   const [kind, setKind] = useState<ReportKind>('income');
-  const [data, setData] = useState<TaxReportData | null>(null);
-  const [locked, setLocked] = useState<Set<number>>(new Set());
-  // The purchase open in the editor (Grey zone), and a bump to reload after it's saved.
+  const { data, locked, figures, purchaseSaved, taxYearsChanged } = useReportingData(organizationId);
+  // The purchase open in the editor (Grey zone).
   const [editPurchaseId, setEditPurchaseId] = useState<string | null>(null);
-  const [reload, setReload] = useState(0);
-  // Each year's Form 4562 figures (#337), read again when the Filed tax years card saves or locks.
-  const [figures, setFigures] = useState<TaxYearDepreciation[]>([]);
-  const [figuresVersion, setFiguresVersion] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    getTaxYearDepreciation(organizationId)
-      .then(f => { if (!cancelled) setFigures(f); })
-      .catch(err => { console.error('Error loading the Form 4562 figures:', err); if (!cancelled) setFigures([]); });
-    if (figuresVersion) getLockedTaxYears(organizationId).then(y => { if (!cancelled) setLocked(y); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [organizationId, figuresVersion]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!reload) setData(null);
-    getTaxReportData(organizationId)
-      .then(d => { if (!cancelled) setData(d); })
-      .catch(err => {
-        console.error('Error loading report data:', err);
-        if (!cancelled) { toast.error('Failed to load the reports'); setData({ lines: [], gigRows: [], categories: [], scheduleC: [], equipmentCategories: [], assets: [], invoices: [] }); }
-      });
-    getLockedTaxYears(organizationId).then(y => { if (!cancelled) setLocked(y); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [organizationId, reload]);
 
   // Every year with data, and this year. Disposals count too, as the Assets report lists them (#194).
   const years = useMemo(() => {
@@ -171,13 +141,13 @@ export default function ReportingTab({ organizationId, organizationName, userRol
           <Suspense fallback={null}>
             <ReviewScannedDataDialog open onOpenChange={o => { if (!o) setEditPurchaseId(null); }}
               organizationId={organizationId} scannedData={null} file={null} editPurchaseId={editPurchaseId}
-              onSuccess={() => {}} onUpdated={() => setReload(n => n + 1)} />
+              onSuccess={() => {}} onUpdated={() => { void purchaseSaved(); }} />
           </Suspense>
         )}
       </Card>
       {/* Filed tax years go with the Schedule C report only (Cameron, 11-03). */}
       {kind === 'schedule-c' && <TaxYearsCard organizationId={organizationId} userRole={userRole} purchases={placed}
-        onChanged={() => setFiguresVersion(n => n + 1)} />}
+        onChanged={() => { void taxYearsChanged(); }} />}
     </>
   );
 }

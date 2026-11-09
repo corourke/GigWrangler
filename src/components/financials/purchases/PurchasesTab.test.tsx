@@ -213,7 +213,9 @@ describe('Deleting a purchase removes its gig expenses (B2)', () => {
 describe('PurchasesTab: a line\'s gig changes in one call (B21)', () => {
   it('uses setPurchaseLineGig, not a gig_id update plus ledger steps', async () => {
     const { readFileSync } = await import('node:fs');
-    const source = readFileSync('src/components/financials/purchases/PurchasesTab.tsx', 'utf8');
+    // The write moved into the screen's data hook (A10); the screen calls it through the hook.
+    const source = ['PurchasesTab.tsx', 'usePurchasesData.ts']
+      .map((f) => readFileSync(`src/components/financials/purchases/${f}`, 'utf8')).join('\n');
     expect(source).toContain('setPurchaseLineGig(');
     expect(source).not.toMatch(/updatePurchase\([^)]*gig_id/);
     expect(source).not.toMatch(/reconcileLedgerForLineGigChange|removeLedgerEntriesForPurchaseLine/);
