@@ -36,6 +36,19 @@ jobs:
       - name: Test
         run: npm run test:run
 
+      # The runner is on UTC. Dates the app reads as local calendar days must hold east of UTC too,
+      # so the date tests run once more where it is already tomorrow (UTC+13).
+      - name: Date tests in another time zone
+        env:
+          TZ: Pacific/Auckland
+        run: >-
+          npx vitest run
+          src/test/dateFns.test.ts
+          src/utils/dateOnly src/utils/dateUtils src/utils/gigTimeframe src/utils/scheduleConflicts
+          src/utils/csv src/utils/activityLog src/utils/gigAccountingSections
+          src/services/activityLogEntries src/components/gig/print
+          src/components/mobile/MobileInventoryMode src/components/gigs
+
       - name: Build
         env:
           # Placeholders — the client validates presence at runtime only; no

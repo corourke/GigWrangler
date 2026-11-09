@@ -806,7 +806,8 @@ describe('MobileInventoryMode', () => {
       kits: [{ kit_id: 'case-1', kit: { id: 'case-1', name: 'Mic Case', tag_number: 'CASE-1', is_container: true, assets: [], direct_assets: [] } }],
       tracking: [], last_records: { assets: {}, kits: { 'case-1': last } },
     })
-    const away = { gig_id: 'gig-2', gig_title: 'Friday Show', status: 'On Site', scanned_at: '2026-10-10T12:00:00.000Z' }
+    // Local noon, so it reads as Oct 10 in any time zone.
+    const away = { gig_id: 'gig-2', gig_title: 'Friday Show', status: 'On Site', scanned_at: new Date(2026, 9, 10, 12, 0).toISOString() }
 
     it.each([0, 1])('mode %i asks before recording it here, and Pack anyway records it', async (mode) => {
       vi.mocked(idbStore.getPackingList).mockImplementation(async () => list(away))

@@ -1,5 +1,6 @@
+import { renderWithQuery as render } from '../test/renderWithQuery';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { toast } from 'sonner';
 import AttachmentManager from './AttachmentManager';
