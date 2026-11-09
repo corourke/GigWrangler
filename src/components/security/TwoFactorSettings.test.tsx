@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TwoFactorSettings from './TwoFactorSettings';
 
 const svc = {
@@ -17,6 +19,13 @@ vi.mock('../../services/twoFactor.service', () => ({
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 beforeEach(() => vi.clearAllMocks());
+
+
+// Screens read through react-query (A10), so each render gets its own QueryClient.
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 describe('TwoFactorSettings', () => {
   it('sets up an authenticator: QR code, key, then a code to confirm', async () => {

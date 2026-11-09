@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { render as rtlRender, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import OrganizationScreen from './OrganizationScreen';
 import { getBackInHeaderSlot } from '../test/pageFrame';
@@ -26,6 +28,13 @@ const mockProps = {
   onCancel: vi.fn(),
   userId: 'user-1',
 };
+
+
+// Screens read through react-query (A10), so each render gets its own QueryClient.
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 describe('OrganizationScreen — page header (#39)', () => {
   it('puts Back to Select Organization in the header slot when creating', async () => {
