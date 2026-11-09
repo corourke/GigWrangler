@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Check, ChevronsUpDown, X } from 'lucide-react';
 import { Button } from '../../ui/button';
 import {
@@ -14,16 +14,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '../../ui/popover';
-import { getGigOptionsForOrganization } from '../../../services/gig.service';
+import { useGigChoices, type GigChoice as GigOption } from './usePanelData';
 import { formatDateOnly } from '../../../utils/dateOnly';
 
-interface GigOption {
-  id: string;
-  title: string;
-  start: string;
-  venueName?: string;
-  actName?: string;
-}
 
 interface GigComboboxProps {
   organizationId: string;
@@ -43,28 +36,7 @@ interface GigComboboxProps {
 
 export default function GigCombobox({ organizationId, value, onChange, disabled, placeholder = 'Select gig...', hideClear, aroundDate }: GigComboboxProps) {
   const [open, setOpen] = useState(false);
-  const [gigs, setGigs] = useState<GigOption[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    if (!organizationId) return;
-    let cancelled = false;
-    setIsLoading(true);
-    getGigOptionsForOrganization(organizationId, { aroundDate, ensureGigId: value })
-      .then((data) => {
-        if (cancelled) return;
-        setGigs(data.map(g => ({
-          id: g.id,
-          title: g.title,
-          start: g.start,
-          venueName: g.venue?.name,
-          actName: g.act?.name,
-        })));
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setIsLoading(false); });
-    return () => { cancelled = true; };
-  }, [organizationId, aroundDate, value]);
+  const { gigs, isLoading } = useGigChoices(organizationId, aroundDate, value);
 
   const selectedGig = gigs.find(g => g.id === value);
 

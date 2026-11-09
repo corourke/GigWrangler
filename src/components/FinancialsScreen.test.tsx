@@ -1,4 +1,5 @@
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { screen, fireEvent, within } from '@testing-library/react';
+import { renderWithQuery as render } from '../test/renderWithQuery';
 import { vi, describe, it, expect } from 'vitest';
 import FinancialsScreen from './FinancialsScreen';
 import { makeOrganization } from '../test/factories';

@@ -188,7 +188,8 @@ export function CalendarFilters({
                     mode="single"
                     selected={dateFrom}
                     onSelect={setDateFrom}
-                    initialFocus
+                    // eslint-disable-next-line jsx-a11y/no-autofocus -- the date grid takes focus when its popover opens, as before (initialFocus in react-day-picker 8)
+                    autoFocus
                   />
                 </div>
                 <div>
@@ -197,7 +198,8 @@ export function CalendarFilters({
                     mode="single"
                     selected={dateTo}
                     onSelect={setDateTo}
-                    initialFocus
+                    // eslint-disable-next-line jsx-a11y/no-autofocus -- the date grid takes focus when its popover opens, as before (initialFocus in react-day-picker 8)
+                    autoFocus
                   />
                 </div>
               </div>

@@ -48,7 +48,7 @@
             "pdfjs-dist": "^5.5.207",
             "react": "^18.3.1",
             "react-big-calendar": "^1.19.4",
-            "react-day-picker": "^8.10.1",
+            "react-day-picker": "^9.14.0",
             "react-dom": "^18.3.1",
             "react-hook-form": "^7.55.0",
             "react-markdown": "^10.1.0",

@@ -68,6 +68,39 @@ export const queryKeys = {
   gigProjectedStaff: (gigId: string) => ['gigProjectedStaff', gigId] as const,
   purchases: (orgId: string) => ['purchases', orgId] as const,
 
+  // ── Financials (A10, Engineer F) ──
+  // Everything about one organization's purchases sits under purchases(orgId), one purchase under
+  // ['purchase', purchaseId], its filed years under taxYears(orgId).
+  /** The Purchases report: purchases, the lines already in a gig ledger, each purchase's first document. */
+  purchasesReport: (orgId: string) => ['purchases', orgId, 'report'] as const,
+  /** The gig expenses that deleting these purchases or lines would remove (the delete confirm). */
+  purchaseLinkedGigExpenses: (orgId: string, purchaseIds: readonly string[]) =>
+    ['purchases', orgId, 'linkedGigExpenses', ...purchaseIds] as const,
+  expenseCategories: (orgId: string) => ['purchases', orgId, 'categories', 'expense'] as const,
+  equipmentCategories: (orgId: string) => ['purchases', orgId, 'categories', 'equipment'] as const,
+  equipmentCategoryPeriods: (orgId: string) => ['purchases', orgId, 'categories', 'periods'] as const,
+  /** The organization's items, as options for the purchase editor's equipment pop-up. */
+  purchaseItemOptions: (orgId: string) => ['purchases', orgId, 'itemOptions'] as const,
+  /** A purchase as the editor loads it: lines, equipment, gig ledger rows, document. */
+  purchaseForEdit: (purchaseId: string, orgId: string) => ['purchase', purchaseId, 'edit', orgId] as const,
+  /** A purchase's attached documents (the side panel's document view). */
+  purchaseDocuments: (headerId: string) => ['purchase', headerId, 'documents'] as const,
+  /** A signed link to a stored file. */
+  attachmentUrl: (filePath: string) => ['attachmentUrl', filePath] as const,
+  taxYears: (orgId: string) => ['taxYears', orgId] as const,
+  taxYearDepreciation: (orgId: string) => ['taxYears', orgId, 'depreciation'] as const,
+  taxReport: (orgId: string) => ['taxReport', orgId] as const,
+  /** Gig Accounting's summaries: under gigs(orgId), so a gig change reaches them too. */
+  gigAccounting: (orgId: string) => ['gigs', orgId, 'accounting'] as const,
+  /** The organization's gigs (id and title), e.g. to name a line's gig. */
+  gigOptions: (orgId: string) => ['gigs', orgId, 'options'] as const,
+  /** The gig picker's options: gigs near a date, plus the chosen one. */
+  gigPickerOptions: (orgId: string, aroundDate?: string | null, ensureGigId?: string | null) =>
+    ['gigs', orgId, 'options', 'picker', aroundDate ?? null, ensureGigId ?? null] as const,
+  /** The Purchases side panel's views of a linked record. */
+  purchasePanelAsset: (assetId: string) => ['asset', assetId, 'purchasePanel'] as const,
+  purchasePanelGig: (gigId: string, orgId: string) => ['gig', gigId, 'purchasePanel', orgId] as const,
+
   // ── Import (A10, Engineer F) ──
   /** The items and kit names an assets file is matched against: under assets(orgId), so equipment changes reach it. */
   importCatalog: (orgId: string) => ['assets', orgId, 'importCatalog'] as const,
@@ -248,6 +281,80 @@ export function invalidateAfterStaffingChange(
   ]);
 }
 
+// ── Financials (A10, Engineer F) ──
+
+type PurchaseChange = {
+  organizationId: string;
+  purchaseId?: string;
+  /** The gigs whose ledger the change touched. */
+  gigIds?: (string | null | undefined)[];
+  /** The gigs aren't known (a delete, or an edit's ledger changes): every gig's money. */
+  allGigs?: boolean;
+};
+
+/** A gig's money: its ledger, profitability summary and projected staff costs (all gigs when none named). */
+function gigMoneyKeys(gigIds: (string | null | undefined)[] = [], allGigs = false): (readonly unknown[])[] {
+  if (allGigs) return [['financials'], ['gigFinancialsSummary'], ['gigProjectedStaff']];
+  return [...new Set(gigIds.filter((g): g is string => !!g))]
+    .flatMap((g) => [queryKeys.financials(g), queryKeys.gigFinancialsSummary(g), queryKeys.gigProjectedStaff(g)]);
+}
+
+/**
+ * After a gig's ledger changes from outside its page (a purchase line put on it, moved, cleared or
+ * re-costed): those gigs' money figures (every gig's when not known) and the dashboard. Replaces
+ * the old 'gig-financials-updated' window event (A10).
+ */
+export function invalidateAfterGigFinancialsChange(
+  queryClient: QueryClient,
+  { organizationId, gigIds, allGigs }: { organizationId: string; gigIds?: (string | null | undefined)[]; allGigs?: boolean },
+) {
+  return Promise.all([...gigMoneyKeys(gigIds, allGigs), queryKeys.dashboard(organizationId)]
+    .map((queryKey) => queryClient.invalidateQueries({ queryKey })));
+}
+
+/** The caches a purchase write reaches, besides the Purchases report (see the two helpers below). */
+export function purchaseChangeKeys({ organizationId, purchaseId, gigIds, allGigs }: PurchaseChange): (readonly unknown[])[] {
+  return [
+    ...(purchaseId ? [['purchase', purchaseId] as const] : []),
+    queryKeys.taxReport(organizationId),
+    queryKeys.gigAccounting(organizationId),
+    // Equipment tracked or changed from a purchase, and the dashboard's equipment and money figures.
+    queryKeys.assets(organizationId),
+    queryKeys.dashboard(organizationId),
+    ...gigMoneyKeys(gigIds, allGigs),
+  ];
+}
+
+const invalidateAll = (queryClient: QueryClient, keys: (readonly unknown[])[]) =>
+  Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
+
+/**
+ * After a purchase or one of its lines is written from the Purchases report: everything about the
+ * organization's purchases (the report), the purchase, the tax report, Gig Accounting, equipment,
+ * the dashboard, and the gigs whose ledger it touched.
+ */
+export function invalidateAfterPurchaseChange(queryClient: QueryClient, change: PurchaseChange) {
+  return invalidateAll(queryClient, [queryKeys.purchases(change.organizationId), ...purchaseChangeKeys(change)]);
+}
+
+/**
+ * After a save in the purchase editor: as above, but the Purchases report is left to its screen,
+ * which reads it again when you go back to it (Add purchase and Scan invoices keep it hidden).
+ */
+export function invalidateAfterPurchaseEditorSave(queryClient: QueryClient, change: PurchaseChange) {
+  return invalidateAll(queryClient, purchaseChangeKeys(change));
+}
+
+/** After a document is attached to a purchase. */
+export function invalidateAfterPurchaseDocumentChange(queryClient: QueryClient, headerId: string) {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.purchaseDocuments(headerId) });
+}
+
+/** After a tax year is locked or unlocked, or its Form 4562 figures saved: its years, filed years and figures. */
+export function invalidateAfterTaxYearChange(queryClient: QueryClient, organizationId: string, options?: { cancelRefetch?: boolean }) {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.taxYears(organizationId) }, options);
+}
+
 // ── Import (A10, Engineer F) ──
 
 /**
@@ -259,8 +366,7 @@ export function invalidateAfterAssetImport(queryClient: QueryClient, organizatio
     queryClient.invalidateQueries({ queryKey: queryKeys.assets(organizationId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.kits(organizationId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.purchases(organizationId) }),
-    // The Financials tax report (queryKeys.taxReport, A10 Financials).
-    queryClient.invalidateQueries({ queryKey: ['taxReport', organizationId] }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.taxReport(organizationId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
   ]);
 }

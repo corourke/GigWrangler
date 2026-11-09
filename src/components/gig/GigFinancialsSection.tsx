@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -139,14 +139,8 @@ export default function GigFinancialsSection({
     void queryClient.invalidateQueries({ queryKey: queryKeys.gigProjectedStaff(gigId) });
   }, [queryClient, gigId]);
 
-  // External updates (staff finalization, scanned receipts).
-  useEffect(() => {
-    const handle = (event: any) => {
-      if (!event.detail?.gigId || event.detail.gigId === gigId) refresh();
-    };
-    window.addEventListener('gig-financials-updated', handle);
-    return () => window.removeEventListener('gig-financials-updated', handle);
-  }, [gigId, refresh]);
+  // Changes from elsewhere (staffing, purchase lines put on this gig) refresh these queries through
+  // the cache: invalidateAfterStaffingChange and invalidateAfterGigFinancialsChange (A10).
 
   const saveRow = async (values: Parameters<React.ComponentProps<typeof FinancialRowDialog>['onSubmit']>[0]) => {
     if (dialog?.row) {
