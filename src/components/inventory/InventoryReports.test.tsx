@@ -22,8 +22,8 @@ vi.mock('../ui/select', () => {
       currentOnValueChange = onValueChange;
       return <div>{children}</div>;
     },
-    SelectTrigger: ({ children, 'aria-label': ariaLabel }: any) => (
-      <button role="combobox" aria-label={ariaLabel}>{children}</button>
+    SelectTrigger: ({ children, id, 'aria-label': ariaLabel }: any) => (
+      <button role="combobox" id={id} aria-label={ariaLabel}>{children}</button>
     ),
     SelectValue: ({ placeholder }: any) => <span>{placeholder}</span>,
     SelectContent: ({ children }: any) => <div>{children}</div>,
@@ -421,5 +421,15 @@ describe('ManifestReport — gig picker window (#109)', () => {
     await waitFor(() => expect(picker).toHaveBeenLastCalledWith('org-1', { showAll: false }));
     expect(screen.getByRole('option', { name: 'Old Gig' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Test Gig' })).toBeInTheDocument();
+  });
+});
+
+// A19: the manifest's Location and Gig fields are named by their labels.
+describe('ManifestReport: labelled fields (A19)', () => {
+  it('ties the Location and Gig labels to their fields', async () => {
+    (getGigsForReportPicker as any).mockImplementation(() => Promise.resolve([]));
+    render(<ManifestReport organizationId="org-1" organizationName="Test Org" />);
+    expect(await screen.findByLabelText(/Location/)).toHaveAttribute('placeholder', 'Select or enter location...');
+    expect(screen.getByLabelText('Gig (optional)')).toHaveAttribute('role', 'combobox');
   });
 });

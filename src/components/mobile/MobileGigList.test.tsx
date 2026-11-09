@@ -288,3 +288,18 @@ describe('MobileGigList', () => {
     })
   })
 })
+
+// A19: the new-gig sheet's fields are named by their labels.
+describe('MobileGigList new-gig sheet: labelled fields (A19)', () => {
+  it('names the title and notes fields, and the status, date and participants groups', async () => {
+    render(<MobileGigList onViewGig={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+    const plus = screen.getAllByRole('button').find(btn => btn.querySelector('svg.lucide-plus'))!
+    fireEvent.click(plus)
+    expect(screen.getByLabelText('Title *')).toHaveAttribute('placeholder', 'Gig title')
+    expect(screen.getByLabelText('Notes')).toHaveAttribute('placeholder', 'Optional notes…')
+    for (const name of ['Status', 'Date & Time', 'Participants']) {
+      expect(screen.getByRole('group', { name })).toBeInTheDocument()
+    }
+  })
+})
