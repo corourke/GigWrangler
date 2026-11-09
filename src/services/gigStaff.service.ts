@@ -309,17 +309,21 @@ export async function completeAllStaffAssignments(gigId: string, organizationId:
     if (joinError) throw joinError;
 
     if (!validAssignments || validAssignments.length === 0) {
-      return { success: true, count: 0 };
+      return { success: true, count: 0, failed: 0, total: 0, reason: null as string | null };
     }
 
-    // 2. Complete each assignment
-    const results = await Promise.all(
+    // 2. Complete each one; one refused (a filed year) doesn't stop the rest.
+    const results = await Promise.allSettled(
       validAssignments.map(a => completeStaffAssignment(a.id))
     );
+    const refused = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
 
     return {
       success: true,
-      count: results.filter(r => (r as any).success).length
+      count: results.length - refused.length,
+      failed: refused.length,
+      total: results.length,
+      reason: refused.length > 0 ? String(refused[0].reason?.message ?? refused[0].reason) : null,
     };
   } catch (err) {
     return handleApiError(err, 'complete all staff assignments');

@@ -423,7 +423,8 @@ export default function GigStaffSlotsSection({
       }
     } catch (error) {
       console.error('Error un-finalizing staff assignment:', error);
-      toast.error('Error un-finalizing staff assignment');
+      // The database's own reason, e.g. a filed tax year.
+      toast.error((error as any)?.message || 'Error un-finalizing staff assignment');
     } finally {
       setIsCompleting(null);
     }
@@ -433,7 +434,11 @@ export default function GigStaffSlotsSection({
     setIsFinalizing(true);
     try {
       const result = await completeAllStaffAssignments(gigId, currentOrganizationId);
-      if (result.success) {
+      if (result.success && result.failed > 0) {
+        toast.error(`Finalized ${result.count} of ${result.total}. ${result.failed} couldn't be finalized: ${result.reason}`);
+        loadStaffSlotsData();
+        window.dispatchEvent(new CustomEvent('gig-financials-updated', { detail: { gigId } }));
+      } else if (result.success) {
         toast.success(`Finalized ${result.count} staff assignments`);
         loadStaffSlotsData();
         // Dispatch event to refresh financials
@@ -443,7 +448,7 @@ export default function GigStaffSlotsSection({
       }
     } catch (error) {
       console.error('Error finalizing all staff assignments:', error);
-      toast.error('Error finalizing all staff assignments');
+      toast.error((error as any)?.message || 'Error finalizing all staff assignments');
     } finally {
       setIsFinalizing(false);
     }

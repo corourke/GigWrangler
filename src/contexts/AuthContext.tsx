@@ -9,7 +9,7 @@ import {
 import { getCompleteUserData, createUserProfile } from '../services/user.service';
 import { convertPendingToActive } from '../services/organization.service';
 import { claimOfflineStore, releaseOfflineStore } from '../services/mobile/offlineOwner';
-import { getTwoFactorStatus } from '../services/twoFactor.service';
+import { getTwoFactorStatus, reminderUntil } from '../services/twoFactor.service';
 
 /** Clearing the phone's offline copy must never block signing in or out. */
 const quietly = (p: Promise<unknown>) => p.catch((err) => {
@@ -110,9 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const twoFactor = await getTwoFactorStatus();
           setTwoFactorPending(twoFactor.needsCode);
           setTwoFactorSetupRequired(twoFactor.setupRequired);
-          setTwoFactorReminderUntil(
-            twoFactor.required && twoFactor.factors.length === 0 && !twoFactor.setupRequired ? twoFactor.requiredAfter : null,
-          );
+          setTwoFactorReminderUntil(reminderUntil(twoFactor));
           if (twoFactor.needsCode || twoFactor.setupRequired) return;
         } catch (e) {
           if (import.meta.env.DEV) console.warn('[TRACE] AuthContext: Error reading two-factor status:', e);

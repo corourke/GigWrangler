@@ -333,8 +333,9 @@ export default function AdminOrganizationsScreen({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Organization?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the organization
-              and all associated data including members, gigs, and equipment.
+              This can't be undone. You can delete an organization only if you're its only member
+              and it has no gigs, equipment, purchases, money records or invitations. If anything
+              is left, the delete is refused and nothing changes.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

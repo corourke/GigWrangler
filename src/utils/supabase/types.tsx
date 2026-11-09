@@ -303,6 +303,9 @@ export interface ActivityLogContext {
   actor_display_name: string;
   actor_org_name: string;
   gig_title?: string;
+  /** gig.created for a duplicate (B10): the gig it was copied from, and what came with it. */
+  copied_from?: string;
+  copied?: { staff_slots?: number; kits?: number; schedule_entries?: number };
   from_status?: string;
   to_status?: string;
   from?: { start?: string; end?: string };
