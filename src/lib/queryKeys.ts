@@ -59,6 +59,19 @@ export const queryKeys = {
   assetTrackingSummary: (orgId: string) => ['assetTrackingSummary', orgId] as const,
   assetActivity: (assetId: string) => ['assetActivity', assetId] as const,
   lockedTaxYears: (orgId: string) => ['lockedTaxYears', orgId] as const,
+  // Kit views, all under kit(kitId) so a kit write covers them.
+  kitDetail: (kitId: string) => ['kit', kitId, 'detail'] as const,
+  kitForm: (kitId: string) => ['kit', kitId, 'form'] as const,
+  kitActivity: (kitId: string) => ['kit', kitId, 'activity'] as const,
+  kitFlattenedSummary: (kitId: string) => ['kit', kitId, 'flattenedSummary'] as const,
+  // The kit editor's items, with container pieces counted without the kit being edited.
+  kitEditorItems: (orgId: string, kitId: string | null | undefined) =>
+    ['equipmentItems', orgId, 'forKit', kitId ?? 'new'] as const,
+  // The kit editor's picker: units, kits and their flattened contents for one search.
+  kitPicker: (
+    orgId: string,
+    params: { kitId: string | null | undefined; filter: string; search: string; inKitIds: readonly string[] },
+  ) => ['kits', orgId, 'picker', { ...params, inKitIds: [...params.inKitIds].sort() }] as const,
 } as const;
 
 type Key = readonly unknown[];

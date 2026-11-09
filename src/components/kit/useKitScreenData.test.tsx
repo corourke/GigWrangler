@@ -48,6 +48,14 @@ describe('useKitScreenData (A10)', () => {
     expect(getContainerPieces).toHaveBeenCalledWith('org-1', [{ id: 'i1', records: [] }], 'k1')
   })
 
+  it('never seeds the form from a cached kit: leaving the editor drops it', async () => {
+    const { client, wrapper } = wrap()
+    const hook = renderHook(() => useKitScreenData({ kitId: 'k1', organizationId: 'org-1', childKitIds: [] }), { wrapper })
+    await waitFor(() => expect(hook.result.current.kitQuery.isSuccess).toBe(true))
+    hook.unmount()
+    await waitFor(() => expect(client.getQueryCache().find({ queryKey: queryKeys.kitForm('k1') })).toBeUndefined())
+  })
+
   it('a new kit reads no kit', async () => {
     const { wrapper } = wrap()
     const hook = renderHook(() => useKitScreenData({ kitId: null, organizationId: 'org-1', childKitIds: [] }), { wrapper })
