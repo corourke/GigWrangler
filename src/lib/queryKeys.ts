@@ -26,6 +26,20 @@ export const queryKeys = {
   gigConflicts: (gigId: string, orgId: string, when: { start: string; end: string; timezone?: string; allDay: boolean }) =>
     ['gig', gigId, 'conflicts', orgId, when.start, when.end, when.timezone ?? null, when.allDay] as const,
   gigActivity: (gigId: string) => ['gig', gigId, 'activity'] as const,
+  // The gig page's edit sections (A10, PR 2).
+  gigStaffSlots: (gigId: string, orgId: string) => ['gig', gigId, 'staffSlots', orgId] as const,
+  gigParticipants: (gigId: string) => ['gig', gigId, 'participants'] as const,
+  gigKitAssignments: (gigId: string, orgId: string) => ['gig', gigId, 'kitAssignments', orgId] as const,
+  gigEquipmentConflicts: (gigId: string, orgId: string, when: { start: string; end: string; timezone?: string; allDay: boolean }) =>
+    ['gig', gigId, 'equipmentConflicts', orgId, when.start, when.end, when.timezone ?? null, when.allDay] as const,
+  /** refresh: a count the kit section bumps after each save, so the table reloads. */
+  gigEquipmentNeeded: (gigId: string, orgId: string, when: { start: string; end: string; timezone?: string; allDay: boolean }, refresh: number) =>
+    ['gig', gigId, 'equipmentNeeded', orgId, when.start, when.end, when.timezone ?? null, when.allDay, refresh] as const,
+  /** Kits' flattened contents, for the same-gig overlap check. */
+  kitsFlattenedSummary: (kitIds: readonly string[]) => ['kits', 'flattened', [...kitIds].sort().join(',')] as const,
+  staffRoleNames: () => ['staffRoles', 'names'] as const,
+  /** Whether the signed-in user is a platform Admin. */
+  currentUserIsAdmin: (userId: string) => ['currentUser', userId, 'isAdmin'] as const,
 
   // Dashboard
   dashboard: (orgId: string) => ['dashboard', orgId] as const,
@@ -90,6 +104,22 @@ export function invalidateAfterGigChange(
 export function invalidateAfterGigListChange(queryClient: QueryClient, organizationId: string) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.gigs(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
+  ]);
+}
+
+/**
+ * After staff slots or assignments change (saved, finalized, un-finalized): the gig's money
+ * figures (profitability summary and projected staff costs) and the dashboard.
+ */
+export function invalidateAfterStaffingChange(
+  queryClient: QueryClient,
+  { gigId, organizationId }: { gigId: string; organizationId: string },
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.gigFinancialsSummary(gigId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.gigProjectedStaff(gigId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.financials(gigId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
   ]);
 }

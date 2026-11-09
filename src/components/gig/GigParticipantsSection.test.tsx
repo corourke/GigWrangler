@@ -4,6 +4,7 @@ import { render as rtlRender, screen, waitFor, fireEvent, within } from '@testin
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GigParticipantsSection from './GigParticipantsSection';
+import { renderWithQuery } from '../../test/renderWithQuery';
 import { getGig, updateGigParticipants } from '../../services/gig.service';
 import { useEditSession } from '../../utils/hooks/editSession';
 import { EditSessionProvider } from '../../utils/hooks/EditSessionProvider';
@@ -91,6 +92,7 @@ vi.mock('../OrganizationSelector', () => ({
 
 describe('GigParticipantsSection', () => {
   const mockProps = {
+    userId: 'user-1',
     gigId: 'test-gig-id',
     currentOrganizationId: 'current-org-id',
     currentOrganizationName: 'Current Org',
@@ -282,6 +284,7 @@ describe('GigParticipantsSection deletes only rows it loaded (#92)', () => {
   const OTHER = '22222222-2222-4222-8222-222222222222';
   const NEW = '33333333-3333-4333-8333-333333333333';
   const props = {
+    userId: 'user-1',
     gigId: 'test-gig-id',
     currentOrganizationId: 'org-1',
     currentOrganizationName: 'Test Org',
@@ -379,6 +382,7 @@ describe('GigParticipantsSection: owner and Inactive (#175)', () => {
     ],
   });
   const props = (orgId: string, orgName: string, userRole = 'Manager') => ({
+    userId: 'user-1',
     gigId: 'g1', currentOrganizationId: orgId, currentOrganizationName: orgName,
     currentOrganizationRole: 'Production' as const, userRole,
   });
@@ -551,5 +555,34 @@ describe('GigParticipantsSection: owner and Inactive (#175)', () => {
     render(<GigParticipantsSection {...props('org-b', 'Sound Co')} />);
     await screen.findByText('Owner Co');
     expect(within(rowOf('Owner Co')).getByTitle('Remove participant')).toBeDisabled();
+  });
+});
+
+// A10: how the participants section loads, fails and follows the gig. These hold before and
+// after the move to react-query.
+describe('GigParticipantsSection: data loading (A10)', () => {
+  const props = { userId: 'user-1', gigId: 'test-gig-id', currentOrganizationId: 'current-org-id', currentOrganizationName: 'Current Org', currentOrganizationRole: 'Production' as const };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getGig).mockImplementation(async (id: string) => ({
+      participants: [{ id: `p-${id}`, organization_id: `org-${id}`, organization_name: id === 'gig-2' ? 'Second Venue' : 'Test Org', role: 'Venue', notes: '', is_client: false }],
+    }) as any);
+  });
+
+  it('says the participants failed to load, and still shows this organization', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(getGig).mockRejectedValueOnce(new Error('down'));
+    renderWithQuery(<GigParticipantsSection {...props} />);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to load participants'));
+    expect(await screen.findByText('Current Org')).toBeInTheDocument();
+  });
+
+  it("loads the other gig's participants when the gig changes", async () => {
+    const { rerender } = renderWithQuery(<GigParticipantsSection {...props} />);
+    expect(await screen.findByText('Test Org')).toBeInTheDocument();
+    rerender(<GigParticipantsSection {...props} gigId="gig-2" />);
+    expect(await screen.findByText('Second Venue')).toBeInTheDocument();
+    expect(getGig).toHaveBeenCalledWith('gig-2');
   });
 });
