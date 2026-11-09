@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { createClient } from '../utils/supabase/client';
+import { hasEnrolledDevice as checkEnrolledDevice, getUnlockOptions, verifyUnlock } from '../services/mobile/mobileLock.service';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { toast } from 'sonner';
 
@@ -13,7 +13,6 @@ export function useMobileLock(userEmail: string | undefined, isMobile: boolean) 
   // device. Arming the lock without one traps the user on a screen they can never
   // pass (authenticate/options 400s with "No registered devices found").
   const [hasEnrolledDevice, setHasEnrolledDevice] = useState(false);
-  const supabase = createClient();
 
   const lock = useCallback(() => {
     if (isMobile && hasEnrolledDevice) {
@@ -27,34 +26,13 @@ export function useMobileLock(userEmail: string | undefined, isMobile: boolean) 
 
     try {
       // 1. Get authentication options
-      const { data: options, error: optionsError } = await supabase.functions.invoke(
-        'server/webauthn/authenticate/options',
-        {
-          method: 'POST',
-          body: { email: userEmail },
-        }
-      );
-
-      if (optionsError) throw optionsError;
-      if (options.error) throw new Error(options.error);
+      const options = await getUnlockOptions(userEmail);
 
       // 2. Start WebAuthn authentication
       const authResponse = await startAuthentication({ optionsJSON: options });
 
       // 3. Verify authentication
-      const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
-        'server/webauthn/authenticate/verify',
-        {
-          method: 'POST',
-          body: {
-            authenticationResponse: authResponse,
-            email: userEmail,
-          },
-        }
-      );
-
-      if (verifyError) throw verifyError;
-      if (verifyData.error) throw new Error(verifyData.error);
+      const verifyData = await verifyUnlock(authResponse, userEmail);
 
       if (verifyData.success) {
         setIsLocked(false);
@@ -72,7 +50,7 @@ export function useMobileLock(userEmail: string | undefined, isMobile: boolean) 
       }
       return false;
     }
-  }, [userEmail, supabase]);
+  }, [userEmail]);
 
   useEffect(() => {
     if (!isMobile) return;
@@ -87,15 +65,11 @@ export function useMobileLock(userEmail: string | undefined, isMobile: boolean) 
       return;
     }
     let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from('user_devices')
-        .select('id')
-        .limit(1);
-      if (!cancelled) setHasEnrolledDevice(!error && (data?.length ?? 0) > 0);
-    })();
+    checkEnrolledDevice()
+      .then((enrolled) => { if (!cancelled) setHasEnrolledDevice(enrolled); })
+      .catch(() => { if (!cancelled) setHasEnrolledDevice(false); });
     return () => { cancelled = true; };
-  }, [isMobile, userEmail, supabase]);
+  }, [isMobile, userEmail]);
 
   // Inactivity tracking
   useEffect(() => {
