@@ -29,8 +29,8 @@ import {
   Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { searchOrganizations, joinOrganization, signedInEmailConfirmed } from '../services/organization.service';
-import { createAccessRequest, getMyPendingAccessRequests } from '../services/accessRequest.service';
+import { useOrganizationSelectionData } from './useOrganizationSelectionData';
+import { useOrganizationSearch } from './useOrganizationSelectorData';
 import { emailDomainMatches } from '../utils/validation-utils';
 import { 
   ORG_ROLE_CONFIG, 
@@ -53,8 +53,6 @@ interface OrganizationSelectionScreenProps {
   onEditProfile: () => void;
 }
 
-type ViewState = 'default' | 'loading' | 'searching' | 'error';
-
 export default function OrganizationSelectionScreen({
   user,
   organizations,
@@ -65,29 +63,21 @@ export default function OrganizationSelectionScreen({
   onEditProfile
 }: OrganizationSelectionScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewState, setViewState] = useState<ViewState>('default');
-  const [searchResults, setSearchResults] = useState<Organization[]>([]);
   const [joiningOrg, setJoiningOrg] = useState<string | null>(null);
-  // Orgs the user has already asked to join (or asked for a higher role in).
-  const [pendingOrgIds, setPendingOrgIds] = useState<Set<string>>(new Set());
+  // Orgs the user has already asked to join (or asked for a higher role in), and whether Join as
+  // Staff may be offered (it needs a confirmed email; until that's known, only Request to join).
+  const { pendingOrgIds, emailConfirmed, joinAsStaff, requestToJoin } = useOrganizationSelectionData(user.id);
 
-  // Join as Staff needs a confirmed email; until it's known, only Request to join is offered.
-  const [emailConfirmed, setEmailConfirmed] = useState(false);
+  // Search all organizations once typing settles; earlier results stay up while the next loads.
+  const search = useOrganizationSearch(searchQuery, { delayMs: 300, keepPrevious: true });
+  const searchResults = search.results;
+  const viewState: 'default' | 'searching' | 'error' = search.isError ? 'error' : search.isSearching ? 'searching' : 'default';
+  const searchError = search.isError ? search.error : null;
   useEffect(() => {
-    let cancelled = false;
-    signedInEmailConfirmed().then((confirmed) => { if (!cancelled) setEmailConfirmed(confirmed); });
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    getMyPendingAccessRequests()
-      .then((requests) => {
-        if (!cancelled) setPendingOrgIds(new Set(requests.map((r) => r.organization_id)));
-      })
-      .catch((error) => console.error('Error loading your pending requests:', error));
-    return () => { cancelled = true; };
-  }, []);
+    if (!searchError) return;
+    console.error('Error searching organizations:', searchError);
+    toast.error('Failed to search organizations');
+  }, [searchError]);
 
   // Create lookup of user's organization IDs for quick checking
   const userOrgIds = useMemo(() => {
@@ -100,32 +90,6 @@ export default function OrganizationSelectionScreen({
     return membership?.role || null;
   };
 
-  // Search all organizations when query changes
-  useEffect(() => {
-    const performSearch = async () => {
-      if (!searchQuery.trim()) {
-        setSearchResults([]);
-        return;
-      }
-
-      setViewState('searching');
-      
-      try {
-        // Use API function instead of Edge Function
-        const orgs = await searchOrganizations({ search: searchQuery });
-        setSearchResults(orgs || []);
-        setViewState('default');
-      } catch (error) {
-        console.error('Error searching organizations:', error);
-        toast.error('Failed to search organizations');
-        setViewState('error');
-      }
-    };
-
-    const debounceTimer = setTimeout(performSearch, 300);
-    return () => clearTimeout(debounceTimer);
-  }, [searchQuery]);
-
   // Joining as Staff straight away is only offered (see the render below) when
   // the user's email domain matches the org's allowed_domains and that email is
   // confirmed; the server checks the same against the sign-in email.
@@ -133,7 +97,7 @@ export default function OrganizationSelectionScreen({
     setJoiningOrg(org.id);
 
     try {
-      await joinOrganization(org.id, 'Staff');
+      await joinAsStaff.mutateAsync(org.id);
 
       toast.success(`Joined ${org.name} as Staff`);
 
@@ -150,8 +114,7 @@ export default function OrganizationSelectionScreen({
   const handleRequestToJoin = async (org: Organization) => {
     setJoiningOrg(org.id);
     try {
-      await createAccessRequest(org.id, 'Viewer');
-      setPendingOrgIds((prev) => new Set(prev).add(org.id));
+      await requestToJoin.mutateAsync(org.id);
       toast.success(`Request sent. ${org.name}'s Admins or Managers will let you in.`);
     } catch (error: any) {
       console.error('Error requesting to join organization:', error);

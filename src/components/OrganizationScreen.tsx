@@ -7,7 +7,7 @@
  * Used in:
  * - App.tsx (routes: 'create-org', 'edit-org')
  */
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Building2, Search, Loader2, MapPin, Phone, Globe, Check, AlertCircle, AlertTriangle, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
@@ -17,8 +17,6 @@ import {
 import { ORG_ROLE_CONFIG } from '../utils/supabase/constants';
 import { useSimpleFormChanges } from '../utils/hooks/useSimpleFormChanges';
 import { createSubmissionPayload, normalizeFormData } from '../utils/form-utils';
-import { createClient } from '../utils/supabase/client';
-import { handleFunctionsError } from '../utils/api-error-utils';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -32,6 +30,8 @@ import { PageHeader } from './layout/PageHeader';
 import MarkdownEditor from './MarkdownEditor';
 import OrganizationContactsSection from './organization/OrganizationContactsSection';
 import { useGooglePlacesSearch, placeToOrganizationFields } from '../hooks/useGooglePlacesSearch';
+import { useOrganizationScreenData } from './useOrganizationScreenData';
+import { hasSignedInSession } from '../services/organization.service';
 import type { GooglePlace } from '../hooks/useGooglePlacesSearch';
 
 interface OrganizationScreenProps {
@@ -99,9 +99,11 @@ export default function OrganizationScreen({
   const [selectedPlace, setSelectedPlace] = useState<GooglePlace | null>(null);
   const [showManualEntry, setShowManualEntry] = useState(isEditMode); // Show form directly in edit mode
 
-  const [isGlobalAdmin, setIsGlobalAdmin] = useState(false);
-  const [isOrgAdmin, setIsOrgAdmin] = useState(false);
-  const [hasMembers, setHasMembers] = useState(false);
+  const { permissions, saveOrganization } = useOrganizationScreenData({
+    organizationId: isEditMode ? organization?.id : undefined,
+    userId,
+  });
+  const { isGlobalAdmin, isOrgAdmin, hasMembers } = permissions;
 
   const [formData, setFormData] = useState<FormData>({
     name: organization?.name || '',
@@ -139,38 +141,6 @@ export default function OrganizationScreen({
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    async function checkPermissions() {
-      if (!isEditMode || !organization || !userId) return;
-
-      const supabase = createClient();
-      
-      // Check if global admin
-      const { data: isAdmin } = await supabase.rpc('user_is_admin', { user_uuid: userId });
-      setIsGlobalAdmin(!!isAdmin);
-
-      // Check if org admin
-      const { data: memberships } = await supabase
-        .from('organization_members')
-        .select('role')
-        .eq('organization_id', organization.id)
-        .eq('user_id', userId);
-      
-      const isOwnerOrAdmin = memberships?.some(m => m.role === 'Admin');
-      setIsOrgAdmin(!!isOwnerOrAdmin);
-
-      // Check if has members
-      const { count } = await supabase
-        .from('organization_members')
-        .select('*', { count: 'exact', head: true })
-        .eq('organization_id', organization.id);
-      
-      setHasMembers((count || 0) > 0);
-    }
-
-    checkPermissions();
-  }, [isEditMode, organization, userId]);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -293,11 +263,7 @@ export default function OrganizationScreen({
 
     // Real API call
     try {
-      // Get current session
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
+      if (!(await hasSignedInSession())) {
         setErrors({ general: 'Not authenticated. Please sign in again.' });
         setIsSubmitting(false);
         return;
@@ -324,25 +290,11 @@ export default function OrganizationScreen({
         ? createSubmissionPayload(normalizedData, changeDetection.originalData)
         : normalizedData;
 
-      let path = 'server/organizations';
-      let method: 'POST' | 'PUT' = 'POST';
-      
-      if (isEditMode && organization) {
-        path += `/${organization.id}`;
-        method = 'PUT';
-      } else {
-        // Only include auto_join for create mode
-        (requestBody as any).auto_join = autoJoinOrg;
-      }
-
-      const { data: resultOrganization, error: invokeError } = await supabase.functions.invoke(path, {
-        method,
-        body: requestBody,
+      const resultOrganization = await saveOrganization.mutateAsync({
+        organizationId: isEditMode && organization ? organization.id : undefined,
+        body: requestBody as Record<string, unknown>,
+        autoJoin: autoJoinOrg,
       });
-
-      if (invokeError) {
-        await handleFunctionsError(invokeError, isEditMode ? 'update organization' : 'create organization');
-      }
 
       if (isEditMode) {
         toast.success('Organization updated successfully!');
