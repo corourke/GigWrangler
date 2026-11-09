@@ -20,7 +20,8 @@ import EquipmentNeededTable from './EquipmentNeededTable';
 import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import { useRowBaseline } from '../../utils/hooks/useRowBaseline';
 import SaveStateIndicator from './SaveStateIndicator';
-import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../lib/queryKeys';
 import { findSameGigOverlaps, type SameGigOverlap } from './sameGigOverlaps';
 
 const kitAssignmentSchema = z.object({
@@ -59,6 +60,10 @@ interface GigKitAssignmentsSectionProps {
   gigAllDay?: boolean;
 }
 
+const NO_KITS: Kit[] = [];
+const NO_CONFLICTS: Conflict[] = [];
+const NO_OVERLAPS: SameGigOverlap[] = [];
+
 export default function GigKitAssignmentsSection({
   gigId,
   currentOrganizationId,
@@ -67,12 +72,26 @@ export default function GigKitAssignmentsSection({
   gigTimezone,
   gigAllDay,
 }: GigKitAssignmentsSectionProps) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [availableKits, setAvailableKits] = useState<Kit[]>([]);
+  // A10: the gig's kit assignments and this organization's kits (fresh each time the section
+  // opens: they seed an autosaving form) come from react-query, keyed by gig and organization.
+  const queryClient = useQueryClient();
+  const kitsQuery = useQuery({
+    queryKey: queryKeys.gigKitAssignments(gigId, currentOrganizationId),
+    queryFn: async () => {
+      const [assignmentsData, kitsData] = await Promise.all([getGigKits(gigId), getKits(currentOrganizationId)]);
+      const assignments = assignmentsData
+        .filter((a: any) => a.kit?.organization_id === currentOrganizationId)
+        .map((a: any) => ({ id: a.id, kit_id: a.kit_id, notes: a.notes || '', kit: a.kit }));
+      const kits = kitsData.filter((k: any) => k.organization_id === currentOrganizationId) as Kit[];
+      return { assignments, kits };
+    },
+    staleTime: 0,
+    gcTime: 0,
+  });
+  const isLoading = kitsQuery.isPending;
+  const availableKits = kitsQuery.data?.kits ?? NO_KITS;
   const [showNotesDialog, setShowNotesDialog] = useState<number | null>(null);
   const [currentNotes, setCurrentNotes] = useState('');
-  const [sameGigOverlaps, setSameGigOverlaps] = useState<SameGigOverlap[]>([]);
-  const [crossGigConflicts, setCrossGigConflicts] = useState<Conflict[]>([]);
   // Bumped after each save, so the Equipment needed table reloads (#184).
   const [savedCount, setSavedCount] = useState(0);
 
@@ -114,15 +133,25 @@ export default function GigKitAssignmentsSection({
     });
   }, [gigId, currentOrganizationId, baseline, getValues, setValue]);
 
-  const checkCrossGigConflicts = useCallback(async () => {
-    if (!gigStart || !gigEnd) return;
-    try {
-      const result = await checkEquipmentConflicts(gigId, gigStart, gigEnd, gigTimezone, currentOrganizationId, undefined, gigAllDay);
-      setCrossGigConflicts([...result.conflicts, ...result.warnings]);
-    } catch {
-      // Non-critical — leave whatever conflicts were already shown.
-    }
-  }, [gigId, gigStart, gigEnd, gigTimezone, gigAllDay, currentOrganizationId]);
+  // Equipment double-booked with overlapping gigs, once the gig's times are known; checked again
+  // after each save. A failed check leaves what was shown.
+  const when = { start: gigStart ?? '', end: gigEnd ?? '', timezone: gigTimezone, allDay: !!gigAllDay };
+  const conflictsKey = queryKeys.gigEquipmentConflicts(gigId, currentOrganizationId, when);
+  const conflictsQuery = useQuery({
+    queryKey: conflictsKey,
+    queryFn: async () => {
+      const result = await checkEquipmentConflicts(gigId, when.start, when.end, gigTimezone, currentOrganizationId, undefined, gigAllDay);
+      return [...result.conflicts, ...result.warnings] as Conflict[];
+    },
+    enabled: !!gigStart && !!gigEnd,
+    staleTime: 0,
+  });
+  const crossGigConflicts = conflictsQuery.data ?? NO_CONFLICTS;
+  const checkCrossGigConflicts = useCallback(
+    () => { void queryClient.invalidateQueries({ queryKey: conflictsKey }); },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- conflictsKey is rebuilt each render from these inputs
+    [queryClient, gigId, currentOrganizationId, gigStart, gigEnd, gigTimezone, gigAllDay],
+  );
 
   const handleSaveSuccess = useCallback((data: KitFormData) => {
     reset(data, { keepDirty: false, keepValues: true });
@@ -148,66 +177,32 @@ export default function GigKitAssignmentsSection({
     }
   }, [formValues, isDirty, errors, triggerSave]);
 
+  // Each load seeds the form.
   useEffect(() => {
-    loadData();
-    checkCrossGigConflicts();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when the gig changes; the loaders also read form helpers that change every render
-  }, [gigId]);
+    const data = kitsQuery.data;
+    if (!data) return;
+    baseline.loaded(data.assignments.map((a) => a.id));
+    reset({ assignments: data.assignments });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seeds once per load (dataUpdatedAt), not when the form helpers change
+  }, [kitsQuery.dataUpdatedAt]);
+
+  useEffect(() => {
+    if (!kitsQuery.error) return;
+    console.error('Error loading kits:', kitsQuery.error);
+    toast.error('Failed to load kits');
+  }, [kitsQuery.error]);
 
   // Same-gig overlap check — no DB write required, so it reacts to the
   // assignment list as it's edited, not just after an autosave lands.
   const assignedKitIds = (formValues.assignments || []).map((a) => a.kit_id).filter(Boolean);
-  useEffect(() => {
-    if (assignedKitIds.length < 2) {
-      setSameGigOverlaps([]);
-      return;
-    }
-    let cancelled = false;
-    getKitsFlattenedSummary(assignedKitIds).then((summaries) => {
-      if (!cancelled) setSameGigOverlaps(findSameGigOverlaps(assignedKitIds, summaries));
-    });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignedKitIds.join(',')]);
-
-  const startRequest = useLatestRequest();
-  const loadData = async () => {
-    // A late answer for an earlier gig is dropped (B12).
-    const isCurrent = startRequest();
-    setIsLoading(true);
-    try {
-      const [assignmentsData, kitsData] = await Promise.all([
-        getGigKits(gigId),
-        getKits(currentOrganizationId),
-      ]);
-      if (!isCurrent()) return;
-
-      const organizationAssignments = assignmentsData.filter(
-        (a: any) => a.kit?.organization_id === currentOrganizationId
-      );
-
-      const formattedAssignments = organizationAssignments.map((a: any) => ({
-        id: a.id,
-        kit_id: a.kit_id,
-        notes: a.notes || '',
-        kit: a.kit,
-      }));
-
-      const organizationKits = kitsData.filter(
-        (k: any) => k.organization_id === currentOrganizationId
-      );
-
-      baseline.loaded(formattedAssignments.map((a: any) => a.id));
-      reset({ assignments: formattedAssignments });
-      setAvailableKits(organizationKits);
-    } catch (error: any) {
-      if (!isCurrent()) return;
-      console.error('Error loading kits:', error);
-      toast.error('Failed to load kits');
-    } finally {
-      if (isCurrent()) setIsLoading(false);
-    }
-  };
+  const overlapQuery = useQuery({
+    queryKey: queryKeys.kitsFlattenedSummary(assignedKitIds),
+    queryFn: () => getKitsFlattenedSummary(assignedKitIds),
+    enabled: assignedKitIds.length >= 2,
+    staleTime: 0,
+  });
+  const sameGigOverlaps: SameGigOverlap[] =
+    assignedKitIds.length >= 2 && overlapQuery.data ? findSameGigOverlaps(assignedKitIds, overlapQuery.data) : NO_OVERLAPS;
 
   const handleAssignKit = (kitId: string) => {
     const kit = availableKits.find(k => k.id === kitId);

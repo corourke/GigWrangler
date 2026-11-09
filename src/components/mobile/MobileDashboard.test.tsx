@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import MobileDashboard from './MobileDashboard'
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -24,6 +25,8 @@ vi.mock('../../services/gig.service', () => ({
 
 import { idbStore } from '../../utils/idb/store'
 import { fetchMyUpcomingAssignments } from '../../services/mobile/staffDashboard.service'
+
+
 
 describe('MobileDashboard', () => {
   beforeEach(() => {

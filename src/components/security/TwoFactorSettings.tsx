@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ShieldCheck, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
@@ -6,34 +6,23 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Alert, AlertDescription } from '../ui/alert';
-import {
-  getTwoFactorStatus, startTwoFactorSetup, confirmTwoFactorSetup, removeTwoFactor, type TwoFactorStatus,
-} from '../../services/twoFactor.service';
+import { useTwoFactorSettingsData } from './useTwoFactorSettingsData';
 
 /** Settings → Security: set up or turn off two-factor sign-in with an authenticator app (#361). */
 export default function TwoFactorSettings({ onEnabled }: { onEnabled?: () => void } = {}) {
-  const [status, setStatus] = useState<TwoFactorStatus | null>(null);
+  const { statusQuery, startSetup, confirmSetup, removeFactor } = useTwoFactorSettingsData();
+  const status = statusQuery.data ?? null;
   const [setup, setSetup] = useState<{ factorId: string; qrCode: string; secret: string } | null>(null);
   const [code, setCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setError] = useState<string | null>(null);
+  const error = actionError ?? (statusQuery.isError ? 'Could not load your two-factor settings' : null);
   const [busy, setBusy] = useState(false);
-
-  const load = async () => {
-    try {
-      setStatus(await getTwoFactorStatus());
-    } catch (err) {
-      console.error('Error loading two-factor status:', err);
-      setError('Could not load your two-factor settings');
-    }
-  };
-
-  useEffect(() => { load(); }, []);
 
   const begin = async () => {
     setError(null);
     setBusy(true);
     try {
-      setSetup(await startTwoFactorSetup());
+      setSetup(await startSetup.mutateAsync());
       setCode('');
     } catch (err: any) {
       setError(err?.message || 'Could not start two-factor setup');
@@ -48,10 +37,10 @@ export default function TwoFactorSettings({ onEnabled }: { onEnabled?: () => voi
     setError(null);
     setBusy(true);
     try {
-      await confirmTwoFactorSetup(setup.factorId, code);
+      // Resolves once the status has been reloaded.
+      await confirmSetup.mutateAsync({ factorId: setup.factorId, code });
       setSetup(null);
       toast.success('Two-factor sign-in is on');
-      await load();
       onEnabled?.();
     } catch (err: any) {
       setError(err?.message || "That code didn't work.");
@@ -64,9 +53,8 @@ export default function TwoFactorSettings({ onEnabled }: { onEnabled?: () => voi
     setError(null);
     setBusy(true);
     try {
-      await removeTwoFactor(factorId);
+      await removeFactor.mutateAsync(factorId);
       toast.success('Two-factor sign-in is off');
-      await load();
     } catch (err: any) {
       setError(err?.message || 'Could not turn off two-factor sign-in');
     } finally {

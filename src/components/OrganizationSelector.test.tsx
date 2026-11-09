@@ -1,4 +1,5 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
+import { renderWithQuery as render } from '../test/renderWithQuery';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import OrganizationSelector from './OrganizationSelector';
 import { searchOrganizations } from '../services/organization.service';
@@ -14,6 +15,8 @@ const org = makeOrganization({
   city: 'Chicago',
   state: 'IL',
 } as any);
+
+
 
 describe('OrganizationSelector', () => {
   beforeEach(() => {

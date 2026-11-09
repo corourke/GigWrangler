@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { screen, within, waitFor } from '@testing-library/react';
 import EquipmentNeededTable from './EquipmentNeededTable';
+import { renderWithQuery } from '../../test/renderWithQuery';
 import { getEquipmentNeeded } from '../../services/conflictDetection.service';
 
 vi.mock('../../services/conflictDetection.service', () => ({ getEquipmentNeeded: vi.fn() }));
@@ -20,7 +21,7 @@ describe('EquipmentNeededTable (#184)', () => {
         row({ itemId: 'xlr', name: 'XLR Cable, 50 ft', thisGig: 4, overlapping: 2, needed: 6, owned: 10, inContainers: 4, free: 6, status: 'none-spare' }),
       ],
     } as any);
-    render(<EquipmentNeededTable gigId="g1" gigStart="2026-10-11T03:00:00Z" gigEnd="2026-10-11T06:00:00Z" gigTimezone="America/Los_Angeles" organizationId="org-1" />);
+    renderWithQuery(<EquipmentNeededTable gigId="g1" gigStart="2026-10-11T03:00:00Z" gigEnd="2026-10-11T06:00:00Z" gigTimezone="America/Los_Angeles" organizationId="org-1" />);
     // 8 PM on Oct 10 in Los Angeles, though already Oct 11 in UTC.
     expect(await screen.findByText('Equipment needed on Oct 10, 2026')).toBeInTheDocument();
     expect(screen.getByText('this gig and the 1 that overlaps it')).toBeInTheDocument();
@@ -34,19 +35,19 @@ describe('EquipmentNeededTable (#184)', () => {
   it('a date-only gig is headed with its own day, even at UTC+12 or later (#230 follow-up)', async () => {
     vi.mocked(getEquipmentNeeded).mockResolvedValue({ overlapping: 0, rows: [row({})] } as any);
     // Date-only gigs are stored at noon UTC: midnight next day in Auckland (UTC+13 in October).
-    render(<EquipmentNeededTable organizationId="org-1" gigId="g1" gigStart="2026-10-10T12:00:00.000Z" gigEnd="2026-10-10T12:00:00.000Z" gigTimezone="Pacific/Auckland" />);
+    renderWithQuery(<EquipmentNeededTable organizationId="org-1" gigId="g1" gigStart="2026-10-10T12:00:00.000Z" gigEnd="2026-10-10T12:00:00.000Z" gigTimezone="Pacific/Auckland" />);
     expect(await screen.findByText('Equipment needed on Oct 10, 2026')).toBeInTheDocument();
   });
 
   it('says so when the counts can\'t be loaded, instead of hiding the table', async () => {
     vi.mocked(getEquipmentNeeded).mockRejectedValue(new Error('network'));
-    render(<EquipmentNeededTable organizationId="org-1" gigId="g1" gigStart="2026-10-10T18:00:00" gigEnd="2026-10-10T23:00:00" />);
+    renderWithQuery(<EquipmentNeededTable organizationId="org-1" gigId="g1" gigStart="2026-10-10T18:00:00" gigEnd="2026-10-10T23:00:00" />);
     expect(await screen.findByText("Couldn't load equipment counts.")).toBeInTheDocument();
   });
 
   it('shows nothing when the gig needs no equipment', async () => {
     vi.mocked(getEquipmentNeeded).mockResolvedValue({ overlapping: 0, rows: [] });
-    const { container } = render(<EquipmentNeededTable organizationId="org-1" gigId="g1" gigStart="2026-10-10T18:00:00" gigEnd="2026-10-10T23:00:00" />);
+    const { container } = renderWithQuery(<EquipmentNeededTable organizationId="org-1" gigId="g1" gigStart="2026-10-10T18:00:00" gigEnd="2026-10-10T23:00:00" />);
     await new Promise((r) => setTimeout(r, 0));
     expect(container).toBeEmptyDOMElement();
   });
@@ -57,10 +58,27 @@ describe('EquipmentNeededTable (#184)', () => {
       row({ itemId: 'xlr', name: 'XLR', lotShortfalls: [{ asked: 6, has: 4 }] }),
       row({ itemId: 'dmx', name: 'DMX', lotShortfalls: [{ asked: 2, has: 0 }] }),
     ] } as any);
-    render(<EquipmentNeededTable gigId="g1" gigStart="2026-10-10T19:00:00Z" gigEnd="2026-10-10T23:00:00Z" organizationId="org-1" />);
+    renderWithQuery(<EquipmentNeededTable gigId="g1" gigStart="2026-10-10T19:00:00Z" gigEnd="2026-10-10T23:00:00Z" organizationId="org-1" />);
     const xlr = (await screen.findByText('XLR')).closest('tr')!;
     expect(within(xlr).getByText('asks for 6, lot has 4')).toBeInTheDocument();
     const dmx = screen.getByText('DMX').closest('tr')!;
     expect(within(dmx).getByText('asks for 2, lot is missing')).toBeInTheDocument();
+  });
+});
+
+// A10: the table loads again when the gig or its kits change. Holds before and after the move
+// to react-query.
+describe('EquipmentNeededTable: data loading (A10)', () => {
+  const base = { gigStart: '2026-10-11T03:00:00Z', gigEnd: '2026-10-11T06:00:00Z', gigTimezone: 'America/Los_Angeles', organizationId: 'org-1' };
+
+  it('loads again when the kits change (refreshKey) and when the gig changes', async () => {
+    vi.mocked(getEquipmentNeeded).mockClear();
+    vi.mocked(getEquipmentNeeded).mockResolvedValue({ overlapping: 0, rows: [row({ name: 'Cable' })] } as any);
+    const { rerender } = renderWithQuery(<EquipmentNeededTable gigId="g1" {...base} refreshKey={0} />);
+    await screen.findByText('Cable');
+    rerender(<EquipmentNeededTable gigId="g1" {...base} refreshKey={1} />);
+    await waitFor(() => expect(getEquipmentNeeded).toHaveBeenCalledTimes(2));
+    rerender(<EquipmentNeededTable gigId="g2" {...base} refreshKey={1} />);
+    await waitFor(() => expect(getEquipmentNeeded).toHaveBeenLastCalledWith('g2', base.gigStart, base.gigEnd, base.gigTimezone, 'org-1', undefined));
   });
 });
