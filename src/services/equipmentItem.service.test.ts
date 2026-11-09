@@ -8,7 +8,7 @@ vi.mock('../utils/supabase/auth-utils', () => ({ requireAuth: vi.fn() }));
 
 function makeChain(result: { data: any; error: any }) {
   const chain: any = {};
-  ['select', 'insert', 'update', 'delete', 'eq', 'in', 'not', 'is', 'or', 'order'].forEach((m) => {
+  ['select', 'insert', 'update', 'delete', 'eq', 'in', 'not', 'is', 'or', 'order', 'range'].forEach((m) => {
     chain[m] = vi.fn().mockReturnValue(chain);
   });
   chain.single = vi.fn().mockResolvedValue(result);

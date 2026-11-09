@@ -1,7 +1,7 @@
 import { FinCategory, FinDirection, FinStage, DbGigFinancial, FieldChange } from '../utils/supabase/types';
 import * as Sentry from '@sentry/react';
 import { handleApiError } from '../utils/api-error-utils';
-import { getSupabase, getCurrentUser, listRecords } from './base/dataAccess';
+import { getSupabase, getCurrentUser, listRecords, fetchAllPages, inChunks } from './base/dataAccess';
 import { writeActivity, actorNameOf } from './writeActivity';
 import { computeFieldChanges } from '../utils/fieldChanges';
 import type { ActivityEventType } from '../utils/activityLog.events';
@@ -152,39 +152,40 @@ export async function getGigExportAggregates(
 ): Promise<Map<string, GigExportAggregates>> {
   const supabase = getSupabase();
   try {
-    const { data: participants, error: partError } = await supabase
+    // Every row, a page at a time (A3); id breaks ties so pages don't overlap.
+    const participants = await fetchAllPages<{ gig_id: string }>((from, to) => supabase
       .from('gig_participants')
       .select('gig_id')
-      .eq('organization_id', organizationId);
+      .eq('organization_id', organizationId)
+      .order('id')
+      .range(from, to));
+    if (participants.length === 0) return new Map();
 
-    if (partError) throw partError;
-    if (!participants || participants.length === 0) return new Map();
+    const gigIds = participants.map((p) => p.gig_id);
 
-    const gigIds = participants.map((p: { gig_id: string }) => p.gig_id);
-
-    const { data: financials, error: finError } = await supabase
+    const financials = await inChunks(gigIds, (chunk) => fetchAllPages<any>((from, to) => supabase
       .from('gig_financials')
-      .select('gig_id, direction, stage, amount, amount_settled, staff_assignment_id')
-      .in('gig_id', gigIds)
-      .eq('organization_id', organizationId);
+      .select('id, gig_id, direction, stage, amount, amount_settled, staff_assignment_id')
+      .in('gig_id', chunk)
+      .eq('organization_id', organizationId)
+      .order('id')
+      .range(from, to)));
 
-    if (finError) throw finError;
-
-    const { data: assignments, error: staffError } = await supabase
+    const assignments = await inChunks(gigIds, (chunk) => fetchAllPages<any>((from, to) => supabase
       .from('gig_staff_assignments')
-      .select('fee, rate, rate_unit, status, completed_at, slot:gig_staff_slots!inner(gig_id, organization_id)')
-      .in('slot.gig_id', gigIds)
-      .eq('slot.organization_id', organizationId);
-
-    if (staffError) throw staffError;
+      .select('id, fee, rate, rate_unit, status, completed_at, slot:gig_staff_slots!inner(gig_id, organization_id)')
+      .in('slot.gig_id', chunk)
+      .eq('slot.organization_id', organizationId)
+      .order('id')
+      .range(from, to)));
 
     // The gig's times, for a rate's projected units.
-    const { data: gigTimes, error: gigsError } = await supabase
+    const gigTimes = await inChunks(gigIds, (chunk) => fetchAllPages<any>((from, to) => supabase
       .from('gigs')
       .select('id, start, end, timezone')
-      .in('id', gigIds);
-
-    if (gigsError) throw gigsError;
+      .in('id', chunk)
+      .order('id')
+      .range(from, to)));
     const timesOf = new Map(((gigTimes || []) as ({ id: string } & GigTimes)[]).map((g) => [g.id, g] as const));
 
     type RawFinancial = MoneyRow & {
