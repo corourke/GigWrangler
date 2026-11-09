@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
-import { render as rtlRender, type RenderOptions } from '@testing-library/react';
+import { render as rtlRender, renderHook as rtlRenderHook, type RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 /** A fresh client per render: no retries, so a failed load shows at once. */
@@ -15,4 +15,11 @@ export function render(ui: ReactElement, options: Omit<RenderOptions, 'wrapper'>
   const { queryClient = makeTestQueryClient(), ...rest } = options;
   const Wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   return { queryClient, ...rtlRender(ui, { wrapper: Wrapper, ...rest }) };
+}
+
+/** renderHook inside a QueryClientProvider; returns the client so a test can watch its cache. */
+export function renderHook<R, P>(hook: (props: P) => R, options: { initialProps?: P; queryClient?: QueryClient } = {}) {
+  const { queryClient = makeTestQueryClient(), initialProps } = options;
+  const Wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return { queryClient, ...rtlRenderHook(hook, { wrapper: Wrapper, initialProps }) };
 }
