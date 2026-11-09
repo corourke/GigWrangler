@@ -140,6 +140,7 @@ export async function syncGigToCalendar(
     start: string;
     end: string;
     timezone: string;
+    all_day?: boolean;
     description?: string;
     venue?: CalendarVenue | null;
   }
@@ -370,7 +371,7 @@ export async function syncAllGigsForUser(
   const { data: gigs, error: gigsError } = await supabase
     .from('gigs')
     .select(`
-      id, title, start, end, timezone, notes, status,
+      id, title, start, end, all_day, timezone, notes, status,
       participants:gig_participants(
         role,
         organization:organizations(name, address_line1, city)
@@ -411,6 +412,7 @@ export async function syncAllGigsForUser(
         start: gig.start,
         end: gig.end,
         timezone: gig.timezone,
+        all_day: gig.all_day,
         description: gig.notes ?? undefined,
         venue,
       });
@@ -438,6 +440,7 @@ async function syncGigWithSettings(
     start: string;
     end: string;
     timezone: string;
+    all_day?: boolean;
     description?: string;
     venue?: CalendarVenue | null;
   }
@@ -454,7 +457,7 @@ async function syncGigWithSettings(
     // Same event body as the server's sync-gig-all-users: always all-day in
     // the gig's local dates (#117), times and venue in the description.
     const eventData = buildCalendarEvent(
-      { title: gigData.title, start: gigData.start, end: gigData.end, timezone: gigData.timezone, notes: gigData.description },
+      { title: gigData.title, start: gigData.start, end: gigData.end, all_day: gigData.all_day, timezone: gigData.timezone, notes: gigData.description },
       gigData.venue,
       `${window.location.origin}/gigs/${gigId}`,
     );

@@ -1094,6 +1094,7 @@ export type Database = {
       }
       gigs: {
         Row: {
+          all_day: boolean
           created_at: string
           created_by: string
           end: string
@@ -1111,6 +1112,7 @@ export type Database = {
           updated_by: string
         }
         Insert: {
+          all_day?: boolean
           created_at?: string
           created_by: string
           end: string
@@ -1128,6 +1130,7 @@ export type Database = {
           updated_by: string
         }
         Update: {
+          all_day?: boolean
           created_at?: string
           created_by?: string
           end?: string

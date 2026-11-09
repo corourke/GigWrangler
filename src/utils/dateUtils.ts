@@ -24,6 +24,13 @@ export const isNoonUTC = (dateStr: string): boolean => {
 };
 
 /**
+ * Whether a gig is all-day (A12): its all_day flag. A gig loaded without the flag (an offline copy
+ * saved before A12) falls back to the old convention, a 12:00 UTC start.
+ */
+export const isGigAllDay = (gig: { start?: string | null; all_day?: boolean | null }): boolean =>
+  typeof gig.all_day === 'boolean' ? gig.all_day : !!gig.start && isNoonUTC(gig.start);
+
+/**
  * Formats an ISO date string into a display string in a specific timezone
  */
 export const formatInTimeZone = (
@@ -94,8 +101,8 @@ export const formatDateDisplay = (date: string | Date, timeZone?: string): strin
  * noon UTC and is that calendar date wherever it is; a timed gig's day is
  * its start in the gig's time zone.
  */
-export const formatGigDay = (start: string, timeZone?: string): string =>
-  formatDateDisplay(start, isNoonUTC(start) ? 'UTC' : timeZone);
+export const formatGigDay = (start: string, timeZone?: string, allDay?: boolean): string =>
+  formatDateDisplay(start, (allDay ?? isNoonUTC(start)) ? 'UTC' : timeZone);
 
 /**
  * Formats a date with full month name and weekday (e.g., "Saturday, January 31, 2026")
@@ -122,7 +129,7 @@ export const formatTimeDisplay = (date: string | Date, timeZone?: string): strin
 
 /**
  * Formats a date and time range for display according to business rules:
- * - Special case: If both start and end are 00:00:00Z, treat as date-only and show just dates
+ * - An all-day gig (allDay, or without it both ends at 12:00 UTC) shows just its dates
  * - Always show start date for time-based entries.
  * - If gig is < 24h and ends on a different day: Show "Start Date, Start Time - End Time"
  * - If gig is >= 24h: Show "Start Date, Start Time - End Date, End Time"
@@ -130,7 +137,9 @@ export const formatTimeDisplay = (date: string | Date, timeZone?: string): strin
 export const formatDateTimeDisplay = (
   start: string | Date,
   end: string | Date,
-  timeZone?: string
+  timeZone?: string,
+  /** The gig's all_day (A12). Without it, both ends at 12:00 UTC means all-day, as before. */
+  allDay?: boolean
 ): string => {
   if (!start) return '';
   
@@ -139,10 +148,10 @@ export const formatDateTimeDisplay = (
   const startDate = typeof start === 'string' ? new Date(start) : start;
   const endDate = typeof end === 'string' ? new Date(end) : end;
   
-  // Special case: Both start and end are noon UTC (date-only entries)
-  if (isNoonUTC(startStr) && isNoonUTC(endStr)) {
-    const startDateOnly = formatDateDisplay(start, undefined); // Use no timezone for date-only
-    const endDateOnly = formatDateDisplay(end, undefined);
+  // All-day gigs show their dates (stored at 12:00 UTC, so read in UTC)
+  if (allDay ?? (isNoonUTC(startStr) && isNoonUTC(endStr))) {
+    const startDateOnly = formatDateDisplay(start, 'UTC');
+    const endDateOnly = formatDateDisplay(end, 'UTC');
     
     if (startDateOnly === endDateOnly) {
       return startDateOnly; // Single date
@@ -276,17 +285,15 @@ export const formatForDateTimeInput = (
  * Formats a gig date/time for display in previews and tables.
  * Handles date-only entries (midnight UTC) specially by omitting time.
  */
-export const formatGigDateTimeForDisplay = (dateStr: string, timeZone?: string): string => {
+export const formatGigDateTimeForDisplay = (dateStr: string, timeZone?: string, allDay?: boolean): string => {
   if (!dateStr) return '';
   
   try {
     const date = new Date(dateStr);
     
-    // Check if this is a date-only entry (noon UTC)
-    if (isNoonUTC(dateStr)) {
-      // For date-only entries, just show the date without timezone conversion
-      // since noon UTC represents a calendar date, not a specific time
-      const datePart = dateStr.substring(0, 10); // YYYY-MM-DD
+    // An all-day gig's date (stored at noon UTC) shows without time zone conversion
+    if (allDay ?? isNoonUTC(dateStr)) {
+      const datePart = date.toISOString().substring(0, 10); // YYYY-MM-DD
       const [year, month, day] = datePart.split('-');
       return `${month}/${day}/${year}`;  // Format as MM/DD/YYYY for display
     } else {
@@ -310,7 +317,7 @@ export const formatGigDateTimeForDisplay = (dateStr: string, timeZone?: string):
  * Formats a gig date/time for editing in timezone-aware inputs.
  * Handles date-only entries by returning date-only format (YYYY-MM-DD).
  */
-export const formatGigDateTimeForInput = (dateInput: string | Date, timeZone?: string): string => {
+export const formatGigDateTimeForInput = (dateInput: string | Date, timeZone?: string, allDay?: boolean): string => {
   if (!dateInput) return '';
   
   try {
@@ -319,11 +326,9 @@ export const formatGigDateTimeForInput = (dateInput: string | Date, timeZone?: s
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return '';
     
-    // Check if this is a date-only entry (noon UTC)
-    if (isNoonUTC(dateStr)) {
-      // For date-only entries, extract the date part without timezone conversion
-      // since noon UTC represents a calendar date, not a specific time
-      return dateStr.substring(0, 10); // Extract YYYY-MM-DD from YYYY-MM-DDTHH:mm:ss.sssZ
+    // An all-day gig's date (stored at noon UTC), without time zone conversion
+    if (allDay ?? isNoonUTC(dateStr)) {
+      return date.toISOString().substring(0, 10);
     } else {
       // For entries with time, use datetime-local format
       return formatForDateTimeInput(dateStr, timeZone);

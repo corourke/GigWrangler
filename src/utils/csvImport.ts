@@ -5,7 +5,7 @@ import { isValidTimezone, getDefaultTimezone } from './timezones';
 import { GIG_STATUS_CONFIG } from './supabase/constants';
 import { unitRowProblems, type UnitRow } from './lineUnits';
 import micKitExampleCsv from '../config/import-examples/mic-kit-purchase.csv?raw';
-import { isNoonUTC } from './dateUtils';
+import { isNoonUTC, toDateInTimeZone } from './dateUtils';
 
 export type ImportType = 'gigs' | 'assets';
 
@@ -56,6 +56,11 @@ export interface GigRow {
   tags?: string;
   notes?: string;
   amount?: string;
+  /**
+   * All-day gig (A12). From the optional all_day column (yes/no); without it, a gig whose start
+   * and end are dates (no times) is all-day, as imports worked before.
+   */
+  all_day?: boolean;
   originalTimezone?: string;
   originalStatus?: string;
   originalStart?: string;
@@ -137,6 +142,20 @@ function parseDate(dateStr: string): string | null {
 /**
  * Apply defaults to gig row data
  */
+/** The all_day column's value: true, false, null when blank or absent, or 'invalid'. */
+export function parseAllDay(value: unknown): boolean | null | 'invalid' {
+  if (value === undefined || value === null) return null;
+  const v = String(value).trim().toLowerCase();
+  if (v === '') return null;
+  if (['yes', 'y', 'true', '1'].includes(v)) return true;
+  if (['no', 'n', 'false', '0'].includes(v)) return false;
+  return 'invalid';
+}
+
+/** A date as stored for an all-day gig: 12:00 UTC on its calendar date in the gig's time zone. */
+const asAllDayDate = (iso: string, timeZone: string) =>
+  isNoonUTC(iso) ? iso : new Date(`${toDateInTimeZone(iso, timeZone)}T12:00:00Z`).toISOString();
+
 function applyGigRowDefaults(row: any, userTimezone?: string | null): GigRow {
   const data: GigRow = {
     title: row.title || '',
@@ -171,6 +190,14 @@ function applyGigRowDefaults(row: any, userTimezone?: string | null): GigRow {
     }
   }
 
+  // An explicit all-day gig: its start and end are dates, whatever times were given.
+  const allDay = parseAllDay(row.all_day);
+  if (allDay === true) {
+    const tz = isValidTimezone(data.timezone) ? data.timezone : 'UTC';
+    if (parseDate(data.start)) data.start = asAllDayDate(parseDate(data.start)!, tz);
+    if (data.end.trim() && parseDate(data.end)) data.end = asAllDayDate(parseDate(data.end)!, tz);
+  }
+
   // If we have a start time but no end time, default end appropriately
   if (data.start && !data.end.trim()) {
     const parsedStart = parseDate(data.start);
@@ -188,6 +215,9 @@ function applyGigRowDefaults(row: any, userTimezone?: string | null): GigRow {
     }
   }
 
+  data.all_day = allDay === true || allDay === false
+    ? allDay
+    : !!parseDate(data.start) && !!parseDate(data.end) && isNoonUTC(data.start) && isNoonUTC(data.end);
   return data;
 }
 
@@ -303,9 +333,16 @@ export function validateGigRow(row: any, rowIndex: number, userTimezone?: string
     const endDate = new Date(data.end);
     if (endDate < startDate) {
       errors.push({ field: 'end', message: 'End time must be after start time' });
-    } else if (endDate.getTime() === startDate.getTime() && !(isNoonUTC(data.start) && isNoonUTC(data.end))) {
+    } else if (endDate.getTime() === startDate.getTime() && !data.all_day) {
       errors.push({ field: 'end', message: 'End time must be after start time' });
     }
+  }
+
+  const allDayValue = parseAllDay(row.all_day);
+  if (allDayValue === 'invalid') {
+    errors.push({ field: 'all_day', message: 'all_day must be yes or no' });
+  } else if (allDayValue === false && originalStart && !/\d{1,2}:\d{2}/.test(originalStart)) {
+    errors.push({ field: 'all_day', message: 'A gig that is not all-day needs a start time' });
   }
 
   if (!validateTimezone(data.timezone, originalTimezone, errors)) {
@@ -933,11 +970,13 @@ export function revalidateAssetRows(validRows: ParsedRow<AssetRow>[], invalidRow
 }
 
 export function generateGigTemplate(): string {
-  const headers = ['title', 'start', 'end', 'timezone', 'status', 'act', 'venue', 'tags', 'notes', 'amount_paid'];
+  // all_day (A12) is optional: yes for a gig of whole days (dates only), no for a timed gig.
+  const headers = ['title', 'start', 'end', 'all_day', 'timezone', 'status', 'act', 'venue', 'tags', 'notes', 'amount_paid'];
   const example = [
     'Summer Concert',
     '2024-07-15T18:00:00',
     '2024-07-15T22:00:00',
+    'no',
     'America/Los_Angeles',
     'Booked',
     'The Band',

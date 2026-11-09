@@ -28,7 +28,7 @@ describe('EquipmentNeededTable (#184)', () => {
     expect(trio).toHaveTextContent('Chauvet Intimidator Trio448606 2 short');
     expect(within(screen.getByText('QSC K12.2').closest('tr')!).getByText('Enough')).toBeInTheDocument();
     expect(within(screen.getByText('XLR Cable, 50 ft').closest('tr')!).getByText('none spare · 4 are in container kits')).toBeInTheDocument();
-    expect(getEquipmentNeeded).toHaveBeenCalledWith('g1', '2026-10-11T03:00:00Z', '2026-10-11T06:00:00Z', 'America/Los_Angeles', 'org-1');
+    expect(getEquipmentNeeded).toHaveBeenCalledWith('g1', '2026-10-11T03:00:00Z', '2026-10-11T06:00:00Z', 'America/Los_Angeles', 'org-1', undefined);
   });
 
   it('a date-only gig is headed with its own day, even at UTC+12 or later (#230 follow-up)', async () => {

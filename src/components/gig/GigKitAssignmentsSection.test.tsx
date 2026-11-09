@@ -209,7 +209,7 @@ describe('GigKitAssignmentsSection', () => {
     render(<GigKitAssignmentsSection {...mockProps} gigStart="2024-02-01T00:00:00Z" gigEnd="2024-02-01T04:00:00Z" />);
 
     await waitFor(() => {
-      expect(checkEquipmentConflicts).toHaveBeenCalledWith('test-gig-id', '2024-02-01T00:00:00Z', '2024-02-01T04:00:00Z', undefined, 'current-org-id');
+      expect(checkEquipmentConflicts).toHaveBeenCalledWith('test-gig-id', '2024-02-01T00:00:00Z', '2024-02-01T04:00:00Z', undefined, 'current-org-id', undefined, undefined);
     });
     await waitFor(() => {
       expect(screen.getByText(/Other Show/)).toBeInTheDocument();

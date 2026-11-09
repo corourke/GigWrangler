@@ -32,15 +32,15 @@ Two overlapping gigs conflict on equipment in two ways. Both checks count only t
 
 **Data path**: `gigs → gig_kit_assignments → kits → kit_flattened_cache / kit_flattened_item_cache → assets → equipment_items`; pack-out additions come from `inventory_tracking` rows with no kit.
 
-## Date-Only Gig Handling
+## All-Day Gig Handling
 
-Gigs without specific times store `start` and `end` as noon UTC (`T12:00:00.000Z`), which is a sentinel value. The `isNoonUTC()` utility in `dateUtils.ts` detects this.
+An all-day gig has `gigs.all_day = true` (A12). Its `start` and `end` are dates, stored at 12:00 UTC (`T12:00:00.000Z`) so the date reads the same in every time zone. Whether a gig is all-day is the flag, not the 12:00 UTC time: a timed gig can start at 12:00 UTC. `isGigAllDay()` in `dateUtils.ts` reads the flag, and falls back to a 12:00 UTC start only for a gig loaded without it (an offline copy saved before A12).
 
-When a gig is date-only, `getEffectiveRange()` expands its range to the full day:
-- **Start**: `00:00:00.000 UTC` on that date
-- **End**: `23:59:59.999 UTC` on that date
+For an all-day gig, `effectiveRange()` covers its whole local day in the gig's time zone:
+- **Start**: local midnight on that date
+- **End**: one millisecond before the next local midnight
 
-This ensures a date-only gig on Feb 27 correctly overlaps with a timed gig on Feb 27 from 7–9 PM UTC.
+A timed gig's range is exactly its start to end, including one at 12:00 UTC. The conflict checks select `all_day` for the other gigs and take the current gig's flag as their `allDay` argument.
 
 ## Overlap Classification
 

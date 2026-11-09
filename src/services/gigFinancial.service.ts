@@ -64,7 +64,7 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
 
     if (finError) throw finError;
 
-    const { data: gig } = await supabase.from('gigs').select('start, end, timezone').eq('id', gigId).maybeSingle();
+    const { data: gig } = await supabase.from('gigs').select('start, end, all_day, timezone').eq('id', gigId).maybeSingle();
 
     // Uncompleted staff assignments: projected costs until they are finalized
     // into a money-out row.
@@ -182,7 +182,7 @@ export async function getGigExportAggregates(
     // The gig's times, for a rate's projected units.
     const gigTimes = await inChunks(gigIds, (chunk) => fetchAllPages<any>((from, to) => supabase
       .from('gigs')
-      .select('id, start, end, timezone')
+      .select('id, start, end, all_day, timezone')
       .in('id', chunk)
       .order('id')
       .range(from, to)));

@@ -558,6 +558,8 @@ function QuickCreateGigModal({
         title: title.trim(),
         start,
         end,
+        // A date with no start time is stored as a date, as before (A12: now said explicitly).
+        all_day: allDay || !startTime,
         timezone,
         status,
         notes: notes.trim() || undefined,

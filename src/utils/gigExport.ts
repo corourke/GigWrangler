@@ -27,10 +27,12 @@ export const ZERO_GIG_EXPORT_AGGREGATES: GigExportAggregates = {
  * Returns '' for missing/invalid input. The explicit `timeZone` keeps output
  * deterministic regardless of the host TZ (CI runs as UTC).
  */
-export function formatExportDate(iso: string | null | undefined, timeZone?: string): string {
+export function formatExportDate(iso: string | null | undefined, timeZone?: string, allDay?: boolean): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
+  // An all-day gig's date is stored at 12:00 UTC: its UTC date, wherever the gig is (A12).
+  if (allDay) return d.toISOString().slice(0, 10);
   try {
     // en-CA formats as YYYY-MM-DD.
     return new Intl.DateTimeFormat('en-CA', {

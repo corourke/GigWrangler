@@ -506,8 +506,9 @@ Main gig records with status, dates, and details
 | hierarchy_depth | INTEGER | Depth level in gig hierarchy (default 0, NOT NULL) |
 | owner_organization_id | UUID | Reference to organizations.id: the organization the gig was created in (NOT NULL, ON DELETE RESTRICT; migration 20261020000000, #175) |
 | title | TEXT | Gig title/name (NOT NULL) |
-| start | TIMESTAMPTZ | Start date and time of the gig (NOT NULL) |
+| start | TIMESTAMPTZ | Start date and time of the gig (NOT NULL). For an all-day gig, its first date at 12:00 UTC |
 | end | TIMESTAMPTZ | End date and time of the gig (NOT NULL) |
+| all_day | BOOLEAN | All-day gig (A12): start and end are dates stored at 12:00 UTC, shown without times (NOT NULL, default false) |
 | timezone | TEXT | IANA timezone identifier (e.g., "America/New_York") (NOT NULL) |
 | status | GigStatus | Gig status enum: DateHold, Proposed, Booked, Completed, Cancelled, Settled (NOT NULL) |
 | tags | TEXT[] | Array of tags for categorization (default '{}') |

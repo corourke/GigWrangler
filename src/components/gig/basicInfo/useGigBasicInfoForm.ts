@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { getGig, updateGig } from '../../../services/gig.service';
 import { useAutoSave } from '../../../utils/hooks/useAutoSave';
 import { GIG_STATUS_CONFIG } from '../../../utils/supabase/constants';
-import { isNoonUTC } from '../../../utils/dateUtils';
+import { isGigAllDay } from '../../../utils/dateUtils';
 import type { Gig, GigStatus } from '../../../utils/supabase/types';
 
 export const basicInfoSchema = z.object({
@@ -44,7 +44,7 @@ function toFormData(gig: Gig): BasicInfoFormData {
     title: gig.title || '',
     start_time: gig.start ? new Date(gig.start) : undefined,
     end_time: gig.end ? new Date(gig.end) : undefined,
-    all_day: gig.start ? isNoonUTC(gig.start) : false,
+    all_day: isGigAllDay(gig),
     timezone: gig.timezone || 'America/Los_Angeles',
     status: gig.status || 'DateHold',
     tags: gig.tags || [],
@@ -87,6 +87,7 @@ export function useGigBasicInfoForm(gigId?: string, loaded?: Gig) {
       title: data.title,
       start: data.start_time.toISOString(),
       end: effectiveEnd,
+      all_day: data.all_day,
       timezone: data.timezone,
       status: data.status,
       tags: data.tags,

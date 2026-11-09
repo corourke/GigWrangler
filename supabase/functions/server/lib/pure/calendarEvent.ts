@@ -10,6 +10,8 @@ export interface CalendarGig {
   title: string;
   start: string;
   end?: string | null;
+  /** A12: the gig's all_day. Without it (an older caller), a 12:00 UTC start means all-day. */
+  all_day?: boolean | null;
   timezone?: string | null;
   notes?: string | null;
 }
@@ -28,8 +30,8 @@ export interface CalendarEventBody {
   location?: string;
 }
 
-// All-day gigs are marked by a noon-UTC start (app convention); their dates
-// are the UTC dates, whatever the gig's time zone.
+// All-day gigs are stored at 12:00 UTC; their dates are the UTC dates, whatever the gig's
+// time zone. Before A12 a noon-UTC start was also how one was recognised.
 function isNoonUTC(dateStr: string): boolean {
   return new Date(dateStr).toISOString().endsWith('T12:00:00.000Z');
 }
@@ -90,7 +92,7 @@ export function buildCalendarEvent(
   const start = new Date(gig.start);
   const endRaw = gig.end ? new Date(gig.end) : null;
   const end = endRaw && endRaw.getTime() > start.getTime() ? endRaw : null;
-  const allDay = isNoonUTC(gig.start);
+  const allDay = typeof gig.all_day === 'boolean' ? gig.all_day : isNoonUTC(gig.start);
 
   let startDate: string;
   let lastDate: string;

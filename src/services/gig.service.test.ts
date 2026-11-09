@@ -1078,6 +1078,23 @@ describe('gig.service', () => {
       expect(rpcArgs.p_participants.map((p: any) => p.organization_id)).toEqual(['org-a', 'org-c']);
     });
 
+    // A12: the copy is all-day when the original is; a timed original at 12:00 UTC stays timed.
+    it.each([true, false])('copies all_day (%s)', async (allDay) => {
+      const originalGig = {
+        id: 'g', title: 'Original', start: '2026-03-15T12:00:00.000Z', end: '2026-03-15T12:00:00.000Z', timezone: 'UTC', all_day: allDay,
+        owner_organization_id: 'org-a', participants: [{ organization_id: 'org-a', role: 'Production' }],
+      };
+      (requireAuth as any).mockResolvedValue({ supabase: mockSupabase, user: { id: 'user-1', user_metadata: {} } });
+      mockSupabase.from.mockImplementation((table: string) =>
+        makeChain({ data: table === 'gigs' ? originalGig : [], error: null }));
+      mockSupabase.rpc = dupRpc('new');
+
+      await duplicateGig('g');
+
+      const rpcArgs = mockSupabase.rpc.mock.calls.find((c: any[]) => c[0] === 'create_gig_complex')[1];
+      expect(rpcArgs.p_gig_data.all_day).toBe(allDay);
+    });
+
     it('logs gig.created for duplicated gig', async () => {
       const gigId = 'original-gig-id';
       const originalGig = { 

@@ -43,6 +43,7 @@ export default function GigScreen({
         title: data.title,
         start: data.start_time.toISOString(),
         end: computeEffectiveEnd(data),
+        all_day: data.all_day,
         timezone: data.timezone,
         status: data.status,
         tags: data.tags,

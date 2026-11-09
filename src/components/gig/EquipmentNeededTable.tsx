@@ -7,6 +7,8 @@ import { formatGigDay } from '../../utils/dateUtils';
 interface EquipmentNeededTableProps {
   gigId: string;
   gigStart: string;
+  /** The gig's all_day (A12). */
+  gigAllDay?: boolean;
   gigEnd: string;
   gigTimezone?: string;
   /** The viewing organization: only its kits count. */
@@ -32,17 +34,17 @@ function Status({ row }: { row: ItemNeedRow }) {
  * this gig and the gigs that overlap it, against what's free. Specific units
  * and "any" lines both count; container contents travel in their container.
  */
-export default function EquipmentNeededTable({ gigId, gigStart, gigEnd, gigTimezone, organizationId, refreshKey }: EquipmentNeededTableProps) {
+export default function EquipmentNeededTable({ gigId, gigStart, gigEnd, gigTimezone, gigAllDay, organizationId, refreshKey }: EquipmentNeededTableProps) {
   const [result, setResult] = useState<{ overlapping: number; rows: ItemNeedRow[] } | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let live = true;
-    getEquipmentNeeded(gigId, gigStart, gigEnd, gigTimezone, organizationId)
+    getEquipmentNeeded(gigId, gigStart, gigEnd, gigTimezone, organizationId, gigAllDay)
       .then((r) => { if (live) { setResult(r); setFailed(false); } })
       .catch(() => { if (live) { setResult(null); setFailed(true); } });
     return () => { live = false; };
-  }, [gigId, gigStart, gigEnd, gigTimezone, organizationId, refreshKey]);
+  }, [gigId, gigStart, gigEnd, gigTimezone, gigAllDay, organizationId, refreshKey]);
 
   if (failed) return <p className="text-xs text-gray-500">Couldn't load equipment counts.</p>;
   if (!result || result.rows.length === 0) return null;
@@ -51,7 +53,7 @@ export default function EquipmentNeededTable({ gigId, gigStart, gigEnd, gigTimez
   return (
     <section aria-labelledby="equipment-needed" className="space-y-2">
       <div>
-        <h3 id="equipment-needed" className="text-sm font-semibold text-gray-900">Equipment needed on {formatGigDay(gigStart, gigTimezone)}</h3>
+        <h3 id="equipment-needed" className="text-sm font-semibold text-gray-900">Equipment needed on {formatGigDay(gigStart, gigTimezone, gigAllDay)}</h3>
         <p className="text-xs text-gray-500">
           {others ? `this gig and the ${others} that ${others === 1 ? 'overlaps' : 'overlap'} it` : 'no other gig overlaps this one'}
         </p>

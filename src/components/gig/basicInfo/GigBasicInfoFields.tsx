@@ -9,7 +9,7 @@ import { cn } from '../../ui/utils';
 import TagsInput, { type TagsInputHandle } from '../../TagsInput';
 import MarkdownEditor from '../../MarkdownEditor';
 import { GIG_STATUS_CONFIG, SUGGESTED_TAGS } from '../../../utils/supabase/constants';
-import { formatGigDateTimeForInput, parseGigDateTimeFromInput, isNoonUTC } from '../../../utils/dateUtils';
+import { formatGigDateTimeForInput, parseGigDateTimeFromInput, toDateInTimeZone } from '../../../utils/dateUtils';
 import { getCommonUSTimezones } from '../../../utils/timezones';
 import type { GigStatus } from '../../../utils/supabase/types';
 import type { BasicInfoFormData } from './useGigBasicInfoForm';
@@ -167,7 +167,7 @@ interface DateTimeInputProps {
 }
 
 function DateTimeInput({ id, value, timezone, allDay, invalid, disabled, onChange }: DateTimeInputProps) {
-  const formatted = value ? formatGigDateTimeForInput(value, timezone) : '';
+  const formatted = value ? formatGigDateTimeForInput(value, timezone, allDay) : '';
   const datePart = formatted.substring(0, 10);
   const timePart = formatted.substring(11, 16);
   const hour = timePart ? timePart.substring(0, 2) : '';
@@ -232,17 +232,20 @@ export function GigWhenFields({ disabled, layout = 'stacked' }: { disabled?: boo
             className="border-gray-400 data-[state=checked]:border-primary"
             onCheckedChange={(checked) => {
               const isAllDay = !!checked;
+              const wasAllDay = field.value;
               field.onChange(isAllDay);
               const startVal = watch('start_time');
-              if (isAllDay && startVal) {
-                const dateStr = startVal.toISOString().substring(0, 10);
+              const tz = watch('timezone');
+              if (isAllDay && !wasAllDay && startVal) {
+                // A timed gig's dates in its time zone, stored at 12:00 UTC (A12)
+                const dateStr = toDateInTimeZone(startVal, tz);
                 setValue('start_time', new Date(`${dateStr}T12:00:00Z`), { shouldDirty: true });
                 const endVal = watch('end_time');
                 if (endVal) {
-                  const endDateStr = endVal.toISOString().substring(0, 10);
+                  const endDateStr = toDateInTimeZone(endVal, tz);
                   setValue('end_time', new Date(`${endDateStr}T12:00:00Z`), { shouldDirty: true });
                 }
-              } else if (!isAllDay && startVal && isNoonUTC(startVal.toISOString())) {
+              } else if (!isAllDay && wasAllDay && startVal) {
                 const dateStr = startVal.toISOString().substring(0, 10);
                 const utcIso = parseGigDateTimeFromInput(`${dateStr}T19:00`, watch('timezone'), false);
                 setValue('start_time', new Date(utcIso), { shouldDirty: true });
