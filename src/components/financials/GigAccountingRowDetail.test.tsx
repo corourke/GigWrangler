@@ -24,3 +24,18 @@ describe('GigAccountingRowDetail: paid dates (B17)', () => {
     expect(screen.queryByText(/Dec 31, 2025/)).not.toBeInTheDocument();
   });
 });
+
+// Round C: amounts show cents, like the rest of the money screens.
+describe('GigAccountingRowDetail: amounts', () => {
+  it('shows cents', async () => {
+    vi.mocked(getGigFinancials).mockResolvedValue([
+      { id: 'f1', direction: 'in', stage: 'paid', amount: 123.45, amount_settled: 123.45, date: '2026-03-02',
+        paid_at: '2026-03-02T12:00:00+00:00', description: 'Deposit' },
+      { id: 'f2', direction: 'out', stage: 'accepted', amount: 40.5, amount_settled: null, date: '2026-03-03', description: 'Cables' },
+    ] as any);
+    renderIn();
+    expect((await screen.findAllByText(/\$123\.45/)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/\$40\.50/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/\$123(?!\.)/)).not.toBeInTheDocument();
+  });
+});
