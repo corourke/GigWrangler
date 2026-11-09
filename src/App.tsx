@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { BrowserRouter, useNavigate } from 'react-router';
 import { Toaster } from './components/ui/sonner';
 import { NavigationProvider } from './contexts/NavigationProvider';
@@ -6,11 +6,14 @@ import { useAuth } from './contexts/AuthContext';
 import { useMobileLock } from './hooks/useMobileLock';
 import { useAppUpdateNotice } from './hooks/useAppUpdateNotice';
 import MobileLockScreen from './components/mobile/MobileLockScreen';
-import EditUserProfileDialog from './components/EditUserProfileDialog';
 import InvitationErrorScreen from './components/InvitationErrorScreen';
 import { AppShellProvider } from './routes/appShell';
 import { AppRoutes } from './routes/screens';
 import { useNav } from './routes/useNav';
+import { ChunkLoadBoundary } from './routes/ChunkLoadBoundary';
+
+// Loaded the first time the profile dialog opens, not at start-up (A21).
+const EditUserProfileDialog = lazy(() => import('./components/EditUserProfileDialog'));
 
 interface InvitationError {
   error: string;
@@ -48,6 +51,9 @@ function AppContent() {
   const nav = useNav();
 
   const [showEditProfileDialog, setShowEditProfileDialog] = useState(false);
+  // Mounted from the first time it opens, so it keeps its close animation after that.
+  const profileDialogUsed = useRef(false);
+  if (showEditProfileDialog) profileDialogUsed.current = true;
   const mobileGigListScrollTop = useRef(0);
   const [invitationError, setInvitationError] = useState<InvitationError | null>(
     parseInvitationError,
@@ -113,13 +119,17 @@ function AppContent() {
         )}
 
         {/* Edit Profile Dialog — available on all screens */}
-        {user && (
-          <EditUserProfileDialog
-            user={user}
-            open={showEditProfileDialog}
-            onOpenChange={setShowEditProfileDialog}
-            onProfileUpdated={setUser}
-          />
+        {user && profileDialogUsed.current && (
+          <ChunkLoadBoundary>
+            <Suspense fallback={null}>
+              <EditUserProfileDialog
+                user={user}
+                open={showEditProfileDialog}
+                onOpenChange={setShowEditProfileDialog}
+                onProfileUpdated={setUser}
+              />
+            </Suspense>
+          </ChunkLoadBoundary>
         )}
       </NavigationProvider>
     </AppShellProvider>

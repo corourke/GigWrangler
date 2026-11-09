@@ -37,7 +37,7 @@
 - **UI Components**: Shadcn/ui (Radix), Lucide React icons.
 - **Forms**: `react-hook-form` + `zod` validation.
 - **Backend**: Supabase (JS Client), PostgreSQL, RLS.
-- **Utilities**: `date-fns` (dates), `sonner` (toasts), `recharts` (charts).
+- **Utilities**: `date-fns` (dates), `sonner` (toasts). No charting library is installed (recharts was removed unused in A21); add one only with the screen that uses it, lazy-loaded.
 - **Testing**: Vitest + React Testing Library.
 
 ## Security & Multi-Tenancy

@@ -31,7 +31,7 @@
 ### Forms, validation, data display
 
 - **react-hook-form** + **zod** via `@hookform/resolvers` — uncontrolled forms with schema validation, wired into the shadcn `Form` components.
-- **recharts** — charts. **react-big-calendar** — calendar views. **react-day-picker** — date selection.
+- **react-big-calendar** — calendar views (loaded only with the gig list screen). **react-day-picker** — date selection.
 - **SmartDataTable** — the in-house sortable/filterable/column-customizable table. See [SmartDataTable.md](./SmartDataTable.md).
 - **cmdk** — command palette. **sonner** — toasts. **react-resizable-panels**, **embla-carousel-react**, **input-otp**.
 - **date-fns** — date maths throughout.
