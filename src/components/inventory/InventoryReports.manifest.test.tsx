@@ -1,7 +1,6 @@
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render as rtlRender, screen, waitFor, within, fireEvent } from '@testing-library/react'
-import type { ReactElement } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, waitFor, within, fireEvent } from '@testing-library/react'
 import { ManifestReport } from './InventoryReports';
 import type { ManifestLine } from '../../services/inventoryManagement.service';
 
@@ -20,11 +19,6 @@ vi.mock('./LocationCombobox', () => ({
 
 import { getManifestReport } from '../../services/inventoryManagement.service';
 
-// A10: the screen reads through react-query, so each test gets a fresh client.
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-}
 
 
 const at = { status: 'In Transit', location: 'Truck', gig_id: 'gig-1', gig_title: 'Harvest Gala', scanned_at: '2026-10-20T17:00:00Z',

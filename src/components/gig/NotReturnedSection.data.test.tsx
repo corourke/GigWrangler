@@ -2,23 +2,14 @@
  * A10 characterization: how the gig's Not returned list loads and refreshes. Written against the
  * pre-react-query section and kept unchanged through the move, so the move is behaviour-neutral.
  */
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, waitFor, within, act } from '@testing-library/react'
+import { screen, waitFor, within, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactElement } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import NotReturnedSection from './NotReturnedSection'
 import { getGigReturns, markReturned, undoWriteOff } from '../../services/writeOff.service'
 import { getLockedTaxYears } from '../../services/taxYear.service'
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  const result = rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-  return {
-    ...result,
-    rerender: (next: ReactElement) => result.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>),
-  }
-}
 
 vi.mock('../../services/writeOff.service', () => ({
   getGigReturns: vi.fn(), writeOffPieces: vi.fn(), undoWriteOff: vi.fn(), markReturned: vi.fn(),

@@ -3,7 +3,7 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useKitDetailData } from './useKitDetailData'
-import { queryKeys, equipmentInvalidation } from '../../lib/queryKeys'
+import { queryKeys } from '../../lib/queryKeys'
 import { getKit, getKitFlattenedContents, getKitComponentTree, getKitFlattenedItems, deleteKit, duplicateKit } from '../../services/kit.service'
 import { getEntityActivity } from '../../services/activityLog.service'
 
@@ -36,7 +36,7 @@ describe('useKitDetailData (A10)', () => {
   it('caches the kit page and its activity under the kit’s keys, stale at once', async () => {
     const { client, hook } = setup()
     await waitFor(() => expect(hook.result.current.activityLoading).toBe(false))
-    await waitFor(() => expect(hook.result.current.detailQuery.isSuccess).toBe(true))
+    await waitFor(() => expect(hook.result.current.isLoading).toBe(false))
     expect(client.getQueryData(queryKeys.kitDetail('k1'))).toEqual({
       kit: { id: 'k1', name: 'Kit' }, flattenedAssets: [], flattenedItems: [], tree: [],
     })
@@ -44,13 +44,13 @@ describe('useKitDetailData (A10)', () => {
     expect(client.getQueryCache().find({ queryKey: queryKeys.kitDetail('k1') })!.isStale()).toBe(true)
   })
 
-  it('Duplicate and Delete invalidate through the equipment map', async () => {
+  it('Duplicate and Delete refresh the kits, the equipment and the dashboard', async () => {
     const { invalidate, hook } = setup()
-    await waitFor(() => expect(hook.result.current.detailQuery.isSuccess).toBe(true))
-    await act(() => hook.result.current.duplicateKit.mutateAsync())
-    expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining(equipmentInvalidation.kit('org-1', 'k1')))
+    await waitFor(() => expect(hook.result.current.isLoading).toBe(false))
+    await act(() => hook.result.current.duplicateKit())
+    expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining([queryKeys.kits('org-1'), queryKeys.kit('k1'), queryKeys.assets('org-1'), queryKeys.dashboard('org-1')]))
     invalidate.mockClear()
-    await act(() => hook.result.current.deleteKit.mutateAsync())
-    expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining(equipmentInvalidation.kit('org-1', 'k1')))
+    await act(() => hook.result.current.deleteKit())
+    expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining([queryKeys.kits('org-1'), queryKeys.kit('k1'), queryKeys.assets('org-1'), queryKeys.dashboard('org-1')]))
   })
 })

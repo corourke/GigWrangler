@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, equipmentInvalidation, invalidateKeys } from '../../lib/queryKeys';
+import { queryKeys, invalidateAfterTrackingChange } from '../../lib/queryKeys';
 import {
   getActiveGigsWithTracking,
   getItemsByLocation,
@@ -70,15 +70,28 @@ export function useLocationExplorerData(organizationId: string, filters: Locatio
     staleTime: 0,
   });
 
-  return {
-    gigs: gigsQuery.data ?? NO_GIGS,
+  const afterTrackingChange = useCallback(
+    () => invalidateAfterTrackingChange(queryClient, { organizationId }),
+    [queryClient, organizationId],
+  );
+  const { refetch } = resultsQuery;
+  const reload = useCallback(() => { void refetch(); }, [refetch]);
+
+  const items = (searching && resultsQuery.data) || NO_RESULTS;
+  const places = selectedItem && placesQuery.data ? placesQuery.data : null;
+  const gigs = gigsQuery.data ?? NO_GIGS;
+  return useMemo(() => ({
+    gigs,
     equipmentItems,
     selectedItem,
-    places: selectedItem && placesQuery.data ? placesQuery.data : null,
-    items: (searching && resultsQuery.data) || NO_RESULTS,
-    loading: resultsQuery.isLoading,
+    places,
+    items,
+    // Read failures show nothing found, as before A10.
+    isLoading: resultsQuery.isLoading,
+    error: null as string | null,
     hasSearched: searching,
+    reload,
     /** A tracking override was saved: refresh where things are. */
-    trackingChanged: () => invalidateKeys(queryClient, equipmentInvalidation.tracking(organizationId)),
-  };
+    afterTrackingChange,
+  }), [gigs, equipmentItems, selectedItem, places, items, resultsQuery.isLoading, searching, reload, afterTrackingChange]);
 }

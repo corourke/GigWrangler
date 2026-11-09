@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import {screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GigListScreen from './GigListScreen';
+import { renderWithQuery } from '../test/renderWithQuery';
 
 // Mock localStorage. Whether jsdom / the JS engine backs localStorage with a
 // real implementation varies (it is absent under the CI runner), so provide a
@@ -101,7 +102,7 @@ describe('GigListScreen', () => {
       vi.mocked(getGigsForOrganization).mockResolvedValue([
         { ...futureGig, id: 'gig-today', title: 'Today Show', start: '2026-09-25T14:00:00.000Z', end: '2026-09-25T16:00:00.000Z' },
       ]);
-      render(
+      renderWithQuery(
         <GigListScreen
           organization={organization}
           user={user}
@@ -127,7 +128,7 @@ describe('GigListScreen', () => {
   });
 
   it('shows Upcoming gigs by default and hides Past gigs', async () => {
-    render(
+    renderWithQuery(
       <GigListScreen
         organization={organization}
         user={user}
@@ -152,7 +153,7 @@ describe('GigListScreen', () => {
 
   it('shows Past gigs and hides Upcoming gigs when the Past tab is selected', async () => {
     const ue = userEvent.setup();
-    render(
+    renderWithQuery(
       <GigListScreen
         organization={organization}
         user={user}
@@ -182,7 +183,7 @@ describe('GigListScreen', () => {
   });
 
   it('labels the tabs with the count of gigs in each timeframe', async () => {
-    render(
+    renderWithQuery(
       <GigListScreen
         organization={organization}
         user={user}
@@ -208,7 +209,7 @@ describe('GigListScreen', () => {
   it('opens the gig when the title cell is clicked (#27)', async () => {
     const ue = userEvent.setup();
     const onViewGig = vi.fn();
-    render(
+    renderWithQuery(
       <GigListScreen
         organization={organization}
         user={user}
@@ -240,7 +241,7 @@ describe('GigListScreen', () => {
     const moneyColumns = ['Cost of Staff', 'Revenue', 'Expenses', 'Profit'];
 
     const renderAs = (userRole: 'Admin' | 'Manager' | 'Staff' | 'Viewer') =>
-      render(
+      renderWithQuery(
         <GigListScreen
           organization={organization}
           user={user}
@@ -307,7 +308,7 @@ describe('GigListScreen', () => {
   describe('the row menu Delete action (#175)', () => {
     const openRowMenu = async (userRole: 'Admin' | 'Manager') => {
       const ue = userEvent.setup();
-      render(
+      renderWithQuery(
         <GigListScreen
           organization={organization}
           user={user}
@@ -385,7 +386,7 @@ describe('GigListScreen', () => {
     };
 
     const renderScreen = (viewMode: 'list' | 'calendar', onViewGig: (id: string, fromCalendar?: boolean) => void) =>
-      render(
+      renderWithQuery(
         <GigListScreen
           organization={organization}
           user={user}
@@ -436,7 +437,7 @@ describe('GigListScreen', () => {
       owner_organization_id: 'org-other',
       participants: [{ organization_id: 'org-1', role: 'Sound', inactive: true, organization: { id: 'org-1', name: 'Test Org' } }],
     }, pastGig]);
-    render(
+    renderWithQuery(
       <GigListScreen organization={organization} user={user} userRole="Admin" onBack={noop} onCreateGig={noop}
         onViewGig={noop} onEditGig={noop} onNavigateToDashboard={noop} onNavigateToGigs={noop}
         onNavigateToAssets={noop} onSwitchOrganization={noop} onLogout={noop} />
@@ -444,5 +445,72 @@ describe('GigListScreen', () => {
     const titles = await screen.findAllByText('Upcoming Show');
     const row = titles.map((t) => t.closest('tr')).find(Boolean) as HTMLElement;
     expect(within(row).getByText('Inactive')).toBeInTheDocument();
+  });
+});
+
+// A10: how the list loads, fails, follows the organization and refreshes after a change. These
+// hold before and after the move to react-query.
+describe('GigListScreen: data loading (A10)', () => {
+  const props = {
+    user, userRole: 'Admin' as const, onBack: noop, onCreateGig: noop, onViewGig: noop, onEditGig: noop,
+    onNavigateToDashboard: noop, onNavigateToGigs: noop, onNavigateToAssets: noop, onSwitchOrganization: noop, onLogout: noop,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    vi.mocked(getGigsForOrganization).mockResolvedValue([futureGig, pastGig]);
+    vi.mocked(checkAllConflictsForGigs).mockResolvedValue([]);
+  });
+
+  it('shows a load error, and Try Again loads the list', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(getGigsForOrganization).mockRejectedValueOnce(new Error('Network down'));
+    renderWithQuery(<GigListScreen organization={organization} {...props} />);
+    expect(await screen.findByText('Error loading gigs')).toBeInTheDocument();
+    expect(screen.getByText('Network down')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Try Again' }));
+    expect(await screen.findByText('Upcoming Show')).toBeInTheDocument();
+  });
+
+  it("shows the other organization's gigs after a switch", async () => {
+    vi.mocked(getGigsForOrganization).mockImplementation(async (orgId: string) =>
+      orgId === 'org-2' ? [{ ...futureGig, id: 'gig-b', owner_organization_id: 'org-2', title: 'Org B Show' }] : [futureGig]);
+    const { rerender } = renderWithQuery(<GigListScreen organization={organization} {...props} />);
+    await screen.findByText('Upcoming Show');
+    rerender(<GigListScreen organization={{ id: 'org-2', name: 'Org B' } as any} {...props} />);
+    expect(await screen.findByText('Org B Show')).toBeInTheDocument();
+    expect(screen.queryByText('Upcoming Show')).not.toBeInTheDocument();
+    expect(getGigsForOrganization).toHaveBeenCalledWith('org-2');
+  });
+
+  const openMenu = async () => {
+    const ue = userEvent.setup();
+    await screen.findByText('Upcoming Show');
+    const trigger = screen.getAllByRole('button').find((b) => b.querySelector('.lucide-ellipsis'));
+    await ue.click(trigger!);
+    return ue;
+  };
+
+  it('reloads the list after duplicating a gig', async () => {
+    const { duplicateGig } = await import('../services/gig.service');
+    vi.mocked(duplicateGig).mockResolvedValue({ id: 'gig-copy' } as any);
+    renderWithQuery(<GigListScreen organization={organization} {...props} />);
+    const ue = await openMenu();
+    vi.mocked(getGigsForOrganization).mockResolvedValue([futureGig, { ...futureGig, id: 'gig-copy', title: 'Upcoming Show (Copy)' }, pastGig]);
+    await ue.click(await screen.findByRole('menuitem', { name: 'Duplicate' }));
+    expect(await screen.findByText('Upcoming Show (Copy)')).toBeInTheDocument();
+  });
+
+  it('puts the gig back when a delete fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { deleteGig } = await import('../services/gig.service');
+    vi.mocked(deleteGig).mockRejectedValue(new Error('Not allowed'));
+    renderWithQuery(<GigListScreen organization={organization} {...props} />);
+    const ue = await openMenu();
+    await ue.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    await waitFor(() => expect(deleteGig).toHaveBeenCalledWith('gig-future'));
+    expect(await screen.findByText('Upcoming Show')).toBeInTheDocument();
   });
 });

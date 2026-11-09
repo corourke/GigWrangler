@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { makeTestQueryClient } from '../../test/renderWithQuery'
 import { useConflictFlags, useReportGigs, useManifest, usePackingListRows } from './useInventoryReportsData'
 import { queryKeys } from '../../lib/queryKeys'
 import { getGigsForReportPicker, getInventoryConflictFlags, getManifestReport, getPackingListReport } from '../../services/inventoryManagement.service'
@@ -11,7 +12,7 @@ vi.mock('../../services/inventoryManagement.service', () => ({
 }))
 
 function wrap() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  const client = makeTestQueryClient()
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
   return { client, wrapper }
 }

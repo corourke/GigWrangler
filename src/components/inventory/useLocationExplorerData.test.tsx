@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { makeTestQueryClient } from '../../test/renderWithQuery'
 import { useLocationExplorerData } from './useLocationExplorerData'
-import { queryKeys, equipmentInvalidation } from '../../lib/queryKeys'
+import { queryKeys } from '../../lib/queryKeys'
 import { getItemsByLocation, getActiveGigsWithTracking, getItemWhereabouts } from '../../services/inventoryManagement.service'
 import { getItems } from '../../services/equipmentItem.service'
 
@@ -15,7 +16,7 @@ vi.mock('../../services/equipmentItem.service', () => ({ getItems: vi.fn() }))
 const filters = { location: 'Truck', statuses: ['In Transit'], gigId: 'all', itemId: 'all' }
 
 function setup(f = filters) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  const client = makeTestQueryClient()
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
   const invalidate = vi.spyOn(client, 'invalidateQueries')
   const hook = renderHook(() => useLocationExplorerData('org-1', f), { wrapper })
@@ -55,10 +56,10 @@ describe('useLocationExplorerData (A10)', () => {
     expect(client.getQueryData(queryKeys.itemWhereabouts('i1', 'org-1'))).toEqual([{ kind: 'home' }])
   })
 
-  it('a saved override invalidates through the map', async () => {
+  it('a saved override refreshes the equipment and the kits', async () => {
     const { invalidate, hook } = setup()
     await waitFor(() => expect(hook.result.current.items).toHaveLength(1))
-    await act(() => hook.result.current.trackingChanged())
-    expect(invalidate.mock.calls.map((c: any[]) => c[0]?.queryKey)).toEqual(expect.arrayContaining(equipmentInvalidation.tracking('org-1')))
+    await act(() => hook.result.current.afterTrackingChange())
+    expect(invalidate.mock.calls.map((c: any[]) => c[0]?.queryKey)).toEqual(expect.arrayContaining([queryKeys.assets('org-1'), queryKeys.kits('org-1')]))
   })
 })

@@ -124,7 +124,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(UNIQUE_STATUSES);
   const [gigFilter, setGigFilter] = useState('all');
   const [itemFilter, setItemFilter] = useState('all');
-  const { gigs, equipmentItems, selectedItem, places, items, loading, hasSearched, trackingChanged } =
+  const { gigs, equipmentItems, selectedItem, places, items, isLoading: loading, hasSearched, afterTrackingChange } =
     useLocationExplorerData(organizationId, {
       location: locationFilter, statuses: selectedStatuses, gigId: gigFilter, itemId: itemFilter,
     });
@@ -497,7 +497,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
           lot={overrideTarget.lot}
           atHome={overrideTarget.atHome}
           maintenance={overrideTarget.maintenance}
-          onSuccess={() => { setOverrideTarget(null); trackingChanged(); }}
+          onSuccess={() => { setOverrideTarget(null); afterTrackingChange(); }}
         />
       )}
     </div>

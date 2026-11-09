@@ -13,7 +13,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '../ui/alert-dialog';
 import { PrintHeader } from './InventoryReports';
-import { isOverdue, whichLabel, type MaintenanceList as List, type MaintenanceListRow } from '../../services/maintenance.service';
+import { isOverdue, whichLabel, type MaintenanceListRow } from '../../services/maintenance.service';
 import { useMaintenanceListData } from './useMaintenanceListData';
 import { isStaffOrAbove } from '../../utils/permissions';
 import type { UserRole } from '../../utils/supabase/constants';
@@ -35,22 +35,15 @@ const day = (d: string | null) => {
 
 type Confirm = { row: MaintenanceListRow; flagged: boolean };
 
-const EMPTY: List = { inMaintenance: [], flagged: [] };
-
 /**
  * Equipment › Maintenance (#186, Cameron 10-18): what's in maintenance, and what's flagged to go
  * when it comes home from a gig. Staff and above can edit the details, return to service, or
  * cancel a flag; disposing stays on the equipment form.
  */
 export function MaintenanceList({ organizationId, organizationName, userRole }: MaintenanceListProps) {
-  const { listQuery, updateDetails, returnToService } = useMaintenanceListData(organizationId);
-  const list: List = listQuery.data ?? EMPTY;
-  const loading = listQuery.isPending && !listQuery.isError;
-  const loadFailed = listQuery.isError;
-  const loadError = listQuery.error;
-  useEffect(() => {
-    if (loadError) console.error('Error loading the maintenance list:', loadError);
-  }, [loadError]);
+  const { list, isLoading: loading, error: loadError, reload, updateDetails, returnToService } =
+    useMaintenanceListData(organizationId);
+  const loadFailed = !!loadError;
   const [editing, setEditing] = useState<MaintenanceListRow | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [busy, setBusy] = useState(false);
@@ -83,7 +76,7 @@ export function MaintenanceList({ organizationId, organizationName, userRole }: 
     return (
       <div className="flex flex-col items-center gap-3 py-12">
         <span className="text-sm text-muted-foreground">Couldn’t load the maintenance list.</span>
-        <Button variant="outline" size="sm" onClick={() => { listQuery.refetch(); }}>Retry</Button>
+        <Button variant="outline" size="sm" onClick={reload}>Retry</Button>
       </div>
     );
   }
@@ -142,7 +135,7 @@ export function MaintenanceList({ organizationId, organizationName, userRole }: 
         onClose={() => setEditing(null)}
         onSave={async (details) => {
           if (!editing) return;
-          if (await act(() => updateDetails.mutateAsync({ assetId: editing.asset_id, details }), 'Maintenance details saved')) setEditing(null);
+          if (await act(() => updateDetails({ assetId: editing.asset_id, details }), 'Maintenance details saved')) setEditing(null);
         }}
       />
 
@@ -162,7 +155,7 @@ export function MaintenanceList({ organizationId, organizationName, userRole }: 
                 if (!confirm) return;
                 const { row, flagged } = confirm;
                 setConfirm(null);
-                act(() => returnToService.mutateAsync(row.asset_id), flagged ? 'Flag cancelled' : 'Returned to service');
+                act(() => returnToService(row.asset_id), flagged ? 'Flag cancelled' : 'Returned to service');
               }}
             >
               {confirm?.flagged ? 'Cancel flag' : 'Return to service'}

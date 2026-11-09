@@ -2,10 +2,9 @@
  * A10 characterization: how the kit edit screen loads and saves its data. Written against the
  * pre-react-query screen and kept unchanged through the move, so the move is behaviour-neutral.
  */
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, waitFor, fireEvent, act } from '@testing-library/react'
-import type { ReactElement } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { toast } from 'sonner'
 import KitScreen from './KitScreen'
 import { makeUser, makeOrganization } from '../test/factories'
@@ -13,14 +12,6 @@ import { getKit, getKits, getKitsFlattenedSummary, createKit, updateKit } from '
 import { getAssets } from '../services/asset.service'
 import { getItems, getContainerPieces } from '../services/equipmentItem.service'
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  const result = rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-  return {
-    ...result,
-    rerender: (next: ReactElement) => result.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>),
-  }
-}
 
 vi.mock('../services/kit.service', () => ({
   getKit: vi.fn(),
@@ -128,7 +119,13 @@ describe('KitScreen data (A10 characterization)', () => {
     await waitFor(() => expect(getKits).toHaveBeenCalledWith('org-1', { search: 'mic' }))
   })
 
-  it('saving an edit updates the kit and reports it', async () => {
+  // Since A10 (#402's form convention) a save reloads the kit and reseeds the form from what was
+  // saved, so the server here returns the saved kit afterwards.
+  it('saving an edit updates the kit and reports it; the form shows what was saved', async () => {
+    vi.mocked(updateKit).mockImplementation(async () => {
+      vi.mocked(getKit).mockResolvedValue(kitOf('kit-1', 'Renamed Kit', [cableLine, subKitLine]) as any)
+      return {} as any
+    })
     render(<KitScreen {...props} kitId="kit-1" />)
     const name = await screen.findByDisplayValue('First Kit')
     fireEvent.change(name, { target: { value: 'Renamed Kit' } })

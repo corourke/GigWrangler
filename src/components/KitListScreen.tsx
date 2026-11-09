@@ -1,9 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import {Package, Plus, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import type { KitFlattenedSummary } from '../services/kit.service';
-import type { KitTrackingSummary } from '../services/inventoryManagement.service';
-import { kitStatusLead, kitStatusSummary, type KitPackingSummary } from '../utils/packingSummary';
+import { kitStatusLead, kitStatusSummary } from '../utils/packingSummary';
 import { useKitListData } from './kit/useKitListData';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -51,24 +49,23 @@ export default function KitListScreen({
   onLogout,
 }: KitListScreenProps) {
   const {
-    data,
+    kits: allKits,
+    tracking: kitTrackingSummary,
+    flattened: kitFlattenedSummary,
+    packing: kitPacking,
     isLoading,
     error,
-    refresh,
-    updateKit: updateKitMutation,
-    duplicateKit: duplicateKitMutation,
-    deleteKit: deleteKitMutation,
+    reload,
+    updateKit,
+    duplicateKit,
+    deleteKit,
   } = useKitListData(organization.id);
-  const allKits = useMemo<any[]>(() => data?.kits ?? [], [data]);
-  const kitTrackingSummary = useMemo(() => data?.tracking ?? new Map<string, KitTrackingSummary>(), [data]);
-  const kitFlattenedSummary = useMemo(() => data?.flattened ?? new Map<string, KitFlattenedSummary>(), [data]);
-  const kitPacking = useMemo(() => data?.packing ?? new Map<string, KitPackingSummary>(), [data]);
   const [_filteredKits, setFilteredKits] = useState<any[]>([]);
   const [trackingStatusFilter, setTrackingStatusFilter] = useState<string>('All');
 
   const handleUpdateKit = async (id: string, updates: Partial<any>) => {
     try {
-      await updateKitMutation.mutateAsync({ id, updates });
+      await updateKit({ id, updates });
       toast.success('Kit updated');
     } catch (err: any) {
       // The hook reloads the list.
@@ -76,30 +73,28 @@ export default function KitListScreen({
     }
   };
 
-  const { mutateAsync: duplicateKitAsync } = duplicateKitMutation;
   const handleDuplicateKit = useCallback(async (kitId: string, kitName: string) => {
     try {
-      await duplicateKitAsync(kitId);
+      await duplicateKit(kitId);
       toast.success(`Kit "${kitName}" duplicated successfully`);
     } catch (error: any) {
       console.error('Error duplicating kit:', error);
       toast.error(error.message || 'Failed to duplicate kit');
     }
-  }, [duplicateKitAsync]);
+  }, [duplicateKit]);
 
-  const { mutateAsync: deleteKitAsync } = deleteKitMutation;
   const handleDeleteKit = useCallback(async (kitId: string, kitName: string) => {
     if (!confirm(`Are you sure you want to delete "${kitName}"?`)) return;
 
     // The hook reloads the list either way.
     try {
-      await deleteKitAsync(kitId);
+      await deleteKit(kitId);
       toast.success('Kit deleted successfully');
     } catch (error: any) {
       console.error('Error deleting kit:', error);
       toast.error(error.message || 'Failed to delete kit');
     }
-  }, [deleteKitAsync]);
+  }, [deleteKit]);
 
   const displayedKits = useMemo(() => {
     if (trackingStatusFilter === 'All') return allKits;
@@ -316,7 +311,7 @@ export default function KitListScreen({
               <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
               <h3 className="text-gray-900 mb-2">Error loading kits</h3>
               <p className="text-gray-600 mb-6">{error}</p>
-              <Button onClick={() => refresh()} variant="outline">
+              <Button onClick={reload} variant="outline">
                 Try Again
               </Button>
             </div>

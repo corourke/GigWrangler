@@ -1,5 +1,6 @@
+import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, equipmentInvalidation, invalidateKeys } from '../../lib/queryKeys';
+import { queryKeys, invalidateAfterKitChange } from '../../lib/queryKeys';
 import {
   getKit,
   deleteKit,
@@ -30,51 +31,55 @@ export interface KitPageData {
 
 const NO_ACTIVITY: ActivityLogEntry[] = [];
 
+/** The kit, its flattened contents and its structure, as one load (as before A10). */
+async function loadKitPage(kitId: string): Promise<KitPageData> {
+  const [kit, flattened, tree, items] = await Promise.all([
+    getKit(kitId),
+    getKitFlattenedContents(kitId),
+    getKitComponentTree(kitId),
+    getKitFlattenedItems(kitId),
+  ]);
+  return { kit, flattenedAssets: flattened as FlattenedAssetRow[], flattenedItems: items ?? [], tree };
+}
+
 /**
- * Server state for a kit page (A10): the kit, its flattened contents and structure, its activity,
- * and the writes made from the page.
+ * A kit page's data (A10): the kit, its flattened contents and structure, its activity, and the
+ * writes made from the page. Keyed by the kit, so a late answer for another kit never shows (B12).
  */
 export function useKitDetailData(kitId: string, organizationId: string) {
   const queryClient = useQueryClient();
 
-  const detailQuery = useQuery<KitPageData>({
-    queryKey: queryKeys.kitDetail(kitId),
-    queryFn: async () => {
-      const [kit, flattened, tree, items] = await Promise.all([
-        getKit(kitId),
-        getKitFlattenedContents(kitId),
-        getKitComponentTree(kitId),
-        getKitFlattenedItems(kitId),
-      ]);
-      return { kit, flattenedAssets: flattened as FlattenedAssetRow[], flattenedItems: items ?? [], tree };
-    },
-    staleTime: 0,
-  });
+  const page = useQuery({ queryKey: queryKeys.kitDetail(kitId), queryFn: () => loadKitPage(kitId), staleTime: 0 });
 
   // Activity is secondary: a failure leaves it empty and the page still shows the kit.
-  const activityQuery = useQuery<ActivityLogEntry[]>({
+  const activity = useQuery<ActivityLogEntry[]>({
     queryKey: queryKeys.kitActivity(kitId),
     queryFn: () => getEntityActivity('kit', kitId),
     staleTime: 0,
   });
 
-  const invalidate = () => invalidateKeys(queryClient, equipmentInvalidation.kit(organizationId, kitId));
+  const afterKitChange = useCallback(
+    () => invalidateAfterKitChange(queryClient, { organizationId, kitId }),
+    [queryClient, organizationId, kitId],
+  );
+  const duplicateKitMutation = useMutation({ mutationFn: () => duplicateKit(kitId), onSuccess: afterKitChange });
+  const deleteKitMutation = useMutation({ mutationFn: () => deleteKit(kitId), onSuccess: afterKitChange });
 
-  const duplicateKitMutation = useMutation({
-    mutationFn: () => duplicateKit(kitId),
-    onSuccess: invalidate,
-  });
+  const { refetch } = page;
+  /** Load the kit again (Retry). */
+  const reload = useCallback(() => { void refetch(); }, [refetch]);
+  const error = page.error ? ((page.error as Error).message || 'Failed to load this kit.') : null;
 
-  const deleteKitMutation = useMutation({
-    mutationFn: () => deleteKit(kitId),
-    onSuccess: invalidate,
-  });
-
-  return {
-    detailQuery,
-    activity: activityQuery.data ?? NO_ACTIVITY,
-    activityLoading: activityQuery.isPending,
-    duplicateKit: duplicateKitMutation,
-    deleteKit: deleteKitMutation,
-  };
+  return useMemo(() => ({
+    page: page.data ?? null,
+    isLoading: page.isPending,
+    error,
+    reload,
+    activity: activity.data ?? NO_ACTIVITY,
+    activityLoading: activity.isPending,
+    afterKitChange,
+    duplicateKit: duplicateKitMutation.mutateAsync,
+    deleteKit: deleteKitMutation.mutateAsync,
+  }), [page.data, page.isPending, error, reload, activity.data, activity.isPending, afterKitChange,
+    duplicateKitMutation.mutateAsync, deleteKitMutation.mutateAsync]);
 }

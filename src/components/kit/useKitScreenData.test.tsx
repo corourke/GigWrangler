@@ -3,7 +3,7 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useKitScreenData, useKitPickerData } from './useKitScreenData'
-import { queryKeys, equipmentInvalidation } from '../../lib/queryKeys'
+import { queryKeys } from '../../lib/queryKeys'
 import { getKit, getKits, getKitsFlattenedSummary, getKitsThatWouldCycle, createKit, updateKit } from '../../services/kit.service'
 import { getAssets } from '../../services/asset.service'
 import { getItems, getContainerPieces } from '../../services/equipmentItem.service'
@@ -41,7 +41,7 @@ describe('useKitScreenData (A10)', () => {
   it('caches the kit for the form, and the items for this kit, under their keys', async () => {
     const { client, wrapper } = wrap()
     const hook = renderHook(() => useKitScreenData({ kitId: 'k1', organizationId: 'org-1', childKitIds: [] }), { wrapper })
-    await waitFor(() => expect(hook.result.current.kitQuery.isSuccess).toBe(true))
+    await waitFor(() => expect(hook.result.current.kit).not.toBeNull())
     await waitFor(() => expect(hook.result.current.items.size).toBe(1))
     expect(client.getQueryData(queryKeys.kitForm('k1'))).toEqual({ id: 'k1', name: 'Kit', kit_components: [] })
     expect(client.getQueryData(queryKeys.kitEditorItems('org-1', 'k1'))).toBeDefined()
@@ -51,7 +51,7 @@ describe('useKitScreenData (A10)', () => {
   it('never seeds the form from a cached kit: leaving the editor drops it', async () => {
     const { client, wrapper } = wrap()
     const hook = renderHook(() => useKitScreenData({ kitId: 'k1', organizationId: 'org-1', childKitIds: [] }), { wrapper })
-    await waitFor(() => expect(hook.result.current.kitQuery.isSuccess).toBe(true))
+    await waitFor(() => expect(hook.result.current.kit).not.toBeNull())
     hook.unmount()
     await waitFor(() => expect(client.getQueryCache().find({ queryKey: queryKeys.kitForm('k1') })).toBeUndefined())
   })
@@ -71,18 +71,18 @@ describe('useKitScreenData (A10)', () => {
     expect(hook.result.current.childKitSummaries.get('s2')).toEqual(summary(10))
   })
 
-  it('saving invalidates through the equipment map', async () => {
+  it('saving refreshes the kits, the equipment and the dashboard', async () => {
     const { wrapper, invalidate } = wrap()
     const hook = renderHook(() => useKitScreenData({ kitId: 'k1', organizationId: 'org-1', childKitIds: [] }), { wrapper })
-    await act(() => hook.result.current.saveKit.mutateAsync({ kitData: { name: 'X' }, loadedComponentIds: ['c1'] }))
+    await act(() => hook.result.current.saveKit({ kitData: { name: 'X' }, loadedComponentIds: ['c1'] }))
     expect(updateKit).toHaveBeenCalledWith('k1', { name: 'X' }, ['c1'])
-    expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining(equipmentInvalidation.kit('org-1', 'k1')))
+    expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining([queryKeys.kits('org-1'), queryKeys.kit('k1'), queryKeys.assets('org-1'), queryKeys.dashboard('org-1')]))
 
     const created = renderHook(() => useKitScreenData({ kitId: null, organizationId: 'org-1', childKitIds: [] }), { wrapper })
     invalidate.mockClear()
-    await act(() => created.result.current.saveKit.mutateAsync({ kitData: { name: 'Y' }, loadedComponentIds: [] }))
+    await act(() => created.result.current.saveKit({ kitData: { name: 'Y' }, loadedComponentIds: [] }))
     expect(createKit).toHaveBeenCalledWith({ name: 'Y' })
-    expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining(equipmentInvalidation.kit('org-1', 'k9')))
+    expect(invalidatedKeys(invalidate)).toEqual(expect.arrayContaining([queryKeys.kits('org-1'), queryKeys.kit('k9'), queryKeys.assets('org-1'), queryKeys.dashboard('org-1')]))
   })
 })
 

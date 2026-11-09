@@ -58,9 +58,9 @@ export default function NotReturnedSection({ organizationId, gigId, gigEnd, canE
         <ul className="divide-y text-sm">
           {shown.map((e) => (
             <NotReturnedRow key={`${e.record.id}:${e.kitId ?? ''}`} entry={e} canEdit={canEdit} busy={busy}
-              onReturned={() => act(() => markReturned.mutateAsync({ organizationId, gigId, kitId: e.kitId, assetId: e.record.id, quantity: e.quantity }),
+              onReturned={() => act(() => markReturned({ organizationId, gigId, kitId: e.kitId, assetId: e.record.id, quantity: e.quantity }),
                 'Marked returned')}
-              onWriteOff={(n) => act(() => writeOffPieces.mutateAsync({ assetId: e.record.id, quantity: n, gigId, kitId: e.kitId, stillOut: e.quantity - n }),
+              onWriteOff={(n) => act(() => writeOffPieces({ assetId: e.record.id, quantity: n, gigId, kitId: e.kitId, stillOut: e.quantity - n }),
                 `Written off: ${n} missing`)} />
           ))}
         </ul>
@@ -85,7 +85,7 @@ export default function NotReturnedSection({ organizationId, gigId, gigEnd, canE
                   </div>
                   {canEdit && (
                     <Button size="sm" variant="outline" disabled={busy || isLocked}
-                      onClick={() => act(() => undoWriteOff.mutateAsync(w.record.id), 'Write-off undone')}>Undo</Button>
+                      onClick={() => act(() => undoWriteOff(w.record.id), 'Write-off undone')}>Undo</Button>
                   )}
                 </li>
               );

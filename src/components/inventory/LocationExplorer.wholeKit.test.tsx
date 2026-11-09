@@ -1,7 +1,6 @@
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import { describe, it, expect, vi } from 'vitest';
-import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
-import type { ReactElement } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
 
 // #240 re-review: the "Whole kit" override of a logical kit moves the kit's own row and the
 // units listed under it. Before, it passed neither, so it was refused as "only any lines".
@@ -19,11 +18,6 @@ vi.mock('./ManualTrackingOverrideDialog', () => ({
 import { getItemsByLocation } from '../../services/inventoryManagement.service';
 import { LocationExplorer } from './LocationExplorer';
 
-// A10: the screen reads through react-query, so each test gets a fresh client.
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-}
 
 
 const at = { status: 'On Site', location: 'Stage Left', gig_id: 'gig-1', gig_title: 'Summer Festival', scanned_at: '2026-06-01T10:00:00Z', scanned_by_name: 'J' };

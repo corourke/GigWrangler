@@ -13,8 +13,7 @@ import { cn } from './ui/utils';
 import { EditSaveStatus } from './gig/edit/GigEditParts';
 import { KindPill, StatusBadge } from './equipment/ItemsTable';
 import { TrackingStatusBadge } from './inventory/TrackingStatusBadge';
-import type { ItemFields, ItemKitLine } from '../services/equipmentItem.service';
-import type { ItemWhereabout } from '../services/inventoryManagement.service';
+import type { ItemFields } from '../services/equipmentItem.service';
 import { useItemDetailData } from './equipment/useItemDetailData';
 import { whereTheyAreLines } from '../utils/whereaboutText';
 import { recordKind, summarizeItem } from '../utils/equipmentItems';
@@ -36,8 +35,6 @@ interface ItemDetailScreenProps {
   onEditProfile?: () => void;
   onLogout: () => void;
 }
-
-type Tracking = Map<string, { status: string; location?: string | null; gigTitle?: string | null }>;
 
 const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 const wholeMoney = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
@@ -80,14 +77,9 @@ export default function ItemDetailScreen({
   organization, user, userRole, itemId, onBack, onViewAsset, onAddRecord, onViewKit,
   onSwitchOrganization, onEditProfile, onLogout,
 }: ItemDetailScreenProps) {
-  const { data, tracking: loadedTracking, error: loadError, retry, updateItem: updateItemMutation } =
-    useItemDetailData(itemId, organization.id);
-  const item = data?.item ?? null;
-  const tracking: Tracking = useMemo(() => loadedTracking ?? new Map(), [loadedTracking]);
-  const places: ItemWhereabout[] = useMemo(() => data?.places ?? [], [data]);
-  const inContainers = useMemo<[number, number]>(() => data?.inContainers ?? [0, 0], [data]);
-  const kitLines: ItemKitLine[] = data?.kitLines ?? [];
-  const load = () => { retry(); };
+  const {
+    item, inContainers, kitLines, places, tracking, error: loadError, reload: load, updateItem,
+  } = useItemDetailData(itemId, organization.id);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Required<ItemFields>>({ category: '', manufacturer_model: '', type: '', description: '', insurance_class: '' });
   const canEdit = canManage(userRole);
@@ -96,16 +88,15 @@ export default function ItemDetailScreen({
   const saveFailedRef = useRef(false);
   // Stable, as useAutoSave needs: a new onSave each render makes it send the
   // pending save on every render, skipping the debounce.
-  const { mutateAsync: saveItemFields } = updateItemMutation;
   const saveItem = useCallback(async (fields: Required<ItemFields>) => {
     saveFailedRef.current = true;
     if (!fields.manufacturer_model.trim() || !fields.category.trim()) {
       throw new Error('An item needs a manufacturer & model and a category.');
     }
     // The hook writes the saved fields into the page's cache.
-    await saveItemFields(fields);
+    await updateItem(fields);
     saveFailedRef.current = false;
-  }, [saveItemFields]);
+  }, [updateItem]);
   const { saveState, triggerSave, flushAsync, saveNow } = useAutoSave<Required<ItemFields>>({
     gigId: itemId,
     onSave: saveItem,

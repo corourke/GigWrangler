@@ -51,28 +51,27 @@ export default function AssetDetailScreen({
 }: AssetDetailScreenProps) {
   const [undoing, setUndoing] = useState(false);
   const {
-    assetQuery,
+    asset,
+    isLoading,
+    error: loadError,
+    reload: loadAsset,
     activity: assetActivity,
     inventoryTracking,
     isLoadingHistory,
     lockedYears,
-    undoWriteOff: undoWriteOffMutation,
-    duplicateAsset: duplicateAssetMutation,
-    deleteAsset: deleteAssetMutation,
+    undoWriteOff,
+    duplicateAsset,
+    deleteAsset,
   } = useAssetDetailData(assetId, organization.id, { canUndoWriteOff: canManage(userRole) });
-  const asset: any = assetQuery.data ?? null;
-  const isLoading = assetQuery.isPending;
-  const loadError = assetQuery.error ? (assetQuery.error as Error).message || 'Failed to load this asset.' : null;
   // A Missing record (#242): Undo right here, unless its tax year is filed.
   const isMissing = asset?.status === 'Missing' && canManage(userRole);
   const writeOffYear = asset?.retired_on ? Number(String(asset.retired_on).slice(0, 4)) : null;
   const undoLocked = writeOffYear != null && lockedYears.has(writeOffYear);
-  const loadAsset = () => { assetQuery.refetch(); };
 
   const handleUndoWriteOff = async () => {
     setUndoing(true);
     try {
-      const back = await undoWriteOffMutation.mutateAsync();
+      const back = await undoWriteOff();
       toast.success('Write-off undone');
       // Pieces split off a lot go back into it: this record is gone, so go to the item.
       // Otherwise the hook reloads this record.
@@ -86,7 +85,7 @@ export default function AssetDetailScreen({
 
   const handleDuplicate = async () => {
     try {
-      await duplicateAssetMutation.mutateAsync();
+      await duplicateAsset();
       toast.success('Asset duplicated successfully');
       onBack(); // Go back to list, where the new asset will appear
     } catch (error: any) {
@@ -99,7 +98,7 @@ export default function AssetDetailScreen({
     if (!confirm(`Are you sure you want to delete "${asset?.manufacturer_model}"?`)) return;
 
     try {
-      await deleteAssetMutation.mutateAsync();
+      await deleteAsset();
       toast.success('Asset deleted successfully');
       onBack();
     } catch (error: any) {

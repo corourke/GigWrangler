@@ -2,24 +2,15 @@
  * A10 characterization: how the manifest and the packing list load. Written against the
  * pre-react-query reports and kept unchanged through the move, so the move is behaviour-neutral.
  */
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, waitFor, fireEvent, act } from '@testing-library/react'
-import type { ReactElement } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { ManifestReport, PackingList } from './InventoryReports'
 import {
   getGigsForReportPicker, getInventoryConflictFlags, getManifestReport, getPackingListReport,
   type ManifestLine, type PackingListRow,
 } from '../../services/inventoryManagement.service'
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  const result = rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-  return {
-    ...result,
-    rerender: (next: ReactElement) => result.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>),
-  }
-}
 
 vi.mock('../../services/inventoryManagement.service', () => ({
   getGigsForReportPicker: vi.fn(),

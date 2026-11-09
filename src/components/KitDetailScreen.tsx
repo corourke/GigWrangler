@@ -111,20 +111,19 @@ export default function KitDetailScreen({
 }: KitDetailScreenProps) {
   const [showContainerContents, setShowContainerContents] = useState(false);
   const {
-    detailQuery,
+    page,
+    isLoading,
+    error: loadError,
+    reload: loadKit,
     activity: kitActivity,
     activityLoading,
-    duplicateKit: duplicateKitMutation,
-    deleteKit: deleteKitMutation,
+    duplicateKit,
+    deleteKit,
   } = useKitDetailData(kitId, organization.id);
-  const page = detailQuery.data;
   const kit = page?.kit ?? null;
   const flattenedAssets = page?.flattenedAssets ?? [];
   const flattenedItems = page?.flattenedItems ?? [];
   const componentTree: KitComponentTreeNode[] = page?.tree ?? [];
-  const isLoading = detailQuery.isPending;
-  const loadError = detailQuery.error ? (detailQuery.error as Error).message || 'Failed to load this kit.' : null;
-  const loadKit = () => { detailQuery.refetch(); };
 
   // Each load of a deeply nested kit asks whether that's intended.
   useEffect(() => {
@@ -137,7 +136,7 @@ export default function KitDetailScreen({
 
   const handleDuplicate = async () => {
     try {
-      const newKit = await duplicateKitMutation.mutateAsync();
+      const newKit = await duplicateKit();
       // Tags are scanned, so the copy can't share this kit's: it starts with
       // none, and opens for editing to give it its own (#266).
       toast.success(kit?.tag_number
@@ -154,7 +153,7 @@ export default function KitDetailScreen({
     if (!confirm(`Are you sure you want to delete "${kit?.name}"?`)) return;
 
     try {
-      await deleteKitMutation.mutateAsync();
+      await deleteKit();
       toast.success('Kit deleted successfully');
       onBack();
     } catch (error: any) {
