@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useGigListFilters } from '../hooks/useGigListFilters';
 import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay, addDays } from 'date-fns';
@@ -21,12 +21,9 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import {
-  getGigsForOrganization,
   updateGig,
   duplicateGig,
   deleteGig,
-  getGigExportAggregates,
-  GigExportAggregates,
 } from '../services/gig.service';
 import {
   buildExportRows,
@@ -61,7 +58,8 @@ import { formatDateTimeDisplay, formatTimeDisplay, isGigAllDay } from '../utils/
 import { canDeleteGig, canManage } from '../utils/permissions';
 import { deleteGigBlockedReason, isInactiveOn, managesGigOwner } from '../utils/gigOwnership';
 import { PageHeader } from './layout/PageHeader';
-import { checkAllConflictsForGigs, Conflict } from '../services/conflictDetection.service';
+import { checkAllConflictsForGigs } from '../services/conflictDetection.service';
+import { useGigListData } from './gigs/useGigListData';
 
 const locales = { 'en-US': enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
@@ -126,9 +124,11 @@ export default function GigListScreen({
   onLogout,
   onEditProfile,
 }: GigListScreenProps) {
-  const [gigs, setGigs] = useState<Gig[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // A10: the list, its conflicts and the money totals come from react-query.
+  const {
+    gigs, conflicts, financialsByGigId, isLoading, error,
+    reload: loadGigs, afterListChange, setGigs, setConflicts,
+  } = useGigListData(organization.id);
   const [localViewMode, setLocalViewMode] = useState<ViewMode>(initialViewMode);
   const viewMode = viewModeProp ?? localViewMode;
   const setViewMode = (m: ViewMode) => (onViewModeChange ? onViewModeChange(m) : setLocalViewMode(m));
@@ -145,13 +145,11 @@ export default function GigListScreen({
   // Per-gig financial rollups (revenue/cost of staff/expenses/staff count) for
   // the optional financial columns and the export. Loaded alongside the gig
   // list so toggling those columns on is instant.
-  const [financialsByGigId, setFinancialsByGigId] = useState<Map<string, GigExportAggregates>>(new Map());
   const { futureDateFilter, setFutureDateFilter, pastDateFilter, setPastDateFilter, activeStatuses, setActiveStatuses } = useGigListFilters();
 
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [calendarView, setCalendarView] = useState<CalendarViewType>('month');
 
-  const [conflicts, setConflicts] = useState<Conflict[]>([]);
 
   const canEdit = canManage(userRole);
   // Deleting a gig is Admin-only on the server (#175).
@@ -159,39 +157,6 @@ export default function GigListScreen({
   // Money columns are Admin/Manager only: gig_financials RLS hides the figures
   // from Staff/Viewers, and they can't see staff pay either (#168).
   const showFinancials = canManage(userRole);
-
-  const loadGigs = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const [data] = await Promise.all([
-        getGigsForOrganization(organization.id),
-        // Non-fatal: if this fails, the optional financial columns / export
-        // just show zeros rather than blocking the whole gig list.
-        getGigExportAggregates(organization.id)
-          .then(setFinancialsByGigId)
-          .catch((err) => {
-            console.error('Error loading gig financial aggregates:', err);
-            setFinancialsByGigId(new Map());
-          }),
-      ]);
-      setGigs(data || []);
-
-      if (data && data.length > 0) {
-        const detected = await checkAllConflictsForGigs(data, organization.id);
-        setConflicts(detected);
-      }
-    } catch (err: any) {
-      console.error('Error loading gigs:', err);
-      setError(err.message || 'Failed to load gigs');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [organization.id]);
-
-  useEffect(() => {
-    loadGigs();
-  }, [loadGigs]);
 
   const filteredGigs = useMemo(() => {
     let result = applyDateFilter(gigs, futureDateFilter, pastDateFilter);
@@ -219,12 +184,12 @@ export default function GigListScreen({
     try {
       await duplicateGig(gigId);
       toast.success('Gig duplicated successfully');
-      loadGigs();
+      void afterListChange();
     } catch (err: any) {
       console.error('Error duplicating gig:', err);
       toast.error(err.message || 'Failed to duplicate gig');
     }
-  }, [loadGigs]);
+  }, [afterListChange]);
 
   const handleGigDelete = useCallback(async (gigId: string) => {
     if (!confirm('Are you sure you want to delete this gig?')) return;
@@ -239,6 +204,7 @@ export default function GigListScreen({
     try {
       await deleteGig(gigId);
       toast.success('Gig deleted successfully');
+      void afterListChange();
     } catch (err: any) {
       console.error('Error deleting gig:', err);
       toast.error(err.message || 'Failed to delete gig');
@@ -249,27 +215,27 @@ export default function GigListScreen({
         loadGigs();
       }
     }
-  }, [gigs, loadGigs]);
+  }, [gigs, loadGigs, afterListChange, setGigs, setConflicts]);
 
   const handleRowUpdate = useCallback(async (id: string, updates: Partial<Gig>) => {
     const gig = gigs.find(g => g.id === id);
     if (!gig) return;
 
     const updatedGigs = gigs.map(g => (g.id === id ? { ...g, ...updates } : g));
-    setGigs(updatedGigs);
+    setGigs(() => updatedGigs);
 
     try {
       // Strip view-model fields; inline edit only changes gig columns
       const { venue, act, participants, financials, staff_slots, ...gigFields } = updates;
       await updateGig(id, gigFields);
       const detected = await checkAllConflictsForGigs(updatedGigs, organization.id);
-      setConflicts(detected);
+      setConflicts(() => detected);
     } catch (err: any) {
       setGigs(prev => prev.map(g => (g.id === id ? gig : g)));
       console.error('Error updating gig:', err);
       toast.error(err.message || 'Failed to update gig');
     }
-  }, [gigs, organization.id]);
+  }, [gigs, organization.id, setGigs, setConflicts]);
 
   const getGigFinancials = useCallback(
     (gigId: string) => financialsByGigId.get(gigId) ?? ZERO_GIG_EXPORT_AGGREGATES,

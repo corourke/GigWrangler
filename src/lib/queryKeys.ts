@@ -11,9 +11,23 @@ import type { QueryClient } from '@tanstack/react-query';
  * only identify cache entries; the query functions call the services.
  */
 export const queryKeys = {
-  // Gigs
+  // Gigs. Everything about one organization's gigs sits under gigs(orgId), everything about one
+  // gig under gig(gigId), so one invalidation reaches all of it (A10).
   gigs: (orgId: string) => ['gigs', orgId] as const,
+  /** The gig list with its conflicts: { gigs, conflicts }. */
+  gigList: (orgId: string) => ['gigs', orgId, 'list'] as const,
+  /** Per-gig money totals for the list's optional columns and the export. */
+  gigAggregates: (orgId: string) => ['gigs', orgId, 'aggregates'] as const,
   gig: (gigId: string) => ['gig', gigId] as const,
+  gigChildCount: (gigId: string) => ['gig', gigId, 'children'] as const,
+  /** Conflicts for a gig as seen by one organization, for the times they were checked at. */
+  gigConflicts: (gigId: string, orgId: string, when: { start: string; end: string; timezone?: string; allDay: boolean }) =>
+    ['gig', gigId, 'conflicts', orgId, when.start, when.end, when.timezone ?? null, when.allDay] as const,
+  gigActivity: (gigId: string) => ['gig', gigId, 'activity'] as const,
+
+  // Dashboard
+  dashboard: (orgId: string) => ['dashboard', orgId] as const,
+  recentActivity: () => ['activity', 'recent'] as const,
 
   // Assets
   assets: (orgId: string) => ['assets', orgId] as const,
@@ -47,69 +61,117 @@ export const queryKeys = {
   // Generic notification feed (issue #52) — powers the notification bell.
   notifications: () => ['notifications'] as const,
 
-  // --- A10 Equipment (items, units and lots, kits) ---
-  // Every item page, for invalidation (an item page lists its units and the kits that use it).
-  allEquipmentItems: () => ['equipmentItem'] as const,
-  // Every unit or lot page, for invalidation (an item edit renames its units).
-  allAssets: () => ['asset'] as const,
-  // The Items list: items with their units and lots, and the pieces in container kits.
-  equipmentItems: (orgId: string) => ['equipmentItems', orgId] as const,
-  // An item page: the item, its pieces in containers, its kit lines and where its pieces are.
-  equipmentItem: (itemId: string, orgId: string) => ['equipmentItem', itemId, orgId] as const,
-  assetTrackingSummary: (orgId: string) => ['assetTrackingSummary', orgId] as const,
-  assetActivity: (assetId: string) => ['assetActivity', assetId] as const,
-  lockedTaxYears: (orgId: string) => ['lockedTaxYears', orgId] as const,
+  // ── Equipment (A10, Engineer E) ──
+  // Everything about one organization's equipment sits under assets(orgId), everything about one
+  // unit or lot under asset(assetId), so one invalidation reaches all of it.
+  /** The Items list: { items (each with its units and lots), containerPieces }. */
+  equipmentItems: (orgId: string) => ['assets', orgId, 'items'] as const,
+  /** An item page: { item, inContainers, kitLines, places }. */
+  equipmentItem: (itemId: string, orgId: string) => ['assets', orgId, 'item', itemId] as const,
+  assetTrackingSummary: (orgId: string) => ['assets', orgId, 'trackingSummary'] as const,
+  assetActivity: (assetId: string) => ['asset', assetId, 'activity'] as const,
+  /** Filed tax years; nests under the taxYears(orgId) root. */
+  lockedTaxYears: (orgId: string) => ['taxYears', orgId, 'locked'] as const,
 } as const;
 
-type Key = readonly unknown[];
+/**
+ * After a change to one gig (its details, participants, an organization going Inactive): the
+ * gig itself, its organization's gig list and the dashboard's figures.
+ */
+export function invalidateAfterGigChange(
+  queryClient: QueryClient,
+  { gigId, organizationId }: { gigId: string; organizationId: string },
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.gig(gigId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.gigs(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
+  ]);
+}
+
+/** After a gig is added (created, duplicated) or removed: the gig list and the dashboard. */
+export function invalidateAfterGigListChange(queryClient: QueryClient, organizationId: string) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.gigs(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
+  ]);
+}
+
+// ── Equipment (A10, Engineer E) ──
 
 /**
- * Invalidates each key an invalidation-map entry returns. Keys in `markOnly` are marked stale
- * without refetching now (a list that has just written an inline edit into its own cache).
+ * After a unit or lot is added, changed, duplicated, deleted, written off or brought back: the
+ * organization's equipment (lists, item pages, tracking), that record, the kits (their values
+ * count it) and the dashboard (equipment value). With refetchList false, the Items list is only
+ * marked stale: it has just written an inline edit into its own cache.
  */
-export function invalidateKeys(
-  client: QueryClient,
-  keys: readonly Key[],
-  options: { markOnly?: readonly Key[] } = {},
-): Promise<void> {
-  const markOnly = new Set((options.markOnly ?? []).map((k) => JSON.stringify(k)));
-  return Promise.all(
-    keys.map((queryKey) =>
-      client.invalidateQueries({ queryKey, ...(markOnly.has(JSON.stringify(queryKey)) ? { refetchType: 'none' as const } : {}) }),
-    ),
-  ).then(() => undefined);
+export function invalidateAfterAssetChange(
+  queryClient: QueryClient,
+  { organizationId, assetId }: { organizationId: string; assetId?: string },
+  { refetchList = true }: { refetchList?: boolean } = {},
+) {
+  const listKey = queryKeys.equipmentItems(organizationId);
+  return Promise.all([
+    refetchList
+      ? queryClient.invalidateQueries({ queryKey: queryKeys.assets(organizationId) })
+      : Promise.all([
+          queryClient.invalidateQueries({ queryKey: listKey, exact: true, refetchType: 'none' }),
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.assets(organizationId),
+            predicate: (q) => JSON.stringify(q.queryKey) !== JSON.stringify(listKey),
+          }),
+        ]),
+    assetId ? queryClient.invalidateQueries({ queryKey: queryKeys.asset(assetId) }) : null,
+    assetId ? queryClient.invalidateQueries({ queryKey: queryKeys.assetInventoryTracking(assetId) }) : null,
+    queryClient.invalidateQueries({ queryKey: queryKeys.kits(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
+  ]);
 }
 
 /**
- * A10 Equipment invalidation map: the caches a write can make stale. A mutation's onSuccess
- * invalidates every key its entry returns (prefix match, so a list key also covers its children).
+ * After an item's shared fields change (they are copied to its units and lots): the
+ * organization's equipment, every unit or lot page, and the kits. With refetchItemPage false,
+ * that item's page is only marked stale: it has just written the edit into its own cache.
  */
-export const equipmentInvalidation = {
-  /** A unit or lot was added, changed, duplicated, deleted, written off or brought back. */
-  asset: (orgId: string, assetId?: string): Key[] => [
-    queryKeys.equipmentItems(orgId),
-    queryKeys.assets(orgId),
-    queryKeys.assetTrackingSummary(orgId),
-    queryKeys.allEquipmentItems(),
-    queryKeys.kits(orgId),
-    ...(assetId
-      ? [queryKeys.asset(assetId), queryKeys.assetActivity(assetId), queryKeys.assetInventoryTracking(assetId)]
-      : []),
-  ],
-  /**
-   * An item's shared fields changed (they are copied to its units and lots). The item page that
-   * made the edit writes it into its own cache instead, so the open form isn't refetched under it.
-   */
-  item: (orgId: string): Key[] => [
-    queryKeys.equipmentItems(orgId),
-    queryKeys.assets(orgId),
-    queryKeys.allAssets(),
-    queryKeys.kits(orgId),
-  ],
-  /** A kit was created, changed, duplicated or deleted. */
-  kit: (orgId: string, kitId?: string): Key[] => [
-    queryKeys.kits(orgId),
-    ...(kitId ? [queryKeys.kit(kitId)] : []),
-    queryKeys.allEquipmentItems(),
-  ],
-};
+export function invalidateAfterItemChange(
+  queryClient: QueryClient,
+  { organizationId, itemId }: { organizationId: string; itemId?: string },
+  { refetchItemPage = true }: { refetchItemPage?: boolean } = {},
+) {
+  const pageKey = itemId ? queryKeys.equipmentItem(itemId, organizationId) : null;
+  const keepPage = !refetchItemPage && pageKey;
+  return Promise.all([
+    keepPage
+      ? Promise.all([
+          queryClient.invalidateQueries({ queryKey: pageKey, exact: true, refetchType: 'none' }),
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.assets(organizationId),
+            predicate: (q) => JSON.stringify(q.queryKey) !== JSON.stringify(pageKey),
+          }),
+        ])
+      : queryClient.invalidateQueries({ queryKey: queryKeys.assets(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: ['asset'] }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.kits(organizationId) }),
+  ]);
+}
+
+/**
+ * After a kit is created, changed, duplicated or deleted: the organization's kits, that kit, the
+ * item pages (they list the kits that use an item) and the dashboard. With refetchList false, the
+ * kit list is only marked stale: it has just written an inline edit into its own cache.
+ */
+export function invalidateAfterKitChange(
+  queryClient: QueryClient,
+  { organizationId, kitId }: { organizationId: string; kitId?: string },
+  { refetchList = true }: { refetchList?: boolean } = {},
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.kits(organizationId),
+      ...(refetchList ? {} : { refetchType: 'none' as const }),
+    }),
+    kitId ? queryClient.invalidateQueries({ queryKey: queryKeys.kit(kitId) }) : null,
+    queryClient.invalidateQueries({ queryKey: queryKeys.assets(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
+  ]);
+}

@@ -1,5 +1,6 @@
+import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, equipmentInvalidation, invalidateKeys } from '../../lib/queryKeys';
+import { queryKeys, invalidateAfterKitChange } from '../../lib/queryKeys';
 import {
   getKits,
   deleteKit,
@@ -43,65 +44,84 @@ export interface KitListData {
   packing: Map<string, KitPackingSummary>;
 }
 
+const EMPTY: KitListData = { kits: [], tracking: new Map(), flattened: new Map(), packing: new Map() };
+
+/** The kits and their tracking, then their flattened contents and packing counts, as one load. */
+async function loadKitList(organizationId: string): Promise<KitListData> {
+  const [kits, tracking] = await Promise.all([getKits(organizationId), getKitTrackingSummary(organizationId)]);
+  // Items/Total Value must reflect each kit's fully-flattened contents,
+  // not just its direct kit_components rows — a sub-kit row carries no
+  // asset/quantity of its own, so summing those directly silently drops
+  // every nested kit's contribution (see getKitsFlattenedSummary).
+  const [flattened, packing] = await Promise.all([
+    getKitsFlattenedSummary(kits.map((k: any) => k.id)),
+    packingAtActiveGigs(organizationId, tracking),
+  ]);
+  return { kits, tracking, flattened, packing };
+}
+
 /**
- * Server state for the kit list (A10): the organization's kits with their tracking status,
- * flattened contents and packing counts, and the writes made from the list.
+ * The kit list's data (A10): the organization's kits with their tracking status, flattened
+ * contents and packing counts, and the writes made from the list. Keyed by organization, so a
+ * late answer for another organization never shows.
  */
 export function useKitListData(organizationId: string) {
   const queryClient = useQueryClient();
-  const listKey = queryKeys.kits(organizationId);
+  const listKey = useMemo(() => queryKeys.kits(organizationId), [organizationId]);
 
-  const kitsQuery = useQuery<KitListData>({
-    queryKey: listKey,
-    queryFn: async () => {
-      const [kits, tracking] = await Promise.all([
-        getKits(organizationId),
-        getKitTrackingSummary(organizationId),
-      ]);
-      // Items/Total Value must reflect each kit's fully-flattened contents,
-      // not just its direct kit_components rows — a sub-kit row carries no
-      // asset/quantity of its own, so summing those directly silently drops
-      // every nested kit's contribution (see getKitsFlattenedSummary).
-      const [flattened, packing] = await Promise.all([
-        getKitsFlattenedSummary(kits.map((k: any) => k.id)),
-        packingAtActiveGigs(organizationId, tracking),
-      ]);
-      return { kits, tracking, flattened, packing };
-    },
-    staleTime: 0,
-  });
+  const list = useQuery({ queryKey: listKey, queryFn: () => loadKitList(organizationId), staleTime: 0 });
 
-  const invalidate = (kitId?: string) => invalidateKeys(queryClient, equipmentInvalidation.kit(organizationId, kitId));
+  /** Change the cached kits, for optimistic edits. */
+  const setKits = useCallback(
+    (fn: (kits: any[]) => any[]) =>
+      queryClient.setQueryData<KitListData>(listKey, (old) => old && { ...old, kits: fn(old.kits) }),
+    [queryClient, listKey],
+  );
+  const afterKitChange = useCallback(
+    (kitId?: string) => invalidateAfterKitChange(queryClient, { organizationId, kitId }),
+    [queryClient, organizationId],
+  );
 
   const updateKitMutation = useMutation({
     mutationFn: (vars: { id: string; updates: Parameters<typeof updateKit>[1] }) => updateKit(vars.id, vars.updates),
     onSuccess: (_data, { id, updates }) => {
-      queryClient.setQueryData<KitListData>(listKey, (prev) =>
-        prev && { ...prev, kits: prev.kits.map((k) => (k.id === id ? { ...k, ...updates } : k)) });
+      setKits((kits) => kits.map((k) => (k.id === id ? { ...k, ...updates } : k)));
       // As before A10, the list isn't reloaded under an inline edit; it is marked stale.
-      return invalidateKeys(queryClient, equipmentInvalidation.kit(organizationId, id), { markOnly: [listKey] });
+      return invalidateAfterKitChange(queryClient, { organizationId, kitId: id }, { refetchList: false });
     },
-    onError: (_err, { id }) => invalidate(id),
+    onError: (_err, { id }) => afterKitChange(id),
   });
 
   const duplicateKitMutation = useMutation({
     mutationFn: (kitId: string) => duplicateKit(kitId),
-    onSuccess: (_data, kitId) => invalidate(kitId),
+    onSuccess: (_data, kitId) => afterKitChange(kitId),
   });
 
   // As before A10, the list is reloaded whether or not the delete worked.
   const deleteKitMutation = useMutation({
     mutationFn: (kitId: string) => deleteKit(kitId),
-    onSettled: (_data, _err, kitId) => invalidate(kitId),
+    onSettled: (_data, _err, kitId) => afterKitChange(kitId),
   });
 
-  return {
-    data: kitsQuery.data,
-    isLoading: kitsQuery.isPending,
-    error: kitsQuery.error ? (kitsQuery.error as Error).message || 'Failed to load kits' : null,
-    refresh: () => kitsQuery.refetch(),
-    updateKit: updateKitMutation,
-    duplicateKit: duplicateKitMutation,
-    deleteKit: deleteKitMutation,
-  };
+  const { refetch } = list;
+  /** Load the list again (Try Again). */
+  const reload = useCallback(() => { void refetch(); }, [refetch]);
+
+  const error = list.error ? ((list.error as Error).message || 'Failed to load kits') : null;
+
+  return useMemo(() => ({
+    kits: list.data?.kits ?? EMPTY.kits,
+    tracking: list.data?.tracking ?? EMPTY.tracking,
+    flattened: list.data?.flattened ?? EMPTY.flattened,
+    packing: list.data?.packing ?? EMPTY.packing,
+    isLoading: list.isPending,
+    error,
+    reload,
+    afterKitChange,
+    setKits,
+    updateKit: updateKitMutation.mutateAsync,
+    duplicateKit: duplicateKitMutation.mutateAsync,
+    deleteKit: deleteKitMutation.mutateAsync,
+  }), [list.data, list.isPending, error, reload, afterKitChange, setKits, updateKitMutation.mutateAsync,
+    duplicateKitMutation.mutateAsync, deleteKitMutation.mutateAsync]);
 }

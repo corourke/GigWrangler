@@ -1,17 +1,11 @@
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import {render as rtlRender, screen, within, waitFor } from '@testing-library/react'
-import type { ReactElement } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ItemDetailScreen from './ItemDetailScreen'
 import { makeUser, makeOrganization } from '../test/factories'
 import { updateItem, getContainerPieces, getItem } from '../services/equipmentItem.service'
 
-// A10: the screen reads through react-query, so each test gets a fresh client.
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-}
 
 
 const unit = (n: number, over: Record<string, unknown> = {}) => ({
