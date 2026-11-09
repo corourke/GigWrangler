@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, mobileInvalidations } from '../../lib/queryKeys';
+import { queryKeys, invalidateAfterAssignmentChange } from '../../lib/queryKeys';
 import { loadMyUpcomingAssignments, setMyAssignmentStatus } from '../../services/mobile/myAssignments.service';
 import type { StaffDashboardGig } from '../../services/mobile/staffDashboard.service';
 
@@ -62,7 +62,7 @@ export function useMobileDashboardData({ userId, orgId, enabled }: { userId?: st
       if (context) queryClient.setQueryData(key, context.previous);
     },
     onSuccess: () => {
-      mobileInvalidations.myAssignmentAnswered().forEach((f) => queryClient.invalidateQueries(f));
+      invalidateAfterAssignmentChange(queryClient);
     },
   });
 

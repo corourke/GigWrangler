@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, mobileInvalidations, invalidateAfterGigChange } from '../../lib/queryKeys';
+import { queryKeys, invalidateAfterAssignmentChange, invalidateAfterGigChange } from '../../lib/queryKeys';
 import { getGig, updateGig, updateGigParticipants, updateStaffAssignmentStatus } from '../../services/gig.service';
 import type { GigStatus } from '../../utils/supabase/types';
 
@@ -19,6 +19,8 @@ export function useMobileGigDetailData(gigId: string, orgId: string | undefined)
       return { ...data, venue, act };
     },
     staleTime: 0,
+    // Seeds the edit form: load fresh on each open (gcTime 0).
+    gcTime: 0,
     networkMode: 'always',
   });
 
@@ -38,7 +40,7 @@ export function useMobileGigDetailData(gigId: string, orgId: string | undefined)
       updateStaffAssignmentStatus(assignmentId, status),
     networkMode: 'always',
     onSuccess: () =>
-      Promise.all(mobileInvalidations.assignmentAnswered(gigId).map((f) => queryClient.invalidateQueries(f))),
+      invalidateAfterAssignmentChange(queryClient, { gigId }),
   });
 
   /** Details, then participants (the same two calls the edit form always made). */

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { startRegistration } from '@simplewebauthn/browser';
-import { queryKeys, mobileInvalidations } from '../../lib/queryKeys';
+import { queryKeys, invalidateAfterDeviceChange } from '../../lib/queryKeys';
+import { useSignedInUserId } from '../../utils/hooks/useSignedInUserId';
 import {
   getDeviceRegistrationOptions,
   listMyDevices,
@@ -12,11 +13,12 @@ import {
 /** Server state for MobileSettings (A10): enrolled devices, enrolling this one, removing one. */
 export function useMobileSettingsData() {
   const queryClient = useQueryClient();
+  const userId = useSignedInUserId();
   const refreshDevices = () =>
-    Promise.all(mobileInvalidations.devicesChanged().map((f) => queryClient.invalidateQueries(f)));
+    invalidateAfterDeviceChange(queryClient, { userId });
 
   const devicesQuery = useQuery({
-    queryKey: queryKeys.myDevices(),
+    queryKey: queryKeys.myDevices(userId),
     queryFn: async () => {
       try {
         return await listMyDevices();
@@ -46,7 +48,7 @@ export function useMobileSettingsData() {
     mutationFn: (id: string) => removeMyDevice(id),
     networkMode: 'always',
     onSuccess: (_r, id) => {
-      queryClient.setQueryData<EnrolledDevice[]>(queryKeys.myDevices(), (prev) => prev?.filter((d) => d.id !== id));
+      queryClient.setQueryData<EnrolledDevice[]>(queryKeys.myDevices(userId), (prev) => prev?.filter((d) => d.id !== id));
       refreshDevices();
     },
   });

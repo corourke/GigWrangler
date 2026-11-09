@@ -1,8 +1,7 @@
 /** Characterization tests (A10): the mobile gig list loads, fails, follows the organization, and refreshes after writes. */
-import type { ReactElement } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import MobileGigList from './MobileGigList'
 import { getGigsForOrganization, updateGig, createGig } from '../../services/gig.service'
 
@@ -15,11 +14,6 @@ vi.mock('../../services/organization.service', () => ({ searchOrganizations: vi.
 vi.mock('../../utils/timezones', () => ({ getAllTimezones: () => ['America/New_York'] }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  const utils = rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-  return { ...utils, rerender: (next: ReactElement) => utils.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>) }
-}
 
 const tomorrow = new Date(Date.now() + 86400000).toISOString()
 const gig = (id: string, title: string, owner = 'org-1', status = 'Booked') => ({

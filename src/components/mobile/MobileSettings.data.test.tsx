@@ -1,8 +1,7 @@
 /** Characterization tests (A10): the enrolled-device list on mobile Settings. */
-import type { ReactElement } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import MobileSettings from './MobileSettings'
 import { startRegistration } from '@simplewebauthn/browser'
 import { toast } from 'sonner'
@@ -38,10 +37,6 @@ vi.mock('../../utils/supabase/client', async () => {
   }
 })
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-}
 const device = (id: string, name: string) => ({ id, device_name: name, created_at: '2026-01-01T00:00:00Z', last_used_at: '2026-01-02T00:00:00Z' })
 
 beforeEach(() => {

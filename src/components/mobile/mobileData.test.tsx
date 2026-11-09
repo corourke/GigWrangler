@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query'
-import { queryKeys, mobileInvalidations } from '../../lib/queryKeys'
+import { queryKeys } from '../../lib/queryKeys'
 import { useMobileGigListData } from './useMobileGigListData'
 import { useMobileGigDetailData } from './useMobileGigDetailData'
 import { useMobileDashboardData } from './useMobileDashboardData'
@@ -36,15 +36,10 @@ beforeEach(() => {
 })
 afterEach(() => onlineManager.setOnline(true))
 
-describe('invalidation map (mobile)', () => {
-  it('names the caches each write refreshes', () => {
-    expect(mobileInvalidations.assignmentAnswered('g1')).toEqual([
-      { queryKey: queryKeys.gig('g1') },
-      { queryKey: ['myUpcomingAssignments'], refetchType: 'none' },
-    ])
-    // Not refetched at once: offline, the service would answer with the device copy, undoing the change on screen.
-    expect(mobileInvalidations.myAssignmentAnswered()).toEqual([{ queryKey: ['myUpcomingAssignments'], refetchType: 'none' }])
-    expect(mobileInvalidations.devicesChanged()).toEqual([{ queryKey: queryKeys.myDevices() }])
+describe('keys (mobile)', () => {
+  it('keys my devices and My Schedule by the signed-in user', () => {
+    expect(queryKeys.myDevices('u1')).not.toEqual(queryKeys.myDevices('u2'))
+    expect(queryKeys.myUpcomingAssignments('u1', 'org-1')).toContain('u1')
   })
 
   it('mobile keys sit under the shared gig keys, so a desktop write refreshes them too', () => {
@@ -90,7 +85,11 @@ describe('useMobileGigDetailData', () => {
     gigs.updateStaffAssignmentStatus.mockResolvedValue(undefined)
     const { result } = renderHook(() => useMobileGigDetailData('g1', 'org-1'), { wrapper })
     await act(() => result.current.answerAssignment.mutateAsync({ assignmentId: 'a1', status: 'Confirmed' }))
-    expect(invalidated()).toEqual(mobileInvalidations.assignmentAnswered('g1'))
+    // invalidateAfterAssignmentChange: the gig now; My Schedule on its next visit (offline-safe).
+    expect(invalidated()).toEqual([
+      { queryKey: queryKeys.gig('g1') },
+      { queryKey: ['myUpcomingAssignments'], refetchType: 'none' },
+    ])
   })
 })
 
@@ -123,7 +122,7 @@ describe('useMobileSettingsData', () => {
     await waitFor(() => expect(result.current.devicesQuery.data).toHaveLength(2))
     devices.listMyDevices.mockReturnValue(new Promise(() => {}))
     await act(() => result.current.removeDevice.mutateAsync('d1'))
-    expect(client.getQueryData<{ id: string }[]>(queryKeys.myDevices())!.map((d) => d.id)).toEqual(['d2'])
-    expect(invalidated()).toEqual(mobileInvalidations.devicesChanged())
+    expect(client.getQueryData<{ id: string }[]>(queryKeys.myDevices(''))!.map((d) => d.id)).toEqual(['d2'])
+    expect(invalidated()).toEqual([{ queryKey: queryKeys.myDevices('') }])
   })
 })

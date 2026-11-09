@@ -1,8 +1,7 @@
 /** Characterization tests (A10): the mobile gig detail loads, fails, follows the gig, and refreshes after writes. */
-import type { ReactElement } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import MobileGigDetail from './MobileGigDetail'
 import { getGig, updateGig, updateStaffAssignmentStatus } from '../../services/gig.service'
 import { toast } from 'sonner'
@@ -18,11 +17,6 @@ vi.mock('../../services/gig.service', () => ({
 }))
 vi.mock('../../services/organization.service', () => ({ searchOrganizations: vi.fn().mockResolvedValue([]) }))
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  const utils = rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-  return { ...utils, rerender: (next: ReactElement) => utils.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>) }
-}
 
 const gig = (id: string, title: string, status = 'Booked', assignment = 'Invited') => ({
   id, title, status, start: '2030-07-15T19:00:00Z', end: '2030-07-15T23:00:00Z', timezone: 'America/New_York',

@@ -60,37 +60,34 @@ export const queryKeys = {
 
   // Generic notification feed (issue #52) — powers the notification bell.
   notifications: () => ['notifications'] as const,
-  // --- Mobile (A10, Engineer O) ---
+  // ── Mobile (A10, Engineer O) ──
   // The gig keys extend the shared gig keys, so a write that invalidates gigs(org) or gig(id)
   // refreshes the mobile copies too.
   mobileGigs: (orgId: string) => ['gigs', orgId, 'mobile'] as const,
   mobileGig: (gigId: string) => ['gig', gigId, 'mobile'] as const,
   myUpcomingAssignments: (userId: string, orgId: string) => ['myUpcomingAssignments', userId, orgId] as const,
-  myDevices: () => ['myDevices'] as const,
+  myDevices: (userId: string) => ['myDevices', userId] as const,
 } as const;
 
-/** One cache refresh: the key prefix, and how (react-query invalidateQueries filters). */
-export interface Invalidation {
-  queryKey: readonly unknown[];
-  exact?: boolean;
-  refetchType?: 'active' | 'inactive' | 'all' | 'none';
+// ── Mobile (A10, Engineer O) ──
+// A gig's status, details or a new gig: invalidateAfterGigChange / invalidateAfterGigListChange.
+
+/**
+ * After accept/decline on a staff assignment. On the gig: reload the gig. My Schedule is only
+ * marked stale (refetched on its next visit): offline the service answers with the device copy,
+ * which would undo the change on screen.
+ */
+export function invalidateAfterAssignmentChange(queryClient: QueryClient, { gigId }: { gigId?: string } = {}) {
+  return Promise.all([
+    ...(gigId ? [queryClient.invalidateQueries({ queryKey: queryKeys.gig(gigId) })] : []),
+    queryClient.invalidateQueries({ queryKey: ['myUpcomingAssignments'], refetchType: 'none' }),
+  ]);
 }
 
-/** Invalidation map — Mobile (A10, Engineer O): which caches each mobile write refreshes. */
-export const mobileInvalidations = {
-  // A gig's status, details or a new gig: invalidateAfterGigChange / invalidateAfterGigListChange.
-  /** Accept/decline on the gig: reload the gig; My Schedule refetches on its next visit. */
-  assignmentAnswered: (gigId: string): Invalidation[] => [
-    { queryKey: queryKeys.gig(gigId) },
-    { queryKey: ['myUpcomingAssignments'], refetchType: 'none' },
-  ],
-  /**
-   * Accept/decline on My Schedule: shown at once in the cache; not refetched now, because offline
-   * the service answers with the device copy, which would undo the change on screen.
-   */
-  myAssignmentAnswered: (): Invalidation[] => [{ queryKey: ['myUpcomingAssignments'], refetchType: 'none' }],
-  devicesChanged: (): Invalidation[] => [{ queryKey: queryKeys.myDevices() }],
-} as const;
+/** After a device is enrolled or removed for biometric unlock. */
+export function invalidateAfterDeviceChange(queryClient: QueryClient, { userId }: { userId: string }) {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.myDevices(userId) });
+}
 
 /**
  * After a change to one gig (its details, participants, an organization going Inactive): the

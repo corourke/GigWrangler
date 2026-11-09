@@ -1,8 +1,7 @@
 /** Characterization tests (A10): My Schedule shows the device copy first, then fresh data; offline; errors; confirm/decline. */
-import type { ReactElement } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import MobileDashboard from './MobileDashboard'
 import { idbStore } from '../../utils/idb/store'
 import { fetchMyUpcomingAssignments } from '../../services/mobile/staffDashboard.service'
@@ -24,11 +23,6 @@ vi.mock('../../services/gig.service', () => ({ updateStaffAssignmentStatus: vi.f
 vi.mock('../../services/mobile/offlineSync.service', () => ({ offlineSyncService: { queueTrackingUpdate: vi.fn() } }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  const utils = rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-  return { ...utils, rerender: (next: ReactElement) => utils.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>) }
-}
 
 const item = (id: string, title: string, status = 'Invited') => ({
   gig: { id: `g-${id}`, title, start: '2030-07-15T19:00:00Z', end: '2030-07-15T23:00:00Z', timezone: 'America/New_York', status: 'Booked' },
