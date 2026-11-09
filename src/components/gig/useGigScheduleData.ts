@@ -8,8 +8,8 @@ import type { GigScheduleEntry } from '../../utils/supabase/types';
 /**
  * The schedule editor's data (A10): the gig's schedule rows, read fresh each time the editor
  * opens (they seed an autosaving editor, so never from a cached copy), and its participants, for
- * the acts a row can name. Keyed by the gig. entriesLoadedAt changes once per load; the editor
- * seeds its rows from it.
+ * the acts a row can name. Keyed by the gig. The editor seeds its rows once per open, from the
+ * first load.
  */
 export function useGigScheduleData(gigId: string) {
   const entries = useQuery<GigScheduleEntry[]>({

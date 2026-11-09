@@ -164,17 +164,21 @@ export default function GigScheduleEditor({ gigId, gigStart, timeZone, actPartic
 
   useReportToEditSession(saving ? 'saving' : saveFailed ? 'error' : 'idle', flush);
 
-  // A10: the rows and the gig's acts come from react-query; the rows seed the editor once per load.
+  // A10: the rows and the gig's acts come from react-query. The rows seed the editor once per
+  // open of a gig, as before: a later read (an invalidation of the gig) never replaces the rows
+  // being edited.
   const { entries, entriesLoadedAt, participants, error: loadError } = useGigScheduleData(gigId);
+  const seededFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!entries) return;
+    if (!entries || seededFor.current === gigId) return;
+    seededFor.current = gigId;
     const tz = timeZoneRef.current;
     loadedIdsRef.current = entries.map((e) => e.id);
     setAll(entries.length ? entries.map((e) => entryToRow(e, tz)) : SCHEDULE_DEFAULT_ITEMS.map((item) => blankRow(gigDate, item)));
     setLoading(false);
     // gigDate only seeds a new gig's default rows when the schedule loads.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per load (dataUpdatedAt)
-  }, [entriesLoadedAt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per gig, when its rows first arrive
+  }, [entriesLoadedAt, gigId]);
   useEffect(() => {
     if (!loadError) return;
     toast.error(loadError);

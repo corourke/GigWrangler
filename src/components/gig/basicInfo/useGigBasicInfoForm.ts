@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -63,7 +63,7 @@ function toFormData(gig: Gig): BasicInfoFormData {
  */
 export function useGigBasicInfoForm(gigId?: string, loaded?: Gig) {
   // A10: with no gig passed in, read it for the form, fresh each open (it seeds an autosaving
-  // form, so never from a cached copy); the form seeds once per load.
+  // form, so never from a cached copy); the form seeds once per open.
   const fetchGig = !!gigId && !loaded;
   const gigQuery = useQuery({
     queryKey: queryKeys.gigForm(gigId ?? 'new'),
@@ -129,10 +129,15 @@ export function useGigBasicInfoForm(gigId?: string, loaded?: Gig) {
     }
   }, [formValues, isDirty, errors, triggerSave, gigId]);
 
+  // Seeds once per open of a gig, as before A10: a later read (an invalidation of the gig) never
+  // replaces what is being typed.
+  const seededFor = useRef<string | null>(null);
   useEffect(() => {
-    if (fetchGig && gigQuery.data) reset(toFormData(gigQuery.data));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per load (dataUpdatedAt); a gig passed in only seeds the form
-  }, [gigQuery.dataUpdatedAt]);
+    if (!fetchGig || !gigQuery.data || seededFor.current === gigId) return;
+    seededFor.current = gigId ?? null;
+    reset(toFormData(gigQuery.data));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per gig; a gig passed in only seeds the form
+  }, [gigQuery.dataUpdatedAt, gigId]);
   useEffect(() => {
     if (!gigQuery.error) return;
     console.error('Error loading gig data:', gigQuery.error);
