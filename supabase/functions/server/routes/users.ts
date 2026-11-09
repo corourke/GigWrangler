@@ -2,6 +2,7 @@ import type { App } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
 import { newPasswordError } from '../lib/pure/password.ts';
+import { log } from '../../_shared/log.ts';
 
 const PROFILE_UPDATE_FIELDS = [
   'first_name', 'last_name', 'phone', 'address_line1', 'address_line2',
@@ -41,7 +42,7 @@ export function registerUsers(app: App) {
       .select().single();
 
     if (error) {
-      console.error('Error creating user profile:', error);
+      log('error', 'users.create_profile_failed', { err: error });
       return c.json({ error: error.message }, 400);
     }
     return c.json(data);
@@ -55,7 +56,7 @@ export function registerUsers(app: App) {
       p_viewer_id: viewer.id, p_target_id: userId,
     });
     if (accessError) {
-      console.error('Error checking profile access:', accessError);
+      log('error', 'users.access_check_failed', { err: accessError });
       return c.json({ error: 'Could not load the profile' }, 500);
     }
     if (allowed !== true) {
@@ -64,7 +65,7 @@ export function registerUsers(app: App) {
     const { data, error } = await supabaseAdmin
       .from('users').select('*').eq('id', userId).maybeSingle();
     if (error) {
-      console.error('Error fetching user:', error);
+      log('error', 'users.fetch_failed', { err: error });
       return c.json({ error: error.message }, 400);
     }
     if (!data) {
@@ -95,7 +96,7 @@ export function registerUsers(app: App) {
       app_metadata: { ...(user as any).app_metadata, must_change_password: false },
     });
     if (error) {
-      console.error('Error replacing a temporary password:', error);
+      log('error', 'users.temporary_password_replace_failed', { err: error });
       return c.json({ error: 'Could not set the password' }, 400);
     }
     return c.json({ success: true });
@@ -122,7 +123,7 @@ export function registerUsers(app: App) {
     const { data, error } = await supabaseAdmin
       .from('users').update(updateData).eq('id', userId).select().single();
     if (error) {
-      console.error('Error updating user profile:', error);
+      log('error', 'users.update_profile_failed', { err: error });
       return c.json({ error: error.message }, 400);
     }
     return c.json(data);

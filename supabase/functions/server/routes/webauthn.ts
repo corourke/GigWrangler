@@ -7,6 +7,7 @@ import {
   RP_NAME, RP_ID, ORIGIN, base64urlEncode, base64urlDecode, reportWebauthnConfigFallback,
 } from '../lib/webauthnConfig.ts';
 import { unlockEmail, UNLOCK_FAILED } from '../lib/pure/webauthnUnlock.ts';
+import { log } from '../../_shared/log.ts';
 
 /** The account an unlock request's email belongs to, or null. */
 async function accountForEmail(value: unknown): Promise<string | null> {
@@ -14,7 +15,7 @@ async function accountForEmail(value: unknown): Promise<string | null> {
   if (!email) return null;
   const { data, error } = await supabaseAdmin.rpc('auth_user_id_by_email', { p_email: email });
   if (error) {
-    console.error('Error looking up an account for unlock:', error);
+    log('error', 'webauthn.account_lookup_failed', { err: error });
     return null;
   }
   return (data as string | null) ?? null;
@@ -66,7 +67,7 @@ export function registerWebauthn(app: App) {
         requireUserVerification: false,
       });
     } catch (error) {
-      console.error('Registration verification failed:', error);
+      log('error', 'webauthn.registration_verify_failed', { err: error });
       return c.json({ error: 'Verification failed' }, 400);
     }
 
@@ -88,7 +89,7 @@ export function registerWebauthn(app: App) {
       sign_count: credential.counter ?? 0,
     });
     if (dbError) {
-      console.error('DB Error storing device:', dbError);
+      log('error', 'webauthn.device_store_failed', { err: dbError });
       return c.json({ error: 'Failed to store device' }, 500);
     }
 
@@ -161,7 +162,7 @@ export function registerWebauthn(app: App) {
         },
       });
     } catch (error) {
-      console.error('Authentication verification failed:', error);
+      log('error', 'webauthn.authentication_verify_failed', { err: error });
       return c.json({ error: UNLOCK_FAILED }, 400);
     }
 

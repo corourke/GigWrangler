@@ -6,6 +6,7 @@ import { buildCalendarEvent, calendarAudienceOrgIds } from '../lib/pure/calendar
 import {
   tokenNeedsRefresh, isInvalidGrant, calendarFailure, connectedSettings, RECONNECT_MESSAGE,
 } from '../lib/pure/googleCalendarAuth.ts';
+import { log } from '../../_shared/log.ts';
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
@@ -59,7 +60,7 @@ async function validAccessToken(userId: string): Promise<{ accessToken: string; 
 function failed(c: any, context: string, err: unknown, googleStatus = 500) {
   if (err instanceof ReconnectRequired) return c.json({ error: RECONNECT_MESSAGE }, 409);
   const reference = crypto.randomUUID();
-  console.error(`${context} (reference ${reference}):`, err);
+  log('error', 'request.failed', { context, reference, err });
   const failure = calendarFailure(googleStatus, reference);
   return c.json(failure.body, failure.status as any);
 }
@@ -86,7 +87,7 @@ export function registerCalendar(app: App) {
     const tokenData = await response.json().catch(() => ({}));
     if (!response.ok || !tokenData.access_token || !tokenData.refresh_token) {
       const reference = crypto.randomUUID();
-      console.error(`Google token exchange failed (reference ${reference}):`, response.status, tokenData?.error);
+      log('error', 'calendar.token_exchange_failed', { reference, status: response.status, google_error: typeof tokenData?.error === 'string' ? tokenData.error : null });
       return c.json({ error: `Couldn't connect Google Calendar. Reference: ${reference}` }, 400);
     }
 
@@ -119,10 +120,10 @@ export function registerCalendar(app: App) {
           body: new URLSearchParams({ token }),
         });
         if (!response.ok && response.status !== 400) {
-          console.warn('Google token revoke returned', response.status);
+          log('warn', 'calendar.token_revoke_rejected', { status: response.status });
         }
       } catch (err) {
-        console.warn('Google token revoke failed:', err);
+        log('warn', 'calendar.token_revoke_failed', { err });
       }
       const { error } = await supabaseAdmin.from('user_google_calendar_settings').delete().eq('id', settings.id);
       if (error) return failed(c, 'Error removing the Google Calendar connection', error);
@@ -211,7 +212,7 @@ export function registerCalendar(app: App) {
             .select(`*, participants:gig_participants(*, organization:organization_id(*)), staff_assignments:gig_staff_slots(assignments:gig_staff_assignments(user_id))`)
             .eq('id', gig_id).single();
           if (gigError || !gig) {
-            console.error(`Error fetching gig ${gig_id} for sync:`, gigError);
+            log('error', 'calendar.sync_gig_fetch_failed', { gig_id, err: gigError });
             return;
           }
 
@@ -226,7 +227,7 @@ export function registerCalendar(app: App) {
           const { data: userSettings, error: settingsError } = await supabaseAdmin
             .from('user_google_calendar_settings').select('*').eq('is_enabled', true).in('user_id', relevantUserIds);
           if (settingsError) {
-            console.error('Error fetching calendar settings for sync:', settingsError);
+            log('error', 'calendar.sync_settings_fetch_failed', { err: settingsError });
             return;
           }
           if (!userSettings || userSettings.length === 0) return;
@@ -243,7 +244,7 @@ export function registerCalendar(app: App) {
                 ({ accessToken } = await validAccessToken(settings.user_id));
               } catch (tokenError) {
                 if (!(tokenError instanceof ReconnectRequired)) {
-                  console.error(`Couldn't get a Google token for user ${settings.user_id}:`, tokenError);
+                  log('error', 'calendar.sync_token_failed', { user_id: settings.user_id, err: tokenError });
                 }
                 continue;
               }
@@ -280,11 +281,11 @@ export function registerCalendar(app: App) {
                 }, { onConflict: 'gig_id,user_id' });
               }
             } catch (userSyncError) {
-              console.error(`Error syncing for user ${settings.user_id}:`, userSyncError);
+              log('error', 'calendar.sync_user_failed', { user_id: settings.user_id, gig_id, err: userSyncError });
             }
           }
         } catch (syncError) {
-          console.error('Background sync failed:', syncError);
+          log('error', 'calendar.sync_failed', { gig_id, err: syncError });
         }
       })();
 

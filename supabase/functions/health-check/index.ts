@@ -14,6 +14,7 @@ import {
   isSentryConfigured,
   recipientsToNotify,
 } from '../server/lib/pure/healthCheck.ts';
+import { log } from '../_shared/log.ts';
 
 async function checkSupabase(): Promise<HealthCheckResult> {
   const { error } = await supabaseAdmin.from('users').select('id').limit(1);
@@ -92,7 +93,7 @@ async function notifyModerators(results: HealthCheckResult[]) {
   const { data: moderators, error: modError } = await supabaseAdmin
     .from('users').select('id').eq('platform_moderator', true);
   if (modError) {
-    console.error('Error fetching platform moderators for health-check alert:', modError);
+    log('error', 'health_check.moderators_fetch_failed', { err: modError });
     return;
   }
   const moderatorIds = (moderators || []).map((m) => m.id);
@@ -106,7 +107,7 @@ async function notifyModerators(results: HealthCheckResult[]) {
       .is('read_at', null)
       .contains('payload', { check: result.check });
     if (existingError) {
-      console.warn(`Error checking existing '${result.check}' health-check notifications:`, existingError);
+      log('warn', 'health_check.notification_check_failed', { check: result.check, err: existingError });
       continue;
     }
     const alreadyNotified = (existing || []).map((n) => n.recipient_id as string);
@@ -121,7 +122,7 @@ async function notifyModerators(results: HealthCheckResult[]) {
       }))
     );
     if (insertError) {
-      console.warn(`Error inserting 'health_check.failure' notifications for '${result.check}':`, insertError);
+      log('warn', 'health_check.notification_insert_failed', { check: result.check, err: insertError });
     }
   }
 }
