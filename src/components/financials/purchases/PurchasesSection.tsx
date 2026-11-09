@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../../lib/queryKeys';
 import { Plus, ScanLine } from 'lucide-react';
 import { Button } from '../../ui/button';
 import type { Organization, User, UserRole } from '../../../utils/supabase/types';
@@ -63,7 +65,7 @@ export default function PurchasesSection(props: PurchasesSectionProps) {
   const canAdd = userRole === 'Admin' || userRole === 'Manager';
   const [localView, setLocalView] = useState<PurchasesView>('report');
   const view = props.view ?? localView;
-  const [reloadToken, setReloadToken] = useState(0);
+  const queryClient = useQueryClient();
   const [reportIsStale, setReportIsStale] = useState(false);
   // The page normally owns the queue (see PurchasesActions); fall back to our own.
   const ownQueue = useScanQueue(organization.id, canAdd && !props.scanQueue);
@@ -77,16 +79,15 @@ export default function PurchasesSection(props: PurchasesSectionProps) {
   // if a purchase was added in the meantime.
   useEffect(() => {
     if (view === 'report' && reportIsStale) {
-      setReloadToken((n) => n + 1);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.purchasesReport(organization.id) });
       setReportIsStale(false);
     }
-  }, [view, reportIsStale]);
+  }, [view, reportIsStale, queryClient, organization.id]);
   const purchaseAdded = () => setReportIsStale(true);
 
   const report = (
     <PurchasesTab
       {...props}
-      reloadToken={reloadToken}
       onAddManually={canAdd ? () => showView('manual') : undefined}
       onScanInvoices={canAdd ? () => showView('scan') : undefined}
     />

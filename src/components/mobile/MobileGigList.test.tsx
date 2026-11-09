@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import MobileGigList from './MobileGigList'
 
 const mockGigs = [
@@ -50,6 +51,8 @@ vi.mock('../../utils/timezones', () => ({
 }))
 
 import { getGigsForOrganization } from '../../services/gig.service'
+
+
 
 describe('MobileGigList', () => {
   beforeEach(() => {

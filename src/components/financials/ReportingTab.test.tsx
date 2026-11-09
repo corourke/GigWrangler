@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { screen, within, waitFor } from '@testing-library/react';
+import { renderWithQuery as render } from '../../test/renderWithQuery';
 import userEvent from '@testing-library/user-event';
 import ReportingTab from './ReportingTab';
+import { toast } from 'sonner';
+import { getLockedTaxYears } from '../../services/taxYear.service';
 import { getTaxReportData } from '../../services/taxReport.service';
 import { getTaxYearDepreciation } from '../../services/taxYearDepreciation.service';
 
@@ -16,6 +19,7 @@ vi.mock('../ReviewScannedDataDialog', () => ({
     </div>
   ) : null,
 }));
+vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }) }));
 vi.mock('../../services/taxYear.service', () => ({ getLockedTaxYears: vi.fn(async () => new Set([2025])) }));
 vi.mock('../../services/taxYearDepreciation.service', () => ({ getTaxYearDepreciation: vi.fn(async () => []) }));
 // The Filed tax years card stands in as its role, so a test can see which role it was given, and can say it saved.
@@ -437,5 +441,79 @@ describe('Filed tax years, under Schedule C only', () => {
     render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" userRole={role} />);
     await userEvent.click(await screen.findByRole('button', { name: 'Schedule C' }));
     expect(await screen.findByTestId('tax-years')).toHaveTextContent(role);
+  });
+});
+
+// A10 characterization: loading, a failed load, another organization, and fresh data after a save.
+describe('ReportingTab: loading and refreshing (A10)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getTaxReportData).mockResolvedValue({ lines: [], gigRows: [], categories: [], scheduleC: [], equipmentCategories: [] } as any);
+    vi.mocked(getLockedTaxYears).mockResolvedValue(new Set([2025]));
+    vi.mocked(getTaxYearDepreciation).mockResolvedValue([]);
+  });
+  const tape = (id: string, description: string) => purchaseLine({ id, purchase_date: `${new Date().getFullYear()}-01-05`, description,
+    category: 'Supplies', item_cost: 40, line_cost: 40, tax_treatment: 'expense' });
+
+  it('shows Loading reports…, then the report', async () => {
+    let resolve!: (v: any) => void;
+    vi.mocked(getTaxReportData).mockReturnValueOnce(new Promise((r) => { resolve = r; }));
+    render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" />);
+    expect(screen.getByText('Loading reports…')).toBeInTheDocument();
+    resolve({ lines: [], gigRows: [], categories: [], scheduleC: [], equipmentCategories: [] });
+    await waitFor(() => expect(screen.queryByText('Loading reports…')).not.toBeInTheDocument());
+    expect(getTaxReportData).toHaveBeenCalledWith('org-1');
+    expect(getLockedTaxYears).toHaveBeenCalledWith('org-1');
+  });
+
+  it('says when the reports fail to load and shows them empty; opened again, it loads them', async () => {
+    vi.mocked(getTaxReportData).mockRejectedValueOnce(new Error('offline'));
+    const first = render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" />);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to load the reports'));
+    await waitFor(() => expect(screen.queryByText('Loading reports…')).not.toBeInTheDocument());
+    withData({ lines: [tape('p1', 'Fresh tape')] });
+    // Opened again (a remount), against the same cache.
+    first.rerender(<ReportingTab key="again" organizationId="org-1" organizationName="Act4 Audio" />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Expenses' }));
+    expect(await screen.findByText('Fresh tape')).toBeInTheDocument();
+  });
+
+  it('switching organization shows that organization\'s report', async () => {
+    vi.mocked(getTaxReportData).mockImplementation(async (orgId: string) => ({
+      lines: [tape('p1', orgId === 'org-2' ? 'Second org tape' : 'First org tape')], gigRows: [], assets: [], invoices: [],
+      categories: [{ name: 'Supplies', schedule_c_line: '22' }], scheduleC: [{ code: '22', label: 'Supplies' }], equipmentCategories: [],
+    }) as any);
+    const { rerender } = render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Expenses' }));
+    expect(await screen.findByText('First org tape')).toBeInTheDocument();
+    rerender(<ReportingTab organizationId="org-2" organizationName="Other" />);
+    expect(await screen.findByText('Second org tape')).toBeInTheDocument();
+    expect(screen.queryByText('First org tape')).not.toBeInTheDocument();
+    expect(getTaxYearDepreciation).toHaveBeenLastCalledWith('org-2');
+  });
+
+  it('after a purchase is saved from the Grey zone, the report shows the saved data', async () => {
+    const receiver = purchaseLine({ id: 'p4', parent_id: 'h4', purchase_date: `${new Date().getFullYear()}-06-01`, description: 'Wireless receiver',
+      category: 'Audio', item_cost: 900, line_cost: 900, tax_treatment: 'expense' });
+    vi.mocked(getTaxReportData).mockResolvedValue({ lines: [receiver], gigRows: [], assets: [], invoices: [],
+      categories: [], scheduleC: [], equipmentCategories: ['Audio'] } as any);
+    render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Grey zone' }));
+    const table = await screen.findByRole('table', { name: 'Grey zone' });
+    const row = within(table).getByText('Wireless receiver').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Change the treatment: Wireless receiver' }));
+    vi.mocked(getTaxReportData).mockResolvedValue({ lines: [{ ...receiver, description: 'Saved receiver' }], gigRows: [], assets: [], invoices: [],
+      categories: [], scheduleC: [], equipmentCategories: ['Audio'] } as any);
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Edit purchase' })).getByRole('button', { name: 'Save Changes' }));
+    expect(await screen.findByText('Saved receiver')).toBeInTheDocument();
+  });
+
+  it('after the Filed tax years card saves, the filed years are read again', async () => {
+    render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" userRole="Admin" />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Schedule C' }));
+    await waitFor(() => expect(getLockedTaxYears).toHaveBeenCalled());
+    const before = vi.mocked(getLockedTaxYears).mock.calls.length;
+    await userEvent.click(await screen.findByRole('button', { name: 'Card saved' }));
+    await waitFor(() => expect(vi.mocked(getLockedTaxYears).mock.calls.length).toBeGreaterThan(before));
   });
 });

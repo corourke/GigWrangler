@@ -7,9 +7,9 @@ import { Badge } from './ui/badge';
 import AppHeader from './AppHeader';
 import { PageHeader } from './layout/PageHeader';
 import { Organization, User, UserRole } from '../utils/supabase/types';
-import { getOrganizationMember, removeMember } from '../services/organization.service';
 import EditMemberDialog from './team/EditMemberDialog';
 import { useStaffRoles } from './team/useTeamData';
+import { useTeamMemberDetailData } from './useTeamMemberDetailData';
 import { format } from 'date-fns';
 
 interface TeamMemberDetailScreenProps {
@@ -31,29 +31,21 @@ export default function TeamMemberDetailScreen({
   onSwitchOrganization,
   onLogout,
 }: TeamMemberDetailScreenProps) {
-  const [member, setMember] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { memberQuery, removeMember } = useTeamMemberDetailData(organization.id, memberId);
+  const member = memberQuery.data ?? null;
+  const isLoading = memberQuery.isPending;
   const [isEditOpen, setIsEditOpen] = useState(false);
   const staffRoles = useStaffRoles(organization.id).data ?? [];
 
+  // A member that can't be loaded: say why and go back to the team.
+  const loadError = memberQuery.error;
   useEffect(() => {
-    loadMember();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when the member changes, not when the onBack callback is re-created
-  }, [memberId]);
-
-  const loadMember = async () => {
-    setIsLoading(true);
-    try {
-      const data = await getOrganizationMember(organization.id, memberId);
-      setMember(data);
-    } catch (error: any) {
-      console.error('Error loading member:', error);
-      toast.error(error.message || 'Failed to load member');
-      onBack();
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    if (!loadError) return;
+    console.error('Error loading member:', loadError);
+    toast.error(loadError.message || 'Failed to load member');
+    onBack();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reacts to a new load error, not to a re-created onBack callback
+  }, [loadError]);
 
   const handleRemove = async () => {
     if (member.user.id === user.id) {
@@ -64,7 +56,7 @@ export default function TeamMemberDetailScreen({
     if (!confirm(`Are you sure you want to remove ${member.user.first_name} ${member.user.last_name} from ${organization.name}?`)) return;
 
     try {
-      await removeMember(organization.id, memberId);
+      await removeMember.mutateAsync();
       toast.success('Member removed successfully');
       onBack();
     } catch (error: any) {
@@ -270,7 +262,6 @@ export default function TeamMemberDetailScreen({
         currentUserId={user.id}
         currentUserRole={userRole}
         staffRoles={staffRoles}
-        onSaved={loadMember}
       />
     </div>
   );

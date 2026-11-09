@@ -610,3 +610,104 @@ export async function signedInEmailConfirmed(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * What the signed-in user may do on the organization edit screen: global admin, Admin of this
+ * organization, and whether it has any members. A failed check counts as "no", as before.
+ */
+export async function getOrganizationEditPermissions(
+  organizationId: string,
+  userId: string,
+): Promise<{ isGlobalAdmin: boolean; isOrgAdmin: boolean; hasMembers: boolean }> {
+  const supabase = getSupabase();
+  const { data: isAdmin } = await supabase.rpc('user_is_admin', { user_uuid: userId });
+
+  const { data: memberships } = await supabase
+    .from('organization_members')
+    .select('role')
+    .eq('organization_id', organizationId)
+    .eq('user_id', userId);
+
+  const { count } = await supabase
+    .from('organization_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('organization_id', organizationId);
+
+  return {
+    isGlobalAdmin: !!isAdmin,
+    isOrgAdmin: !!memberships?.some((m) => m.role === 'Admin'),
+    hasMembers: (count || 0) > 0,
+  };
+}
+
+export interface AdminOrganizationOverview extends Organization {
+  /** Null where the member list isn't yours to see (you aren't a member or a moderator). */
+  member_count?: number | null;
+  /** An unclaimed org you may manage: as a moderator, or an Admin/Manager of an org on a shared gig. */
+  can_manage_unclaimed?: boolean;
+}
+
+/**
+ * Every organization for the admin list, with member counts only where the list is yours to
+ * see (your organizations, or any as a platform moderator — asking for others would only be
+ * refused), and whether you may manage each unclaimed one.
+ */
+export async function getAdminOrganizationsOverview(params: {
+  userId: string;
+  memberOrgIds: string[];
+  adminOrgIds: string[];
+}): Promise<AdminOrganizationOverview[]> {
+  const supabase = getSupabase();
+  const { data: orgs, error: orgError } = await supabase.functions.invoke('server/organizations', {
+    method: 'GET',
+  });
+  if (orgError) {
+    await handleFunctionsError(orgError, 'load organizations');
+  }
+
+  const memberOrgIds = new Set(params.memberOrgIds);
+  const adminOrgIds = new Set(params.adminOrgIds);
+  const { data: isModerator } = await supabase.rpc('is_platform_moderator');
+  return Promise.all(
+    ((orgs || []) as Organization[]).map(async (org) => {
+      try {
+        let member_count: number | null = null;
+        if (isModerator === true || memberOrgIds.has(org.id)) {
+          const { data: members, error: membersError } = await supabase.functions.invoke(
+            `server/organizations/${org.id}/members`,
+            { method: 'GET' },
+          );
+          member_count = !membersError && members ? members.length : null;
+        }
+        let can_manage_unclaimed = false;
+        if (!org.claimed && !adminOrgIds.has(org.id)) {
+          const { data: canManage } = await supabase.rpc('user_can_manage_unclaimed_org', {
+            p_organization_id: org.id,
+            p_user_id: params.userId,
+          });
+          can_manage_unclaimed = canManage === true;
+        }
+        return { ...org, member_count, can_manage_unclaimed };
+      } catch {
+        return { ...org, member_count: null, can_manage_unclaimed: false };
+      }
+    }),
+  );
+}
+
+/** Delete an organization (the server allows it only when you're its only member). */
+export async function deleteOrganization(organizationId: string): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase.functions.invoke(`server/organizations/${organizationId}`, {
+    method: 'DELETE',
+  });
+  if (error) {
+    await handleFunctionsError(error, 'delete organization');
+  }
+}
+
+/** Whether there is a signed-in session to send a save with. */
+export async function hasSignedInSession(): Promise<boolean> {
+  const { data: { session } } = await getSupabase().auth.getSession();
+  return !!session?.access_token;
+}

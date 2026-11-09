@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   Settings,
@@ -23,17 +23,11 @@ import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 
 import {
-  getUserGoogleCalendarSettings,
-  disconnectGoogleCalendar,
-  getUserCalendars,
   getGoogleAuthUrl,
-  getSyncLogs,
-  getSyncStatusSummary,
-  updateUserGoogleCalendarSettings,
   syncAllGigsForUser,
   bulkSyncAllGigsServerSide,
 } from '../services/googleCalendar.service';
-import { UserGoogleCalendarSettings, GigSyncStatus } from '../utils/supabase/types';
+import { useCalendarIntegrationData, isReconnectError } from './useCalendarIntegrationData';
 import { plural } from '../utils/plural';
 
 interface CalendarIntegrationSettingsProps {
@@ -43,22 +37,6 @@ interface CalendarIntegrationSettingsProps {
   onStartAuth?: () => void;
   /** Shows the system-wide repair tool, which only platform moderators may use (issue #188). */
   isPlatformModerator?: boolean;
-}
-
-interface CalendarOption {
-  id: string;
-  name: string;
-  primary?: boolean;
-  accessRole: string;
-}
-
-interface SyncSummary {
-  total: number;
-  synced: number;
-  notSynced: number;
-  failed: number;
-  removed: number;
-  lastSyncedAt: string | null;
 }
 
 type SyncFrequency = 'realtime' | 'manual';
@@ -83,15 +61,24 @@ export default function CalendarIntegrationSettings({
       ? (s.sync_filters as Record<string, any>)
       : {};
 
-  const [settings, setSettings] = useState<UserGoogleCalendarSettings | null>(null);
-  const [availableCalendars, setAvailableCalendars] = useState<CalendarOption[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    settings,
+    calendars: availableCalendars,
+    calendarsQuery,
+    settingsQuery,
+    syncLogs,
+    syncSummary,
+    syncDataQuery,
+    loading,
+    updateSettings,
+    disconnect,
+    refreshAfterEnable,
+    refreshSyncData,
+  } = useCalendarIntegrationData(userId);
+  const loadingCalendars = calendarsQuery.isFetching;
+  const loadingSyncData = syncDataQuery.isFetching;
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
-  const [loadingCalendars, setLoadingCalendars] = useState(false);
-  const [syncLogs, setSyncLogs] = useState<(GigSyncStatus & { gig_title?: string; gig_start?: string })[]>([]);
-  const [syncSummary, setSyncSummary] = useState<SyncSummary | null>(null);
-  const [loadingSyncData, setLoadingSyncData] = useState(false);
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState<string | null>(null);
@@ -99,76 +86,29 @@ export default function CalendarIntegrationSettings({
   const [serverSyncProgress, setServerSyncProgress] = useState<string | null>(null);
   const [reconnectRequired, setReconnectRequired] = useState(false);
 
-  const loadSyncData = useCallback(async () => {
-    try {
-      setLoadingSyncData(true);
-      const [logs, summary] = await Promise.all([
-        getSyncLogs(userId, 10),
-        getSyncStatusSummary(userId),
-      ]);
-      setSyncLogs(logs);
-      setSyncSummary(summary);
-    } catch (error) {
-      console.error('Error loading sync data:', error);
-    } finally {
-      setLoadingSyncData(false);
-    }
-  }, [userId]);
-
+  // A new user starts without the reconnect warning.
   useEffect(() => {
-    loadSettings();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads once per user; loadSettings and the loaders it calls read only userId
+    setReconnectRequired(false);
   }, [userId]);
 
-  const loadSettings = async () => {
-    setReconnectRequired(false);
-    
-    try {
-      setLoading(true);
-      const userSettings = await getUserGoogleCalendarSettings(userId);
-      setSettings(userSettings);
+  // An expired or revoked Google connection asks to reconnect; anything else is a toast.
+  const settingsError = settingsQuery.error;
+  useEffect(() => {
+    if (!settingsError) return;
+    console.error('Error loading calendar settings:', settingsError);
+    if (isReconnectError(settingsError)) setReconnectRequired(true);
+    else toast.error('Failed to load calendar settings');
+  }, [settingsError]);
 
-      if (userSettings) {
-        // Only load data from Google if we are enabled or if the token is not expired.
-        // If it is expired and disabled, we don't proactively try to refresh (to avoid errors),
-        // but we show the existing settings.
-        const isExpired = new Date(userSettings.token_expires_at) <= new Date();
-        
-        if (userSettings.is_enabled || !isExpired) {
-          await loadCalendars();
-          if (userSettings.is_enabled) {
-            await loadSyncData();
-          }
-        }
-      }
-    } catch (error: any) {
-      console.error('Error loading calendar settings:', error);
-      if (error.message?.includes('expired') || error.message?.includes('revoked') || error.message?.includes('invalid_grant')) {
-        setReconnectRequired(true);
-      } else {
-        toast.error('Failed to load calendar settings');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  const calendarsError = calendarsQuery.error;
+  useEffect(() => {
+    if (!calendarsError) return;
+    console.error('Error loading calendars:', calendarsError);
+    if (isReconnectError(calendarsError)) setReconnectRequired(true);
+    else toast.error('Failed to load available calendars');
+  }, [calendarsError]);
 
-  const loadCalendars = async () => {
-    try {
-      setLoadingCalendars(true);
-      const calendars = await getUserCalendars(userId);
-      setAvailableCalendars(calendars);
-    } catch (error: any) {
-      console.error('Error loading calendars:', error);
-      if (error.message?.includes('expired') || error.message?.includes('revoked') || error.message?.includes('invalid_grant')) {
-        setReconnectRequired(true);
-      } else {
-        toast.error('Failed to load available calendars');
-      }
-    } finally {
-      setLoadingCalendars(false);
-    }
-  };
+  const loadSyncData = () => refreshSyncData();
 
   const handleConnect = async () => {
     try {
@@ -187,11 +127,7 @@ export default function CalendarIntegrationSettings({
     try {
       setDisconnecting(true);
       setReconnectRequired(false);
-      await disconnectGoogleCalendar();
-      setSettings(null);
-      setAvailableCalendars([]);
-      setSyncLogs([]);
-      setSyncSummary(null);
+      await disconnect.mutateAsync();
       toast.success('Google Calendar integration disconnected');
       onSettingsChanged?.();
     } catch (error) {
@@ -209,12 +145,10 @@ export default function CalendarIntegrationSettings({
       const selectedCalendar = availableCalendars.find(cal => cal.id === calendarId);
       if (!selectedCalendar) return;
 
-      const updatedSettings = await updateUserGoogleCalendarSettings(userId, {
+      await updateSettings.mutateAsync({
         calendar_id: calendarId,
         calendar_name: selectedCalendar.name,
       });
-
-      setSettings(updatedSettings);
       toast.success('Calendar selection updated');
       onSettingsChanged?.();
     } catch (error) {
@@ -227,14 +161,10 @@ export default function CalendarIntegrationSettings({
     if (!settings) return;
 
     try {
-      const updatedSettings = await updateUserGoogleCalendarSettings(userId, {
-        is_enabled: enabled,
-      });
-
-      setSettings(updatedSettings);
+      await updateSettings.mutateAsync({ is_enabled: enabled });
 
       if (enabled) {
-        await Promise.all([loadCalendars(), loadSyncData()]);
+        await refreshAfterEnable();
       }
 
       toast.success(enabled ? 'Google Calendar sync enabled' : 'Google Calendar sync disabled');
@@ -249,14 +179,12 @@ export default function CalendarIntegrationSettings({
     if (!settings) return;
 
     try {
-      const updatedSettings = await updateUserGoogleCalendarSettings(userId, {
+      await updateSettings.mutateAsync({
         sync_filters: {
           ...filtersOf(settings),
           frequency,
         },
       });
-
-      setSettings(updatedSettings);
       toast.success('Sync frequency updated');
       onSettingsChanged?.();
     } catch (error) {
@@ -269,14 +197,12 @@ export default function CalendarIntegrationSettings({
     if (!settings) return;
 
     try {
-      const updatedSettings = await updateUserGoogleCalendarSettings(userId, {
+      await updateSettings.mutateAsync({
         sync_filters: {
           ...filtersOf(settings),
           [filterKey]: value,
         },
       });
-
-      setSettings(updatedSettings);
       toast.success('Sync filter updated');
       onSettingsChanged?.();
     } catch (error) {

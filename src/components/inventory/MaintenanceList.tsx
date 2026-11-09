@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { Printer } from 'lucide-react';
 import { toast } from 'sonner';
@@ -13,13 +13,10 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '../ui/alert-dialog';
 import { PrintHeader } from './InventoryReports';
-import {
-  getMaintenanceList, isOverdue, returnToService, updateMaintenance, whichLabel,
-  type MaintenanceList as List, type MaintenanceListRow,
-} from '../../services/maintenance.service';
+import { isOverdue, whichLabel, type MaintenanceListRow } from '../../services/maintenance.service';
+import { useMaintenanceListData } from './useMaintenanceListData';
 import { isStaffOrAbove } from '../../utils/permissions';
 import type { UserRole } from '../../utils/supabase/constants';
-import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface MaintenanceListProps {
   organizationId: string;
@@ -44,39 +41,20 @@ type Confirm = { row: MaintenanceListRow; flagged: boolean };
  * cancel a flag; disposing stays on the equipment form.
  */
 export function MaintenanceList({ organizationId, organizationName, userRole }: MaintenanceListProps) {
-  const [list, setList] = useState<List>({ inMaintenance: [], flagged: [] });
-  const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const { list, isLoading: loading, error: loadError, reload, updateDetails, returnToService } =
+    useMaintenanceListData(organizationId);
+  const loadFailed = !!loadError;
   const [editing, setEditing] = useState<MaintenanceListRow | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [busy, setBusy] = useState(false);
   const canEdit = isStaffOrAbove(userRole);
 
-  // A late answer for an earlier organization (or reload) is dropped (B12).
-  const startRequest = useLatestRequest();
-  const load = useCallback(async () => {
-    const isCurrent = startRequest();
-    try {
-      const list = await getMaintenanceList(organizationId);
-      if (!isCurrent()) return;
-      setList(list);
-      setLoadFailed(false);
-    } catch (err) {
-      if (!isCurrent()) return;
-      console.error('Error loading the maintenance list:', err);
-      setLoadFailed(true);
-    } finally {
-      if (isCurrent()) setLoading(false);
-    }
-  }, [organizationId, startRequest]);
-  useEffect(() => { load(); }, [load]);
-
+  // The hook reloads the list before a write reports done.
   const act = async (what: () => Promise<unknown>, done: string) => {
     setBusy(true);
     try {
       await what();
       toast.success(done);
-      await load();
       return true;
     } catch (err: any) {
       toast.error(err?.message || 'That didn’t work');
@@ -98,7 +76,7 @@ export function MaintenanceList({ organizationId, organizationName, userRole }: 
     return (
       <div className="flex flex-col items-center gap-3 py-12">
         <span className="text-sm text-muted-foreground">Couldn’t load the maintenance list.</span>
-        <Button variant="outline" size="sm" onClick={() => { setLoading(true); load(); }}>Retry</Button>
+        <Button variant="outline" size="sm" onClick={reload}>Retry</Button>
       </div>
     );
   }
@@ -157,7 +135,7 @@ export function MaintenanceList({ organizationId, organizationName, userRole }: 
         onClose={() => setEditing(null)}
         onSave={async (details) => {
           if (!editing) return;
-          if (await act(() => updateMaintenance(editing.asset_id, details), 'Maintenance details saved')) setEditing(null);
+          if (await act(() => updateDetails({ assetId: editing.asset_id, details }), 'Maintenance details saved')) setEditing(null);
         }}
       />
 

@@ -1,9 +1,12 @@
+import { renderWithQuery as render } from '../../test/renderWithQuery'
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import NotReturnedSection from './NotReturnedSection';
 import { getGigReturns, writeOffPieces, undoWriteOff, markReturned } from '../../services/writeOff.service';
 import { getLockedTaxYears } from '../../services/taxYear.service';
+
+
 
 vi.mock('../../services/writeOff.service', () => ({
   getGigReturns: vi.fn(), writeOffPieces: vi.fn(), undoWriteOff: vi.fn(), markReturned: vi.fn(),

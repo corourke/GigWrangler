@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useMobileGigListData } from './useMobileGigListData';
 import { useGigListFilters } from '../../hooks/useGigListFilters';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
@@ -17,7 +18,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { getGigsForOrganization, createGig, updateGig } from '../../services/gig.service';
+import { createGig } from '../../services/gig.service';
 import { searchOrganizations } from '../../services/organization.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
@@ -52,8 +53,6 @@ const _GIG_STATUSES: { key: GigStatus; label: string }[] = [
 
 export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPositionChange }: MobileGigListProps) {
   const { selectedOrganization, userRole } = useAuth();
-  const [gigs, setGigs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [searchQuery, setSearchQuery] = useState('');
   const { futureDateFilter, setFutureDateFilter, pastDateFilter, setPastDateFilter, activeStatuses, setActiveStatuses } = useGigListFilters();
@@ -72,24 +71,9 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
   }, []);
 
   const orgId = selectedOrganization?.id;
-  const loadGigs = useCallback(async () => {
-    if (!orgId) return;
-    setLoading(true);
-    try {
-      const data = await getGigsForOrganization(orgId);
-      setGigs(data || []);
-    } catch (error) {
-      console.error('Failed to load gigs:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [orgId]);
-
-  useEffect(() => {
-    if (orgId) {
-      loadGigs();
-    }
-  }, [orgId, loadGigs]);
+  const { gigs, gigsQuery, refreshGigs, changeStatus } = useMobileGigListData(orgId);
+  const loading = gigsQuery.isFetching || (!!orgId && gigsQuery.isPending);
+  const loadGigs = () => { refreshGigs(); };
 
   const scrollRestoredRef = useRef(false);
 
@@ -121,9 +105,9 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
   const handleStatusChange = async (gigId: string, newStatus: GigStatus) => {
     setUpdatingStatus(gigId);
     try {
-      await updateGig(gigId, { status: newStatus });
+      // Resolves once the list has reloaded.
+      await changeStatus.mutateAsync({ gigId, status: newStatus });
       toast.success(`Status updated to ${GIG_STATUS_CONFIG[newStatus].label}`);
-      await loadGigs();
     } catch (error: any) {
       toast.error(error.message || 'Failed to update status');
     } finally {
@@ -132,14 +116,10 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
     }
   };
 
-  const handleGigCreated = useCallback(() => {
+  const handleGigCreated = () => {
     setShowCreateModal(false);
-    if (selectedOrganization?.id) {
-      getGigsForOrganization(selectedOrganization.id)
-        .then(data => setGigs(data || []))
-        .catch(err => console.error('Failed to reload gigs:', err));
-    }
-  }, [selectedOrganization]);
+    refreshGigs();
+  };
 
   const filteredGigs = useMemo(() => {
     let result = gigs;
