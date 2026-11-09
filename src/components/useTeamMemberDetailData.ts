@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, orgSettingsInvalidations } from '../lib/queryKeys';
+import { queryKeys, invalidateAfterTeamListChange } from '../lib/queryKeys';
 import { getOrganizationMember, removeMember } from '../services/organization.service';
 
 /**
@@ -13,12 +13,14 @@ export function useTeamMemberDetailData(organizationId: string, memberId: string
     queryKey: queryKeys.teamMember(organizationId, memberId),
     queryFn: () => getOrganizationMember(organizationId, memberId) as Promise<any>,
     staleTime: 0,
+    // Seeds the Edit dialog's form: load fresh on each open (gcTime 0).
+    gcTime: 0,
   });
 
   const removeMemberMutation = useMutation({
     mutationFn: () => removeMember(organizationId, memberId),
     onSuccess: () => {
-      orgSettingsInvalidations.memberRemoved(organizationId).forEach((f) => queryClient.invalidateQueries(f));
+      invalidateAfterTeamListChange(queryClient, { organizationId });
     },
   });
 

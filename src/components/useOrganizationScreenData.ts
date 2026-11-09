@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, orgSettingsInvalidations } from '../lib/queryKeys';
+import { queryKeys, invalidateAfterOrganizationChange } from '../lib/queryKeys';
 import {
   createOrganization,
   getOrganizationEditPermissions,
@@ -37,10 +37,7 @@ export function useOrganizationScreenData({ organizationId, userId }: { organiza
       id
         ? updateOrganization(id, body as Parameters<typeof updateOrganization>[1])
         : createOrganization({ ...(body as Parameters<typeof createOrganization>[0]), autoJoin }),
-    onSuccess: (_org, vars) =>
-      Promise.all(
-        orgSettingsInvalidations.organizationSaved(vars.organizationId).map((f) => queryClient.invalidateQueries(f)),
-      ),
+    onSuccess: (_org, vars) => invalidateAfterOrganizationChange(queryClient, { organizationId: vars.organizationId }),
   });
 
   return {

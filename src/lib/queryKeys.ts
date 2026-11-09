@@ -60,56 +60,71 @@ export const queryKeys = {
 
   // Generic notification feed (issue #52) — powers the notification bell.
   notifications: () => ['notifications'] as const,
-  // --- Organizations and settings (A10, Engineer O) ---
+  // ── Organizations and settings (A10, Engineer O) ──
   organizationPermissions: (orgId: string, userId: string) => ['organizationPermissions', orgId, userId] as const,
   adminOrganizations: (userId: string) => ['adminOrganizations', userId] as const,
   organizationSearch: (search: string, type?: string) => ['organizationSearch', search, type ?? null] as const,
-  userSelectorSearch: (search: string, orgIds?: string[]) => ['userSelectorSearch', search, orgIds ?? null] as const,
+  userSelectorSearch: (userId: string, search: string, orgIds?: string[]) => ['userSelectorSearch', userId, search, orgIds ?? null] as const,
   myPendingAccessRequests: (userId: string) => ['myPendingAccessRequests', userId] as const,
   emailConfirmed: (userId: string) => ['emailConfirmed', userId] as const,
-  twoFactorStatus: () => ['twoFactorStatus'] as const,
+  twoFactorStatus: (userId: string) => ['twoFactorStatus', userId] as const,
   calendarSettings: (userId: string) => ['calendarSettings', userId] as const,
   googleCalendars: (userId: string) => ['googleCalendars', userId] as const,
   calendarSyncData: (userId: string) => ['calendarSyncData', userId] as const,
 } as const;
 
-/** One cache refresh: the key prefix, and how (react-query invalidateQueries filters). */
-export interface Invalidation {
-  queryKey: readonly unknown[];
-  exact?: boolean;
-  refetchType?: 'active' | 'inactive' | 'all' | 'none';
+// ── Organizations and settings (A10, Engineer O) ──
+
+/**
+ * After an organization is created or edited: the edit permissions (that organization's, or all
+ * when it is new), the admin list and any open organization search.
+ */
+export function invalidateAfterOrganizationChange(queryClient: QueryClient, { organizationId }: { organizationId?: string } = {}) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: organizationId ? ['organizationPermissions', organizationId] : ['organizationPermissions'] }),
+    queryClient.invalidateQueries({ queryKey: ['adminOrganizations'] }),
+    queryClient.invalidateQueries({ queryKey: ['organizationSearch'] }),
+  ]);
+}
+
+/** After an organization is deleted: the admin list and any open organization search. */
+export function invalidateAfterOrganizationListChange(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['adminOrganizations'] }),
+    queryClient.invalidateQueries({ queryKey: ['organizationSearch'] }),
+  ]);
 }
 
 /**
- * Invalidation map — Organizations and settings (A10, Engineer O): which caches each write
- * refreshes. Hooks pass every entry to queryClient.invalidateQueries.
+ * After a member is removed: the team list only. The removed member's own detail (under the same
+ * team key) would fail to refetch.
  */
-export const orgSettingsInvalidations = {
-  /** Create or edit: the edit permissions, the admin list and any open org search. */
-  organizationSaved: (orgId?: string): Invalidation[] => [
-    { queryKey: orgId ? ['organizationPermissions', orgId] : ['organizationPermissions'] },
-    { queryKey: ['adminOrganizations'] },
-    { queryKey: ['organizationSearch'] },
-  ],
-  organizationDeleted: (): Invalidation[] => [
-    { queryKey: ['adminOrganizations'] },
-    { queryKey: ['organizationSearch'] },
-  ],
-  /** Only the team list: the removed member's own detail would fail to refetch. */
-  memberRemoved: (orgId: string): Invalidation[] => [{ queryKey: queryKeys.team(orgId), exact: true }],
-  /** The request is added to the cache on success; mark it stale so the next visit refetches. */
-  accessRequested: (userId: string): Invalidation[] => [
-    { queryKey: queryKeys.myPendingAccessRequests(userId), refetchType: 'none' },
-  ],
-  twoFactorChanged: (): Invalidation[] => [{ queryKey: queryKeys.twoFactorStatus() }],
-  /** Turning calendar sync on reloads the calendar list and the sync status. */
-  calendarEnabled: (userId: string): Invalidation[] => [
-    { queryKey: queryKeys.googleCalendars(userId) },
-    { queryKey: queryKeys.calendarSyncData(userId) },
-  ],
-  /** After a sync run (or the refresh button): the sync status. */
-  calendarSynced: (userId: string): Invalidation[] => [{ queryKey: queryKeys.calendarSyncData(userId) }],
-} as const;
+export function invalidateAfterTeamListChange(queryClient: QueryClient, { organizationId }: { organizationId: string }) {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.team(organizationId), exact: true });
+}
+
+/** After a request to join: marked stale only (the screen adds it to the cache itself). */
+export function invalidateAfterAccessRequestChange(queryClient: QueryClient, { userId }: { userId: string }) {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.myPendingAccessRequests(userId), refetchType: 'none' });
+}
+
+/** After two-factor sign-in is set up or turned off. */
+export function invalidateAfterTwoFactorChange(queryClient: QueryClient, { userId }: { userId: string }) {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.twoFactorStatus(userId) });
+}
+
+/** After calendar sync is turned on: the calendar list and the sync status. */
+export function invalidateAfterCalendarEnabledChange(queryClient: QueryClient, { userId }: { userId: string }) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.googleCalendars(userId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.calendarSyncData(userId) }),
+  ]);
+}
+
+/** After a sync run (or the refresh button): the sync status. */
+export function invalidateAfterCalendarSyncChange(queryClient: QueryClient, { userId }: { userId: string }) {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.calendarSyncData(userId) });
+}
 
 /**
  * After a change to one gig (its details, participants, an organization going Inactive): the

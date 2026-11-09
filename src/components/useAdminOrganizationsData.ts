@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, orgSettingsInvalidations } from '../lib/queryKeys';
+import { queryKeys, invalidateAfterOrganizationListChange } from '../lib/queryKeys';
 import {
   deleteOrganization,
   getAdminOrganizationsOverview,
@@ -22,7 +22,7 @@ export function useAdminOrganizationsData(params: { userId: string; memberOrgIds
     onSuccess: (_r, organizationId) => {
       // Drop the row at once, as before; the refetch then confirms it.
       queryClient.setQueryData<AdminOrganizationOverview[]>(key, (prev) => prev?.filter((o) => o.id !== organizationId));
-      orgSettingsInvalidations.organizationDeleted().forEach((f) => queryClient.invalidateQueries(f));
+      invalidateAfterOrganizationListChange(queryClient);
     },
   });
 

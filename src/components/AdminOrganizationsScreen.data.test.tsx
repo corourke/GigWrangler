@@ -1,8 +1,7 @@
 /** Characterization tests (A10): the admin organization list loads, fails, and deletes as today. */
-import type { ReactElement } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import AdminOrganizationsScreen from './AdminOrganizationsScreen'
 import { makeUser } from '../test/factories'
 
@@ -14,10 +13,6 @@ vi.mock('../utils/supabase/client', () => ({
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-}
 
 const orgA = { id: 'org-a', name: 'Org A', roles: ['Production'], claimed: true, city: null, state: null, phone_number: null }
 const orgB = { id: 'org-b', name: 'Org B', roles: ['Venue'], claimed: true, city: null, state: null, phone_number: null }

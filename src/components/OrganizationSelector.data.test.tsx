@@ -1,7 +1,6 @@
 /** Characterization tests (A10): OrganizationSelector's debounced search. */
-import type { ReactElement } from 'react';
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithQuery as render } from '../test/renderWithQuery';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import OrganizationSelector from './OrganizationSelector';
 import { searchOrganizations } from '../services/organization.service';
@@ -9,10 +8,6 @@ import { searchOrganizations } from '../services/organization.service';
 vi.mock('../services/organization.service', () => ({ searchOrganizations: vi.fn() }));
 vi.mock('./QuickCreateOrganizationDialog', () => ({ default: () => null }));
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
-}
 const org = (id: string, name: string) => ({ id, name, roles: ['Venue'], city: null, state: null }) as any;
 const type = (value: string) => fireEvent.change(screen.getByPlaceholderText('Search for organization...'), { target: { value } });
 

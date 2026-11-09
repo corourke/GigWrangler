@@ -1,7 +1,6 @@
 /** Characterization tests (A10): UserSelector's search. */
-import type { ReactElement } from 'react';
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithQuery as render } from '../test/renderWithQuery';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import UserSelector from './UserSelector';
 import { searchUsers } from '../services/user.service';
@@ -9,10 +8,6 @@ import { searchUsers } from '../services/user.service';
 vi.mock('../services/user.service', () => ({ searchUsers: vi.fn() }));
 vi.mock('./organization/AddPersonDialog', () => ({ default: () => null }));
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
-}
 const person = (id: string, first: string) => ({ id, first_name: first, last_name: 'Tester', email: `${id}@example.com` }) as any;
 const type = (value: string) => {
   const input = screen.getByPlaceholderText('Search for user...');

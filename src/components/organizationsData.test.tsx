@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { queryKeys, orgSettingsInvalidations } from '../lib/queryKeys';
+import { queryKeys, invalidateAfterCalendarEnabledChange, invalidateAfterCalendarSyncChange } from '../lib/queryKeys';
 import { useOrganizationScreenData } from './useOrganizationScreenData';
 import { useAdminOrganizationsData } from './useAdminOrganizationsData';
 import { useTeamMemberDetailData } from './useTeamMemberDetailData';
@@ -55,28 +55,26 @@ beforeEach(() => {
   vi.spyOn(client, 'invalidateQueries');
 });
 
-describe('invalidation map (organizations and settings)', () => {
-  it('names the caches each write refreshes', () => {
-    expect(orgSettingsInvalidations.organizationSaved('org-1')).toEqual([
-      { queryKey: ['organizationPermissions', 'org-1'] },
-      { queryKey: ['adminOrganizations'] },
-      { queryKey: ['organizationSearch'] },
-    ]);
-    expect(orgSettingsInvalidations.organizationDeleted()).toEqual([
-      { queryKey: ['adminOrganizations'] },
-      { queryKey: ['organizationSearch'] },
-    ]);
-    // Only the team list: the removed member's own detail must not refetch (it no longer exists).
-    expect(orgSettingsInvalidations.memberRemoved('org-1')).toEqual([{ queryKey: queryKeys.team('org-1'), exact: true }]);
-    expect(orgSettingsInvalidations.accessRequested('u1')).toEqual([
-      { queryKey: queryKeys.myPendingAccessRequests('u1'), refetchType: 'none' },
-    ]);
-    expect(orgSettingsInvalidations.twoFactorChanged()).toEqual([{ queryKey: queryKeys.twoFactorStatus() }]);
-    expect(orgSettingsInvalidations.calendarEnabled('u1')).toEqual([
+describe('keys and invalidations (organizations and settings)', () => {
+  it('keys every answer that depends on who is signed in by the user id', () => {
+    expect(queryKeys.twoFactorStatus('u1')).not.toEqual(queryKeys.twoFactorStatus('u2'));
+    expect(queryKeys.userSelectorSearch('u1', 'av')).not.toEqual(queryKeys.userSelectorSearch('u2', 'av'));
+    expect(queryKeys.adminOrganizations('u1')).toContain('u1');
+    expect(queryKeys.organizationPermissions('org-1', 'u1')).toContain('u1');
+    expect(queryKeys.myPendingAccessRequests('u1')).toContain('u1');
+    expect(queryKeys.emailConfirmed('u1')).toContain('u1');
+    expect(queryKeys.calendarSettings('u1')).toContain('u1');
+  });
+
+  it('turning calendar sync on refreshes the calendars and the sync status; a sync run, the status', async () => {
+    await invalidateAfterCalendarEnabledChange(client, { userId: 'u1' });
+    expect(invalidated()).toEqual([
       { queryKey: queryKeys.googleCalendars('u1') },
       { queryKey: queryKeys.calendarSyncData('u1') },
     ]);
-    expect(orgSettingsInvalidations.calendarSynced('u1')).toEqual([{ queryKey: queryKeys.calendarSyncData('u1') }]);
+    vi.mocked(client.invalidateQueries).mockClear();
+    await invalidateAfterCalendarSyncChange(client, { userId: 'u1' });
+    expect(invalidated()).toEqual([{ queryKey: queryKeys.calendarSyncData('u1') }]);
   });
 });
 
@@ -100,7 +98,12 @@ describe('useOrganizationScreenData', () => {
     const { result } = renderHook(() => useOrganizationScreenData({ organizationId: 'org-1', userId: 'u1' }), { wrapper });
     await act(() => result.current.saveOrganization.mutateAsync({ organizationId: 'org-1', body: { name: 'Renamed' } }));
     expect(org.updateOrganization).toHaveBeenCalledWith('org-1', { name: 'Renamed' });
-    expect(invalidated()).toEqual(orgSettingsInvalidations.organizationSaved('org-1'));
+    // invalidateAfterOrganizationChange: that org's permissions, the admin list, any open search.
+    expect(invalidated()).toEqual([
+      { queryKey: ['organizationPermissions', 'org-1'] },
+      { queryKey: ['adminOrganizations'] },
+      { queryKey: ['organizationSearch'] },
+    ]);
   });
 
   it('creating passes the join choice to the service', async () => {
@@ -131,7 +134,7 @@ describe('useAdminOrganizationsData', () => {
     await act(() => result.current.deleteOrganization.mutateAsync('org-a'));
     expect(org.deleteOrganization).toHaveBeenCalledWith('org-a');
     expect(client.getQueryData<{ id: string }[]>(queryKeys.adminOrganizations('u1'))!.map((o) => o.id)).toEqual(['org-b']);
-    expect(invalidated()).toEqual(orgSettingsInvalidations.organizationDeleted());
+    expect(invalidated()).toEqual([{ queryKey: ['adminOrganizations'] }, { queryKey: ['organizationSearch'] }]);
   });
 });
 
@@ -149,7 +152,8 @@ describe('useTeamMemberDetailData', () => {
     const { result } = renderHook(() => useTeamMemberDetailData('org-1', 'm1'), { wrapper });
     await act(() => result.current.removeMember.mutateAsync());
     expect(org.removeMember).toHaveBeenCalledWith('org-1', 'm1');
-    expect(invalidated()).toEqual(orgSettingsInvalidations.memberRemoved('org-1'));
+    // Only the team list: the removed member's own detail must not refetch (it no longer exists).
+    expect(invalidated()).toEqual([{ queryKey: queryKeys.team('org-1'), exact: true }]);
   });
 });
 
@@ -173,7 +177,7 @@ describe('useOrganizationSelectionData', () => {
     await act(() => result.current.requestToJoin.mutateAsync('org-9'));
     expect(access.createAccessRequest).toHaveBeenCalledWith('org-9', 'Viewer');
     await waitFor(() => expect(result.current.pendingOrgIds.has('org-9')).toBe(true));
-    expect(invalidated()).toEqual(orgSettingsInvalidations.accessRequested('u1'));
+    expect(invalidated()).toEqual([{ queryKey: queryKeys.myPendingAccessRequests('u1'), refetchType: 'none' }]);
   });
 });
 
@@ -208,7 +212,7 @@ describe('useUserSelectorSearch', () => {
     const { result } = renderHook(() => useUserSelectorSearch('av', ['org-1']), { wrapper });
     await waitFor(() => expect(result.current.results).toHaveLength(1));
     expect(users.searchUsers).toHaveBeenCalledWith('av', ['org-1']);
-    expect(client.getQueryData(queryKeys.userSelectorSearch('av', ['org-1']))).toHaveLength(1);
+    expect(client.getQueryData(queryKeys.userSelectorSearch('', 'av', ['org-1']))).toHaveLength(1);
   });
 });
 
@@ -218,10 +222,10 @@ describe('useTwoFactorSettingsData', () => {
     tfa.confirmTwoFactorSetup.mockResolvedValue(undefined);
     const { result } = renderHook(() => useTwoFactorSettingsData(), { wrapper });
     await waitFor(() => expect(result.current.statusQuery.data).toEqual({ factors: [] }));
-    expect(client.getQueryData(queryKeys.twoFactorStatus())).toEqual({ factors: [] });
+    expect(client.getQueryData(queryKeys.twoFactorStatus(''))).toEqual({ factors: [] });
     await act(() => result.current.confirmSetup.mutateAsync({ factorId: 'f1', code: '123456' }));
     expect(tfa.confirmTwoFactorSetup).toHaveBeenCalledWith('f1', '123456');
-    expect(invalidated()).toEqual(orgSettingsInvalidations.twoFactorChanged());
+    expect(invalidated()).toEqual([{ queryKey: queryKeys.twoFactorStatus('') }]);
   });
 
   it('removing refreshes the status', async () => {
@@ -230,7 +234,7 @@ describe('useTwoFactorSettingsData', () => {
     const { result } = renderHook(() => useTwoFactorSettingsData(), { wrapper });
     await act(() => result.current.removeFactor.mutateAsync('f1'));
     expect(tfa.removeTwoFactor).toHaveBeenCalledWith('f1');
-    expect(invalidated()).toEqual(orgSettingsInvalidations.twoFactorChanged());
+    expect(invalidated()).toEqual([{ queryKey: queryKeys.twoFactorStatus('') }]);
   });
 });
 

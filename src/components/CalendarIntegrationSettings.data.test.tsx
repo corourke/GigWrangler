@@ -1,7 +1,6 @@
 /** Characterization tests (A10): calendar settings loads, failures, switching user, and refresh after writes. */
-import type { ReactElement } from 'react';
-import { render as rtlRender, screen, waitFor, fireEvent, within } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { screen, waitFor, fireEvent, within } from '@testing-library/react';
+import { renderWithQuery as render } from '../test/renderWithQuery';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import CalendarIntegrationSettings from './CalendarIntegrationSettings';
 import * as cal from '../services/googleCalendar.service';
@@ -21,11 +20,6 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: v
 
 const m = <T,>(fn: T) => fn as unknown as ReturnType<typeof vi.fn>;
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  const utils = rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
-  return { ...utils, rerender: (next: ReactElement) => utils.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>) };
-}
 
 const settings = (over: Record<string, unknown> = {}) => ({
   id: 's1', user_id: 'user-1', calendar_id: 'cal-1', calendar_name: 'Main Calendar',

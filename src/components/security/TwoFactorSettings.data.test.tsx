@@ -1,8 +1,7 @@
 /** Characterization tests (A10): two-factor status load and its failure. */
-import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render as rtlRender, screen } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { screen } from '@testing-library/react';
+import { renderWithQuery as render } from '../../test/renderWithQuery';
 import TwoFactorSettings from './TwoFactorSettings';
 
 const getTwoFactorStatus = vi.fn();
@@ -13,10 +12,6 @@ vi.mock('../../services/twoFactor.service', () => ({
   removeTwoFactor: vi.fn(),
 }));
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
-}
 
 beforeEach(() => vi.clearAllMocks());
 

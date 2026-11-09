@@ -1,8 +1,7 @@
 /** Characterization tests (A10): the organization search on Select Organization. */
-import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithQuery as render } from '../test/renderWithQuery';
 import OrganizationSelectionScreen from './OrganizationSelectionScreen';
 
 vi.mock('./AppHeader', () => ({ default: () => null }));
@@ -19,10 +18,6 @@ vi.mock('../services/accessRequest.service', () => ({
 }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
-}
 
 const org = (id: string, name: string) => ({ id, name, roles: ['Production'], allowed_domains: null });
 

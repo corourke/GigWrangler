@@ -2,10 +2,9 @@
  * Characterization tests (A10): what the edit screen loads and shows, and what a save does.
  * They pin today's behaviour so the move to react-query stays behaviour-neutral.
  */
-import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { renderWithQuery as render } from '../test/renderWithQuery';
 import OrganizationScreen from './OrganizationScreen';
 import { makeOrganization } from '../test/factories';
 
@@ -55,14 +54,6 @@ vi.mock('./organization/OrganizationContactsSection', () => ({
   ),
 }));
 
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  const utils = rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
-  return {
-    ...utils,
-    rerender: (next: ReactElement) => utils.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>),
-  };
-}
 
 const claimedOrg = makeOrganization({ id: 'org-a', name: 'Org A', claimed: true, roles: ['Production'] } as any);
 const unclaimedOrg = makeOrganization({ id: 'org-b', name: 'Org B', claimed: false, roles: ['Venue'] } as any);

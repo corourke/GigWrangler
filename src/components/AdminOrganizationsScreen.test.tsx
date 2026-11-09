@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import type { ReactElement } from 'react'
-import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import AdminOrganizationsScreen from './AdminOrganizationsScreen'
 import { makeUser } from '../test/factories'
 import { getBackInHeaderSlot } from '../test/pageFrame'
@@ -14,11 +13,6 @@ vi.mock('../utils/supabase/client', () => ({
 }))
 
 
-// Screens read through react-query (A10), so each render gets its own QueryClient.
-function render(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
-}
 
 describe('AdminOrganizationsScreen page header (#39)', () => {
   it('puts Back to Select Organization in the header slot', async () => {

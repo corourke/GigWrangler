@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, orgSettingsInvalidations } from '../lib/queryKeys';
+import { queryKeys, invalidateAfterCalendarEnabledChange, invalidateAfterCalendarSyncChange } from '../lib/queryKeys';
 import {
   disconnectGoogleCalendar,
   getSyncLogs,
@@ -74,8 +74,6 @@ export function useCalendarIntegrationData(userId: string) {
   const loading = loadedFor !== userId && firstRoundPending;
 
   const setSettings = (next: UserGoogleCalendarSettings | null) => queryClient.setQueryData(settingsKey, next);
-  const invalidate = (filters: ReturnType<typeof orgSettingsInvalidations.calendarSynced>) =>
-    Promise.all(filters.map((f) => queryClient.invalidateQueries(f)));
 
   const updateSettings = useMutation({
     mutationFn: (changes: Parameters<typeof updateUserGoogleCalendarSettings>[1]) =>
@@ -104,8 +102,8 @@ export function useCalendarIntegrationData(userId: string) {
     updateSettings,
     disconnect,
     /** After turning sync on: reload the calendar list and the sync status. */
-    refreshAfterEnable: () => invalidate(orgSettingsInvalidations.calendarEnabled(userId)),
+    refreshAfterEnable: () => invalidateAfterCalendarEnabledChange(queryClient, { userId }),
     /** After a sync run, or from the refresh button. */
-    refreshSyncData: () => invalidate(orgSettingsInvalidations.calendarSynced(userId)),
+    refreshSyncData: () => invalidateAfterCalendarSyncChange(queryClient, { userId }),
   };
 }

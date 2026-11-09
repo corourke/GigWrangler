@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, orgSettingsInvalidations } from '../lib/queryKeys';
+import { queryKeys, invalidateAfterAccessRequestChange } from '../lib/queryKeys';
 import { joinOrganization, signedInEmailConfirmed } from '../services/organization.service';
 import { createAccessRequest, getMyPendingAccessRequests } from '../services/accessRequest.service';
 
@@ -51,7 +51,7 @@ export function useOrganizationSelectionData(userId: string) {
         ...(prev ?? []),
         { organization_id: organizationId, requested_role: 'Viewer' },
       ]);
-      orgSettingsInvalidations.accessRequested(userId).forEach((f) => queryClient.invalidateQueries(f));
+      invalidateAfterAccessRequestChange(queryClient, { userId });
     },
   });
 

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '../lib/queryKeys';
+import { useSignedInUserId } from '../utils/hooks/useSignedInUserId';
 import { searchUsers } from '../services/user.service';
 import type { User } from '../utils/supabase/types';
 
@@ -9,8 +10,10 @@ import type { User } from '../utils/supabase/types';
  */
 export function useUserSelectorSearch(searchTerm: string, organizationIds?: string[]) {
   const active = !!searchTerm.trim();
+  // Whom you may find depends on who is signed in.
+  const userId = useSignedInUserId();
   const query = useQuery<User[]>({
-    queryKey: queryKeys.userSelectorSearch(searchTerm, organizationIds),
+    queryKey: queryKeys.userSelectorSearch(userId, searchTerm, organizationIds),
     queryFn: async () => {
       try {
         return ((await searchUsers(searchTerm, organizationIds)) || []) as User[];

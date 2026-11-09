@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, orgSettingsInvalidations } from '../../lib/queryKeys';
+import { queryKeys, invalidateAfterTwoFactorChange } from '../../lib/queryKeys';
+import { useSignedInUserId } from '../../utils/hooks/useSignedInUserId';
 import {
   confirmTwoFactorSetup,
   getTwoFactorStatus,
@@ -13,11 +14,12 @@ import {
  */
 export function useTwoFactorSettingsData() {
   const queryClient = useQueryClient();
+  const userId = useSignedInUserId();
   const refresh = () =>
-    Promise.all(orgSettingsInvalidations.twoFactorChanged().map((f) => queryClient.invalidateQueries(f)));
+    invalidateAfterTwoFactorChange(queryClient, { userId });
 
   const statusQuery = useQuery({
-    queryKey: queryKeys.twoFactorStatus(),
+    queryKey: queryKeys.twoFactorStatus(userId),
     queryFn: async () => {
       try {
         return await getTwoFactorStatus();
