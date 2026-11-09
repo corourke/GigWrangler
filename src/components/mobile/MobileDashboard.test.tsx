@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { render as rtlRender, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import MobileDashboard from './MobileDashboard'
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -24,6 +26,13 @@ vi.mock('../../services/gig.service', () => ({
 
 import { idbStore } from '../../utils/idb/store'
 import { fetchMyUpcomingAssignments } from '../../services/mobile/staffDashboard.service'
+
+
+// Screens read through react-query (A10), so each render gets its own QueryClient.
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
 
 describe('MobileDashboard', () => {
   beforeEach(() => {

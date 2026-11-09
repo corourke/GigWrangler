@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { render as rtlRender, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import MobileGigDetail from './MobileGigDetail'
 
 const mockGig = {
@@ -66,6 +68,13 @@ import { getGig, updateStaffAssignmentStatus, updateGig, updateGigParticipants }
 import { searchOrganizations } from '../../services/organization.service'
 import { makeOrganization } from '../../test/factories'
 import { toast } from 'sonner'
+
+
+// Screens read through react-query (A10), so each render gets its own QueryClient.
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
 
 describe('MobileGigDetail', () => {
   beforeEach(() => {
