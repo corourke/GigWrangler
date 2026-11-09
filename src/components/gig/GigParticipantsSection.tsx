@@ -19,7 +19,9 @@ import { removeGigParticipant, setGigParticipantInactive, type LoadedParticipant
 import { canManage } from '../../utils/permissions';
 import { markInactiveConfirmText, offersMarkInactive } from '../../utils/gigOwnership';
 import type { UserRole } from '../../utils/supabase/constants';
-import { createClient } from '../../utils/supabase/client';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '../../lib/queryKeys';
+import { isCurrentUserAdmin } from '../../services/user.service';
 import {
   Organization,
   OrganizationRole
@@ -57,6 +59,8 @@ interface _ParticipantData {
 
 interface GigParticipantsSectionProps {
   gigId: string;
+  /** The signed-in person: whether they are a platform Admin is cached per person. */
+  userId: string;
   currentOrganizationId: string;
   currentOrganizationName: string;
   currentOrganizationRole: OrganizationRole;
@@ -67,6 +71,7 @@ interface GigParticipantsSectionProps {
 
 export default function GigParticipantsSection({
   gigId,
+  userId,
   currentOrganizationId,
   currentOrganizationName,
   currentOrganizationRole,
@@ -74,12 +79,20 @@ export default function GigParticipantsSection({
   userRole,
   onEditOrganization,
 }: GigParticipantsSectionProps) {
-  const [isLoading, setIsLoading] = useState(true);
+  // A10: the gig's participants (fresh each time the section opens: they seed an autosaving form)
+  // and whether the user is a platform Admin come from react-query.
+  const participantsQuery = useQuery({
+    queryKey: queryKeys.gigParticipants(gigId),
+    queryFn: () => getGig(gigId),
+    staleTime: 0,
+    gcTime: 0,
+  });
+  const isLoading = participantsQuery.isPending;
+  const isUserAdmin = useQuery({ queryKey: queryKeys.currentUserIsAdmin(userId), queryFn: isCurrentUserAdmin, staleTime: 0 }).data ?? false;
   const [showParticipantNotes, setShowParticipantNotes] = useState<number | null>(null);
   const [currentParticipantNotes, setCurrentParticipantNotes] = useState('');
   const [viewingParticipant, setViewingParticipant] = useState<{ organization: Organization; notes: string } | null>(null);
   const [addContactForIndex, setAddContactForIndex] = useState<number | null>(null);
-  const [isUserAdmin, setIsUserAdmin] = useState(false);
   // #175: the gig's owner, and the organizations Inactive on it (a flag on each of their roles).
   const [ownerOrgId, setOwnerOrgId] = useState<string | null>(null);
   const [inactiveOrgs, setInactiveOrgs] = useState<Set<string>>(new Set());
@@ -171,103 +184,95 @@ export default function GigParticipantsSection({
     }
   }, [formValues, isDirty, errors, triggerSave]);
 
-  useEffect(() => {
-    loadParticipantsData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when the gig changes; the loader also reads form helpers that change every render
-  }, [gigId]);
+  // Each load seeds the form (A10: the gig comes from react-query, below).
+  const seedFromGig = (gig: any) => {
+    setOwnerOrgId((gig as any).owner_organization_id ?? null);
+    setInactiveOrgs(new Set((gig.participants || []).filter((p: any) => p.inactive).map((p: any) => p.organization_id)));
 
-  useEffect(() => {
-    const checkAdmin = async () => {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) return;
-      const { data } = await supabase.rpc('user_is_admin', { user_uuid: session.user.id });
-      setIsUserAdmin(!!data);
-    };
-    checkAdmin();
-  }, []);
+    const loadedParticipants = (gig.participants || []).map((p: any) => ({
+      id: p.id,
+      organization_id: p.organization_id,
+      // gig_participants has no organization_name column — it only ever
+      // gets set client-side when a new org is picked this session. For
+      // rows loaded from the DB, the real name lives on the joined
+      // `organization` record.
+      organization_name: p.organization_name || p.organization?.name || '',
+      role: p.role,
+      notes: p.notes || '',
+      is_client: p.is_client ?? false,
+      organization: p.organization || (p.organization_id && p.organization_name ? {
+        id: p.organization_id,
+        name: p.organization_name,
+        roles: [p.role] as OrganizationRole[],
+      } : null)
+    }));
 
-  const loadParticipantsData = async () => {
-    setIsLoading(true);
-    try {
-      const gig = await getGig(gigId);
-      setOwnerOrgId((gig as any).owner_organization_id ?? null);
-      setInactiveOrgs(new Set((gig.participants || []).filter((p: any) => p.inactive).map((p: any) => p.organization_id)));
+    const allCurrentOrgRoles = currentOrganizationRoles && currentOrganizationRoles.length > 0
+      ? currentOrganizationRoles
+      : [currentOrganizationRole];
 
-      const loadedParticipants = (gig.participants || []).map((p: any) => ({
-        id: p.id,
-        organization_id: p.organization_id,
-        // gig_participants has no organization_name column — it only ever
-        // gets set client-side when a new org is picked this session. For
-        // rows loaded from the DB, the real name lives on the joined
-        // `organization` record.
-        organization_name: p.organization_name || p.organization?.name || '',
-        role: p.role,
-        notes: p.notes || '',
-        is_client: p.is_client ?? false,
-        organization: p.organization || (p.organization_id && p.organization_name ? {
-          id: p.organization_id,
-          name: p.organization_name,
-          roles: [p.role] as OrganizationRole[],
-        } : null)
-      }));
-
-      const allCurrentOrgRoles = currentOrganizationRoles && currentOrganizationRoles.length > 0
-        ? currentOrganizationRoles
-        : [currentOrganizationRole];
-
-      let initialParticipants = [...loadedParticipants];
-      if (initialParticipants.length === 0 || !initialParticipants.some((p: any) => p.organization_id === currentOrganizationId)) {
-        initialParticipants = [
-          {
-            id: 'current-org',
-            organization_id: currentOrganizationId,
-            organization_name: currentOrganizationName,
-            role: currentOrganizationRole,
-            notes: '',
-            is_client: false,
-            organization: {
-              id: currentOrganizationId,
-              name: currentOrganizationName,
-              roles: allCurrentOrgRoles,
-            }
-          },
-          ...initialParticipants,
-        ];
-      }
-
-      baseline.loaded(loadedParticipants.map((p: any) => p.id));
-      rememberValues(loadedParticipants.map((p: any) => ({ id: p.id, role: p.role, notes: p.notes || null, is_client: p.is_client ?? false })));
-      reset({ participants: initialParticipants });
-    } catch (error: any) {
-      console.error('Error loading participants:', error);
-      toast.error('Failed to load participants');
-      baseline.loaded([]);
-      rememberValues([]);
-      const allCurrentOrgRoles = currentOrganizationRoles && currentOrganizationRoles.length > 0
-        ? currentOrganizationRoles
-        : [currentOrganizationRole];
-      reset({
-        participants: [
-          {
-            id: 'current-org',
-            organization_id: currentOrganizationId,
-            organization_name: currentOrganizationName,
-            role: currentOrganizationRole,
-            notes: '',
-            is_client: false,
-            organization: {
-              id: currentOrganizationId,
-              name: currentOrganizationName,
-              roles: allCurrentOrgRoles,
-            }
-          },
-        ]
-      });
-    } finally {
-      setIsLoading(false);
+    let initialParticipants = [...loadedParticipants];
+    if (initialParticipants.length === 0 || !initialParticipants.some((p: any) => p.organization_id === currentOrganizationId)) {
+      initialParticipants = [
+        {
+          id: 'current-org',
+          organization_id: currentOrganizationId,
+          organization_name: currentOrganizationName,
+          role: currentOrganizationRole,
+          notes: '',
+          is_client: false,
+          organization: {
+            id: currentOrganizationId,
+            name: currentOrganizationName,
+            roles: allCurrentOrgRoles,
+          }
+        },
+        ...initialParticipants,
+      ];
     }
+
+    baseline.loaded(loadedParticipants.map((p: any) => p.id));
+    rememberValues(loadedParticipants.map((p: any) => ({ id: p.id, role: p.role, notes: p.notes || null, is_client: p.is_client ?? false })));
+    reset({ participants: initialParticipants });
   };
+
+  // A failed load still shows this organization's own row, as before.
+  const seedAfterError = (error: unknown) => {
+    console.error('Error loading participants:', error);
+    toast.error('Failed to load participants');
+    baseline.loaded([]);
+    rememberValues([]);
+    const allCurrentOrgRoles = currentOrganizationRoles && currentOrganizationRoles.length > 0
+      ? currentOrganizationRoles
+      : [currentOrganizationRole];
+    reset({
+      participants: [
+        {
+          id: 'current-org',
+          organization_id: currentOrganizationId,
+          organization_name: currentOrganizationName,
+          role: currentOrganizationRole,
+          notes: '',
+          is_client: false,
+          organization: {
+            id: currentOrganizationId,
+            name: currentOrganizationName,
+            roles: allCurrentOrgRoles,
+          }
+        },
+      ]
+    });
+  };
+
+  useEffect(() => {
+    if (participantsQuery.data) seedFromGig(participantsQuery.data);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seeds once per load (dataUpdatedAt), not when the form helpers change
+  }, [participantsQuery.dataUpdatedAt]);
+
+  useEffect(() => {
+    if (participantsQuery.error) seedAfterError(participantsQuery.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per failed load
+  }, [participantsQuery.error]);
 
   const handleAddParticipant = () => {
     append({
