@@ -64,3 +64,15 @@ describe('GigScheduleEditor data (A10 characterization)', () => {
     await waitFor(() => expect(items()).toEqual(['Item of g2']))
   })
 })
+
+describe('GigScheduleEditor: seeds once per open (A10)', () => {
+  it('a later read of the schedule never replaces the rows being edited', async () => {
+    const { queryClient } = render(<GigScheduleEditor gigId="g1" gigStart="2026-07-12T16:00:00Z" timeZone={NY} />)
+    await waitFor(() => expect(items()).toEqual(['Item of g1']))
+    vi.mocked(getGigScheduleEntries).mockResolvedValue([entry('g1', 'From the server')] as any)
+    await act(async () => { await queryClient.invalidateQueries({ queryKey: ['gig', 'g1'] }) })
+    await waitFor(() => expect(getGigScheduleEntries).toHaveBeenCalledTimes(2))
+    await act(async () => {})
+    expect(items()).toEqual(['Item of g1'])
+  })
+})

@@ -66,3 +66,17 @@ describe('useGigBasicInfoForm data (A10 characterization)', () => {
     await waitFor(() => expect(hook.result.current.form.getValues('title')).toBe('Title of g2'))
   })
 })
+
+describe('useGigBasicInfoForm: seeds once per open (A10)', () => {
+  it('a later read of the gig never replaces what was typed', async () => {
+    const client = makeTestQueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    const hook = renderHook(() => useGigBasicInfoForm('g1'), { wrapper })
+    await waitFor(() => expect(hook.result.current.form.getValues('title')).toBe('Title of g1'))
+    act(() => hook.result.current.form.setValue('title', 'Typed title', { shouldDirty: true }))
+    vi.mocked(getGig).mockResolvedValue({ ...gig('g1'), title: 'Server title' } as any)
+    await act(async () => { await client.invalidateQueries({ queryKey: ['gig', 'g1'] }) })
+    await waitFor(() => expect(getGig).toHaveBeenCalledTimes(2))
+    expect(hook.result.current.form.getValues('title')).toBe('Typed title')
+  })
+})
