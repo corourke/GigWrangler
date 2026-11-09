@@ -21,7 +21,7 @@ import { useAutoSave } from '../../utils/hooks/useAutoSave';
 import { useRowBaseline } from '../../utils/hooks/useRowBaseline';
 import SaveStateIndicator from './SaveStateIndicator';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '../../lib/queryKeys';
+import { queryKeys, invalidateAfterGigKitsChange } from '../../lib/queryKeys';
 import { findSameGigOverlaps, type SameGigOverlap } from './sameGigOverlaps';
 
 const kitAssignmentSchema = z.object({
@@ -93,7 +93,6 @@ export default function GigKitAssignmentsSection({
   const [showNotesDialog, setShowNotesDialog] = useState<number | null>(null);
   const [currentNotes, setCurrentNotes] = useState('');
   // Bumped after each save, so the Equipment needed table reloads (#184).
-  const [savedCount, setSavedCount] = useState(0);
 
   const { control, reset, watch, setValue, getValues, formState: { isDirty, errors } } = useForm<KitFormData>({
     resolver: zodResolver(kitFormSchema),
@@ -156,8 +155,9 @@ export default function GigKitAssignmentsSection({
   const handleSaveSuccess = useCallback((data: KitFormData) => {
     reset(data, { keepDirty: false, keepValues: true });
     checkCrossGigConflicts();
-    setSavedCount((n) => n + 1);
-  }, [reset, checkCrossGigConflicts]);
+    // Equipment needed, the Equipment card and the packing list read the saved kits again.
+    void invalidateAfterGigKitsChange(queryClient, { gigId });
+  }, [reset, checkCrossGigConflicts, queryClient, gigId]);
 
   const { saveState, triggerSave } = useAutoSave<KitFormData>({
     gigId,
@@ -378,7 +378,7 @@ export default function GigKitAssignmentsSection({
               <p className="text-sm text-gray-500">No kits available to assign</p>
             )}
             {gigStart && gigEnd && (
-              <EquipmentNeededTable gigId={gigId} gigStart={gigStart} gigEnd={gigEnd} gigTimezone={gigTimezone} gigAllDay={gigAllDay} organizationId={currentOrganizationId} refreshKey={savedCount} />
+              <EquipmentNeededTable gigId={gigId} gigStart={gigStart} gigEnd={gigEnd} gigTimezone={gigTimezone} gigAllDay={gigAllDay} organizationId={currentOrganizationId} />
             )}
           </div>
         </CardContent>

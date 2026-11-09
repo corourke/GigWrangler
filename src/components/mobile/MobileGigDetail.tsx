@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import AttachmentManager from '../AttachmentManager';
@@ -31,7 +31,7 @@ import { useMobileGigDetailData } from './useMobileGigDetailData';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay, formatGigDateTimeForInput, isGigAllDay, parseGigDateTimeFromInput } from '../../utils/dateUtils';
 import { getAllTimezones } from '../../utils/timezones';
-import { searchOrganizations } from '../../services/organization.service';
+import { useOrganizationSearch } from '../useOrganizationSelectorData';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '../ui/utils';
@@ -92,12 +92,16 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
   const [showSchedule, setShowSchedule] = useState(false);
   const [showAddParticipant, setShowAddParticipant] = useState(false);
   const [orgSearchQuery, setOrgSearchQuery] = useState('');
-  const [orgSearchResults, setOrgSearchResults] = useState<any[]>([]);
   const [selectedOrgResult, setSelectedOrgResult] = useState<any>(null);
   const [addParticipantRole, setAddParticipantRole] = useState('');
+  // A10: the search runs through react-query, 300 ms after typing stops, narrowed by the role
+  // once one is picked; a late answer for an earlier term never shows. Not once a result is chosen.
+  const { results: orgSearchResults } = useOrganizationSearch(selectedOrgResult ? '' : orgSearchQuery, {
+    type: (addParticipantRole || undefined) as OrganizationRole | undefined,
+    delayMs: 300,
+  });
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
 
-  const orgSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // A gig that can't be loaded (or reloaded): say why and go back.
   const loadError = gigQuery.error;
@@ -153,7 +157,6 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
 
     setShowAddParticipant(false);
     setOrgSearchQuery('');
-    setOrgSearchResults([]);
     setSelectedOrgResult(null);
     setAddParticipantRole('');
     setShowRoleDropdown(false);
@@ -291,40 +294,20 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
     }
   };
 
-  const handleOrgSearchChange = (query: string, roleOverride?: string) => {
+  const handleOrgSearchChange = (query: string) => {
     setOrgSearchQuery(query);
     setSelectedOrgResult(null);
-    if (orgSearchTimerRef.current) clearTimeout(orgSearchTimerRef.current);
-    if (!query.trim()) {
-      setOrgSearchResults([]);
-      return;
-    }
-    const role = roleOverride !== undefined ? roleOverride : addParticipantRole;
-    orgSearchTimerRef.current = setTimeout(async () => {
-      try {
-        const filters: { search: string; type?: OrganizationRole } = { search: query };
-        if (role) filters.type = role as OrganizationRole;
-        const results = await searchOrganizations(filters);
-        setOrgSearchResults(results);
-      } catch {
-        setOrgSearchResults([]);
-      }
-    }, 300);
   };
 
   // Choosing an organization from the search list (by tap, or Enter/Space on it).
   const pickOrg = (org: any) => {
     setSelectedOrgResult(org);
     setOrgSearchQuery(org.name);
-    setOrgSearchResults([]);
   };
 
   const handleRoleSelect = (role: string) => {
     setAddParticipantRole(role);
     setShowRoleDropdown(false);
-    if (orgSearchQuery.trim() && !selectedOrgResult) {
-      handleOrgSearchChange(orgSearchQuery, role);
-    }
   };
 
   const handleAddParticipantConfirm = () => {
@@ -339,7 +322,6 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
     ]);
     setShowAddParticipant(false);
     setOrgSearchQuery('');
-    setOrgSearchResults([]);
     setSelectedOrgResult(null);
     setAddParticipantRole('');
     setShowRoleDropdown(false);
@@ -782,7 +764,6 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                         onClick={() => {
                           setShowAddParticipant(false);
                           setOrgSearchQuery('');
-                          setOrgSearchResults([]);
                           setSelectedOrgResult(null);
                           setAddParticipantRole('');
                           setShowRoleDropdown(false);

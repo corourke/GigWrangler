@@ -1,5 +1,5 @@
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
 import App from '../App'
 import { AuthProvider } from '../contexts/AuthProvider'
 import * as _userService from '../services/user.service'

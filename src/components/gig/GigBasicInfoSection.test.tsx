@@ -1,5 +1,6 @@
+import { renderWithQuery as render } from '../../test/renderWithQuery';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GigBasicInfoSection from './GigBasicInfoSection';
 import * as gigService from '../../services/gig.service';

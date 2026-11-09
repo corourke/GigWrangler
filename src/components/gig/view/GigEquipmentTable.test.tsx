@@ -1,5 +1,6 @@
+import { renderWithQuery as render } from '../../../test/renderWithQuery';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { screen, within, fireEvent } from '@testing-library/react';
 import GigEquipmentTable from './GigEquipmentTable';
 import { getGigKits } from '../../../services/gig.service';
 import { getKitsFlattenedSummary } from '../../../services/kit.service';

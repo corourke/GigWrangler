@@ -1,9 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { 
-  getGigFinancials, 
-  getGigProfitabilitySummary 
-} from '../../services/gig.service';
+import { useMobileGigFinancialsData } from './useMobileGigFinancialsData';
 import { UserRole } from '../../utils/supabase/types';
 import { settledAmount } from '../../utils/moneyFlow';
 import { rowName, stageText } from '../gig/financials/format';
@@ -14,7 +11,6 @@ import { Loader2, DollarSign, Receipt, FileText, ChevronRight, History, Papercli
 import QuickActionButtons from '../gig/QuickActionButtons';
 import AttachmentManager from '../AttachmentManager';
 import { cn } from '../ui/utils';
-import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface MobileGigFinancialsProps {
   gigId: string;
@@ -34,44 +30,13 @@ export default function MobileGigFinancials({
   gigStartDate,
   gigEnd,
 }: MobileGigFinancialsProps) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSummaryLoading, setIsSummaryLoading] = useState(true);
-  const [summary, setSummary] = useState<any>(null);
-  const [financials, setFinancials] = useState<any[]>([]);
   const [showTransactions, setShowTransactions] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
 
   const isAdmin = userRole === 'Admin' || userRole === 'Manager';
-
-  // A late answer for an earlier gig is dropped (B12).
-  const startRequest = useLatestRequest();
-  const loadData = useCallback(async () => {
-    const isCurrent = startRequest();
-    setIsLoading(true);
-    setIsSummaryLoading(true);
-    try {
-      const [finData, summaryData] = await Promise.all([
-        getGigFinancials(gigId, organizationId),
-        getGigProfitabilitySummary(gigId, organizationId)
-      ]);
-      if (!isCurrent()) return;
-      setFinancials(finData);
-      setSummary(summaryData);
-    } catch (error) {
-      if (isCurrent()) console.error('Error loading mobile financials:', error);
-    } finally {
-      if (isCurrent()) {
-        setIsLoading(false);
-        setIsSummaryLoading(false);
-      }
-    }
-  }, [gigId, organizationId, startRequest]);
-
-  useEffect(() => {
-    if (isAdmin) {
-      loadData();
-    }
-  }, [gigId, isAdmin, loadData]);
+  const { financials, summary, isLoading, isSummaryLoading, afterFinancialsChange } =
+    useMobileGigFinancialsData(gigId, organizationId, isAdmin);
+  const loadData = () => { void afterFinancialsChange(); };
 
   if (!isAdmin) return null;
 

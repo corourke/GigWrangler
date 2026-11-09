@@ -327,3 +327,43 @@ describe('MobileGigList new-gig sheet: participant pickers from the keyboard (A1
     expect(screen.queryByRole('listbox', { name: 'Organizations' })).not.toBeInTheDocument()
   })
 })
+
+// A10 characterization: the new gig's add-participant organization search.
+describe('MobileGigList: organization search in New Gig (A10 characterization)', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    auth.role = 'Admin'
+    vi.mocked(getGigsForOrganization).mockResolvedValue(mockGigs)
+    const { searchOrganizations } = await import('../../services/organization.service')
+    vi.mocked(searchOrganizations).mockImplementation(async (f: any) => [
+      { id: `o-${f.search}-${f.type ?? 'any'}`, name: `${f.search} (${f.type ?? 'any'})` } as any,
+    ])
+  })
+
+  const openSearch = async () => {
+    render(<MobileGigList onViewGig={vi.fn()} />)
+    await screen.findByText('Summer Festival')
+    fireEvent.click(screen.getByRole('button', { name: 'New gig' }))
+    fireEvent.click(await screen.findByText('Add Participant'))
+    return screen.findByPlaceholderText('Search organizations…')
+  }
+
+  it('searches what was typed, then again by type once a role is picked', async () => {
+    const { searchOrganizations } = await import('../../services/organization.service')
+    const box = await openSearch()
+    fireEvent.change(box, { target: { value: 'Hall' } })
+    expect(await screen.findByText('Hall (any)', {}, { timeout: 1000 })).toBeInTheDocument()
+    expect(searchOrganizations).toHaveBeenCalledWith({ search: 'Hall' })
+    fireEvent.click(screen.getByText('Select role…'))
+    fireEvent.click((await screen.findAllByText('Venue')).find((el) => el.tagName === 'LI')!)
+    expect(await screen.findByText('Hall (Venue)', {}, { timeout: 1000 })).toBeInTheDocument()
+  })
+
+  it('clearing the box clears the results', async () => {
+    const box = await openSearch()
+    fireEvent.change(box, { target: { value: 'Hall' } })
+    expect(await screen.findByText('Hall (any)', {}, { timeout: 1000 })).toBeInTheDocument()
+    fireEvent.change(box, { target: { value: '' } })
+    await waitFor(() => expect(screen.queryByText('Hall (any)')).not.toBeInTheDocument())
+  })
+})

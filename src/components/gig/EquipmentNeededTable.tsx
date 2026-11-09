@@ -14,8 +14,6 @@ interface EquipmentNeededTableProps {
   gigTimezone?: string;
   /** The viewing organization: only its kits count. */
   organizationId: string;
-  /** Change it to reload, e.g. after the gig's kits are saved. */
-  refreshKey?: number;
 }
 
 function Status({ row }: { row: ItemNeedRow }) {
@@ -35,12 +33,13 @@ function Status({ row }: { row: ItemNeedRow }) {
  * this gig and the gigs that overlap it, against what's free. Specific units
  * and "any" lines both count; container contents travel in their container.
  */
-export default function EquipmentNeededTable({ gigId, gigStart, gigEnd, gigTimezone, gigAllDay, organizationId, refreshKey }: EquipmentNeededTableProps) {
-  // A10: keyed by the gig, its times, the organization and refreshKey; the last counts stay on
+export default function EquipmentNeededTable({ gigId, gigStart, gigEnd, gigTimezone, gigAllDay, organizationId }: EquipmentNeededTableProps) {
+  // A10: keyed by the gig, its times and the organization, and refreshed after the gig's kits save
+  // (invalidateAfterGigKitsChange); the last counts stay on
   // screen while new ones load (as before).
   const when = { start: gigStart, end: gigEnd, timezone: gigTimezone, allDay: !!gigAllDay };
   const query = useQuery({
-    queryKey: queryKeys.gigEquipmentNeeded(gigId, organizationId, when, refreshKey ?? 0),
+    queryKey: queryKeys.gigEquipmentNeeded(gigId, organizationId, when),
     queryFn: () => getEquipmentNeeded(gigId, gigStart, gigEnd, gigTimezone, organizationId, gigAllDay),
     placeholderData: keepPreviousData,
     staleTime: 0,

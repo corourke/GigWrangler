@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '../lib/queryKeys';
 import { hasEnrolledDevice as checkEnrolledDevice, getUnlockOptions, verifyUnlock } from '../services/mobile/mobileLock.service';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { toast } from 'sonner';
@@ -6,13 +8,21 @@ import { toast } from 'sonner';
 const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour background inactivity
 const SESSION_EXPIRY_MS = 60 * 60 * 1000; // 1 hour session expiry
 
-export function useMobileLock(userEmail: string | undefined, isMobile: boolean) {
+export function useMobileLock(userEmail: string | undefined, isMobile: boolean, userId?: string) {
   const [isLocked, setIsLocked] = useState(false);
   const [lastActiveTime, setLastActiveTime] = useState(() => Date.now());
   // The lock can only be cleared by biometric unlock, which requires an enrolled
   // device. Arming the lock without one traps the user on a screen they can never
   // pass (authenticate/options 400s with "No registered devices found").
-  const [hasEnrolledDevice, setHasEnrolledDevice] = useState(false);
+  // A10: whether the signed-in user has an enrolled device, keyed by the user (a device change
+  // refreshes it through invalidateAfterDeviceChange). A failed check leaves the lock unarmed.
+  const enrolled = useQuery({
+    queryKey: queryKeys.enrolledDevice(userId ?? ''),
+    queryFn: () => checkEnrolledDevice(),
+    enabled: isMobile && !!userEmail && !!userId,
+    staleTime: 0,
+  });
+  const hasEnrolledDevice = isMobile && !!userEmail && !!userId && enrolled.data === true;
 
   const lock = useCallback(() => {
     if (isMobile && hasEnrolledDevice) {
@@ -56,20 +66,6 @@ export function useMobileLock(userEmail: string | undefined, isMobile: boolean) 
     if (!isMobile) return;
     localStorage.removeItem('mobile_locked');
   }, [isMobile]);
-
-  // Only arm the lock once we've confirmed the user has at least one enrolled
-  // device to unlock with.
-  useEffect(() => {
-    if (!isMobile || !userEmail) {
-      setHasEnrolledDevice(false);
-      return;
-    }
-    let cancelled = false;
-    checkEnrolledDevice()
-      .then((enrolled) => { if (!cancelled) setHasEnrolledDevice(enrolled); })
-      .catch(() => { if (!cancelled) setHasEnrolledDevice(false); });
-    return () => { cancelled = true; };
-  }, [isMobile, userEmail]);
 
   // Inactivity tracking
   useEffect(() => {
