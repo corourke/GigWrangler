@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
+import { waitFor } from '@testing-library/react';
 import { render, screen, within } from '@testing-library/react';
 import EquipmentNeededTable from './EquipmentNeededTable';
+import { renderWithQuery } from '../../test/renderWithQuery';
 import { getEquipmentNeeded } from '../../services/conflictDetection.service';
 
 vi.mock('../../services/conflictDetection.service', () => ({ getEquipmentNeeded: vi.fn() }));
@@ -62,5 +64,22 @@ describe('EquipmentNeededTable (#184)', () => {
     expect(within(xlr).getByText('asks for 6, lot has 4')).toBeInTheDocument();
     const dmx = screen.getByText('DMX').closest('tr')!;
     expect(within(dmx).getByText('asks for 2, lot is missing')).toBeInTheDocument();
+  });
+});
+
+// A10: the table loads again when the gig or its kits change. Holds before and after the move
+// to react-query.
+describe('EquipmentNeededTable: data loading (A10)', () => {
+  const base = { gigStart: '2026-10-11T03:00:00Z', gigEnd: '2026-10-11T06:00:00Z', gigTimezone: 'America/Los_Angeles', organizationId: 'org-1' };
+
+  it('loads again when the kits change (refreshKey) and when the gig changes', async () => {
+    vi.mocked(getEquipmentNeeded).mockClear();
+    vi.mocked(getEquipmentNeeded).mockResolvedValue({ overlapping: 0, rows: [row({ name: 'Cable' })] } as any);
+    const { rerender } = renderWithQuery(<EquipmentNeededTable gigId="g1" {...base} refreshKey={0} />);
+    await screen.findByText('Cable');
+    rerender(<EquipmentNeededTable gigId="g1" {...base} refreshKey={1} />);
+    await waitFor(() => expect(getEquipmentNeeded).toHaveBeenCalledTimes(2));
+    rerender(<EquipmentNeededTable gigId="g2" {...base} refreshKey={1} />);
+    await waitFor(() => expect(getEquipmentNeeded).toHaveBeenLastCalledWith('g2', base.gigStart, base.gigEnd, base.gigTimezone, 'org-1', undefined));
   });
 });

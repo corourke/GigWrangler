@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import GigKitAssignmentsSection from './GigKitAssignmentsSection';
+import { renderWithQuery } from '../../test/renderWithQuery';
 import { getGigKits, updateGigKitAssignments } from '../../services/gig.service';
 import { getKitsFlattenedSummary } from '../../services/kit.service';
 import { checkEquipmentConflicts } from '../../services/conflictDetection.service';
@@ -275,5 +276,51 @@ describe('GigKitAssignmentsSection deletes only rows it loaded (#92)', () => {
     expect(calls().at(-1)![3]).toEqual(['assignment-1', 'assignment-new']);
     // No save after the first inserted kit-2 again.
     expect(calls().slice(1).some((c) => c[2].some((a) => a.kit_id === 'kit-2' && !a.id))).toBe(false);
+  });
+});
+
+// A10: how the kit section loads, fails, follows the gig and drops a late answer. These hold
+// before and after the move to react-query.
+describe('GigKitAssignmentsSection: data loading (A10)', () => {
+  const props = { gigId: 'test-gig-id', currentOrganizationId: 'current-org-id' };
+  const assignment = (gigId: string, name: string) => ({
+    id: `as-${gigId}`, kit_id: `kit-${gigId}`, notes: '', assigned_at: '2024-01-15T10:00:00',
+    kit: { id: `kit-${gigId}`, name, tag_number: 'T', category: 'Sound', rental_value: '0', organization_id: 'current-org-id' },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getGigKits).mockImplementation(async (id: string) => [assignment(id, id === 'gig-2' ? 'Second Kit' : 'Test Kit')] as any);
+    vi.mocked(getKitsFlattenedSummary).mockResolvedValue(new Map());
+    vi.mocked(checkEquipmentConflicts).mockResolvedValue({ conflicts: [], warnings: [] });
+  });
+
+  it('says the kits failed to load', async () => {
+    const { toast } = await import('sonner');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const errorSpy = vi.spyOn(toast, 'error');
+    vi.mocked(getGigKits).mockRejectedValueOnce(new Error('down'));
+    renderWithQuery(<GigKitAssignmentsSection {...props} />);
+    await waitFor(() => expect(errorSpy).toHaveBeenCalledWith('Failed to load kits'));
+  });
+
+  it("loads the other gig's kits when the gig changes", async () => {
+    const { rerender } = renderWithQuery(<GigKitAssignmentsSection {...props} />);
+    expect(await screen.findByText('Test Kit')).toBeInTheDocument();
+    rerender(<GigKitAssignmentsSection {...props} gigId="gig-2" />);
+    expect(await screen.findByText('Second Kit')).toBeInTheDocument();
+    expect(getGigKits).toHaveBeenCalledWith('gig-2');
+  });
+
+  it('keeps the kits of the gig it is on when an earlier answer comes late (B12)', async () => {
+    let resolveFirst!: (v: unknown) => void;
+    vi.mocked(getGigKits).mockImplementation((id: string) =>
+      id === 'test-gig-id' ? new Promise((r) => { resolveFirst = r; }) as any : Promise.resolve([assignment(id, 'Second Kit')] as any));
+    const { rerender } = renderWithQuery(<GigKitAssignmentsSection {...props} />);
+    rerender(<GigKitAssignmentsSection {...props} gigId="gig-2" />);
+    expect(await screen.findByText('Second Kit')).toBeInTheDocument();
+    resolveFirst([assignment('test-gig-id', 'Test Kit')]);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByText('Test Kit')).not.toBeInTheDocument();
   });
 });
