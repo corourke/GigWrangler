@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import {act, screen, fireEvent, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useEffect } from 'react';
 import GigPage from './GigPage';
+import { renderWithQuery } from '../../test/renderWithQuery';
 import { getGig, updateGig } from '../../services/gig.service';
 
 vi.mock('../AppHeader', () => ({ default: () => <div data-testid="app-header" /> }));
@@ -104,12 +105,12 @@ describe('GigPage (#12)', () => {
 
   it('checks conflicts in the gig\'s own timezone (#184)', async () => {
     const { checkAllConflicts } = await import('../../services/conflictDetection.service');
-    render(<GigPage {...baseProps} />);
+    renderWithQuery(<GigPage {...baseProps} />);
     await waitFor(() => expect(checkAllConflicts).toHaveBeenCalledWith('g1', gig.start, gig.end, 'America/Los_Angeles', 'org-1', false));
   });
 
   it('shows the overview in the agreed order, read-only', async () => {
-    render(<GigPage {...baseProps} userRole="Admin" />);
+    renderWithQuery(<GigPage {...baseProps} userRole="Admin" />);
     await screen.findByText('Riverside Summer Series');
     const names = ['Schedule', 'Venue', 'Notes & attachments', 'Participants', 'Staffing'];
     const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => names.find((n) => h.textContent?.startsWith(n)));
@@ -122,7 +123,7 @@ describe('GigPage (#12)', () => {
     vi.mocked(getGig).mockResolvedValue({
       ...gig, notes: '**Load in** at noon\n\n- Dock B\n- Lot C\n\n<img src="x" onerror="alert(1)">',
     } as any);
-    render(<GigPage {...baseProps} userRole="Admin" />);
+    renderWithQuery(<GigPage {...baseProps} userRole="Admin" />);
     const notes = await screen.findByRole('heading', { name: 'Notes & attachments' });
     const card = notes.closest('[data-slot="card"]') as HTMLElement;
     expect(within(card).getByText('Load in').tagName).toBe('STRONG');
@@ -132,7 +133,7 @@ describe('GigPage (#12)', () => {
   });
 
   it('gives Admins one Edit for the whole gig, then Done', async () => {
-    render(<GigPage {...baseProps} userRole="Admin" />);
+    renderWithQuery(<GigPage {...baseProps} userRole="Admin" />);
     fireEvent.click(await screen.findByRole('button', { name: /edit/i }));
     expect(await screen.findByRole('textbox', { name: 'Gig title' })).toBeInTheDocument();
     expect(screen.getByTestId('edit-staffing')).toBeInTheDocument();
@@ -148,7 +149,7 @@ describe('GigPage (#12)', () => {
     const open = async (role: 'Admin' | 'Manager', g: any = gig) => {
       vi.mocked(getGig).mockResolvedValue(g);
       const user = userEvent.setup();
-      render(<GigPage {...baseProps} userRole={role} />);
+      renderWithQuery(<GigPage {...baseProps} userRole={role} />);
       await user.click(await screen.findByRole('button', { name: 'More actions' }));
       return { user, item: await screen.findByRole('menuitem', { name: /Delete Gig/ }) };
     };
@@ -208,35 +209,35 @@ describe('GigPage (#12)', () => {
 
     it('names the owner in the header', async () => {
       vi.mocked(getGig).mockResolvedValue(ownedByVenue as any);
-      render(<GigPage {...baseProps} userRole="Admin" />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Admin" />);
       expect(await screen.findByText('Owned by Riverside Amphitheater')).toBeInTheDocument();
     });
 
     it("doesn't offer Duplicate to an Admin of another participant", async () => {
       vi.mocked(getGig).mockResolvedValue(ownedByVenue as any);
       const user = userEvent.setup();
-      render(<GigPage {...baseProps} userRole="Admin" />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Admin" />);
       await user.click(await screen.findByRole('button', { name: 'More actions' }));
       expect(screen.queryByRole('menuitem', { name: /Duplicate Gig/ })).not.toBeInTheDocument();
     });
 
     it("shows the status read-only to another participant's Admin while editing", async () => {
       vi.mocked(getGig).mockResolvedValue(ownedByVenue as any);
-      render(<GigPage {...baseProps} userRole="Admin" initialEditing />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Admin" initialEditing />);
       await screen.findByRole('textbox', { name: 'Gig title' });
       expect(screen.getByRole('combobox', { name: 'Status' })).toBeDisabled();
       expect(screen.getByRole('textbox', { name: 'Gig title' })).toBeEnabled();
     });
 
     it("lets the owner's Manager change the status", async () => {
-      render(<GigPage {...baseProps} userRole="Manager" initialEditing />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Manager" initialEditing />);
       await screen.findByRole('textbox', { name: 'Gig title' });
       expect(screen.getByRole('combobox', { name: 'Status' })).toBeEnabled();
     });
 
     it('tells an Inactive organization so, and makes the shared details read-only', async () => {
       vi.mocked(getGig).mockResolvedValue(inactive as any);
-      render(<GigPage {...baseProps} userRole="Manager" initialEditing />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Manager" initialEditing />);
       // Cameron 10-13: Inactive means being removed.
       expect(await screen.findByText(
         'Northwest Sound Co is Inactive on this gig: it is being removed. Its financial records and notes are kept; everything else is read-only.',
@@ -246,7 +247,7 @@ describe('GigPage (#12)', () => {
 
     it('keeps staff and equipment read-only while Inactive, saying why', async () => {
       vi.mocked(getGig).mockResolvedValue(inactive as any);
-      render(<GigPage {...baseProps} userRole="Manager" initialEditing />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Manager" initialEditing />);
       await screen.findByRole('textbox', { name: 'Gig title' });
       const why = 'Staff and equipment are read-only while Northwest Sound Co is Inactive on this gig.';
       expect(screen.queryByTestId('edit-staffing')).not.toBeInTheDocument();
@@ -259,14 +260,14 @@ describe('GigPage (#12)', () => {
     it('lets the Inactive organization reactivate itself from the banner', async () => {
       vi.mocked(getGig).mockResolvedValue(inactive as any);
       const user = userEvent.setup();
-      render(<GigPage {...baseProps} userRole="Manager" />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Manager" />);
       await user.click(await screen.findByRole('button', { name: 'Reactivate' }));
       await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-1', false));
     });
 
     it("doesn't offer Reactivate to the organization's Staff", async () => {
       vi.mocked(getGig).mockResolvedValue(inactive as any);
-      render(<GigPage {...baseProps} userRole="Staff" />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Staff" />);
       expect(await screen.findByText(/Northwest Sound Co is Inactive on this gig/)).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Reactivate' })).not.toBeInTheDocument();
     });
@@ -277,7 +278,7 @@ describe('GigPage (#12)', () => {
     const ownedByVenue = { ...gig, owner_organization_id: 'o-venue' };
     const open = async (role: 'Admin' | 'Manager' | 'Staff') => {
       const user = userEvent.setup();
-      render(<GigPage {...baseProps} userRole={role} />);
+      renderWithQuery(<GigPage {...baseProps} userRole={role} />);
       await user.click(await screen.findByRole('button', { name: 'More actions' }));
       return user;
     };
@@ -349,7 +350,7 @@ describe('GigPage (#12)', () => {
   describe('page header (#39)', () => {
     it('puts Back in the header slot, named for where it goes', async () => {
       const onBack = vi.fn();
-      render(<GigPage {...baseProps} onBack={onBack} userRole="Manager" />);
+      renderWithQuery(<GigPage {...baseProps} onBack={onBack} userRole="Manager" />);
       await screen.findByText('Riverside Summer Series');
       const back = within(screen.getByTestId('page-header-slot')).getByRole('button', { name: 'Back to Gigs' });
       fireEvent.click(back);
@@ -357,13 +358,13 @@ describe('GigPage (#12)', () => {
     });
 
     it('names Back for the calendar when the gig was opened from it', async () => {
-      render(<GigPage {...baseProps} userRole="Manager" backLabel="Calendar" />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Manager" backLabel="Calendar" />);
       await screen.findByText('Riverside Summer Series');
       expect(screen.getByRole('button', { name: 'Back to Calendar' })).toBeInTheDocument();
     });
 
     it('keeps the title row first in edit mode: the Editing label is not above the title', async () => {
-      render(<GigPage {...baseProps} userRole="Admin" initialEditing />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Admin" initialEditing />);
       const title = await screen.findByRole('textbox', { name: 'Gig title' });
       const row = screen.getByTestId('page-header-title-row');
       expect(row).toContainElement(title);
@@ -371,7 +372,7 @@ describe('GigPage (#12)', () => {
     });
 
     it('puts the gig tabs in the header, below the title', async () => {
-      render(<GigPage {...baseProps} userRole="Manager" />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Manager" />);
       const heading = await screen.findByRole('heading', { level: 1, name: 'Riverside Summer Series' });
       const tablist = screen.getByRole('tablist', { name: 'Gig sections' });
       expect(heading.compareDocumentPosition(tablist) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -380,21 +381,21 @@ describe('GigPage (#12)', () => {
 
   it('opens on the tab the URL names, and reports tab changes to the URL', async () => {
     const onTabChange = vi.fn();
-    render(<GigPage {...baseProps} userRole="Manager" tab="financials" onTabChange={onTabChange} />);
+    renderWithQuery(<GigPage {...baseProps} userRole="Manager" tab="financials" onTabChange={onTabChange} />);
     expect(await screen.findByTestId('financials')).toBeInTheDocument();
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'History' }));
     expect(onTabChange).toHaveBeenCalledWith('history');
   });
 
   it('drives the Financials tab from the page edit mode', async () => {
-    render(<GigPage {...baseProps} userRole="Manager" initialEditing />);
+    renderWithQuery(<GigPage {...baseProps} userRole="Manager" initialEditing />);
     await screen.findByRole('textbox', { name: 'Gig title' });
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Financials' }));
     expect((await screen.findByTestId('financials')).dataset.editing).toBe('true');
   });
 
   it.each(['Staff', 'Viewer'] as const)('%s: no Edit, no Financials tab, no pay column, even on the edit route', async (role) => {
-    render(<GigPage {...baseProps} userRole={role} initialEditing />);
+    renderWithQuery(<GigPage {...baseProps} userRole={role} initialEditing />);
     await screen.findByText('Riverside Summer Series');
     expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument();
@@ -406,7 +407,7 @@ describe('GigPage (#12)', () => {
   });
 
   it('shows Admins the crew pay and staff cost', async () => {
-    render(<GigPage {...baseProps} userRole="Admin" />);
+    renderWithQuery(<GigPage {...baseProps} userRole="Admin" />);
     await screen.findByText('Riverside Summer Series');
     expect(screen.getByText('$450 fee')).toBeInTheDocument();
     expect(screen.getByText(/Staff cost/)).toBeInTheDocument();
@@ -414,7 +415,7 @@ describe('GigPage (#12)', () => {
 
   describe('edit mode', () => {
     const openEditor = async () => {
-      render(<GigPage {...baseProps} userRole="Admin" initialEditing />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Admin" initialEditing />);
       return screen.findByRole('textbox', { name: 'Gig title' });
     };
     const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
@@ -482,12 +483,12 @@ describe('GigPage (#12)', () => {
   });
 
   it('shows what the gig needs per item on the Equipment tab (#184)', async () => {
-    render(<GigPage {...baseProps} userRole="Manager" tab="equipment" />);
+    renderWithQuery(<GigPage {...baseProps} userRole="Manager" tab="equipment" />);
     expect(await screen.findByTestId('equipment-needed')).toHaveAttribute('data-gig', 'g1');
   });
 
   it('shows the packing list on the Equipment tab, printed from the page Print menu (#39)', async () => {
-    render(<GigPage {...baseProps} userRole="Manager" tab="equipment" />);
+    renderWithQuery(<GigPage {...baseProps} userRole="Manager" tab="equipment" />);
     const list = await screen.findByTestId('packing-list');
     expect(list.dataset.gig).toBe('g1');
     expect(list.dataset.hidePrint).toBe('true');
@@ -498,7 +499,7 @@ describe('GigPage (#12)', () => {
 
     it('lets Admins print the gig sheet with or without the financials page', async () => {
       const user = userEvent.setup();
-      render(<GigPage {...baseProps} userRole="Admin" />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Admin" />);
       await user.click(await screen.findByRole('button', { name: 'Print' }));
       await user.click(await screen.findByRole('menuitem', { name: 'Gig sheet with financials' }));
       await waitFor(() => expect(window.print).toHaveBeenCalledTimes(1));
@@ -512,7 +513,7 @@ describe('GigPage (#12)', () => {
 
     it.each(['Staff', 'Viewer'] as const)('%s prints the gig sheet without financials', async (role) => {
       const user = userEvent.setup();
-      render(<GigPage {...baseProps} userRole={role} />);
+      renderWithQuery(<GigPage {...baseProps} userRole={role} />);
       await user.click(await screen.findByRole('button', { name: 'Print' }));
       expect(screen.queryByRole('menuitem', { name: 'Gig sheet with financials' })).not.toBeInTheDocument();
       await user.click(await screen.findByRole('menuitem', { name: 'Gig sheet' }));
@@ -522,7 +523,7 @@ describe('GigPage (#12)', () => {
 
     it.each(['Admin', 'Staff'] as const)('%s prints the packing list from the Print menu, once it has loaded (#39)', async (role) => {
       const user = userEvent.setup();
-      render(<GigPage {...baseProps} userRole={role} />);
+      renderWithQuery(<GigPage {...baseProps} userRole={role} />);
       await user.click(await screen.findByRole('button', { name: 'Print' }));
       await user.click(await screen.findByRole('menuitem', { name: 'Packing list' }));
       const sheet = await screen.findByTestId('packing-print');
@@ -535,7 +536,7 @@ describe('GigPage (#12)', () => {
     // #245 item 3: the printout has the columns chosen on screen.
     it('prints the packing list with the columns chosen on screen', async () => {
       const user = userEvent.setup();
-      render(<GigPage {...baseProps} userRole="Manager" tab="equipment" />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Manager" tab="equipment" />);
       expect((await screen.findByTestId('packing-list')).dataset.columns).toBe('location,notes,scanned_at,scanned_by,status');
       await user.click(screen.getByRole('button', { name: 'Only status' }));
       expect(screen.getByTestId('packing-list').dataset.columns).toBe('status');
@@ -548,7 +549,7 @@ describe('GigPage (#12)', () => {
       localStorage.setItem('gigwrangler.packingList.columns', JSON.stringify(['notes', 'status']));
       try {
         const user = userEvent.setup();
-        render(<GigPage {...baseProps} userRole="Manager" tab="equipment" />);
+        renderWithQuery(<GigPage {...baseProps} userRole="Manager" tab="equipment" />);
         expect((await screen.findByTestId('packing-list')).dataset.columns).toBe('notes,status');
         await user.click(screen.getByRole('button', { name: 'Only status' }));
         expect(JSON.parse(localStorage.getItem('gigwrangler.packingList.columns')!)).toEqual(['status']);
@@ -561,7 +562,7 @@ describe('GigPage (#12)', () => {
     });
 
     it('hides the screen page and shows only the sheet when printing', async () => {
-      render(<GigPage {...baseProps} userRole="Admin" />);
+      renderWithQuery(<GigPage {...baseProps} userRole="Admin" />);
       await screen.findByRole('button', { name: 'Print' });
       expect(screen.getByRole('main').closest('.no-print')).not.toBeNull();
     });
@@ -575,11 +576,47 @@ describe('GigPage: a late answer for another gig', () => {
     let resolveFirst!: (g: any) => void;
     vi.mocked(getGig).mockImplementation((id: string) =>
       id === 'g1' ? new Promise((r) => { resolveFirst = r; }) : Promise.resolve({ ...gig, id: 'g2', title: 'Harbor Lights Gala' } as any));
-    const { rerender } = render(<GigPage {...baseProps} gigId="g1" />);
+    const { rerender } = renderWithQuery(<GigPage {...baseProps} gigId="g1" />);
     rerender(<GigPage {...baseProps} gigId="g2" />);
     expect((await screen.findAllByText('Harbor Lights Gala')).length).toBeGreaterThan(0);
     await act(async () => { resolveFirst(gig); });
     expect(screen.queryByText('Riverside Summer Series')).not.toBeInTheDocument();
     expect(screen.getAllByText('Harbor Lights Gala').length).toBeGreaterThan(0);
+  });
+});
+
+// A10: how the page loads, fails and refreshes after a change. These hold before and after the
+// move to react-query.
+describe('GigPage: data loading (A10)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getGig).mockImplementation(() => Promise.resolve(gig as any));
+  });
+
+  it('shows a load error, and Retry loads the gig', async () => {
+    vi.mocked(getGig).mockRejectedValueOnce(new Error('Gig not found'));
+    renderWithQuery(<GigPage {...baseProps} />);
+    expect(await screen.findByText('Gig not found')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Riverside Summer Series')).toBeInTheDocument();
+  });
+
+  it('loads the gig again after the organization reactivates itself', async () => {
+    const inactiveGig = { ...gig, participants: gig.participants.map((p) => (p.organization_id === 'org-1' ? { ...p, inactive: true } : p)) };
+    vi.mocked(getGig).mockResolvedValue(inactiveGig as any);
+    const user = userEvent.setup();
+    renderWithQuery(<GigPage {...baseProps} userRole="Manager" />);
+    await user.click(await screen.findByRole('button', { name: 'Reactivate' }));
+    await waitFor(() => expect(setGigParticipantInactive).toHaveBeenCalledWith('g1', 'org-1', false));
+    await waitFor(() => expect(getGig).toHaveBeenCalledTimes(2));
+  });
+
+  it('loads the gig again when editing is done', async () => {
+    const user = userEvent.setup();
+    renderWithQuery(<GigPage {...baseProps} userRole="Admin" initialEditing />);
+    await screen.findByRole('textbox', { name: 'Gig title' });
+    const before = vi.mocked(getGig).mock.calls.length;
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(vi.mocked(getGig).mock.calls.length).toBeGreaterThan(before));
   });
 });
