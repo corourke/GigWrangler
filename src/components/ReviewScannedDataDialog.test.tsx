@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor, within, fireEvent } from '@testing-library/react';
-import { render } from './financials/testRender';
+import { renderWithQuery as render } from '../test/renderWithQuery';
 import userEvent from '@testing-library/user-event';
 import ReviewScannedDataDialog from './ReviewScannedDataDialog';
 import { createPurchaseWithUnits } from '../services/purchase.service';
@@ -1311,6 +1311,10 @@ describe('ReviewScannedDataDialog: loading a purchase to edit (A10)', () => {
     vi.clearAllMocks();
     const svc = await import('../services/purchase.service');
     vi.mocked(svc.getPurchaseWithDetails).mockImplementation(async (id: string) => stored(id, id === 'h2' ? 'Second Vendor' : 'First Vendor') as any);
+    const tax = await import('../services/taxYear.service');
+    vi.mocked(tax.getLockedTaxYears).mockResolvedValue(new Set<number>());
+    const gig = await import('../services/gig.service');
+    vi.mocked(gig.getGigFinancials).mockResolvedValue([]);
   });
 
   it('shows nothing until the purchase is read, then the stored purchase', async () => {

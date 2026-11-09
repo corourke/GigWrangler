@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, within, waitFor } from '@testing-library/react';
-import { render } from './testRender';
+import { renderWithQuery as render } from '../../test/renderWithQuery';
 import userEvent from '@testing-library/user-event';
 import ReportingTab from './ReportingTab';
 import { toast } from 'sonner';
@@ -446,7 +446,12 @@ describe('Filed tax years, under Schedule C only', () => {
 
 // A10 characterization: loading, a failed load, another organization, and fresh data after a save.
 describe('ReportingTab: loading and refreshing (A10)', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getTaxReportData).mockResolvedValue({ lines: [], gigRows: [], categories: [], scheduleC: [], equipmentCategories: [] } as any);
+    vi.mocked(getLockedTaxYears).mockResolvedValue(new Set([2025]));
+    vi.mocked(getTaxYearDepreciation).mockResolvedValue([]);
+  });
   const tape = (id: string, description: string) => purchaseLine({ id, purchase_date: `${new Date().getFullYear()}-01-05`, description,
     category: 'Supplies', item_cost: 40, line_cost: 40, tax_treatment: 'expense' });
 
@@ -466,9 +471,9 @@ describe('ReportingTab: loading and refreshing (A10)', () => {
     const first = render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" />);
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to load the reports'));
     await waitFor(() => expect(screen.queryByText('Loading reports…')).not.toBeInTheDocument());
-    first.unmount();
     withData({ lines: [tape('p1', 'Fresh tape')] });
-    render(<ReportingTab organizationId="org-1" organizationName="Act4 Audio" />, { queryClient: first.queryClient });
+    // Opened again (a remount), against the same cache.
+    first.rerender(<ReportingTab key="again" organizationId="org-1" organizationName="Act4 Audio" />);
     await userEvent.click(await screen.findByRole('button', { name: 'Expenses' }));
     expect(await screen.findByText('Fresh tape')).toBeInTheDocument();
   });

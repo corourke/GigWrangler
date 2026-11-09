@@ -1,8 +1,7 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { queryKeys, financialsInvalidation } from '../../lib/queryKeys';
-import { invalidateKeys } from './invalidate';
+import { queryKeys, invalidateAfterTaxYearChange } from '../../lib/queryKeys';
 import { getTaxReportData, type TaxReportData } from '../../services/taxReport.service';
 import { useLockedTaxYears, useTaxYearDepreciation } from './useTaxYearsData';
 import type { TaxYearDepreciation } from '../../services/taxYearDepreciation.service';
@@ -35,14 +34,19 @@ export function useReportingData(organizationId: string) {
   const figures = useTaxYearDepreciation(organizationId, logFiguresError) ?? NO_FIGURES;
 
   const data: TaxReportData | null = report.data ?? (report.isError ? EMPTY_REPORT : null);
+  const { refetch } = report;
+  const reload = useCallback(() => { void refetch(); }, [refetch]);
   return {
     data,
+    isLoading: report.isPending,
+    error: error ? ((error as Error).message || 'Failed to load the reports') : null,
+    reload,
     locked,
     figures,
     /** A purchase was saved in the editor: read the report again (it stays on screen meanwhile). */
-    purchaseSaved: () => invalidateKeys(queryClient, [queryKeys.taxReport(organizationId)]),
+    // The editor's own save refreshes the report too; this one joins a read already under way.
+    purchaseSaved: () => queryClient.invalidateQueries({ queryKey: queryKeys.taxReport(organizationId) }, { cancelRefetch: false }),
     /** The Filed tax years card saved: read the filed years and figures again. */
-    taxYearsChanged: () => Promise.all(financialsInvalidation.taxYearWritten(organizationId)
-      .map((queryKey) => queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false }))).then(() => undefined),
+    taxYearsChanged: () => invalidateAfterTaxYearChange(queryClient, organizationId, { cancelRefetch: false }),
   };
 }

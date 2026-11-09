@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { queryKeys, financialsInvalidation } from '../../../lib/queryKeys';
-import { invalidateKeys } from '../../financials/invalidate';
+import { queryKeys, invalidateAfterPurchaseEditorSave } from '../../../lib/queryKeys';
 import {
   createPurchaseWithUnits,
   getPurchaseWithDetails,
@@ -94,7 +93,7 @@ export async function loadPurchaseForEdit(purchaseId: string, organizationId: st
  */
 export function usePurchaseForEdit(purchaseId: string | undefined, organizationId: string, open: boolean) {
   const query = useQuery({
-    queryKey: queryKeys.purchaseForEdit(purchaseId ?? ''),
+    queryKey: queryKeys.purchaseForEdit(purchaseId ?? '', organizationId),
     queryFn: () => loadPurchaseForEdit(purchaseId!, organizationId),
     enabled: open && !!purchaseId,
     staleTime: 0,
@@ -113,7 +112,7 @@ type CreateArgs = Parameters<typeof createPurchaseWithUnits>;
 /**
  * The editor's saves (A10): a new purchase in one call, and an edit in one call (B6). Each
  * refreshes the purchase, Gig Accounting and the gigs whose money it touched
- * (financialsInvalidation.purchaseSaved); the screen showing the report reads it again itself.
+ * (invalidateAfterPurchaseEditorSave); the screen showing the report reads it again itself.
  */
 export function useReviewMutations(organizationId: string) {
   const queryClient = useQueryClient();
@@ -122,16 +121,16 @@ export function useReviewMutations(organizationId: string) {
     mutationFn: (vars: { header: CreateArgs[0]; items: CreateArgs[1]; units: CreateArgs[2]; gigLink: CreateArgs[3] }) =>
       createPurchaseWithUnits(vars.header, vars.items, vars.units, vars.gigLink),
     onSuccess: (result, vars) => {
-      void invalidateKeys(queryClient, financialsInvalidation.purchaseSaved(organizationId, { purchaseId: result.id, gigIds: [vars.gigLink?.gigId] }));
+      void invalidateAfterPurchaseEditorSave(queryClient, { organizationId, purchaseId: result.id, gigIds: [vars.gigLink?.gigId] });
     },
   });
 
   const saveEdit = useMutation({
     mutationFn: (vars: { purchaseId: string; plan: PurchaseEditPlan }) => savePurchaseEdit(vars.purchaseId, vars.plan),
     onSuccess: (_res, vars) => {
-      void invalidateKeys(queryClient, financialsInvalidation.purchaseSaved(organizationId, {
-        purchaseId: vars.purchaseId, allGigs: vars.plan.gig_changes.length > 0,
-      }));
+      void invalidateAfterPurchaseEditorSave(queryClient, {
+        organizationId, purchaseId: vars.purchaseId, allGigs: vars.plan.gig_changes.length > 0,
+      });
     },
   });
 

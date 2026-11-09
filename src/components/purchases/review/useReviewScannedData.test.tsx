@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, waitFor } from '@testing-library/react';
-import { renderHook } from '../../financials/testRender';
+import { renderHookWithQuery as renderHook } from '../../financials/renderHookWithQuery';
 import { usePurchaseForEdit, useReviewMutations, useReviewReferenceData } from './useReviewScannedData';
 import { queryKeys } from '../../../lib/queryKeys';
 import { getPurchaseWithDetails, savePurchaseEdit } from '../../../services/purchase.service';
@@ -71,22 +71,22 @@ describe('useReviewMutations (A10)', () => {
   beforeEach(() => vi.clearAllMocks());
   const invalidated = (spy: ReturnType<typeof vi.spyOn>) => spy.mock.calls.map((c: any[]) => c[0].queryKey);
 
-  it('a new purchase on a gig refreshes that gig\'s money and Gig Accounting, not the Purchases report', async () => {
+  it('a new purchase on a gig refreshes that gig\'s money, the reports, equipment and the dashboard, not the Purchases report', async () => {
     const { result, queryClient } = renderHook(() => useReviewMutations('org-1'));
     const spy = vi.spyOn(queryClient, 'invalidateQueries');
     await act(() => result.current.createPurchase.mutateAsync({ header: {}, items: [], units: [], gigLink: { gigId: 'g1', ledger: [] } }));
-    expect(invalidated(spy)).toEqual([['purchase', 'p-new'], ['gigAccounting', 'org-1'], ['financials', 'g1'], ['gigFinancialsSummary', 'g1']]);
+    expect(invalidated(spy)).toEqual([['purchase', 'p-new'], ['taxReport', 'org-1'], ['gigs', 'org-1', 'accounting'], ['assets', 'org-1'], ['dashboard', 'org-1'], ['financials', 'g1'], ['gigFinancialsSummary', 'g1']]);
   });
 
   it('an edit refreshes the purchase as the editor reads it; every gig\'s money when it changed some', async () => {
     const { result, queryClient } = renderHook(() => useReviewMutations('org-1'));
-    queryClient.setQueryData(queryKeys.purchaseForEdit('h1'), { details: {}, ledgerByPurchaseId: {}, existingDoc: null });
+    queryClient.setQueryData(queryKeys.purchaseForEdit('h1', 'org-1'), { details: {}, ledgerByPurchaseId: {}, existingDoc: null });
     const spy = vi.spyOn(queryClient, 'invalidateQueries');
     const plan: any = { equipment: [], header: {}, track_lines: [], updated_items: [], new_items: [], add_units: [], removed_item_ids: [], asset_changes: [], gig_changes: [{ fin_id: 'f1', amount: 1, settle: false }] };
     await act(() => result.current.saveEdit.mutateAsync({ purchaseId: 'h1', plan }));
     expect(savePurchaseEdit).toHaveBeenCalledWith('h1', plan);
-    expect(invalidated(spy)).toEqual([['purchase', 'h1'], ['gigAccounting', 'org-1'], ['financials'], ['gigFinancialsSummary']]);
-    expect(queryClient.getQueryState(queryKeys.purchaseForEdit('h1'))?.isInvalidated).toBe(true);
+    expect(invalidated(spy)).toEqual([['purchase', 'h1'], ['taxReport', 'org-1'], ['gigs', 'org-1', 'accounting'], ['assets', 'org-1'], ['dashboard', 'org-1'], ['financials'], ['gigFinancialsSummary']]);
+    expect(queryClient.getQueryState(queryKeys.purchaseForEdit('h1', 'org-1'))?.isInvalidated).toBe(true);
   });
 });
 

@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryKeys';
 import { getAllGigAccountingSummaries } from '../../services/gig.service';
@@ -13,5 +14,7 @@ export function useGigAccountingData(organizationId: string) {
     staleTime: 0,
   });
   const error = query.isError ? ((query.error as { message?: string } | null)?.message ?? 'Failed to load gig accounting data.') : null;
-  return { summaries: query.data ?? NONE, isLoading: query.isPending, error };
+  const { refetch } = query;
+  const reload = useCallback(() => { void refetch(); }, [refetch]);
+  return { summaries: query.data ?? NONE, isLoading: query.isPending, error, reload };
 }

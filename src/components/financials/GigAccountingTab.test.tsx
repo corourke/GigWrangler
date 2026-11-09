@@ -1,5 +1,5 @@
 import { screen, fireEvent } from '@testing-library/react';
-import { render } from './testRender';
+import { renderWithQuery as render } from '../../test/renderWithQuery';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import GigAccountingTab from './GigAccountingTab';
 import * as gigService from '../../services/gig.service';
@@ -241,7 +241,10 @@ describe('GigAccountingTab', () => {
 
 // A10 characterization: loading, a failed load, and another organization's gigs.
 describe('GigAccountingTab: loading (A10)', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(gigService.getAllGigAccountingSummaries).mockReset().mockResolvedValue([]);
+  });
 
   it('shows the skeleton, then the gigs', async () => {
     let resolve!: (v: GigAccountingSummary[]) => void;
@@ -259,9 +262,9 @@ describe('GigAccountingTab: loading (A10)', () => {
     vi.mocked(gigService.getAllGigAccountingSummaries).mockRejectedValueOnce(new Error('Could not read the gigs'));
     const first = renderTab();
     expect(await screen.findByText('Could not read the gigs')).toBeInTheDocument();
-    first.unmount();
     vi.mocked(gigService.getAllGigAccountingSummaries).mockResolvedValue(defaultSummaries);
-    render(<GigAccountingTab organization={makeOrg()} userRole="Admin" onNavigateToGigDetail={vi.fn()} />, { queryClient: first.queryClient });
+    // Opened again (a remount), against the same cache.
+    first.rerender(<GigAccountingTab key="again" organization={makeOrg()} userRole="Admin" onNavigateToGigDetail={vi.fn()} />);
     await showAllTime();
     expect(screen.getByText('Played, unpaid')).toBeInTheDocument();
     expect(screen.queryByText('Could not read the gigs')).not.toBeInTheDocument();

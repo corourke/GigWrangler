@@ -1,5 +1,5 @@
 import { screen, fireEvent, waitFor } from '@testing-library/react';
-import { render } from './financials/testRender';
+import { renderWithQuery as render } from '../test/renderWithQuery';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import FinancialsScreen from './FinancialsScreen';
 import { makeOrganization } from '../test/factories';

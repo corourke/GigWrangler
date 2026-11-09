@@ -1,9 +1,8 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { queryKeys, financialsInvalidation } from '../../lib/queryKeys';
-import { invalidateKeys } from './invalidate';
-import { getTaxYears, getLockedTaxYears, saveTaxYear } from '../../services/taxYear.service';
+import { queryKeys, invalidateAfterTaxYearChange } from '../../lib/queryKeys';
+import { getTaxYears, getLockedTaxYears, saveTaxYear, type TaxYear } from '../../services/taxYear.service';
 import {
   getTaxYearDepreciation, saveTaxYearDepreciation,
   type DepreciationFigures, type DepreciationRow, type TaxYearDepreciation,
@@ -17,6 +16,8 @@ function useErrorToast(error: unknown, errorUpdatedAt: number, fallback: string)
   }, [error, errorUpdatedAt, fallback]);
 }
 
+const NO_TAX_YEARS: TaxYear[] = [];
+
 /** The organization's filed tax years (#133), for the Filed tax years card. */
 export function useTaxYears(organizationId: string) {
   const query = useQuery({
@@ -25,7 +26,15 @@ export function useTaxYears(organizationId: string) {
     staleTime: 0,
   });
   useErrorToast(query.error, query.errorUpdatedAt, 'Failed to load tax years');
-  return { ...query, years: query.data ?? [], isLoading: query.isPending };
+  const { refetch } = query;
+  const reload = useCallback(() => { void refetch(); }, [refetch]);
+  return {
+    years: query.data ?? NO_TAX_YEARS,
+    isLoading: query.isPending,
+    isError: query.isError,
+    error: query.error ? ((query.error as Error).message || 'Failed to load tax years') : null,
+    reload,
+  };
 }
 
 const NO_YEARS = new Set<number>();
@@ -64,7 +73,7 @@ export function useTaxYearDepreciation(organizationId: string, onError: (error: 
 /** Locking or unlocking a year, and saving its figures: both refresh the years and figures (A10). */
 export function useTaxYearMutations(organizationId: string) {
   const queryClient = useQueryClient();
-  const written = () => invalidateKeys(queryClient, financialsInvalidation.taxYearWritten(organizationId));
+  const written = () => invalidateAfterTaxYearChange(queryClient, organizationId);
 
   const saveYear = useMutation({
     mutationFn: (vars: { year: number; values: { locked: boolean; filed_on?: string | null } }) =>

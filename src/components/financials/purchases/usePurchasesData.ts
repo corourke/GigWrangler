@@ -1,8 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { queryKeys, financialsInvalidation } from '../../../lib/queryKeys';
-import { invalidateKeys } from '../invalidate';
+import { queryKeys, invalidateAfterPurchaseChange, invalidateAfterPurchaseDocumentChange } from '../../../lib/queryKeys';
 import type { DbPurchase } from '../../../utils/supabase/types';
 import { lineTaxTreatment } from '../../../utils/taxTreatment';
 import {
@@ -57,7 +56,15 @@ export function usePurchasesReport(organizationId: string) {
     console.error('Error loading purchases:', error);
     toast.error('Failed to load purchases');
   }, [error, errorUpdatedAt]);
-  return { ...query, report: query.data ?? EMPTY_REPORT, isLoading: query.isPending };
+  const { refetch } = query;
+  const reload = useCallback(() => { void refetch(); }, [refetch]);
+  return {
+    report: query.data ?? EMPTY_REPORT,
+    isLoading: query.isPending,
+    isError: query.isError,
+    error: error ? ((error as Error).message || 'Failed to load purchases') : null,
+    reload,
+  };
 }
 
 /** Gig titles by id, for the summary view. A failed read leaves the names out. */
@@ -87,13 +94,13 @@ export function useLinkedGigExpenses(organizationId: string, purchaseIds: string
 }
 
 /**
- * The report's writes (A10). Each refreshes what it changed (financialsInvalidation.purchaseWritten);
+ * The report's writes (A10). Each refreshes what it changed (invalidateAfterPurchaseChange);
  * the screen keeps its own toasts, confirms and the 'gig-financials-updated' event.
  */
 export function usePurchasesMutations(organizationId: string) {
   const queryClient = useQueryClient();
   const written = (gigIds: (string | null | undefined)[] = [], allGigs = false) =>
-    invalidateKeys(queryClient, financialsInvalidation.purchaseWritten(organizationId, { gigIds, allGigs }));
+    invalidateAfterPurchaseChange(queryClient, { organizationId, gigIds, allGigs });
 
   const trackAsEquipment = useMutation({
     mutationFn: (itemId: string) => trackPurchaseLineAsEquipment(itemId),
@@ -132,7 +139,7 @@ export function usePurchasesMutations(organizationId: string) {
         headerAttachments.set(vars.headerId, { filePath: attachment.file_path, fileName: attachment.file_name });
         return { ...prev, headerAttachments };
       });
-      void invalidateKeys(queryClient, financialsInvalidation.purchaseDocumentAttached(vars.headerId));
+      void invalidateAfterPurchaseDocumentChange(queryClient, vars.headerId);
     },
   });
 
@@ -145,6 +152,6 @@ export function usePurchasesMutations(organizationId: string) {
     /** The gig ledger rows made from a line (asked before its gig is cleared). */
     ledgerRowsForLine: (lineId: string) => getGigFinancialsByPurchaseId(lineId),
     /** Reads the report again (after a failed write, or a purchase saved in the editor). */
-    refresh: () => invalidateKeys(queryClient, [queryKeys.purchasesReport(organizationId)]),
+    refresh: () => queryClient.invalidateQueries({ queryKey: queryKeys.purchasesReport(organizationId) }),
   };
 }

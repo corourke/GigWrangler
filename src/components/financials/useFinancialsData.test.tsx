@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, waitFor } from '@testing-library/react';
-import { renderHook } from './testRender';
+import { renderHookWithQuery as renderHook } from './renderHookWithQuery';
 import { useTaxYears, useLockedTaxYears, useTaxYearDepreciation, useTaxYearMutations } from './useTaxYearsData';
 import { useReportingData } from './useReportingData';
 import { useGigAccountingData } from './useGigAccountingData';

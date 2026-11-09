@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor, fireEvent } from '@testing-library/react';
-import { render } from '../testRender';
+import { renderWithQuery as render } from '../../../test/renderWithQuery';
 import AssetDetailView from './AssetDetailView';
 import GigDetailView from './GigDetailView';
 import DocumentDetailView from './DocumentDetailView';
@@ -23,7 +23,11 @@ const pending = <T,>() => {
 
 // A10 characterization: the Purchases side panel's views and the gig picker.
 describe('Purchases side panel: loading (A10)', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    for (const fn of [getAsset, getGig, getGigFinancials, getGigOptionsForOrganization, getEntityAttachments, getAttachmentUrl]) vi.mocked(fn).mockReset();
+    vi.mocked(toast.error).mockClear();
+    vi.mocked(getGigFinancials).mockResolvedValue([]);
+  });
 
   it('equipment: a spinner, then its details; another record loads that one; a failure says why', async () => {
     const first = pending<any>();

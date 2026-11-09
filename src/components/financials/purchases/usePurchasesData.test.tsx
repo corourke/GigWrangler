@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, waitFor } from '@testing-library/react';
-import { renderHook } from '../testRender';
+import { renderHookWithQuery as renderHook } from '../renderHookWithQuery';
 import { usePurchasesReport, usePurchasesMutations, useLinkedGigExpenses, useGigNames } from './usePurchasesData';
 import { queryKeys } from '../../../lib/queryKeys';
 import { getPurchases, setPurchaseLineGig, getLinkedGigExpenses, deletePurchase } from '../../../services/purchase.service';
@@ -106,13 +106,13 @@ describe('usePurchasesMutations (A10)', () => {
   };
   const invalidated = (spy: ReturnType<typeof vi.spyOn>) => spy.mock.calls.map((c: any[]) => c[0].queryKey);
 
-  it('moving a line to another gig refreshes the report, the tax report, Gig Accounting and both gigs\' money, and the report is read again', async () => {
+  it('moving a line to another gig refreshes the report, the tax report, Gig Accounting, the dashboard and both gigs\' money, and the report is read again', async () => {
     const { result, invalidate } = setup();
     await waitFor(() => expect(result.current.report.isLoading).toBe(false));
     await act(() => result.current.m.setLineGig.mutateAsync({ item: rows[1] as any, gigId: 'g2' }));
     expect(setPurchaseLineGig).toHaveBeenCalledWith(rows[1], 'g2', undefined);
     expect(invalidated(invalidate)).toEqual(expect.arrayContaining([
-      ['purchases', 'org-1'], ['taxReport', 'org-1'], ['gigAccounting', 'org-1'],
+      ['purchases', 'org-1'], ['taxReport', 'org-1'], ['gigs', 'org-1', 'accounting'], ['dashboard', 'org-1'],
       ['financials', 'g1'], ['financials', 'g2'], ['gigFinancialsSummary', 'g1'], ['gigFinancialsSummary', 'g2'],
     ]));
     expect(getPurchases).toHaveBeenCalledTimes(2);

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor, fireEvent, within } from '@testing-library/react';
-import { render } from '../testRender';
+import { renderWithQuery as render } from '../../../test/renderWithQuery';
 import PurchasesTab from './PurchasesTab';
 import { getLinkedGigExpenses, getPurchases, trackPurchaseLineAsEquipment, deletePurchase, setPurchaseLineGig, createLedgerEntryForPurchaseLine } from '../../../services/purchase.service';
 import { getPurchaseIdsWithLedgerEntry } from '../../../services/gig.service';
@@ -228,6 +228,8 @@ describe('Purchases report: loading and refreshing (A10)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getPurchases).mockImplementation(async () => rows as any);
+    vi.mocked(getPurchaseIdsWithLedgerEntry).mockResolvedValue(new Set());
+    vi.mocked(getLinkedGigExpenses).mockResolvedValue({ entries: 0, gigs: 0, amount: 0 });
   });
 
   const deferred = <T,>() => {
@@ -253,8 +255,8 @@ describe('Purchases report: loading and refreshing (A10)', () => {
     const first = render(<PurchasesTab {...props} />);
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to load purchases'));
     expect(screen.queryByText('Sweetwater')).not.toBeInTheDocument();
-    first.unmount();
-    render(<PurchasesTab {...props} />, { queryClient: first.queryClient });
+    // Opened again (a remount), against the same cache.
+    first.rerender(<PurchasesTab key="again" {...props} />);
     expect(await screen.findByText('Sweetwater')).toBeInTheDocument();
   });
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
-import { render } from './testRender';
+import { renderWithQuery as render } from '../../test/renderWithQuery';
 import userEvent from '@testing-library/user-event';
 import TaxYearsCard from './TaxYearsCard';
 import { toast } from 'sonner';
@@ -241,6 +241,8 @@ describe('TaxYearsCard: loading and refreshing (A10)', () => {
       { organization_id: 'org-1', year: 2024, locked: false, filed_on: null, notes: null },
     ]);
     vi.mocked(getTaxYearDepreciation).mockResolvedValue([]);
+    vi.mocked(saveTaxYear).mockResolvedValue({} as any);
+    vi.mocked(saveTaxYearDepreciation).mockResolvedValue(undefined as any);
   });
 
   it('shows Loading…, then the years', async () => {
@@ -260,8 +262,8 @@ describe('TaxYearsCard: loading and refreshing (A10)', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Could not read'));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('No figures'));
     expect(await screen.findByText('No years locked yet.')).toBeInTheDocument();
-    first.unmount();
-    render(<TaxYearsCard organizationId="org-1" userRole="Admin" />, { queryClient: first.queryClient });
+    // Opened again (a remount), against the same cache.
+    first.rerender(<TaxYearsCard key="again" organizationId="org-1" userRole="Admin" />);
     expect(await screen.findByText('Open')).toBeInTheDocument();
   });
 
