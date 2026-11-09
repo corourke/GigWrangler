@@ -44,4 +44,39 @@ export const queryKeys = {
 
   // Generic notification feed (issue #52) — powers the notification bell.
   notifications: () => ['notifications'] as const,
+  // --- Mobile (A10, Engineer O) ---
+  // The gig keys extend the shared gig keys, so a write that invalidates gigs(org) or gig(id)
+  // refreshes the mobile copies too.
+  mobileGigs: (orgId: string) => ['gigs', orgId, 'mobile'] as const,
+  mobileGig: (gigId: string) => ['gig', gigId, 'mobile'] as const,
+  myUpcomingAssignments: (userId: string, orgId: string) => ['myUpcomingAssignments', userId, orgId] as const,
+  myDevices: () => ['myDevices'] as const,
+} as const;
+
+/** One cache refresh: the key prefix, and how (react-query invalidateQueries filters). */
+export interface Invalidation {
+  queryKey: readonly unknown[];
+  exact?: boolean;
+  refetchType?: 'active' | 'inactive' | 'all' | 'none';
+}
+
+/** Invalidation map — Mobile (A10, Engineer O): which caches each mobile write refreshes. */
+export const mobileInvalidations = {
+  /** Status or details of a gig: every list of the org's gigs and every copy of the gig. */
+  gigChanged: (orgId: string, gigId: string): Invalidation[] => [
+    { queryKey: queryKeys.gigs(orgId) },
+    { queryKey: queryKeys.gig(gigId) },
+  ],
+  gigCreated: (orgId: string): Invalidation[] => [{ queryKey: queryKeys.gigs(orgId) }],
+  /** Accept/decline on the gig: reload the gig; My Schedule refetches on its next visit. */
+  assignmentAnswered: (gigId: string): Invalidation[] => [
+    { queryKey: queryKeys.gig(gigId) },
+    { queryKey: ['myUpcomingAssignments'], refetchType: 'none' },
+  ],
+  /**
+   * Accept/decline on My Schedule: shown at once in the cache; not refetched now, because offline
+   * the service answers with the device copy, which would undo the change on screen.
+   */
+  myAssignmentAnswered: (): Invalidation[] => [{ queryKey: ['myUpcomingAssignments'], refetchType: 'none' }],
+  devicesChanged: (): Invalidation[] => [{ queryKey: queryKeys.myDevices() }],
 } as const;
