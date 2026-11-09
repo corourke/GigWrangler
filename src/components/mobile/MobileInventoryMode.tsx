@@ -12,11 +12,14 @@ import { TrackingStatusBadge } from '../inventory/TrackingStatusBadge';
 import { plural } from '../../utils/plural';
 import { useInventoryScreen } from './inventory/useInventoryScreen';
 import { InventoryDialogs } from './inventory/InventoryDialogs';
+import { OfflineBadge } from './OfflineBadge';
+import { useIsOffline } from './useIsOffline';
 import { type MobileInventoryModeProps, getLatestTrackingRecordForItem, getDisplayedTrackingRecord, isKitFullyScanned, type AnySlot } from './inventory/inventoryModel';
 
 /** Inventory Mode: scan a gig's packing list in or out (state and actions: useInventoryScreen). */
 export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps) {
   const screen = useInventoryScreen(gigId);
+  const isOffline = useIsOffline();
   const {
     selectedMode,
     locationInput,
@@ -33,6 +36,7 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
     packingList,
     gigTitle,
     loading,
+    loadingFirst,
     orgIndex,
     refreshPackingList,
     orgInactive,
@@ -192,9 +196,10 @@ export default function MobileInventoryMode({ gigId }: MobileInventoryModeProps)
             <div className="min-w-0">
               <h1 className="text-lg font-bold truncate">Inventory Mode</h1>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="font-medium truncate" style={{ color: '#0284c7' }}>{gigTitle || 'Select a gig'}</span>
+                <span className="font-medium truncate" style={{ color: '#0284c7' }}>{gigTitle || (loadingFirst ? 'Loading gig…' : 'Select a gig')}</span>
                 <span>·</span>
-                <span>{stats.done} / {plural(stats.total, 'piece')}</span>
+                <span>{loadingFirst ? 'Loading…' : `${stats.done} / ${plural(stats.total, 'piece')}`}</span>
+                {isOffline && <OfflineBadge />}
               </div>
             </div>
             <button

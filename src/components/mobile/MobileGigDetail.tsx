@@ -29,12 +29,14 @@ import type { ScheduleActivityType } from '../../utils/supabase/types';
 import { format, parseISO } from 'date-fns';
 import { useMobileGigDetailData } from './useMobileGigDetailData';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
-import { formatDateTimeDisplay, formatGigDateTimeForInput, isGigAllDay, parseGigDateTimeFromInput } from '../../utils/dateUtils';
+import { formatDateTimeDisplay, formatGigDateTimeForInput, gigStartDay, isGigAllDay, parseGigDateTimeFromInput } from '../../utils/dateUtils';
 import { getAllTimezones } from '../../utils/timezones';
 import { useOrganizationSearch } from '../useOrganizationSelectorData';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '../ui/utils';
+import { OfflineBadge } from './OfflineBadge';
+import { useIsOffline } from './useIsOffline';
 import { inactiveBannerText, isInactiveOn, managesGigOwner } from '../../utils/gigOwnership';
 import type { GigStatus } from '../../utils/supabase/types';
 import type { OrganizationRole } from '../../utils/supabase/types';
@@ -67,6 +69,7 @@ const INPUT_CLASS = 'w-full h-10 px-3 text-sm bg-muted/50 rounded-lg border-0 ou
 
 export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: MobileGigDetailProps) {
   const { user, userRole, selectedOrganization } = useAuth();
+  const isOffline = useIsOffline();
   const canEdit = userRole?.toLowerCase() === 'admin' || userRole?.toLowerCase() === 'manager';
   const isAdmin = userRole === 'Admin' || userRole === 'Manager';
   const { gigQuery, changeStatus, answerAssignment, saveEdit } = useMobileGigDetailData(gigId, selectedOrganization?.id);
@@ -369,6 +372,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                   {statusConfig?.label || gig.status}
                 </span>
               </button>
+              {isOffline && <OfflineBadge />}
             </div>
           </div>
           {canEdit && !inactiveHere && !isEditing && (
@@ -916,7 +920,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
             organizationId={selectedOrganization?.id ?? ''}
             userRole={userRole}
             isEditing={isEditing}
-            gigStartDate={gig.start ? format(parseISO(gig.start), 'yyyy-MM-dd') : undefined}
+            gigStartDate={gig.start ? gigStartDay(gig) : undefined}
             gigEnd={gig.end}
           />
         )}

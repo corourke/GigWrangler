@@ -104,6 +104,24 @@ export const formatDateDisplay = (date: string | Date, timeZone?: string): strin
 export const formatGigDay = (start: string, timeZone?: string, allDay?: boolean): string =>
   formatDateDisplay(start, (allDay ?? isNoonUTC(start)) ? 'UTC' : timeZone);
 
+type GigWhen = { start: string; timezone?: string | null; all_day?: boolean | null };
+
+/**
+ * A gig card's day and time on mobile (round B): "Sat, Dec 5" for an all-day gig (its calendar
+ * date, read in UTC), "Sat, Dec 5 · 8:00 PM" for a timed one, in the gig's time zone as the
+ * desktop list shows it.
+ */
+export const formatGigCardWhen = (gig: GigWhen, separator = '·'): string => {
+  const day: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
+  if (isGigAllDay(gig)) return formatInTimeZone(gig.start, 'UTC', day);
+  const tz = gig.timezone || undefined;
+  return `${formatInTimeZone(gig.start, tz, day)} ${separator} ${formatTimeDisplay(gig.start, tz)}`;
+};
+
+/** The calendar day (YYYY-MM-DD) a gig starts on: an all-day gig's date, else its start in its own time zone. */
+export const gigStartDay = (gig: GigWhen): string =>
+  isGigAllDay(gig) ? toDateInTimeZone(gig.start, 'UTC') : toDateInTimeZone(gig.start, gig.timezone);
+
 /**
  * Formats a date with full month name and weekday (e.g., "Saturday, January 31, 2026")
  */

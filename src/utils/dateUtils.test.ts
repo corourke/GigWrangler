@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   isNoonUTC,
   formatGigDay,
@@ -10,6 +10,8 @@ import {
   formatGigDateTimeForInput,
   parseGigDateTimeFromInput,
   toDateInTimeZone,
+  formatGigCardWhen,
+  gigStartDay,
 } from './dateUtils';
 
 describe('isNoonUTC', () => {
@@ -304,5 +306,34 @@ describe('formatGigDay (#230 follow-up)', () => {
 
   it('a timed gig is the day it starts in its time zone', () => {
     expect(formatGigDay('2026-10-11T03:00:00Z', 'America/Los_Angeles')).toBe('Oct 10, 2026');
+  });
+});
+
+// Round B: mobile gig cards read a gig's day and time in the gig's own zone, not the device's.
+describe.each(['America/Los_Angeles', 'Pacific/Kiritimati'])('mobile gig card dates (device TZ %s)', (zone) => {
+  let originalTZ: string | undefined;
+  beforeAll(() => { originalTZ = process.env.TZ; process.env.TZ = zone; });
+  afterAll(() => { process.env.TZ = originalTZ; });
+
+  const allDay = { start: '2026-12-05T12:00:00.000Z', timezone: 'America/New_York', all_day: true };
+  // 8:00 PM on Saturday Dec 5 in New York (01:00 UTC on the 6th).
+  const timed = { start: '2026-12-06T01:00:00.000Z', timezone: 'America/New_York', all_day: false };
+
+  it('an all-day gig shows its date only', () => {
+    expect(formatGigCardWhen(allDay)).toBe('Sat, Dec 5');
+  });
+
+  it("a timed gig shows its day and time in the gig's time zone", () => {
+    expect(formatGigCardWhen(timed)).toMatch(/^Sat, Dec 5 · 8:00\sPM$/);
+    expect(formatGigCardWhen(timed, '•')).toMatch(/^Sat, Dec 5 • 8:00\sPM$/);
+  });
+
+  it("a gig without all_day falls back to the 12:00 UTC convention", () => {
+    expect(formatGigCardWhen({ start: allDay.start, timezone: 'America/New_York' })).toBe('Sat, Dec 5');
+  });
+
+  it("gigStartDay is the gig's own calendar day", () => {
+    expect(gigStartDay(allDay)).toBe('2026-12-05');
+    expect(gigStartDay(timed)).toBe('2026-12-05');
   });
 });

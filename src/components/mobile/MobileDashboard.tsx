@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import {
   MapPin,
   Phone,
   ChevronRight,
-  WifiOff,
   RefreshCw,
   CheckCircle2,
   XCircle,
@@ -12,7 +11,6 @@ import {
   Loader2,
   Calendar,
 } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
 import type { StaffDashboardGig } from '../../services/mobile/staffDashboard.service';
 import { useMobileDashboardData } from './useMobileDashboardData';
 import { useAuth } from '../../contexts/AuthContext';
@@ -20,6 +18,9 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
 import { cn } from '../ui/utils';
+import { formatGigCardWhen } from '../../utils/dateUtils';
+import { OfflineBadge } from './OfflineBadge';
+import { useIsOffline } from './useIsOffline';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import type { GigStatus } from '../../utils/supabase/types';
 
@@ -44,18 +45,9 @@ export default function MobileDashboard({ onViewGigDetail, onViewAllGigs }: Mobi
     enabled: !authLoading,
   });
   const loading = assignmentsQuery.isFetching || assignmentsQuery.isPending;
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const isOffline = useIsOffline();
   const [updatingAssignment, setUpdatingAssignment] = useState<string | null>(null);
 
-  useEffect(() => {
-    const handleStatusChange = () => setIsOffline(!navigator.onLine);
-    window.addEventListener('online', handleStatusChange);
-    window.addEventListener('offline', handleStatusChange);
-    return () => {
-      window.removeEventListener('online', handleStatusChange);
-      window.removeEventListener('offline', handleStatusChange);
-    };
-  }, []);
 
   const loadAssignments = () => { assignmentsQuery.refetch(); };
 
@@ -83,12 +75,7 @@ export default function MobileDashboard({ onViewGigDetail, onViewAllGigs }: Mobi
           <p className="text-xs text-muted-foreground">Next 7 days</p>
         </div>
         <div className="flex items-center gap-2">
-          {isOffline && (
-            <Badge variant="outline" className="gap-1 text-amber-600 border-amber-200">
-              <WifiOff className="w-3 h-3" />
-              <span className="text-[10px]">Offline</span>
-            </Badge>
-          )}
+          {isOffline && <OfflineBadge />}
           <Button aria-label="Refresh" variant="ghost" size="icon" onClick={loadAssignments} disabled={loading} className="h-9 w-9">
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </Button>
@@ -160,7 +147,6 @@ function AssignmentCard({
   isUpdating: boolean;
   isOffline: boolean;
 }) {
-  const startTime = parseISO(item.gig.start);
   const statusConfig = ASSIGNMENT_STATUS_CONFIG[item.assignment.status] || ASSIGNMENT_STATUS_CONFIG.Open;
   const gigStatusConfig = GIG_STATUS_CONFIG[item.gig.status as GigStatus];
   const isActionable = ['Open', 'Invited', 'Requested'].includes(item.assignment.status);
@@ -178,7 +164,7 @@ function AssignmentCard({
         <div className="flex justify-between items-start gap-2">
           <div className="min-w-0">
             <CardDescription className="font-semibold text-sky-700">
-              {format(startTime, 'EEE, MMM d • h:mm a')}
+              {formatGigCardWhen(item.gig, '•')}
             </CardDescription>
             <CardTitle className="text-lg leading-tight truncate mt-0.5">{item.gig.title}</CardTitle>
           </div>

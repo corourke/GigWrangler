@@ -1,6 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, within, fireEvent } from '@testing-library/react'
-import { renderWithQuery as render } from '../../test/renderWithQuery'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { render as rtlRender, screen, within, fireEvent } from '@testing-library/react'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { renderWithQuery as render, makeTestQueryClient } from '../../test/renderWithQuery'
+import { queryKeys } from '../../lib/queryKeys'
 import userEvent from '@testing-library/user-event'
 import { format } from 'date-fns'
 import MobileInventoryMode from './MobileInventoryMode'
@@ -1425,5 +1427,47 @@ describe('MobileInventoryMode: kit rows from the keyboard (A19)', () => {
     expect(row).toHaveAttribute('aria-expanded', before === 'true' ? 'false' : 'true')
     fireEvent.keyDown(row, { key: ' ' })
     expect(row).toHaveAttribute('aria-expanded', before)
+  })
+})
+
+// Round B: while the gig's packing list loads, the header says so (with the gig's name where the
+// app already has it) instead of "Select a gig · 0 / 0 pieces"; offline, it shows the Offline badge.
+describe('MobileInventoryMode while the gig loads (round B)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    Object.defineProperty(navigator, 'onLine', { value: true, configurable: true })
+    vi.mocked(idbStore.getGigs).mockResolvedValue([])
+    vi.mocked(idbStore.getPackingList).mockResolvedValue(undefined as any)
+    // The server's packing list never arrives in these tests.
+    vi.mocked(packingListService.fetchGigPackingList).mockReturnValue(new Promise(() => {}))
+    members.list.mockResolvedValue([])
+  })
+  afterEach(() => {
+    Object.defineProperty(navigator, 'onLine', { value: true, configurable: true })
+  })
+
+  it("shows the gig's name from the gig list already loaded, and Loading…", async () => {
+    const queryClient = makeTestQueryClient()
+    queryClient.setQueryData(queryKeys.mobileGigs('org-1'), [{ id: 'gig-9', title: 'Dockside Load-In' }])
+    rtlRender(
+      <QueryClientProvider client={queryClient}><MobileInventoryMode gigId="gig-9" onSelectGig={vi.fn()} /></QueryClientProvider>,
+    )
+    expect(await screen.findByText('Dockside Load-In')).toBeInTheDocument()
+    expect(screen.getByText('Loading…')).toBeInTheDocument()
+    expect(screen.queryByText(/0 \/ 0 pieces/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Select a gig')).not.toBeInTheDocument()
+  })
+
+  it('without a name, says Loading gig…', async () => {
+    render(<MobileInventoryMode gigId="gig-9" onSelectGig={vi.fn()} />)
+    expect(await screen.findByText('Loading gig…')).toBeInTheDocument()
+    expect(screen.getByText('Loading…')).toBeInTheDocument()
+    expect(screen.queryByText('Select a gig')).not.toBeInTheDocument()
+  })
+
+  it('shows the Offline badge while offline', async () => {
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true })
+    render(<MobileInventoryMode gigId="gig-9" onSelectGig={vi.fn()} />)
+    expect(await screen.findByText('Offline')).toBeInTheDocument()
   })
 })

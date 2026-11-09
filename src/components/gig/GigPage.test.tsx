@@ -50,7 +50,11 @@ vi.mock('../inventory/InventoryReports', async () => {
 vi.mock('./GigParticipantsSection', () => ({ default: () => <div data-testid="edit-participants" /> }));
 vi.mock('./GigStaffSlotsSection', () => ({ default: () => <div data-testid="edit-staffing" /> }));
 vi.mock('./GigKitAssignmentsSection', () => ({ default: () => <div data-testid="edit-equipment" /> }));
-vi.mock('./GigFinancialsSection', () => ({ default: ({ editing }: { editing?: boolean }) => <div data-testid="financials" data-editing={String(editing)} /> }));
+vi.mock('./GigFinancialsSection', () => ({
+  default: ({ editing, gigStartDate }: { editing?: boolean; gigStartDate?: string }) => (
+    <div data-testid="financials" data-editing={String(editing)} data-start-date={gigStartDate} />
+  ),
+}));
 vi.mock('../../services/activityLog.service', () => ({ getGigActivity: vi.fn().mockResolvedValue([]) }));
 vi.mock('../../services/conflictDetection.service', () => ({ checkAllConflicts: vi.fn().mockResolvedValue({ conflicts: [] }) }));
 vi.mock('./NotReturnedSection', () => ({ default: () => null }));
@@ -392,6 +396,14 @@ describe('GigPage (#12)', () => {
     await screen.findByRole('textbox', { name: 'Gig title' });
     fireEvent.mouseDown(screen.getByRole('tab', { name: 'Financials' }));
     expect((await screen.findByTestId('financials')).dataset.editing).toBe('true');
+  });
+
+  // Round B: new money rows default to the gig's own day, not the UTC date of its start.
+  it("gives the money rows an evening gig's local date", async () => {
+    // 7:00 PM on July 12 in Los Angeles is 02:00 UTC on July 13.
+    vi.mocked(getGig).mockResolvedValue({ ...gig, start: '2026-07-13T02:00:00.000Z', end: '2026-07-13T06:00:00.000Z', all_day: false } as any);
+    renderWithQuery(<GigPage {...baseProps} userRole="Manager" tab="financials" />);
+    expect((await screen.findByTestId('financials')).dataset.startDate).toBe('2026-07-12');
   });
 
   it.each(['Staff', 'Viewer'] as const)('%s: no Edit, no Financials tab, no pay column, even on the edit route', async (role) => {
