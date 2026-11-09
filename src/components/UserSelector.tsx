@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Input } from './ui/input';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from './ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Popover, PopoverAnchor, PopoverContent } from './ui/popover';
 import { Search, User as UserIcon, Loader2, UserPlus } from 'lucide-react';
 import { User } from '../utils/supabase/types';
 import { useUserSelectorSearch } from './useUserSelectorData';
@@ -34,6 +34,7 @@ export default function UserSelector({
   const { results: searchResults, isSearching } = useUserSelectorSearch(searchTerm, organizationIds);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
 
   // Update input value when prop changes
   useEffect(() => {
@@ -49,8 +50,10 @@ export default function UserSelector({
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <div className="relative">
+      {/* An anchor, not a trigger: a click on the box must not toggle the results shut after the
+          focus that opened them. Focus and typing open them; Escape and clicks elsewhere close them. */}
+      <PopoverAnchor asChild>
+        <div className="relative" ref={anchorRef}>
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
           <Input
             ref={inputRef}
@@ -59,6 +62,7 @@ export default function UserSelector({
             onChange={(e) => {
               setInputValue(e.target.value);
               setSearchTerm(e.target.value);
+              setIsOpen(true);
             }}
             onFocus={() => setIsOpen(true)}
             placeholder={placeholder}
@@ -66,12 +70,16 @@ export default function UserSelector({
             className="pl-9"
           />
         </div>
-      </PopoverTrigger>
+      </PopoverAnchor>
 
       <PopoverContent
         className="p-0 w-[var(--radix-popover-trigger-width)]"
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
+        // The box sits outside the results; a click in it keeps them open.
+        onInteractOutside={(e) => {
+          if (anchorRef.current?.contains(e.target as Node)) e.preventDefault();
+        }}
       >
         <Command>
           <CommandList>
