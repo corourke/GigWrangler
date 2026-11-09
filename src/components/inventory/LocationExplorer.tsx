@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
+import { Fragment, useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { MapPin, Filter, ChevronRight, ChevronDown, Layers, Package, Pencil } from 'lucide-react';
 import { LocationCombobox } from './LocationCombobox';
@@ -21,14 +21,8 @@ import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { cn } from '../ui/utils';
-import {
-  getItemsByLocation,
-  getActiveGigsWithTracking,
-  getItemWhereabouts,
-} from '../../services/inventoryManagement.service';
-import type { LocationItem, GigWithTracking, ItemWhereabout } from '../../services/inventoryManagement.service';
-import { getItems } from '../../services/equipmentItem.service';
-import type { EquipmentItemWithRecords } from '../../services/equipmentItem.service';
+import type { LocationItem } from '../../services/inventoryManagement.service';
+import { useLocationExplorerData } from './useLocationExplorerData';
 import { ManualTrackingOverrideDialog } from './ManualTrackingOverrideDialog';
 import { whereCardText } from '../../utils/whereaboutText';
 import { RETURNED_STATUS, SCANNING_MODES } from '../../config/inventoryWorkflow';
@@ -37,7 +31,6 @@ import type { UserRole } from '../../utils/supabase/types';
 import { LineExtras } from './LineExtras';
 import { piecesOf } from './piecesOf';
 import { plural } from '../../utils/plural';
-import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface LocationExplorerProps {
   organizationId: string;
@@ -131,45 +124,14 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(UNIQUE_STATUSES);
   const [gigFilter, setGigFilter] = useState('all');
   const [itemFilter, setItemFilter] = useState('all');
-  const [equipmentItems, setEquipmentItems] = useState<EquipmentItemWithRecords[]>([]);
-  const [places, setPlaces] = useState<ItemWhereabout[] | null>(null);
-  const [items, setItems] = useState<LocationItem[]>([]);
-  const [gigs, setGigs] = useState<GigWithTracking[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
+  const { gigs, equipmentItems, selectedItem, places, items, loading, hasSearched, trackingChanged } =
+    useLocationExplorerData(organizationId, {
+      location: locationFilter, statuses: selectedStatuses, gigId: gigFilter, itemId: itemFilter,
+    });
   const [expandedContainers, setExpandedContainers] = useState<Set<string>>(new Set());
   const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null);
 
   const canOverride = !!userId && (userRole === 'Admin' || userRole === 'Manager');
-
-  useEffect(() => {
-    let live = true;
-    getActiveGigsWithTracking(organizationId)
-      .then((g) => { if (live) setGigs(g); })
-      .catch(() => { if (live) setGigs([]); });
-    return () => { live = false; };
-  }, [organizationId]);
-
-  // The org's items, for the Item filter (#186).
-  useEffect(() => {
-    let live = true;
-    getItems(organizationId)
-      .then((list) => { if (live) setEquipmentItems([...list].sort((a, b) => (a.manufacturer_model ?? '').localeCompare(b.manufacturer_model ?? ''))); })
-      .catch(() => { if (live) setEquipmentItems([]); });
-    return () => { live = false; };
-  }, [organizationId]);
-
-  const selectedItem = useMemo(() => equipmentItems.find((i) => i.id === itemFilter) ?? null, [equipmentItems, itemFilter]);
-
-  // Where all of the chosen item is, home pieces included (#186).
-  useEffect(() => {
-    if (!selectedItem) { setPlaces(null); return; }
-    let live = true;
-    getItemWhereabouts(organizationId, selectedItem.records)
-      .then((p) => { if (live) setPlaces(p); })
-      .catch(() => { if (live) setPlaces(null); });
-    return () => { live = false; };
-  }, [organizationId, selectedItem]);
 
   const toggleStatus = (status: string) => {
     setSelectedStatuses(prev =>
@@ -189,36 +151,6 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
   };
 
   const hasFilters = !!(locationFilter || selectedStatuses.length > 0 || gigFilter !== 'all' || itemFilter !== 'all');
-
-  // A late answer for earlier filters is dropped (B12).
-  const startItemsRequest = useLatestRequest();
-  const fetchItems = useCallback(async () => {
-    const isCurrent = startItemsRequest();
-    if (!locationFilter && selectedStatuses.length === 0 && gigFilter === 'all' && itemFilter === 'all') {
-      setItems([]);
-      setHasSearched(false);
-      return;
-    }
-    setLoading(true);
-    setHasSearched(true);
-    try {
-      const results = await getItemsByLocation(organizationId, {
-        location: locationFilter || undefined,
-        status: selectedStatuses.length > 0 ? selectedStatuses : undefined,
-        gigId: gigFilter !== 'all' ? gigFilter : undefined,
-        itemId: itemFilter !== 'all' ? itemFilter : undefined,
-      });
-      if (isCurrent()) setItems(results);
-    } catch {
-      if (isCurrent()) setItems([]);
-    } finally {
-      if (isCurrent()) setLoading(false);
-    }
-  }, [organizationId, locationFilter, selectedStatuses, gigFilter, itemFilter, startItemsRequest]);
-
-  useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
 
   const groupedItems = useMemo(() => {
     const groups: Record<string, Record<string, LocationItem[]>> = {};
@@ -565,7 +497,7 @@ export function LocationExplorer({ organizationId, userId, userRole }: LocationE
           lot={overrideTarget.lot}
           atHome={overrideTarget.atHome}
           maintenance={overrideTarget.maintenance}
-          onSuccess={() => { setOverrideTarget(null); fetchItems(); }}
+          onSuccess={() => { setOverrideTarget(null); trackingChanged(); }}
         />
       )}
     </div>

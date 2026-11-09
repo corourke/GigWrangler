@@ -72,6 +72,23 @@ export const queryKeys = {
     orgId: string,
     params: { kitId: string | null | undefined; filter: string; search: string; inKitIds: readonly string[] },
   ) => ['kits', orgId, 'picker', { ...params, inKitIds: [...params.inKitIds].sort() }] as const,
+
+  // --- A10 Inventory (Maintenance, Locations, reports, Not returned) ---
+  maintenanceList: (orgId: string) => ['maintenanceList', orgId] as const,
+  allGigReturns: (gigId: string) => ['gigReturns', gigId] as const,
+  gigReturns: (gigId: string, orgId: string) => ['gigReturns', gigId, orgId] as const,
+  allGigPackingLists: (gigId?: string) => (gigId ? ['gigPackingList', gigId] as const : ['gigPackingList'] as const),
+  gigPackingList: (gigId: string, orgId: string) => ['gigPackingList', gigId, orgId] as const,
+  allManifests: (orgId: string) => ['manifest', orgId] as const,
+  manifest: (orgId: string, params: { location: string; gigId: string | null }) => ['manifest', orgId, params] as const,
+  reportGigs: (orgId: string, showAll: boolean) => ['reportGigs', orgId, { showAll }] as const,
+  inventoryConflictFlags: (orgId: string) => ['inventoryConflictFlags', orgId] as const,
+  activeGigsWithTracking: (orgId: string) => ['activeGigsWithTracking', orgId] as const,
+  // The organization's items alone (no container pieces), for filters.
+  equipmentItemList: (orgId: string) => ['equipmentItems', orgId, 'list'] as const,
+  itemWhereabouts: (itemId: string, orgId: string) => ['equipmentItem', itemId, 'whereabouts', orgId] as const,
+  allLocationItems: (orgId: string) => ['locationItems', orgId] as const,
+  locationItems: (orgId: string, filters: Record<string, unknown>) => ['locationItems', orgId, filters] as const,
 } as const;
 
 type Key = readonly unknown[];
@@ -118,6 +135,27 @@ export const equipmentInvalidation = {
     queryKeys.assets(orgId),
     queryKeys.allAssets(),
     queryKeys.kits(orgId),
+  ],
+  /** A unit or lot went into maintenance details, back to service, or had its flag cancelled. */
+  maintenance: (orgId: string, assetId: string): Key[] => [
+    queryKeys.maintenanceList(orgId),
+    ...equipmentInvalidation.asset(orgId, assetId),
+  ],
+  /** Pieces at a gig were marked returned, written off, or brought back. */
+  gigReturn: (orgId: string, gigId: string, assetId: string): Key[] => [
+    queryKeys.allGigReturns(gigId),
+    queryKeys.allGigPackingLists(gigId),
+    queryKeys.maintenanceList(orgId),
+    ...equipmentInvalidation.asset(orgId, assetId),
+  ],
+  /** Where something is was changed by hand (a tracking override). */
+  tracking: (orgId: string): Key[] => [
+    queryKeys.allLocationItems(orgId),
+    queryKeys.allManifests(orgId),
+    queryKeys.allGigPackingLists(),
+    queryKeys.assetTrackingSummary(orgId),
+    queryKeys.kits(orgId),
+    queryKeys.allEquipmentItems(),
   ],
   /** A kit was created, changed, duplicated or deleted. */
   kit: (orgId: string, kitId?: string): Key[] => [
