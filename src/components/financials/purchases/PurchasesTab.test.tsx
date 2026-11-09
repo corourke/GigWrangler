@@ -220,6 +220,13 @@ describe('PurchasesTab: a line\'s gig changes in one call (B21)', () => {
     expect(source).not.toMatch(/updatePurchase\([^)]*gig_id/);
     expect(source).not.toMatch(/reconcileLedgerForLineGigChange|removeLedgerEntriesForPurchaseLine/);
   });
+
+  it('refreshes gigs\' money through the cache, never the old window event (A10)', async () => {
+    const { readFileSync } = await import('node:fs');
+    for (const f of ['src/components/financials/purchases/PurchasesTab.tsx', 'src/components/ReviewScannedDataDialog.tsx', 'src/components/gig/GigFinancialsSection.tsx']) {
+      expect(readFileSync(f, 'utf8')).not.toContain('gig-financials-updated');
+    }
+  });
 });
 
 // A10 characterization: how the report loads, fails, follows the organization and refreshes after
@@ -317,14 +324,15 @@ describe('Purchases report: loading and refreshing (A10)', () => {
     expect(toast.success).toHaveBeenCalledWith('Purchase deleted');
   });
 
-  it('assigning a line to a gig, then adding it to the ledger, shows the line in the ledger', async () => {
+  it('assigning a line to a gig, then adding it to the ledger, shows the line in the ledger and refreshes that gig\'s money', async () => {
     const withGig = rows.map((r) => (r.id === 'i1' ? { ...r, gig_id: 'g1' } : r));
     vi.mocked(getPurchases).mockImplementation(async () => withGig as any);
     const events: Event[] = [];
     const listen = (e: Event) => events.push(e);
     window.addEventListener('gig-financials-updated', listen);
     vi.mocked(createLedgerEntryForPurchaseLine).mockResolvedValueOnce({ created: true } as any);
-    render(<PurchasesTab {...props} />);
+    const { queryClient } = render(<PurchasesTab {...props} />);
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     fireEvent.click(await screen.findByText('Cables'));
     const add = await screen.findByRole('button', { name: /Add to gig ledger/ });
     vi.mocked(getPurchaseIdsWithLedgerEntry).mockResolvedValue(new Set(['i1']));
@@ -334,7 +342,10 @@ describe('Purchases report: loading and refreshing (A10)', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: /Add to gig ledger/ })).not.toBeInTheDocument());
     expect(vi.mocked(getPurchases).mock.calls.length).toBeGreaterThan(calls);
     expect(toast.success).toHaveBeenCalledWith('Added to the gig ledger');
-    expect(events).toHaveLength(1);
+    // The gig's money is refreshed through the cache (A10), not a window event.
+    const keys = invalidate.mock.calls.map((c) => c[0]?.queryKey);
+    for (const key of [['financials', 'g1'], ['gigFinancialsSummary', 'g1'], ['gigProjectedStaff', 'g1'], ['dashboard', 'org-1']]) expect(keys).toContainEqual(key);
+    expect(events).toHaveLength(0);
     window.removeEventListener('gig-financials-updated', listen);
     vi.mocked(getPurchaseIdsWithLedgerEntry).mockResolvedValue(new Set());
   });

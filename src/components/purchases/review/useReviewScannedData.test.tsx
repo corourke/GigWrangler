@@ -67,6 +67,31 @@ describe('usePurchaseForEdit (A10)', () => {
   });
 });
 
+describe('usePurchaseForEdit: a form\'s query (A10, #402)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getPurchaseWithDetails).mockResolvedValue(details('Stored') as any);
+  });
+
+  it('keeps no copy once the editor is gone (gcTime 0), so an open never starts from a cached one', async () => {
+    const { result, unmount, queryClient } = renderHook(() => usePurchaseForEdit('h1', 'org-1', true));
+    await waitFor(() => expect(result.current.fresh).not.toBeNull());
+    unmount();
+    await waitFor(() => expect(queryClient.getQueryData(queryKeys.purchaseForEdit('h1', 'org-1'))).toBeUndefined());
+  });
+
+  it('says when each load landed, and refetch reads the purchase again', async () => {
+    const { result } = renderHook(() => usePurchaseForEdit('h1', 'org-1', true));
+    await waitFor(() => expect(result.current.fresh).not.toBeNull());
+    const first = result.current.dataUpdatedAt;
+    expect(first).toBeGreaterThan(0);
+    vi.mocked(getPurchaseWithDetails).mockResolvedValue(details('Saved since') as any);
+    await act(async () => { await new Promise((r) => setTimeout(r, 5)); await result.current.refetch(); });
+    await waitFor(() => expect(result.current.fresh?.details.vendor).toBe('Saved since'));
+    expect(result.current.dataUpdatedAt).toBeGreaterThan(first);
+  });
+});
+
 describe('useReviewMutations (A10)', () => {
   beforeEach(() => vi.clearAllMocks());
   const invalidated = (spy: ReturnType<typeof vi.spyOn>) => spy.mock.calls.map((c: any[]) => c[0].queryKey);

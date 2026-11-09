@@ -147,6 +147,7 @@ export function invalidateAfterStaffingChange(
     queryClient.invalidateQueries({ queryKey: queryKeys.financials(gigId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(organizationId) }),
   ]);
+}
 
 // ── Financials (A10, Engineer F) ──
 
