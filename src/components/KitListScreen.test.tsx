@@ -1,10 +1,13 @@
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import {describe, it, expect, vi } from 'vitest'
-import {render, screen, waitFor } from '@testing-library/react'
+import {screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import KitListScreen from './KitListScreen'
 import { makeUser, makeOrganization } from '../test/factories'
 import { getKits, getKitsFlattenedSummary } from '../services/kit.service'
 import { getKitTrackingSummary, getPackingListReport } from '../services/inventoryManagement.service'
+
+
 
 // Mock localStorage
 const localStorageMock = (() => {

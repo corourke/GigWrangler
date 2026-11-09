@@ -1,8 +1,11 @@
+import { renderWithQuery as render } from '../test/renderWithQuery'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
+import {screen, waitFor, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import AssetListScreen from './AssetListScreen'
 import { makeUser, makeOrganization } from '../test/factories'
+
+
 
 // Mock localStorage
 const localStorageMock = (() => {
