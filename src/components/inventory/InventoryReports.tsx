@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { format } from 'date-fns';
 import { formatInTimeZone } from '../../utils/dateUtils';
 import { AlertTriangle, Printer, SlidersHorizontal } from 'lucide-react';
@@ -32,19 +32,13 @@ import { LineExtras } from './LineExtras';
 import { piecesOf } from './piecesOf';
 import { packedPieces } from '../../utils/packingSummary';
 import { loadPackingColumns, savePackingColumns, type PackingColumn } from '../../utils/packingColumns';
-import {
-  getGigsForReportPicker,
-  getManifestReport,
-  getPackingListReport,
-  getInventoryConflictFlags,
-} from '../../services/inventoryManagement.service';
+import { useConflictFlags, useManifest, usePackingListRows, useReportGigs } from './useInventoryReportsData';
 import type {
   GigOption,
   ManifestLine,
   PackingListRow,
 } from '../../services/inventoryManagement.service';
 import { plural } from '../../utils/plural';
-import { useLatestRequest } from '../../utils/hooks/useLatestRequest';
 
 interface InventoryReportsProps {
   organizationId: string;
@@ -207,8 +201,7 @@ function ManifestTab({
   const [location, setLocation] = useState('');
   const [gigFilter, setGigFilter] = useState('all');
   const gigs = useGigsWithSelected(gigList, gigFilter);
-  const [rows, setRows] = useState<ManifestLine[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { rows, loading } = useManifest(organizationId, location, gigFilter);
   const [visibleColumns, setVisibleColumns] = useState<Set<ManifestColumn>>(
     new Set(['status', 'gig', 'scanned_at', 'scanned_by', 'notes'])
   );
@@ -234,33 +227,8 @@ function ManifestTab({
     });
   };
 
-  // A late answer for an earlier location or gig filter is dropped (B12).
-  const startManifestRequest = useLatestRequest();
-  const fetchManifest = useCallback(async () => {
-    const isCurrent = startManifestRequest();
-    if (!location) {
-      setRows([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await getManifestReport(organizationId, {
-        location,
-        gigId: gigFilter !== 'all' ? gigFilter : undefined,
-      });
-      if (!isCurrent()) return;
-      setRows(data);
-      setCheckedRows(new Set());
-    } catch {
-      if (isCurrent()) setRows([]);
-    } finally {
-      if (isCurrent()) setLoading(false);
-    }
-  }, [organizationId, location, gigFilter, startManifestRequest]);
-
-  useEffect(() => {
-    fetchManifest();
-  }, [fetchManifest]);
+  // A new report clears the checks.
+  useEffect(() => { setCheckedRows(new Set()); }, [rows]);
 
   const lines = useMemo(() => manifestLines(rows), [rows]);
   const kitCount = lines.filter((l) => l.kitId).length;
@@ -540,9 +508,10 @@ function PackingListTab({
   onLoaded?: () => void;
 }) {
   const gigId = fixedGig.id;
-  const [rows, setRows] = useState<PackingListRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { rows, loading, fetched } = usePackingListRows(organizationId, gigId);
+  // Set once, when the first answer (rows or an error) arrives.
   const [loaded, setLoaded] = useState(false);
+  if (fetched && !loaded) setLoaded(true);
   const [ownColumns, setOwnColumns] = useState<ReadonlySet<PackingColumn>>(loadPackingColumns);
   const visibleColumns = columns ?? ownColumns;
   // Lets a worker physically verify items as they pack, tap to check off
@@ -569,37 +538,12 @@ function PackingListTab({
     }
   };
 
-  // A late answer for an earlier gig is dropped (B12).
-  const startPackingRequest = useLatestRequest();
-  const fetchPackingList = useCallback(async () => {
-    const isCurrent = startPackingRequest();
-    if (!gigId) {
-      setRows([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await getPackingListReport(organizationId, gigId);
-      if (!isCurrent()) return;
-      setRows(data);
-      setCheckedRows(new Set());
-    } catch {
-      if (isCurrent()) setRows([]);
-    } finally {
-      if (isCurrent()) {
-        setLoading(false);
-        setLoaded(true);
-      }
-    }
-  }, [organizationId, gigId, startPackingRequest]);
+  // A new report clears the checks.
+  useEffect(() => { setCheckedRows(new Set()); }, [rows]);
 
   useEffect(() => {
     if (loaded) onLoaded?.();
   }, [loaded, onLoaded]);
-
-  useEffect(() => {
-    fetchPackingList();
-  }, [fetchPackingList]);
 
   // The list as packed (#81): one line per kit assigned to the gig, A to Z, with
   // an Items kit's contents (its loose items and the cases packed inside it)
@@ -821,32 +765,14 @@ function PackingListTab({
   );
 }
 
-function useConflictFlags(organizationId: string): Set<string> {
-  const [conflictFlags, setConflictFlags] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    let cancelled = false;
-    getInventoryConflictFlags(organizationId).then((f) => { if (!cancelled) setConflictFlags(f); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [organizationId]);
-  return conflictFlags;
-}
-
 /**
  * The Manifest for one location (#39: opened from Equipment › Locations'
  * "Print manifest"). Its gig filter uses the report picker's window (#109).
  */
 export function ManifestReport({ organizationId, organizationName }: InventoryReportsProps) {
-  const [gigs, setGigs] = useState<GigOption[]>([]);
   const [showAllGigs, setShowAllGigs] = useState(false);
+  const gigs = useReportGigs(organizationId, showAllGigs);
   const conflictFlags = useConflictFlags(organizationId);
-
-  useEffect(() => {
-    let cancelled = false;
-    getGigsForReportPicker(organizationId, { showAll: showAllGigs })
-      .then((gigsData) => { if (!cancelled) setGigs(gigsData); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [organizationId, showAllGigs]);
 
   return (
     <ManifestTab
