@@ -69,7 +69,7 @@ Each organization's own work on the gig stays private to it. The other organizat
 
 Being on the same gig doesn't give anyone access to your Team list, equipment library or purchases.
 
-Admins and Managers of any participating organization can change the shared parts of the gig. An Admin of any participating organization can delete it. Add participants with care.
+Admins and Managers of any participating organization can change the shared parts of the gig. Only an Admin of the gig's [owner](/gigs/participating-organizations/#the-gigs-owner) can delete it, and only while no other claimed organization is on it. Add participants with care.
 
 ## Claimed and unclaimed organizations
 
