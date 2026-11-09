@@ -1,6 +1,7 @@
 import type { App } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { rateLimited } from '../lib/rateLimit.ts';
+import { log } from '../../_shared/log.ts';
 
 // Google Places proxy. Auth-only (gates API-key abuse); no org concept.
 // Behavior preserved verbatim from the legacy handler.
@@ -20,7 +21,7 @@ export function registerPlaces(app: App) {
 
     const apiKey = Deno.env.get('GOOGLE_PLACES_API_KEY');
     if (!apiKey) {
-      console.error('Google Places API key not configured');
+      log('error', 'places.not_configured');
       return c.json({ error: 'Google Places API key not configured' }, 500);
     }
 
@@ -46,7 +47,7 @@ export function registerPlaces(app: App) {
 
     const data = await response.json();
     if (!response.ok) {
-      console.error('Google Places API error:', data);
+      log('error', 'places.api_failed', { status: response.status, err: data?.error });
       return c.json(
         { error: `Google Places API error: ${response.status}`, details: data.error?.message || 'Unknown error' },
         500
@@ -97,7 +98,7 @@ export function registerPlaces(app: App) {
 
     const apiKey = Deno.env.get('GOOGLE_PLACES_API_KEY');
     if (!apiKey) {
-      console.error('Google Places API key not configured');
+      log('error', 'places.not_configured');
       return c.json({ error: 'Google Places API key not configured' }, 500);
     }
 
@@ -111,7 +112,7 @@ export function registerPlaces(app: App) {
 
     const data = await response.json();
     if (!response.ok) {
-      console.error('Google Places API error:', data);
+      log('error', 'places.api_failed', { status: response.status, err: data?.error });
       return c.json(
         { error: `Google Places API error: ${response.status}`, details: data.error?.message || 'Unknown error' },
         500

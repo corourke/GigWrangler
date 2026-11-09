@@ -5,7 +5,7 @@
 // real DSN keeps ~72 KB of @sentry in the main chunk.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { checkSizes, findEntryChunk, forbiddenInEntry, LIMITS } from './bundleSize.mjs';
+import { checkSizes, findEntryChunk, findSourceMaps, forbiddenInEntry, LIMITS } from './bundleSize.mjs';
 
 const buildDir = resolve(process.argv[2] ?? 'build');
 
@@ -57,6 +57,13 @@ console.log(
 );
 
 const { ok: sizesOk, failures } = checkSizes(entries, LIMITS);
+const listAll = (dir, prefix = '') =>
+  readdirSync(join(dir, prefix), { withFileTypes: true }).flatMap((d) =>
+    d.isDirectory() ? listAll(dir, join(prefix, d.name)) : [join(prefix, d.name)],
+  );
+for (const map of findSourceMaps(listAll(buildDir))) {
+  failures.push(`${map} is in the build output. Source maps go to Sentry only and must not be deployed.`);
+}
 for (const name of forbiddenInEntry(readFileSync(join(buildDir, entryFile), 'utf8'))) {
   failures.push(`${name} is in the entry chunk ${entryFile}. Import it only from a lazy-loaded screen.`);
 }
