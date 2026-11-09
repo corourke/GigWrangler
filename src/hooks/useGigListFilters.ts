@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { FutureDateKey, PastDateKey } from '../components/gigs/GigDateFilterDropdown';
+import type { FutureDateKey, PastDateKey } from '../components/gigs/gigDateFilter';
 import type { GigStatus } from '../utils/supabase/types';
 
 const KEYS = {

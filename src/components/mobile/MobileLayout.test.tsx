@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import MobileLayout from './MobileLayout'
-import { AuthProvider } from '../../contexts/AuthContext'
+import { AuthProvider } from '../../contexts/AuthProvider'
 
 vi.mock('../../utils/supabase/client', () => ({
   createClient: vi.fn(() => ({

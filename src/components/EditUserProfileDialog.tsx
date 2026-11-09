@@ -88,6 +88,7 @@ export default function EditUserProfileDialog({
       // Load initial data for change detection
       changeDetection.loadInitialData(loadedData);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fills the form when it opens or the user changes, not on every change-tracker render
   }, [open, user]);
 
   const handleSubmit = async () => {

@@ -41,7 +41,8 @@ import AppHeader from './AppHeader';
 import { SmartDataTable, ColumnDef, RowAction } from './tables/SmartDataTable';
 import { GigListEmptyState } from './gigs/GigListEmptyState';
 import { ConflictWarning } from './ConflictWarning';
-import { GigDateFilterDropdown, applyDateFilter } from './gigs/GigDateFilterDropdown';
+import { GigDateFilterDropdown } from './gigs/GigDateFilterDropdown';
+import { applyDateFilter } from './gigs/gigDateFilter';
 import { GigStatusFilterDropdown } from './gigs/GigStatusFilterDropdown';
 import {
   Plus,
@@ -159,11 +160,7 @@ export default function GigListScreen({
   // from Staff/Viewers, and they can't see staff pay either (#168).
   const showFinancials = canManage(userRole);
 
-  useEffect(() => {
-    loadGigs();
-  }, [organization.id]);
-
-  const loadGigs = async () => {
+  const loadGigs = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -190,7 +187,11 @@ export default function GigListScreen({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [organization.id]);
+
+  useEffect(() => {
+    loadGigs();
+  }, [loadGigs]);
 
   const filteredGigs = useMemo(() => {
     let result = applyDateFilter(gigs, futureDateFilter, pastDateFilter);

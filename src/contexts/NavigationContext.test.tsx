@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, renderHook } from '@testing-library/react'
 import React from 'react'
-import { NavigationProvider, useNavigation } from './NavigationContext'
+import { useNavigation } from './NavigationContext'
+import { NavigationProvider } from './NavigationProvider'
 
 const defaultHandlers = {
   onNavigateToDashboard: vi.fn(),

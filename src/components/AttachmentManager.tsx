@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   File, 
   Upload, 
@@ -45,11 +45,7 @@ export default function AttachmentManager({
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
 
-  useEffect(() => {
-    loadAttachments();
-  }, [entityType, entityId]);
-
-  const loadAttachments = async () => {
+  const loadAttachments = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await getEntityAttachments(entityType, entityId);
@@ -60,7 +56,11 @@ export default function AttachmentManager({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [entityType, entityId]);
+
+  useEffect(() => {
+    loadAttachments();
+  }, [loadAttachments]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;

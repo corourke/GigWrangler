@@ -26,6 +26,7 @@ export default function MobileSettings({ onLogout, onLock }: MobileSettingsProps
 
   useEffect(() => {
     fetchDevices();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads the device list once, on mount
   }, []);
 
   const fetchDevices = async () => {

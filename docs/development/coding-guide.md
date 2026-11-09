@@ -37,7 +37,7 @@
 - **UI Components**: Shadcn/ui (Radix), Lucide React icons.
 - **Forms**: `react-hook-form` + `zod` validation.
 - **Backend**: Supabase (JS Client), PostgreSQL, RLS.
-- **Utilities**: `date-fns` (dates), `sonner` (toasts), `recharts` (charts).
+- **Utilities**: `date-fns` (dates), `sonner` (toasts). No charting library is installed (recharts was removed unused in A21); add one only with the screen that uses it, lazy-loaded.
 - **Testing**: Vitest + React Testing Library.
 
 ## Security & Multi-Tenancy
@@ -122,8 +122,8 @@ npm run build       # Vite production build
 
 - `@typescript-eslint/no-explicit-any` is **off**: about 660 `any`s in app code and 480 in tests (counted 2026-10-03). Tighten to `error` as services and components are refactored.
 - The react-hooks v6 compiler rules (`set-state-in-effect`, `immutability`, `refs`, `purity`, `incompatible-library`, `static-components`) are **off**: they flag real but refactor-sized issues in the large screen components. Re-enable them per component as the screens are split.
-- `react-hooks/exhaustive-deps` is a **warning** (37 open on 2026-10-03). Fix opportunistically; do not add new ones.
-- `react-refresh/only-export-components` is a **warning** (17 open, files that export helpers next to components).
+- `react-hooks/exhaustive-deps` is an **error** (A11, 2026-11-09). A loader an effect calls is a `useCallback` with its own dependencies, and the effect depends on it. Where an effect deliberately leaves a dependency out (it runs once on mount, or a callback prop changes every render), the line has `// eslint-disable-next-line react-hooks/exhaustive-deps -- <why>`.
+- `react-refresh/only-export-components` is an **error**: a `.tsx` file that exports components exports only components. Hooks, contexts, `cva` variants and helpers go in a sibling `.ts` file (for example `AuthContext.tsx` holds the context and `useAuth`, `AuthProvider.tsx` the provider; `ui/button-variants.ts`).
 - **Accessibility (A19):** `eslint-plugin-jsx-a11y` runs its recommended rules on `src/**/*.tsx` (tests excluded); they are errors. Eight rules with existing hits are **warnings**, 65 in total on 2026-11-09, listed with counts in `eslint.config.js`. Burn them down screen by screen, then make each an error. The plugin's peer range stops at ESLint 9; `package.json` `overrides` points it at our ESLint 10, which it runs on.
 - Icon-only buttons need an `aria-label` (a `title` also counts). `src/test/a11y.test.ts` scans `src` and fails on one without a name.
 - The viewport allows zoom. On phone-width screens a field with `text-sm`/`text-xs` gets 16px (`src/styles/globals.css`) so iOS doesn't zoom on focus; don't set a smaller `fontSize` inline on a field.

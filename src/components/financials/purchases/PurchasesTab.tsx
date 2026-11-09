@@ -181,29 +181,7 @@ export default function PurchasesTab({
   }, []);
 
   const startPurchasesRequest = useLatestRequest();
-  useEffect(() => {
-    loadPurchases();
-  }, [organization.id, reloadToken]);
-
-  useEffect(() => {
-    let cancelled = false;
-    getGigOptionsForOrganization(organization.id)
-      .then((gigs) => {
-        if (cancelled) return;
-        const map = new Map<string, string>();
-        gigs.forEach(g => map.set(g.id, g.title));
-        setGigNames(map);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [organization.id]);
-
-  const [headerAttachments, setHeaderAttachments] = useState<Map<string, { filePath: string; fileName: string }>>(new Map());
-  // Expense-line ids that are linked to a gig but have no ledger entry yet — drives
-  // the persistent "Add to gig ledger" affordance in the line detail.
-  const [linesWithLedger, setLinesWithLedger] = useState<Set<string>>(new Set());
-
-  async function loadPurchases() {
+  const loadPurchases = useCallback(async () => {
     // A late answer for an earlier organization (or reload) is dropped (B12).
     const isCurrent = startPurchasesRequest();
     setIsLoading(true);
@@ -238,7 +216,29 @@ export default function PurchasesTab({
     } finally {
       if (isCurrent()) setIsLoading(false);
     }
-  }
+  }, [organization.id, startPurchasesRequest]);
+
+  useEffect(() => {
+    loadPurchases();
+  }, [loadPurchases, reloadToken]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getGigOptionsForOrganization(organization.id)
+      .then((gigs) => {
+        if (cancelled) return;
+        const map = new Map<string, string>();
+        gigs.forEach(g => map.set(g.id, g.title));
+        setGigNames(map);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [organization.id]);
+
+  const [headerAttachments, setHeaderAttachments] = useState<Map<string, { filePath: string; fileName: string }>>(new Map());
+  // Expense-line ids that are linked to a gig but have no ledger entry yet — drives
+  // the persistent "Add to gig ledger" affordance in the line detail.
+  const [linesWithLedger, setLinesWithLedger] = useState<Set<string>>(new Set());
 
   const handleViewDoc = (headerId: string) => {
     setPanelState({ mode: 'document', headerId });
