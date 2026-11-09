@@ -30,7 +30,7 @@ export default function ModeratorAccessRequestsScreen({
   onLogout,
   onEditProfile,
 }: ModeratorAccessRequestsScreenProps) {
-  const requestsQuery = useModeratorAccessRequests(true);
+  const requestsQuery = useModeratorAccessRequests(user.id, true);
   const decideAccessRequest = useDecideAccessRequest();
   const columns = useAccessRequestColumns();
 

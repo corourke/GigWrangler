@@ -27,9 +27,27 @@ describe('queryKeys (A10)', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('has a dashboard key per organization and one recent-activity key', () => {
+  it('has a dashboard key per organization', () => {
     expect(queryKeys.dashboard('org-1')).not.toEqual(queryKeys.dashboard('org-2'));
-    expect(queryKeys.recentActivity()).toEqual(queryKeys.recentActivity());
+  });
+
+});
+
+// Answers that depend on who is signed in are keyed by that person.
+describe('user-scoped keys', () => {
+  it('include the user id', () => {
+    for (const key of [
+      (u: string) => queryKeys.recentActivity(u),
+      (u: string) => queryKeys.notifications(u),
+      (u: string) => queryKeys.moderatorAccessRequests(u),
+    ]) {
+      expect(key('user-a')).toContain('user-a');
+      expect(key('user-a')).not.toEqual(key('user-b'));
+    }
+  });
+
+  it('share a prefix per kind, so one invalidation reaches every user\'s copy', () => {
+    expect(startsWith(queryKeys.moderatorAccessRequests('user-a'), queryKeys.moderatorAccessRequestsAll())).toBe(true);
   });
 });
 
