@@ -27,7 +27,9 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      // A11: both hook and fast-refresh rules are errors. Where an effect deliberately leaves a
+      // dependency out, the line carries an eslint-disable comment saying why.
+      'react-refresh/only-export-components': ['error', { allowConstantExport: true }],
       // Burn-down debt (tracked in docs/development/coding-guide.md):
       // - no-explicit-any: the codebase predates strict typing (~500 `any`s);
       //   tighten to 'error' as services/components are refactored (Phase 7)
@@ -41,7 +43,7 @@ export default tseslint.config(
       'react-hooks/incompatible-library': 'off',
       'react-hooks/static-components': 'off',
       'react-hooks/purity': 'off',
-      'react-hooks/exhaustive-deps': 'warn',
+      'react-hooks/exhaustive-deps': 'error',
       // Unused function params are idiomatic (callbacks, destructured props);
       // unused locals/imports remain errors
       // B11: a date column is a calendar day; new Date('2026-03-01') is the evening before west

@@ -173,6 +173,7 @@ export default function GigParticipantsSection({
 
   useEffect(() => {
     loadParticipantsData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when the gig changes; the loader also reads form helpers that change every render
   }, [gigId]);
 
   useEffect(() => {

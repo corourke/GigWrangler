@@ -1,4 +1,4 @@
-import React, {useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {Filter, Calendar as CalendarIcon } from 'lucide-react';
 import { Button } from './ui/button';
 import {
@@ -71,11 +71,7 @@ export function CalendarFilters({
   const [_loading, setLoading] = useState(false);
 
   // Load filter options
-  useEffect(() => {
-    loadFilterOptions();
-  }, [organizationId]);
-
-  const loadFilterOptions = async () => {
+  const loadFilterOptions = useCallback(async () => {
     setLoading(true);
     try {
       // Load venues and acts (organizations of type 'Venue' and 'Act')
@@ -94,7 +90,11 @@ export function CalendarFilters({
     } finally {
       setLoading(false);
     }
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    loadFilterOptions();
+  }, [loadFilterOptions]);
 
   return (
     <div className="bg-white border-b border-gray-200">

@@ -106,6 +106,7 @@ export function EditableCell<T>({
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- re-subscribes when the selection or edit state changes, as before
   }, [isSelected, isEditing, column.editable, column.readOnly, column.type, value]);
 
   // Focus input and place cursor at end when editing starts

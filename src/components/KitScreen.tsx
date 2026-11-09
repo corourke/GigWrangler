@@ -177,6 +177,7 @@ export default function KitScreen({
     if (kitId) {
       loadKit();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when the kit changes, not on every change-tracker or callback render
   }, [kitId]);
 
   // Items and container pieces, for "any" lines and availability (#184).
@@ -403,6 +404,7 @@ export default function KitScreen({
     if (showPicker) {
       loadPickerCandidates();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reloads on search, filter and stock changes; editing kit lines does not refetch the picker
   }, [pickerSearchQuery, pickerFilter, showPicker, items, containerPieces]);
 
   // Candidates already covered elsewhere in the kit's tree stay out of the

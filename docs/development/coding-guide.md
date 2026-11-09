@@ -122,8 +122,8 @@ npm run build       # Vite production build
 
 - `@typescript-eslint/no-explicit-any` is **off**: about 660 `any`s in app code and 480 in tests (counted 2026-10-03). Tighten to `error` as services and components are refactored.
 - The react-hooks v6 compiler rules (`set-state-in-effect`, `immutability`, `refs`, `purity`, `incompatible-library`, `static-components`) are **off**: they flag real but refactor-sized issues in the large screen components. Re-enable them per component as the screens are split.
-- `react-hooks/exhaustive-deps` is a **warning** (37 open on 2026-10-03). Fix opportunistically; do not add new ones.
-- `react-refresh/only-export-components` is a **warning** (17 open, files that export helpers next to components).
+- `react-hooks/exhaustive-deps` is an **error** (A11, 2026-11-09). A loader an effect calls is a `useCallback` with its own dependencies, and the effect depends on it. Where an effect deliberately leaves a dependency out (it runs once on mount, or a callback prop changes every render), the line has `// eslint-disable-next-line react-hooks/exhaustive-deps -- <why>`.
+- `react-refresh/only-export-components` is an **error**: a `.tsx` file that exports components exports only components. Hooks, contexts, `cva` variants and helpers go in a sibling `.ts` file (for example `AuthContext.tsx` holds the context and `useAuth`, `AuthProvider.tsx` the provider; `ui/button-variants.ts`).
 - `react-big-calendar` is typed as `any` via `src/types/react-big-calendar.d.ts`; replace with `@types/react-big-calendar` when convenient.
 
 ## Future Refactoring Opportunities

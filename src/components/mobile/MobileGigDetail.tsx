@@ -101,6 +101,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
 
   useEffect(() => {
     loadGig();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads when the gig changes; the loader reads the current gig and onBack
   }, [gigId]);
 
   const loadGig = async () => {
