@@ -1,4 +1,5 @@
 import { supabaseAdmin } from './supabaseAdmin.ts';
+import { log } from '../../_shared/log.ts';
 
 /** Get or create a staff role by name; returns its id (or null on failure). */
 export async function getOrCreateStaffRole(roleName: string): Promise<string | null> {
@@ -9,7 +10,7 @@ export async function getOrCreateStaffRole(roleName: string): Promise<string | n
   const { data: newRole, error } = await supabaseAdmin
     .from('staff_roles').insert({ name: roleName }).select('id').single();
   if (error || !newRole) {
-    console.error('Failed to create staff role:', roleName, error);
+    log('error', 'staff_roles.create_failed', { role: roleName, err: error });
     return null;
   }
   return newRole.id;

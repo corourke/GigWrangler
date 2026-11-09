@@ -2,6 +2,8 @@
 // SDK dependency, matching this codebase's existing pattern for third-party
 // APIs (see routes/places.ts's Google Places call). Best-effort: callers
 // should never let an email failure fail the request that triggered it.
+import { log } from '../../_shared/log.ts';
+
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const DEFAULT_FROM = 'GigWrangler <onboarding@resend.dev>';
 
@@ -13,7 +15,7 @@ export interface SendEmailResult {
 export async function sendEmail(params: { to: string; subject: string; html: string }): Promise<SendEmailResult> {
   const apiKey = Deno.env.get('RESEND_API_KEY');
   if (!apiKey) {
-    console.warn('RESEND_API_KEY not configured — skipping email send');
+    log('warn', 'email.not_configured');
     return { sent: false, error: 'RESEND_API_KEY not configured' };
   }
 
@@ -35,12 +37,12 @@ export async function sendEmail(params: { to: string; subject: string; html: str
     });
     if (!response.ok) {
       const data = await response.json().catch(() => null);
-      console.error('Resend API error:', data);
+      log('error', 'email.send_failed', { status: response.status, err: data });
       return { sent: false, error: data?.message || `Resend API error: ${response.status}` };
     }
     return { sent: true };
   } catch (err) {
-    console.error('Error sending email via Resend:', err);
+    log('error', 'email.send_failed', { err });
     return { sent: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }

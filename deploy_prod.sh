@@ -214,13 +214,22 @@ DEPLOY_STAGE="db push (migrations)"
 echo "Pushing migrations..."
 supabase db push --yes
 
+# One release name for the web app and the edge functions in Sentry (A18): the build reads
+# BUILD_TIMESTAMP, and the functions read SENTRY_RELEASE.
+export BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+
 DEPLOY_STAGE="functions deploy"
+echo "Setting SENTRY_RELEASE=gigwrangler@$BUILD_TIMESTAMP for the edge functions..."
+supabase secrets set "SENTRY_RELEASE=gigwrangler@$BUILD_TIMESTAMP"
 echo "Deploying edge functions..."
 supabase functions deploy
 
 DEPLOY_STAGE="frontend build + deploy"
 echo "Building frontend..."
+# With SENTRY_AUTH_TOKEN, SENTRY_ORG and SENTRY_PROJECT set, the build uploads source maps to
+# Sentry and deletes them; the bundle check then confirms none are left to deploy.
 npm run build
+npm run check:bundle
 echo "Deploying frontend to Cloudflare Pages..."
 npx wrangler pages deploy build/ --project-name gigwrangler
 

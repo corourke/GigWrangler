@@ -4,6 +4,7 @@ import { requireOrgRole } from '../lib/orgRole.ts';
 import { requireGigAccess } from '../lib/gigAccess.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
 import { DASHBOARD_ASSET_COLUMNS, sumAssetValues } from '../lib/pure/dashboard.ts';
+import { log } from '../../_shared/log.ts';
 
 export function registerGigs(app: App) {
   // List gigs for an org the caller belongs to
@@ -13,7 +14,7 @@ export function registerGigs(app: App) {
     const { data: gigParticipants, error } = await supabaseAdmin
       .from('gig_participants').select('*, gig:gigs(*)').eq('organization_id', organizationId);
     if (error) {
-      console.error('Error fetching gigs:', error);
+      log('error', 'gigs.fetch_failed', { err: error });
       return c.json({ error: error.message }, 400);
     }
 
@@ -42,7 +43,7 @@ export function registerGigs(app: App) {
     const { data: gig, error } = await supabaseAdmin
       .from('gigs').select('*').eq('id', gigId).single();
     if (error) {
-      console.error('Error fetching gig:', error);
+      log('error', 'gigs.fetch_one_failed', { err: error });
       return c.json({ error: error.message }, 400);
     }
     const { data: participants } = await supabaseAdmin
@@ -71,7 +72,7 @@ export function registerGigs(app: App) {
     const { data: assets, error: assetsError } = await supabaseAdmin
       .from('assets').select(DASHBOARD_ASSET_COLUMNS).eq('organization_id', orgId);
     if (assetsError) {
-      console.error('Error fetching assets for dashboard:', assetsError);
+      log('error', 'dashboard.assets_fetch_failed', { err: assetsError });
       return c.json({ error: assetsError.message }, 500);
     }
     const equipment = sumAssetValues(assets);
@@ -83,7 +84,7 @@ export function registerGigs(app: App) {
 
     const { data: kits, error: kitsError } = await supabaseAdmin.from('kits').select('rental_value').eq('organization_id', orgId);
     if (kitsError) {
-      console.error('Error fetching kits for dashboard:', kitsError);
+      log('error', 'dashboard.kits_fetch_failed', { err: kitsError });
       return c.json({ error: kitsError.message }, 500);
     }
     let totalRentalValue = 0;

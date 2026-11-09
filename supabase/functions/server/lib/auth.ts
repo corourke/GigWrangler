@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from '../deps.ts';
 import { supabaseAdmin } from './supabaseAdmin.ts';
 import { parseBearer } from './pure/authz.ts';
 import { sessionClaims, twoFactorSatisfied, TWO_FACTOR_REQUIRED } from './pure/twoFactor.ts';
+import { log } from '../../_shared/log.ts';
 
 /**
  * Validates the Bearer token once and attaches the user to the context.
@@ -24,7 +25,7 @@ export const requireUser: MiddlewareHandler = async (c, next) => {
   if (!twoFactorSatisfied(claims, true)) {
     const { data: required, error: requiredError } = await supabaseAdmin.rpc('mfa_required_for', { p_user_id: user.id });
     if (requiredError) {
-      console.error('Error checking the two-factor requirement:', requiredError);
+      log('error', 'auth.two_factor_check_failed', { err: requiredError });
       return c.json({ error: 'Unauthorized' }, 401);
     }
     if (!twoFactorSatisfied(claims, required === true)) {

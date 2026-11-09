@@ -1,11 +1,12 @@
 import type { App, AppContext } from '../lib/types.ts';
 import { requireUser } from '../lib/auth.ts';
 import { supabaseAdmin } from '../lib/supabaseAdmin.ts';
+import { log } from '../../_shared/log.ts';
 
 /** Log an error under a reference and answer with that reference only. */
 function failed(c: AppContext, context: string, err: unknown) {
   const reference = crypto.randomUUID();
-  console.error(`${context} (reference ${reference}):`, err);
+  log('error', 'request.failed', { context, reference, err });
   return c.json({ error: `Something went wrong. Reference: ${reference}` }, 400);
 }
 
@@ -43,7 +44,7 @@ export function registerTwoFactor(app: App) {
       entity_id: userId,
       context: {},
     });
-    if (logError) console.error('Error logging a two-factor reset:', logError);
+    if (logError) log('error', 'two_factor.reset_log_failed', { err: logError });
 
     return c.json({ success: true, removed: (factors?.factors ?? []).length });
   });
