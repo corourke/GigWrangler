@@ -13,7 +13,7 @@ Scanning reads a PDF or photo and fills in the vendor, date, total and line item
 
 Admins and Managers can scan; Staff and Viewers don't see the scan buttons. Each file can be a PDF or a JPEG, PNG, WebP or GIF image, up to 10 MB.
 
-Scanning has limits: 200 files per organization in any 24 hours, and 60 per person in any hour. Past them, a scan fails with "Daily scan limit reached for this organization (200 a day). Try again tomorrow." or "Scan limit reached (60/hour). Try again later." Both limits count back from the moment you scan, so capacity frees up gradually rather than at midnight. In the scan queue the file shows as **Failed**, and you can **Retry** it later.
+Scanning has limits: 200 files per organization in any 24 hours, and 60 per person in any hour. Past them, a scan fails with "Scan limit reached for this organization (200 scans in the last 24 hours). Try again later." or "Scan limit reached (60/hour). Try again later." Both limits count back from the moment you scan, so capacity frees up gradually rather than at midnight. In the scan queue the file shows as **Failed**, and you can **Retry** it later.
 
 ### 1. Financials → Purchases → Scan invoices
 
@@ -35,7 +35,7 @@ Use this for a receipt that belongs to one gig, such as a van rental for that sh
 2. Click **Upload Receipt** and choose one file.
 3. Check the purchase and save it.
 
-Saving creates the purchase and makes each **expensed** item a cost of the gig: it's linked to the gig and added to the gig's **money out**, one row per item. Equipment you **depreciate** isn't a gig's cost, so it's saved as a purchase only.
+Saving creates the purchase and makes each **expensed** item a cost of the gig: it's linked to the gig and added to the gig's **money out**, one row per item, in the same save as the purchase. Equipment you **depreciate** isn't a gig's cost, so it's saved as a purchase only.
 
 ### 3. Equipment → Upload Invoice
 
@@ -76,6 +76,8 @@ The scan suggests which lines are equipment and suggests categories; for expense
 
 When you **edit** a saved purchase and the change also affects linked equipment or a gig's money out, GigWrangler lists those changes in **Confirm linked record updates** and asks you to **Confirm & Save**.
 
+An edit is saved all at once: the purchase, its lines, its equipment and the gig's money out. If any part is refused, for example because its year is filed, nothing changes.
+
 If you change a saved line's quantity, it also asks what to do with that line's equipment:
 
 - **Update the equipment:** for a lot, the lot becomes the line's new quantity. For units, when the quantity goes down, tick which units come off, then choose **Delete them** (their kits and scan history go with them) or **Mark Inactive** (kept, with their kits and scans, but no longer on this purchase).
@@ -93,7 +95,7 @@ If you change a saved line's quantity, it also asks what to do with that line's 
 | Phone: a gig's transaction → **Receipts & Documents** | **Upload** | That money row |
 | An asset's page or edit form | **Asset Attachments** → **Upload** | The equipment (manuals, photos) |
 
-Each file can be up to 25 MB. **Attach Doc** and **Receipt (optional)** take a PDF or an image. The **Upload** buttons also take Word, Excel and PowerPoint documents (.docx, .xlsx, .pptx) and CSV files. Any other file is refused with "Attach a PDF, an image, an Office document or a CSV (Word, Excel, PowerPoint)", and a larger one with "Files can be up to 25 MB".
+Each file can be up to 25 MB, and can be a PDF, an image (JPEG, PNG, WebP, GIF or HEIC), a Word, Excel or PowerPoint document (.docx, .xlsx, .pptx) or a CSV file. The scan buttons offer only what scanning reads: a PDF or a JPEG, PNG, WebP or GIF image. Any other file is refused with "Attach a PDF, an image, an Office document or a CSV (Word, Excel, PowerPoint)", and a larger one with "Files can be up to 25 MB".
 
 :::tip
 **Add purchase** has no file upload. Save the purchase, then use **Attach Doc** on it in the Purchases report.

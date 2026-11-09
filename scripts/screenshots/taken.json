@@ -544,6 +544,17 @@
     "taken": "2026-10-10",
     "appCommit": "0122c92"
   },
+  "settings/security-two-factor": {
+    "page": "settings/security.md",
+    "user": "admin",
+    "sources": [
+      "src/components/security/TwoFactorSettings.tsx",
+      "src/components/SettingsScreen.tsx"
+    ],
+    "anchor": "2026-10-07",
+    "taken": "2026-11-09",
+    "appCommit": "4d96dfa"
+  },
   "team/invitations-invite-dialog": {
     "page": "team/invitations.md",
     "user": "admin",

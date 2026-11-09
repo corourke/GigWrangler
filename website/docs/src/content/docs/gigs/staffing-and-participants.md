@@ -47,7 +47,7 @@ When the work is done, finalize each assignment so it counts as a cost.
 - To finalize every confirmed fee in one step, select **Finalize All**. It skips rates, because it can't know the units.
 - To reverse one, select **Undo Finalize**.
 
-Finalizing adds a money-out entry for the gig (category Contract labor, description "Labor: &lt;role&gt;") to the **Financials** tab. Undoing it removes the entry. A finalized row is locked until you undo it.
+Finalizing adds a money-out entry for the gig (category Contract labor, description "Labor: &lt;role&gt;") to the **Financials** tab, as **Owed** and dated the gig's start date. For a gig in a filed tax year it's refused. Undoing it removes the entry and any receipt attached to it; if the entry can't be removed, the assignment stays finalized. A finalized row is locked until you undo it.
 
 ## Staff cost
 

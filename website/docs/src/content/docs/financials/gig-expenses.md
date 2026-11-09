@@ -57,13 +57,15 @@ Click **Edit Financials** to show the buttons.
 
 ## Getting paid
 
-**Record Payment** on a booking asks for the amount, the date and a reference (check number, transaction id).
+**Record Payment** on a booking opens **Record payment received**, which asks for the amount, the date and a reference (check number, transaction id). Select **Save payment**.
 
 **Payment received** does the same when the gig has an open booking (from **Quoted** to **Invoiced**). It shows **Apply to**, with the earliest open booking chosen and its amount filled in, so the booking is paid off rather than counted twice. To record money that isn't for a booking, choose **Separate payment (no booking)**.
 
 If less than the agreed amount arrived, you choose what the rest is:
-- **Still owed:** it becomes its own row, still due.
+- **Still owed:** the rest becomes its own row, named after the booking with "(remainder)" added, at the same stage and due date. You see "Payment recorded; {amount} still owed".
 - **Not coming:** the booking is settled for what you received. History keeps the change.
+
+The payment and the remainder are saved together, so a refused payment leaves nothing behind. In a [filed tax year](/financials/tax-treatment/#filed-years-are-locked), a payment is refused with "The {year} tax year is locked (filed): …".
 
 On a cost, **Mark paid** does the same for money you paid out.
 
@@ -73,9 +75,10 @@ The **…** menu on any row offers **Edit**, **Set stage** and **Remove**.
 
 Staff booked on the gig show under **Projected staff costs** until you finalize them in the gig's staffing section (**Finalize Assignment** or **Finalize All**). A fee shows in full. A rate shows an estimate from the gig's times, such as "est. 9.5 hr × $35.00 / hr = $332.50": hours from start to end for an hourly rate, the gig's days for a day rate, and one per gig day for a half-day rate. The same estimate is in **staff booked** at the top of the tab, on the printed sheet and in [Gig Accounting](/financials/gig-accounting/).
 
-- **Finalizing** adds the pay to money out as **Owed**, labelled "Labor: {role}" and marked **Staff**.
+- **Finalizing** adds the pay to money out as **Owed**, labelled "Labor: {role}" and marked **Staff**. It's dated the gig's start date, in the gig's time zone, not the day you finalize. For a gig in a filed tax year, finalizing is refused with "The {year} tax year is locked (filed), so no gig income or expenses can be added to it."
+- **A fee** is paid as entered, even $0.
 - **A rate** asks how many of its unit were worked (hours, days or half days), and the amount is the rate times that number.
-- **Undo Finalize** takes the row back out.
+- **Undo Finalize** takes the row back out, with any receipt attached to it, and History records it. If the row can't be removed (for example, its year is filed), the assignment stays finalized.
 
 ## Where a cost came from
 

@@ -49,6 +49,7 @@ A few things the table doesn't say:
 - **Managers aren't offered Admin** in the role lists, and can't change an Admin's role.
 - **You can't remove yourself** from the team.
 - **Staff and Viewers can't see pay.** The staffing table on a gig shows who is booked and their status, without rates or fees, on the web and on your phone.
+- **Admins must use [two-factor sign-in](/settings/security/)**, after 14 days as an Admin. Anyone else can turn it on.
 - **Deleting an organization** (the trash icon on **Browse All Organizations**) is blocked while it still has other members or data, such as gigs, equipment, purchases or pending invitations: "Cannot delete an organization that still has … Remove them first." Your own membership doesn't count, so an organization's only Admin can delete it once everyone else has been removed.
 
 ## What other organizations on your gig can see
