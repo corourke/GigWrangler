@@ -7,7 +7,7 @@ import { NOT_RETURNED_STATUS } from '../../config/inventoryWorkflow';
 // A partial return (#185) is written by the unload prompt, never picked as a status by hand,
 // so it has a badge but isn't in TRACKING_STATUS_CONFIG's pickable list.
 const BADGE_ONLY = {
-  [NOT_RETURNED_STATUS]: { label: 'Not Returned', color: 'border-red-200 bg-red-50 text-red-700' },
+  [NOT_RETURNED_STATUS]: { label: NOT_RETURNED_STATUS, color: 'border-red-200 bg-red-50 text-red-700' },
 } as Record<string, { label: string; color: string }>;
 
 interface TrackingStatusBadgeProps {

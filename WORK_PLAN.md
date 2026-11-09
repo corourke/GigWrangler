@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-11-07 (coordinator: **Prod deployed from the cloud 11-07** (Cameron away; his OK): migrations through `20261107100000`, edge functions and website at 32af7c5, security headers verified live. Guide #336, #340, #343 merged. **Audit remediation in progress** (details private): security fixes merged and live; open: #362, #363 (two-factor sign-in, plan #361), rate limits, enforcing the content-security rule; code-review fixes next (payment dates, deleting linked purchases, then the rest). **Rule (Cameron, 11-04):** the repo is public: no tax-return figures, prod amounts, client or gig names, payment details or personal information in the board, docs, issues, PRs, commits or tests. **Rule (Cameron, 11-07):** the coordinator always asks Cameron questions with the AskUserQuestion prompt, never as plain text)
+- **Last updated:** 2026-11-09 (coordinator: **Mobile features chosen (Cameron 11-09), after the audits: §3e.** **Prod deployed from the cloud 11-07** (Cameron away; his OK): migrations through `20261107100000`, edge functions and website at 32af7c5, security headers verified live. Guide #336, #340, #343 merged. **Audit remediation in progress** (details private): security fixes merged and live; open: #362, #363 (two-factor sign-in, plan #361), rate limits, enforcing the content-security rule; code-review fixes next (payment dates, deleting linked purchases, then the rest). **Rule (Cameron, 11-04):** the repo is public: no tax-return figures, prod amounts, client or gig names, payment details or personal information in the board, docs, issues, PRs, commits or tests. **Rule (Cameron, 11-07):** the coordinator always asks Cameron questions with the AskUserQuestion prompt, never as plain text)
 
 ---
 
@@ -305,6 +305,14 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
   - **Icon-only buttons have no labels:** add tag (+) and remove line (X).
   - **Tracking Type descriptions promise packing and scanning behaviour** from #185/#186.
   - **A kit can hold both "4 × any HX-12P" and a specific HX-12P,** which totals 5. Intended?
+
+### 3e. Mobile features, after the audits (Cameron, 11-09)
+
+Cameron chose three mobile features. They start **after** the audit remediation (Parts B and A) is done. Each needs a plan approved by Cameron before code (AGENTS.md rule 1).
+
+1. **Receipt capture.** Take a photo of a receipt (or pick a file) on the phone and add it to the purchase scan queue (`purchase_scan_queue`). **No review on the phone**: scanning and review happen on desktop, as today.
+2. **Notifications.** Phone push alerts (web push for the installed app) for events such as assignment invites and declines, join requests, gig status changes and payments due. The plan asks Cameron which events, and who gets them.
+3. **Day-of-show sheet.** One "Today" screen for the current gig: schedule, venue and directions, one-tap contacts, and the gig's documents, available offline.
 
 ## 4. Agents and documentation
 

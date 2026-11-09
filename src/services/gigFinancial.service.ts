@@ -7,6 +7,7 @@ import { computeFieldChanges } from '../utils/fieldChanges';
 import type { ActivityEventType } from '../utils/activityLog.events';
 import { expectedAmount, summarizeMoney, toDateKey, type MoneyRow, type MoneySummary } from '../utils/moneyFlow';
 import { projectedStaffCost, type GigTimes } from '../utils/rateEstimate';
+import { money as toCents } from '../utils/money';
 
 /**
  * Gig financial / bid operations (Phase 7, Step 4 — extracted from
@@ -29,23 +30,18 @@ export async function getGigFinancials(gigId: string, organizationId?: string) {
     if (error) throw error;
 
     const rows = data || [];
-    // Attach a receipt/document count per row in one round-trip (entity_attachments
+    if (rows.length === 0) return [];
+    // A receipt/document count per row in one round-trip (entity_attachments
     // is polymorphic with no FK, so it can't be embedded via PostgREST). Non-fatal:
     // a failure here just leaves attachment_count at 0.
-    if (rows.length > 0) {
-      const ids = rows.map((r: any) => r.id);
-      const { data: links } = await supabase
-        .from('entity_attachments')
-        .select('entity_id')
-        .eq('entity_type', 'gig_financial')
-        .in('entity_id', ids);
-      const counts = new Map<string, number>();
-      for (const l of links || []) {
-        counts.set((l as any).entity_id, (counts.get((l as any).entity_id) || 0) + 1);
-      }
-      for (const r of rows as any[]) r.attachment_count = counts.get(r.id) || 0;
-    }
-    return rows;
+    const { data: links } = await supabase
+      .from('entity_attachments')
+      .select('entity_id')
+      .eq('entity_type', 'gig_financial')
+      .in('entity_id', rows.map((r) => r.id));
+    const counts = new Map<string, number>();
+    for (const { entity_id } of links || []) counts.set(entity_id, (counts.get(entity_id) || 0) + 1);
+    return rows.map((r) => ({ ...r, attachment_count: counts.get(r.id) || 0 }));
   } catch (err) {
     return handleApiError(err, 'fetch gig financials');
   }
@@ -97,8 +93,9 @@ export async function getGigProfitabilitySummary(gigId: string, organizationId: 
       }
     });
 
-    const totalCosts = money.expectedOut + projectedStaffCosts;
-    const profit = money.expectedIn - totalCosts;
+    projectedStaffCosts = toCents(projectedStaffCosts);
+    const totalCosts = toCents(money.expectedOut + projectedStaffCosts);
+    const profit = toCents(money.expectedIn - totalCosts);
     const margin = money.expectedIn > 0 ? (profit / money.expectedIn) * 100 : 0;
 
     return {
@@ -242,9 +239,9 @@ export async function getGigExportAggregates(
     const result = new Map<string, GigExportAggregates>();
     for (const [gigId, a] of acc) {
       result.set(gigId, {
-        revenue: a.revenue,
-        costOfStaff: a.costOfStaff,
-        expenses: a.expenses,
+        revenue: toCents(a.revenue),
+        costOfStaff: toCents(a.costOfStaff),
+        expenses: toCents(a.expenses),
         staffCount: a.staffCount,
       });
     }
