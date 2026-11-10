@@ -305,6 +305,20 @@ describe('MobileGigDetail', () => {
       expect(screen.queryByText('Cancel')).not.toBeInTheDocument()
     })
 
+    it('keeps the date and time fields inside the screen width when editing (#442)', async () => {
+      mockUseAuth.mockReturnValue({ user: { id: 'user-1' }, userRole: 'Admin', selectedOrganization: { id: 'org-1' } })
+      const { container } = render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+      await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+      fireEvent.click(screen.getByRole('button', { name: /edit gig/i }))
+      await waitFor(() => expect(screen.getByPlaceholderText('Gig title')).toBeInTheDocument())
+      const fields = container.querySelectorAll('input[type=date], input[type=time]')
+      expect(fields.length).toBeGreaterThan(0)
+      for (const input of fields) {
+        expect(input.className).toContain('min-w-0')
+        expect(input.parentElement!.className).toContain('min-w-0')
+      }
+    })
+
     it('clicking Edit shows title input, date input, textarea for notes, timezone select', async () => {
       mockUseAuth.mockReturnValue({
         user: { id: 'user-1' },
