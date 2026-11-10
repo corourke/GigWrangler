@@ -79,7 +79,10 @@ export default function ScanInvoiceTab({ organizationId, queue, onSaved }: ScanI
           return (
             <li key={item.id} className={`flex items-center gap-3 px-4 py-2 text-sm ${isCurrent ? 'bg-sky-50' : ''}`}>
               <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
-              <span className="flex-1 min-w-0 truncate">{item.file_name}</span>
+              <span className="flex-1 min-w-0 truncate">
+                {item.file_name}
+                {item.gigs?.title && <span className="text-muted-foreground"> for {item.gigs.title}</span>}
+              </span>
               <span className={`inline-flex items-center gap-1 text-xs ${className}`} title={item.error ?? undefined}>
                 <Icon className={`w-3.5 h-3.5 ${item.status === 'scanning' ? 'animate-spin' : ''}`} />
                 {item.status === 'failed' && item.error ? `Failed: ${item.error}` : label}
