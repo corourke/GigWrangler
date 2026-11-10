@@ -24,6 +24,9 @@ vi.mock('../../utils/idb/store', () => ({
   },
 }))
 
+const mockSendQueuedReceipt = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+vi.mock('./receiptOutbox.service', () => ({ sendQueuedReceipt: mockSendQueuedReceipt }))
+
 import { offlineSyncService } from './offlineSync.service'
 import { idbStore } from '../../utils/idb/store'
 import { toast } from 'sonner'
@@ -495,5 +498,33 @@ describe('offlineSyncService: whose changes sync, and how often', () => {
     await offlineSyncService.processOutbox()
     expect(chain.insert).toHaveBeenCalledWith(expect.objectContaining({ client_id: 'c-1' }))
     expect(idbStore.removeFromOutbox).toHaveBeenCalledWith(31)
+  })
+})
+
+// Mobile receipt capture, offline (11-10): receipts kept on the phone are sent from the outbox.
+describe('offlineSyncService: receipts kept on the phone', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetSession.mockResolvedValue({ data: { session: { user: { id: 'user-1' } } } })
+  })
+
+  it('sends a RECEIPT_UPLOAD to the scan queue', async () => {
+    const payload = { organization_id: 'org-1', gig_id: null, file_name: 'receipt-1.jpg', file_type: 'image/jpeg', file: new Blob(['x']), size: 1 }
+    await offlineSyncService.syncItem(outboxItem('RECEIPT_UPLOAD', payload))
+    expect(mockSendQueuedReceipt).toHaveBeenCalledWith(payload)
+  })
+
+  it('two syncs at once send each change only once', async () => {
+    let finish!: () => void
+    mockSendQueuedReceipt.mockImplementationOnce(() => new Promise<void>((r) => { finish = r }))
+    const item = { ...outboxItem('RECEIPT_UPLOAD', { organization_id: 'org-1' }), id: 41 }
+    vi.mocked(idbStore.getOutbox).mockResolvedValue([item])
+    const first = offlineSyncService.processOutbox()
+    const second = offlineSyncService.processOutbox()
+    await vi.waitFor(() => expect(mockSendQueuedReceipt).toHaveBeenCalledTimes(1))
+    finish()
+    await Promise.all([first, second])
+    expect(mockSendQueuedReceipt).toHaveBeenCalledTimes(1)
+    vi.mocked(idbStore.getOutbox).mockResolvedValue([])
   })
 })

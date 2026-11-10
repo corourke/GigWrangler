@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createClient } from '../utils/supabase/client';
 import { uploadAttachment, deleteAttachment } from './attachment.service';
-import { enqueueInvoice, scanQueuedInvoice, discardQueuedInvoice, listScanQueue, removeFromScanQueue, listMyRecentReceipts } from './purchaseScanQueue.service';
+import { enqueueInvoice, scanQueuedInvoice, discardQueuedInvoice, listScanQueue, removeFromScanQueue, listMyRecentReceipts, receiptAlreadyUploaded } from './purchaseScanQueue.service';
 
 vi.mock('../utils/supabase/client', () => ({ createClient: vi.fn() }));
 vi.mock('./attachment.service', () => ({
@@ -11,7 +11,7 @@ vi.mock('./attachment.service', () => ({
 }));
 
 const chain: any = {};
-for (const m of ['from', 'select', 'insert', 'delete', 'eq', 'gte', 'order', 'single']) chain[m] = vi.fn(() => chain);
+for (const m of ['from', 'select', 'insert', 'delete', 'eq', 'gte', 'order', 'limit', 'single']) chain[m] = vi.fn(() => chain);
 const supabase = { from: chain.from, functions: { invoke: vi.fn() } };
 
 beforeEach(() => {
@@ -99,5 +99,15 @@ describe('purchase scan queue service', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("tells whether a receipt kept on the phone was already uploaded, by its file's name", async () => {
+    chain.limit.mockResolvedValueOnce({ data: [{ id: 'att-9' }], error: null });
+    expect(await receiptAlreadyUploaded('org-1', 'receipt-20261110-143205-abcdef.jpg')).toBe(true);
+    expect(chain.from).toHaveBeenCalledWith('attachments');
+    expect(chain.eq).toHaveBeenCalledWith('organization_id', 'org-1');
+    expect(chain.eq).toHaveBeenCalledWith('file_name', 'receipt-20261110-143205-abcdef.jpg');
+    chain.limit.mockResolvedValueOnce({ data: [], error: null });
+    expect(await receiptAlreadyUploaded('org-1', 'x.jpg')).toBe(false);
   });
 });

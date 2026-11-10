@@ -4,7 +4,7 @@ export interface OutboxItem {
   id?: number;
   type: 'INVENTORY_SCAN' | 'INVENTORY_CLEAR' | 'INVENTORY_NOTE_UPDATE' | 'ASSET_STATUS_UPDATE'
     | 'MAINTENANCE_SEND' | 'MAINTENANCE_RETURN' | 'MAINTENANCE_UPDATE' | 'BIO_ENROLL' | 'STAFF_ASSIGNMENT_UPDATE'
-    | 'KIT_ASSIGNMENT_ADD' | 'KIT_ASSIGNMENT_REMOVE';
+    | 'KIT_ASSIGNMENT_ADD' | 'KIT_ASSIGNMENT_REMOVE' | 'RECEIPT_UPLOAD';
   payload: any;
   timestamp: number;
   attempts: number;
