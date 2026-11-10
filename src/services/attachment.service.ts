@@ -213,3 +213,31 @@ export async function getAttachmentUrl(filePath: string) {
     return handleApiError(err, 'get attachment url');
   }
 }
+
+/** A file larger than the caller's limit; `size` is its size in bytes. */
+export class AttachmentTooLargeError extends Error {
+  constructor(public size: number) {
+    super(`File is too large (${size} bytes)`);
+    this.name = 'AttachmentTooLargeError';
+  }
+}
+
+/**
+ * Downloads an attachment as a Blob, to save it on the phone (day-of-show sheet, §3e). Stops
+ * before reading the body when the stated size is over `maxBytes`; refuses it after reading when
+ * no size was stated.
+ */
+export async function downloadAttachment(filePath: string, maxBytes: number): Promise<Blob> {
+  const url = await getAttachmentUrl(filePath);
+  const controller = new AbortController();
+  const res = await fetch(url, { signal: controller.signal });
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  const stated = Number(res.headers.get('content-length'));
+  if (stated > maxBytes) {
+    controller.abort();
+    throw new AttachmentTooLargeError(stated);
+  }
+  const blob = await res.blob();
+  if (blob.size > maxBytes) throw new AttachmentTooLargeError(blob.size);
+  return blob;
+}

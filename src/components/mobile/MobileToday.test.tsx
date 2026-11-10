@@ -11,8 +11,21 @@ vi.mock('../../services/mobile/dayOfShow.service', async (importOriginal) => {
   return { ...actual, loadTodayCandidates: vi.fn(), loadDayOfShowSheet: vi.fn() }
 })
 vi.mock('../../services/attachment.service', () => ({ getAttachmentUrl: vi.fn() }))
+vi.mock('../../services/mobile/dayOfShowFiles.service', async (importOriginal) => {
+  const actual: any = await importOriginal()
+  return {
+    ...actual,
+    saveGigDocumentsAhead: vi.fn(async () => {}),
+    listSavedDocuments: vi.fn(async () => ({})),
+    saveDayOfShowDocument: vi.fn(),
+    getSavedDocument: vi.fn(),
+  }
+})
+const toastError = vi.fn()
+vi.mock('sonner', () => ({ toast: { error: (...a: any[]) => toastError(...a), success: vi.fn() } }))
 
 import { loadTodayCandidates, loadDayOfShowSheet, type DayOfShowSheet } from '../../services/mobile/dayOfShow.service'
+import { saveGigDocumentsAhead, listSavedDocuments, saveDayOfShowDocument, getSavedDocument } from '../../services/mobile/dayOfShowFiles.service'
 
 const NOW = new Date('2026-11-10T17:00:00Z') // 9 AM in Los Angeles
 const gig = (id: string, start: string, end: string, title = id) =>
@@ -128,5 +141,57 @@ describe('MobileToday (day-of-show sheet)', () => {
     vi.mocked(loadDayOfShowSheet).mockResolvedValue(null)
     render(<MobileToday onViewGigDetail={vi.fn()} />)
     await waitFor(() => expect(screen.getByText(/isn't saved on this phone/)).toBeInTheDocument())
+  })
+
+  describe('documents saved on the phone (PR 2)', () => {
+    beforeEach(() => {
+      vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY])
+      vi.mocked(listSavedDocuments).mockResolvedValue({})
+      ;(URL as any).createObjectURL = vi.fn(() => 'blob:local/1')
+      ;(URL as any).revokeObjectURL = vi.fn()
+    })
+
+    it("saves the gig's PDFs and images ahead when the sheet loads online", async () => {
+      render(<MobileToday onViewGigDetail={vi.fn()} />)
+      await screen.findByText('stage-plot.pdf')
+      await waitFor(() => expect(saveGigDocumentsAhead).toHaveBeenCalledWith(expect.objectContaining({ gig_id: 'g1' })))
+    })
+
+    it('offline, opens a saved document in the app', async () => {
+      setOnline(false)
+      vi.mocked(listSavedDocuments).mockResolvedValue({ 'att-1': { size: 2 * 1024 * 1024, type: 'application/pdf' } })
+      vi.mocked(getSavedDocument).mockResolvedValue({
+        id: 'att-1', gig_id: 'g1', file_name: 'stage-plot.pdf', type: 'application/pdf', size: 1, saved_at: 1,
+        blob: new Blob(['%PDF'], { type: 'application/pdf' }),
+      })
+      render(<MobileToday onViewGigDetail={vi.fn()} />)
+      expect(await screen.findByText('Saved on this phone · 2.0 MB')).toBeInTheDocument()
+      expect(saveGigDocumentsAhead).not.toHaveBeenCalled()
+      const open = screen.getByRole('button', { name: /stage-plot\.pdf/ })
+      expect(open).toBeEnabled()
+      fireEvent.click(open)
+      const viewer = await screen.findByRole('dialog', { name: 'stage-plot.pdf' })
+      expect(viewer.querySelector('iframe')?.getAttribute('src')).toBe('blob:local/1')
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:local/1')
+    })
+
+    it('online, saves a document that is not saved yet when asked', async () => {
+      vi.mocked(saveDayOfShowDocument).mockResolvedValue({ saved: true })
+      render(<MobileToday onViewGigDetail={vi.fn()} />)
+      await screen.findByText('stage-plot.pdf')
+      vi.mocked(listSavedDocuments).mockResolvedValue({ 'att-1': { size: 1024 * 1024, type: 'application/pdf' } })
+      fireEvent.click(await screen.findByRole('button', { name: 'Save stage-plot.pdf for offline' }))
+      await waitFor(() => expect(saveDayOfShowDocument).toHaveBeenCalledWith('g1', expect.objectContaining({ id: 'att-1' }), { manual: true }))
+      expect(await screen.findByText('Saved on this phone · 1.0 MB')).toBeInTheDocument()
+    })
+
+    it('says why a document could not be saved', async () => {
+      vi.mocked(saveDayOfShowDocument).mockResolvedValue({ saved: false, reason: 'gig-full' })
+      render(<MobileToday onViewGigDetail={vi.fn()} />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Save stage-plot.pdf for offline' }))
+      await waitFor(() => expect(toastError).toHaveBeenCalledWith("This gig's saved documents would pass 50 MB"))
+    })
   })
 })

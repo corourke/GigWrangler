@@ -210,6 +210,8 @@ export const queryKeys = {
   todayGigs: (userId: string, orgId: string) => ['todayGigs', userId, orgId] as const,
   /** One gig's day-of-show sheet; under gig(gigId), so a change to the gig refreshes it. */
   dayOfShow: (gigId: string) => ['gig', gigId, 'dayOfShow'] as const,
+  /** Which of its documents are saved on the phone (size and type by attachment id). */
+  dayOfShowFiles: (gigId: string) => ['gig', gigId, 'dayOfShow', 'files'] as const,
 
   // ── Mobile inventory (A10, Engineer O) ──
   // Inventory Mode's packing list is local-first: the device copy, then the server's.

@@ -9,7 +9,14 @@ vi.mock('../../services/mobile/dayOfShow.service', async (importOriginal) => {
   return { ...actual, loadTodayCandidates: vi.fn(), loadDayOfShowSheet: vi.fn(async () => null) }
 })
 
+vi.mock('../../services/mobile/dayOfShowFiles.service', () => ({
+  saveGigDocumentsAhead: vi.fn(async () => {}),
+  listSavedDocuments: vi.fn(async () => ({})),
+  saveDayOfShowDocument: vi.fn(),
+}))
+
 import { loadTodayCandidates, loadDayOfShowSheet } from '../../services/mobile/dayOfShow.service'
+import { saveGigDocumentsAhead } from '../../services/mobile/dayOfShowFiles.service'
 import { useSaveTodaySheetsAhead } from './useDayOfShowData'
 
 const NOW = new Date('2026-11-10T17:00:00Z')
@@ -45,6 +52,12 @@ describe('useSaveTodaySheetsAhead (§3e)', () => {
     await waitFor(() => expect(loadDayOfShowSheet).toHaveBeenCalledTimes(2))
     const ids = vi.mocked(loadDayOfShowSheet).mock.calls.map((c) => c[0])
     expect(ids.sort()).toEqual(['tomorrow-morning', 'tonight'])
+  })
+
+  it("saves those gigs' PDFs and images too", async () => {
+    vi.mocked(loadDayOfShowSheet).mockImplementation(async (id: string) => ({ gig_id: id, documents: [] }) as any)
+    run('Admin')
+    await waitFor(() => expect(saveGigDocumentsAhead).toHaveBeenCalledTimes(2))
   })
 
   it('saves nothing offline', async () => {

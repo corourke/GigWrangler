@@ -3,6 +3,7 @@ import {
   Calendar,
   ChevronRight,
   Clock,
+  Download,
   FileText,
   Loader2,
   Mail,
@@ -11,7 +12,9 @@ import {
   Navigation,
   Phone,
   RefreshCw,
+  Share2,
   Users,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card, CardContent } from '../ui/card';
@@ -21,7 +24,9 @@ import { cn } from '../ui/utils';
 import { toast } from 'sonner';
 import { OfflineBadge } from './OfflineBadge';
 import { useIsOffline } from './useIsOffline';
-import { useDayOfShowSheet, useTodayGigs } from './useDayOfShowData';
+import { useDayOfShowDocuments, useDayOfShowSheet, useTodayGigs } from './useDayOfShowData';
+import { getSavedDocument, SAVE_REFUSAL } from '../../services/mobile/dayOfShowFiles.service';
+import type { DayOfShowFile } from '../../utils/idb/store';
 import { pickTodayGigs } from '../../utils/todayGig';
 import { addressLines, mapsHref, smsHref, telHref } from '../../utils/contactLinks';
 import { formatDateTimeDisplay, formatInTimeZone, formatTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
@@ -190,7 +195,7 @@ function Sheet({ sheet, isOffline, onViewGigDetail }: { sheet: DayOfShowSheet; i
       <VenueSection sheet={sheet} />
       <PeopleSection title="Contacts" people={sheet.contacts} />
       <PeopleSection title="Crew" people={sheet.crew} />
-      <DocumentsSection documents={sheet.documents} isOffline={isOffline} />
+      <DocumentsSection sheet={sheet} isOffline={isOffline} />
     </>
   );
 }
@@ -301,11 +306,14 @@ function PersonRow({ person }: { person: DayOfShowPerson }) {
   );
 }
 
-function DocumentsSection({ documents, isOffline }: { documents: DayOfShowDocument[]; isOffline: boolean }) {
+function DocumentsSection({ sheet, isOffline }: { sheet: DayOfShowSheet; isOffline: boolean }) {
+  const { saved, save } = useDayOfShowDocuments(sheet);
+  const [viewing, setViewing] = React.useState<DayOfShowFile | null>(null);
+  const documents = sheet.documents;
   if (documents.length === 0) return null;
 
-  // As AttachmentManager: open the tab inside the tap, then send it to the signed link.
-  const open = async (doc: DayOfShowDocument) => {
+  // Not saved: as AttachmentManager, open the tab inside the tap, then send it to the signed link.
+  const openOnline = async (doc: DayOfShowDocument) => {
     const tab = window.open('about:blank', '_blank');
     try {
       const url = await getAttachmentUrl(doc.file_path);
@@ -321,27 +329,102 @@ function DocumentsSection({ documents, isOffline }: { documents: DayOfShowDocume
     }
   };
 
+  // Saved: open the phone's copy in the app (works offline and in the installed app).
+  const openSaved = async (doc: DayOfShowDocument) => {
+    const file = await getSavedDocument(doc.id).catch(() => undefined);
+    if (file) setViewing(file);
+    else if (!isOffline) void openOnline(doc);
+    else toast.error('Not saved on this phone');
+  };
+
+  const saveForOffline = async (doc: DayOfShowDocument) => {
+    const result = await save.mutateAsync(doc).catch(() => ({ saved: false as const, reason: 'error' as const }));
+    if (!result.saved) toast.error(SAVE_REFUSAL[result.reason]);
+  };
+
   return (
     <Card style={{ gap: 0 }}>
       <CardContent className="p-3">
         <p className={SECTION_TITLE}><FileText className="w-3.5 h-3.5" />Documents</p>
         <div className="divide-y divide-border/50">
-          {documents.map((doc) => (
-            <div key={doc.id} className="py-2">
-              <button
-                type="button"
-                disabled={isOffline}
-                onClick={() => open(doc)}
-                className="w-full text-left text-sm font-medium text-primary disabled:text-muted-foreground flex items-center gap-2"
-              >
-                <FileText className="w-4 h-4 shrink-0" />
-                <span className="truncate">{doc.file_name}</span>
-              </button>
-              {isOffline && <p className="text-[10px] text-muted-foreground mt-0.5">Not saved on this phone – connect to open</p>}
-            </div>
-          ))}
+          {documents.map((doc) => {
+            const copy = saved[doc.id];
+            const saving = save.isPending && save.variables?.id === doc.id;
+            return (
+              <div key={doc.id} className="py-2">
+                <button
+                  type="button"
+                  disabled={isOffline && !copy}
+                  onClick={() => (copy ? openSaved(doc) : openOnline(doc))}
+                  className="w-full text-left text-sm font-medium text-primary disabled:text-muted-foreground flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{doc.file_name}</span>
+                </button>
+                {copy ? (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Saved on this phone · {formatSize(copy.size)}</p>
+                ) : isOffline ? (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Not saved on this phone – connect to open</p>
+                ) : (
+                  <button
+                    type="button"
+                    className="text-[11px] text-primary font-medium mt-1 inline-flex items-center gap-1 disabled:opacity-60"
+                    aria-label={`Save ${doc.file_name} for offline`}
+                    disabled={saving}
+                    onClick={() => saveForOffline(doc)}
+                  >
+                    {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                    Save for offline
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       </CardContent>
+      {viewing && <DocumentViewer file={viewing} onClose={() => setViewing(null)} />}
     </Card>
+  );
+}
+
+const formatSize = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
+/** A saved document, full screen in the app: an image, a PDF, or (other types) Share to open it elsewhere. */
+function DocumentViewer({ file, onClose }: { file: DayOfShowFile; onClose: () => void }) {
+  const [url] = React.useState(() => URL.createObjectURL(file.blob));
+  React.useEffect(() => () => URL.revokeObjectURL(url), [url]);
+
+  const shareable = React.useMemo(() => {
+    if (typeof navigator === 'undefined' || !navigator.canShare || typeof File === 'undefined') return null;
+    const f = new File([file.blob], file.file_name, { type: file.type });
+    return navigator.canShare({ files: [f] }) ? f : null;
+  }, [file]);
+  const share = () => {
+    if (shareable) void navigator.share({ files: [shareable], title: file.file_name }).catch(() => {});
+  };
+
+  const isImage = file.type.startsWith('image/');
+  const isPdf = file.type === 'application/pdf';
+  return (
+    <div role="dialog" aria-modal="true" aria-label={file.file_name} className="fixed inset-0 z-50 bg-background flex flex-col">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border" style={{ paddingTop: 'max(8px, env(safe-area-inset-top))' }}>
+        <span className="flex-1 min-w-0 truncate text-sm font-semibold">{file.file_name}</span>
+        {shareable && (
+          <Button variant="ghost" size="sm" onClick={share} className="h-9 gap-1"><Share2 className="w-4 h-4" />Share</Button>
+        )}
+        <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose} className="h-9 w-9"><X className="w-5 h-5" /></Button>
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto">
+        {isImage ? (
+          <img src={url} alt={file.file_name} className="w-full h-auto" />
+        ) : isPdf ? (
+          <iframe src={url} title={file.file_name} className="w-full h-full border-0" />
+        ) : (
+          <p className="p-6 text-sm text-muted-foreground text-center">
+            This file can't be shown here.{shareable ? ' Use Share to open it in another app.' : ''}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
