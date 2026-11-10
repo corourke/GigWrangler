@@ -4,6 +4,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Button } from '../../ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '../../ui/sheet';
 import type { ScanQueueItem } from '../../../services/purchaseScanQueue.service';
+import type { PendingReceipt } from '../../../services/mobile/receiptOutbox.service';
 import { useIsOffline } from '../useIsOffline';
 import { useReceiptCapture } from './useReceiptCapture';
 import { RECEIPT_FILE_ACCEPT } from '../../../utils/fileAccept';
@@ -35,7 +36,7 @@ export default function ReceiptCaptureSheet({ open, onOpenChange, organizationId
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const isOffline = useIsOffline();
-  const { recent, loading, sending, lastQueued, capture, remove } = useReceiptCapture(organizationId, userId, gigId);
+  const { recent, loading, pending, sending, lastQueued, lastKept, capture, remove, removeKept } = useReceiptCapture(organizationId, userId, gigId, isOffline);
   const busy = !!sending;
 
   const onFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,6 +46,9 @@ export default function ReceiptCaptureSheet({ open, onOpenChange, organizationId
   };
   const confirmRemove = (item: ScanQueueItem) => {
     if (confirm(`Remove ${item.file_name}? The file is deleted and no purchase is saved.`)) remove(item);
+  };
+  const confirmRemoveKept = (item: PendingReceipt) => {
+    if (confirm(`Remove ${item.file_name}? It is deleted from this phone and never sent.`)) removeKept(item);
   };
 
   return (
@@ -63,15 +67,15 @@ export default function ReceiptCaptureSheet({ open, onOpenChange, organizationId
           {isOffline && (
             <p className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
               <WifiOff className="w-4 h-4 shrink-0" aria-hidden />
-              You're offline. Connect to send receipts.
+              You're offline. Receipts are kept on this phone and sent when you're back online.
             </p>
           )}
 
           <div className="grid grid-cols-2 gap-2">
-            <Button className="h-12 bg-sky-700 hover:bg-sky-800 text-white" disabled={isOffline || busy} onClick={() => cameraRef.current?.click()}>
+            <Button className="h-12 bg-sky-700 hover:bg-sky-800 text-white" disabled={busy} onClick={() => cameraRef.current?.click()}>
               <Camera className="w-5 h-5 mr-2" aria-hidden />Take photo
             </Button>
-            <Button variant="outline" className="h-12" disabled={isOffline || busy} onClick={() => fileRef.current?.click()}>
+            <Button variant="outline" className="h-12" disabled={busy} onClick={() => fileRef.current?.click()}>
               <FileUp className="w-5 h-5 mr-2" aria-hidden />Choose file
             </Button>
             <input ref={cameraRef} type="file" accept={RECEIPT_FILE_ACCEPT} capture="environment" className="hidden"
@@ -93,7 +97,45 @@ export default function ReceiptCaptureSheet({ open, onOpenChange, organizationId
                 Queued {lastQueued} receipt{lastQueued === 1 ? '' : 's'}
               </p>
             )}
+            {!sending && !!lastKept && (
+              <p className="flex items-center gap-2 text-sm font-medium text-amber-900">
+                <Clock className="w-4 h-4" aria-hidden />
+                {lastKept === 1
+                  ? "Kept 1 receipt on this phone. It sends when you're back online."
+                  : `Kept ${lastKept} receipts on this phone. They send when you're back online.`}
+              </p>
+            )}
           </div>
+
+          {pending.length > 0 && (
+            <section>
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1">On this phone</h3>
+              <ul aria-label="Receipts waiting on this phone" className="divide-y">
+                {pending.map((item) => (
+                  <li key={item.id} className="flex items-center gap-2 py-2 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate">{item.file_name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}
+                      </p>
+                    </div>
+                    {item.failed ? (
+                      <span className="inline-flex items-center gap-1 text-xs shrink-0 text-red-700">
+                        <AlertCircle className="w-3.5 h-3.5" aria-hidden />Couldn't send
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs shrink-0 text-amber-900">
+                        <Clock className="w-3.5 h-3.5" aria-hidden />Waiting to send
+                      </span>
+                    )}
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Remove ${item.file_name}`} onClick={() => confirmRemoveKept(item)}>
+                      <Trash2 className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section>
             <h3 className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground mb-1">Queued in the last 7 days</h3>

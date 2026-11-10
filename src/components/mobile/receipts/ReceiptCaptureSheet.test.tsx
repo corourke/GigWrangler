@@ -5,6 +5,8 @@ import ReceiptCaptureSheet from './ReceiptCaptureSheet';
 import { enqueueInvoice, scanQueuedInvoice, listMyRecentReceipts, discardQueuedInvoice } from '../../../services/purchaseScanQueue.service';
 import { prepareReceiptFile } from '../../../utils/receiptImage';
 import { toast } from 'sonner';
+import { saveReceiptForLater, listPendingReceipts, removePendingReceipt } from '../../../services/mobile/receiptOutbox.service';
+import { offlineSyncService } from '../../../services/mobile/offlineSync.service';
 
 vi.mock('../../../services/purchaseScanQueue.service', () => ({
   enqueueInvoice: vi.fn(),
@@ -13,6 +15,14 @@ vi.mock('../../../services/purchaseScanQueue.service', () => ({
   discardQueuedInvoice: vi.fn(),
 }));
 vi.mock('../../../utils/receiptImage', () => ({ prepareReceiptFile: vi.fn(async (f: File) => f) }));
+vi.mock('../../../services/mobile/receiptOutbox.service', () => ({
+  saveReceiptForLater: vi.fn(async () => 1),
+  listPendingReceipts: vi.fn(async () => []),
+  removePendingReceipt: vi.fn(async () => undefined),
+}));
+vi.mock('../../../services/mobile/offlineSync.service', () => ({
+  offlineSyncService: { processOutbox: vi.fn(async () => undefined) },
+}));
 vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
 
 const offline = vi.hoisted(() => ({ value: false }));
@@ -112,11 +122,50 @@ describe('ReceiptCaptureSheet', () => {
     await waitFor(() => expect(discardQueuedInvoice).toHaveBeenCalledWith(expect.objectContaining({ attachment_id: 'att-1' })));
   });
 
-  it('offline: says so and turns the buttons off', () => {
+  it('offline: keeps the receipt on the phone to send later', async () => {
     offline.value = true;
+    render(<ReceiptCaptureSheet {...props} gigId="gig-1" />);
+    expect(screen.getByText("You're offline. Receipts are kept on this phone and sent when you're back online.")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId('receipt-camera-input'), { target: { files: [photo()] } });
+    expect(await screen.findByText('Kept 1 receipt on this phone. It sends when you\'re back online.')).toBeInTheDocument();
+    expect(saveReceiptForLater).toHaveBeenCalledWith({ organizationId: 'org-1', userId: 'user-1', gigId: 'gig-1', file: expect.any(File) });
+    expect(enqueueInvoice).not.toHaveBeenCalled();
+  });
+
+  it('a dropped connection keeps the receipt on the phone instead', async () => {
+    const lost = Object.assign(new Error('Network error: Unable to upload.'), { name: 'NetworkError' });
+    vi.mocked(enqueueInvoice).mockRejectedValueOnce(lost);
     render(<ReceiptCaptureSheet {...props} />);
-    expect(screen.getByText("You're offline. Connect to send receipts.")).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Take photo/ })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Choose file/ })).toBeDisabled();
+    fireEvent.change(screen.getByTestId('receipt-file-input'), { target: { files: [photo()] } });
+    expect(await screen.findByText(/Kept 1 receipt on this phone/)).toBeInTheDocument();
+    expect(saveReceiptForLater).toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('says so when the phone is holding too many', async () => {
+    offline.value = true;
+    vi.mocked(saveReceiptForLater).mockRejectedValueOnce(new Error('This phone is holding 20 receipts to send. Connect to send them before adding more.'));
+    render(<ReceiptCaptureSheet {...props} />);
+    fireEvent.change(screen.getByTestId('receipt-file-input'), { target: { files: [photo()] } });
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('This phone is holding 20 receipts to send. Connect to send them before adding more.'));
+  });
+
+  it('lists receipts waiting on the phone, and can remove one', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.mocked(listPendingReceipts).mockResolvedValue([
+      { id: 7, file_name: 'receipt-a.jpg', gig_id: null, timestamp: Date.now(), failed: false },
+      { id: 8, file_name: 'receipt-b.jpg', gig_id: 'gig-1', timestamp: Date.now(), failed: true },
+    ] as any);
+    render(<ReceiptCaptureSheet {...props} />);
+    const list = await screen.findByRole('list', { name: 'Receipts waiting on this phone' });
+    expect(within(list).getByText('Waiting to send')).toBeInTheDocument();
+    expect(within(list).getByText("Couldn't send")).toBeInTheDocument();
+    fireEvent.click(within(list).getByRole('button', { name: 'Remove receipt-a.jpg' }));
+    await waitFor(() => expect(removePendingReceipt).toHaveBeenCalledWith(7));
+  });
+
+  it('online: sends anything kept on the phone when it opens', async () => {
+    render(<ReceiptCaptureSheet {...props} />);
+    await waitFor(() => expect(offlineSyncService.processOutbox).toHaveBeenCalled());
   });
 });

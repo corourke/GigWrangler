@@ -75,6 +75,23 @@ export async function enqueueInvoice(organizationId: string, file: File, gigId?:
   }
 }
 
+/**
+ * Whether a receipt kept on the phone (by its unique name) was already uploaded: an earlier
+ * try got through but its reply was lost. A file is only kept if it made it into the queue.
+ */
+export async function receiptAlreadyUploaded(organizationId: string, fileName: string): Promise<boolean> {
+  const rows = await listRecords<{ id: string }>('attachments', {
+    select: 'id',
+    filters: [
+      { column: 'organization_id', operator: 'eq', value: organizationId },
+      { column: 'file_name', operator: 'eq', value: fileName },
+    ],
+    limit: 1,
+    context: 'check for an uploaded receipt',
+  });
+  return rows.length > 0;
+}
+
 /** Scans a queued invoice. The edge function records the result on the queue row. */
 export async function scanQueuedInvoice(queueItemId: string) {
   try {
