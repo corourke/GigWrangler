@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { act } from '@testing-library/react'
+import { act, fireEvent } from '@testing-library/react'
 import { render, screen } from '@testing-library/react'
 import MobileLayout from './MobileLayout'
 import { AuthProvider } from '../../contexts/AuthProvider'
@@ -70,24 +70,61 @@ describe('MobileLayout bottom nav: the Today tab (§3e)', () => {
   })
 })
 
-// #442: on iPhone the keyboard doesn't shrink the page, so the tab bar would ride up above it.
+// #442: on iPhone the keyboard doesn't shrink the page. The tab bar would ride up above it, and
+// iOS scrolls the visible area down the page, taking the app's headers off the top.
 describe('MobileLayout with the keyboard open', () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => { vi.unstubAllGlobals(); document.body.innerHTML = '' })
 
-  it('hides the tab bar while the keyboard is open, and shows it again after', () => {
-    const vv = Object.assign(new EventTarget(), { height: window.innerHeight, offsetTop: 0, width: 390 })
+  const setup = () => {
+    const vv = Object.assign(new EventTarget(), { height: window.innerHeight, offsetTop: 0, width: 390, scale: 1 })
     vi.stubGlobal('visualViewport', vv)
     render(
       <AuthProvider>
         <MobileLayout currentRoute="mobile-gig-list" onNavigate={vi.fn()}>
-          <div />
+          <input aria-label="Search organizations" />
         </MobileLayout>
       </AuthProvider>
     )
+    const field = screen.getByLabelText('Search organizations') as HTMLInputElement
+    const keyboard = (open: boolean, offsetTop = 0) => act(() => {
+      if (open) field.focus(); else field.blur()
+      Object.assign(vv, { height: open ? window.innerHeight - 320 : window.innerHeight, offsetTop })
+      vv.dispatchEvent(new Event('resize'))
+    })
+    return { field, keyboard }
+  }
+
+  it('hides the tab bar while the keyboard is open, and shows it again after', () => {
+    const { keyboard } = setup()
     expect(screen.getByTestId('mobile-bottom-nav')).toBeVisible()
-    act(() => { vv.height = window.innerHeight - 320; vv.dispatchEvent(new Event('resize')) })
+    keyboard(true)
     expect(screen.getByTestId('mobile-bottom-nav')).not.toBeVisible()
-    act(() => { vv.height = window.innerHeight; vv.dispatchEvent(new Event('resize')) })
+    keyboard(false)
     expect(screen.getByTestId('mobile-bottom-nav')).toBeVisible()
+  })
+
+  it('stays pinned to the visible area when iOS scrolls it down for the keyboard', () => {
+    const { keyboard } = setup()
+    const root = document.querySelector('.mobile-layout-root') as HTMLElement
+    keyboard(true, 140)
+    expect(root.style.top).toBe('140px')
+    expect(root.style.height).toBe(`${window.innerHeight - 320}px`)
+    keyboard(false, 0)
+    expect(root.style.top).toBe('0px')
+    expect(root.style.height).toBe(`${window.innerHeight}px`)
+  })
+
+  it('scrolls a focused field into view inside the page', () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { field } = setup()
+      const scroll = vi.fn()
+      field.scrollIntoView = scroll
+      fireEvent.focus(field)
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(scroll).toHaveBeenCalledWith({ block: 'center' })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
