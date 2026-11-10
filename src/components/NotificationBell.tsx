@@ -1,4 +1,4 @@
-import { Bell, Check, X, Loader2, AlertTriangle } from 'lucide-react';
+import { Bell, Check, X, Loader2, AlertTriangle, CalendarClock, CalendarX, UserCheck, UserX, Briefcase, CircleDollarSign } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from './ui/badge';
 import {
@@ -17,6 +17,9 @@ import type {
   AccessRequestOutcomePayload,
   InvitationAcceptedPayload,
   HealthCheckFailurePayload,
+  AssignmentNotificationPayload,
+  GigChangedPayload,
+  PaymentReminderPayload,
   Notification,
 } from '../utils/supabase/types';
 
@@ -35,6 +38,23 @@ const HEALTH_CHECK_LABELS: Record<HealthCheckFailurePayload['check'], string> = 
  * resolved. Clicking through and resolving it, or dismissing the notice
  * directly, both mark it read.
  */
+/** "date", "date and venue", "date, time and venue". */
+function listOf(words: string[]): string {
+  if (words.length <= 1) return words[0] ?? '';
+  return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+}
+
+const CHANGE_ORDER = ['date', 'time', 'venue'] as const;
+
+/** "2 payments are due today · 1 is overdue" (the push says the same, without the organization). */
+function paymentReminderText(due: number, overdue: number): string {
+  const are = (n: number) => (n === 1 ? 'A payment is' : `${n} payments are`);
+  if (due && overdue) return `${are(due)} due today · ${overdue} ${overdue === 1 ? 'is' : 'are'} overdue`;
+  if (due) return `${are(due)} due today`;
+  if (overdue) return `${are(overdue)} overdue`;
+  return 'Payments need attention';
+}
+
 /** A request for Viewer or Staff is a request to join the organization. */
 const isJoinRole = (role: string) => role === 'Viewer' || role === 'Staff';
 
@@ -77,6 +97,14 @@ export default function NotificationBell() {
     const payload = notification.payload as InvitationAcceptedPayload;
     markRead.mutate(notification.id);
     goToOrgTeam(payload.organization_id);
+  };
+
+  // Gig, staffing and payment notifications open their screen in the organization they belong to.
+  const openIn = (notification: Notification, organizationId: string, go: () => void) => {
+    markRead.mutate(notification.id);
+    const membership = organizations.find((m) => m.organization.id === organizationId);
+    if (membership) selectOrganization(membership.organization);
+    go();
   };
 
   const handleDismiss = (notification: Notification) => {
@@ -217,6 +245,98 @@ export default function NotificationBell() {
                   <p className="text-sm">
                     <strong>{payload.accepted_user_name}</strong> accepted your invitation to{' '}
                     {payload.organization_name}.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                  </p>
+                </div>
+                {isPending && <Loader2 className="w-3 h-3 animate-spin shrink-0" />}
+              </DropdownMenuItem>
+            );
+          }
+
+          if (
+            notification.type === 'assignment.requested' ||
+            notification.type === 'assignment.accepted' ||
+            notification.type === 'assignment.declined'
+          ) {
+            const payload = notification.payload as AssignmentNotificationPayload;
+            const role = payload.role_name || 'a role';
+            const Icon = notification.type === 'assignment.requested' ? Briefcase
+              : notification.type === 'assignment.accepted' ? UserCheck : UserX;
+            return (
+              <DropdownMenuItem
+                key={notification.id}
+                onClick={() => openIn(notification, payload.organization_id, () => nav.viewGig(payload.gig_id))}
+                className="flex items-start gap-2 whitespace-normal"
+              >
+                <Icon className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm">
+                    {notification.type === 'assignment.requested' ? (
+                      <>
+                        You've been asked to work <strong>{role}</strong> on <strong>{payload.gig_title}</strong>
+                        {payload.gig_date ? ` (${payload.gig_date})` : ''}.
+                      </>
+                    ) : (
+                      <>
+                        <strong>{payload.first_name || 'Someone'}</strong>{' '}
+                        {notification.type === 'assignment.accepted' ? 'accepted' : 'declined'} <strong>{role}</strong> on{' '}
+                        <strong>{payload.gig_title}</strong>.
+                      </>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                  </p>
+                </div>
+                {isPending && <Loader2 className="w-3 h-3 animate-spin shrink-0" />}
+              </DropdownMenuItem>
+            );
+          }
+
+          if (notification.type === 'gig.changed') {
+            const payload = notification.payload as GigChangedPayload;
+            const kinds = payload.kinds ?? [];
+            const cancelled = kinds.includes('cancelled');
+            const changed = CHANGE_ORDER.filter((k) => kinds.includes(k));
+            const Icon = cancelled ? CalendarX : CalendarClock;
+            return (
+              <DropdownMenuItem
+                key={notification.id}
+                onClick={() => openIn(notification, payload.organization_id, () => nav.viewGig(payload.gig_id))}
+                className="flex items-start gap-2 whitespace-normal"
+              >
+                <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${cancelled ? 'text-destructive' : 'text-muted-foreground'}`} />
+                <div className="flex-1">
+                  <p className="text-sm">
+                    {cancelled ? (
+                      <><strong>{payload.gig_title}</strong> was cancelled.</>
+                    ) : (
+                      <><strong>{payload.gig_title}</strong>: the {listOf(changed.length ? changed : ['details'])} changed.</>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                  </p>
+                </div>
+                {isPending && <Loader2 className="w-3 h-3 animate-spin shrink-0" />}
+              </DropdownMenuItem>
+            );
+          }
+
+          if (notification.type === 'payment.reminder') {
+            const payload = notification.payload as PaymentReminderPayload;
+            return (
+              <DropdownMenuItem
+                key={notification.id}
+                onClick={() => openIn(notification, payload.organization_id, () => nav.toFinancials())}
+                className="flex items-start gap-2 whitespace-normal"
+              >
+                <CircleDollarSign className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm">
+                    <strong>{payload.organization_name}</strong>: {paymentReminderText(payload.due_count, payload.overdue_count)}.
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}

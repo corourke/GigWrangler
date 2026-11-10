@@ -408,13 +408,13 @@ describe('NotificationBell: gigs, staffing and payments', () => {
       note('gig.changed', { ...gig, kinds: ['venue', 'date'] }),
       note('gig.changed', { ...gig, gig_id: 'gig-2', gig_title: 'Autumn Ball', kinds: ['cancelled'] }),
     ]);
-    expect(screen.getByRole('menuitem', { name: /Spring Gala: the date and venue changed/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Spring Gala\s?: the date and venue changed/ })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Autumn Ball was cancelled/ })).toBeInTheDocument();
   });
 
   it('payment reminders open Financials in their organization', async () => {
     const user = await open([note('payment.reminder', { organization_id: 'org-1', organization_name: 'Acme Productions', due_count: 2, overdue_count: 1 })]);
-    const item = screen.getByRole('menuitem', { name: /Acme Productions: 2 payments are due today · 1 is overdue/ });
+    const item = screen.getByRole('menuitem', { name: /Acme Productions\s?: 2 payments are due today · 1 is overdue/ });
     await user.click(item);
     expect(selectOrganization).toHaveBeenCalledWith(org);
     expect(mockToFinancials).toHaveBeenCalled();

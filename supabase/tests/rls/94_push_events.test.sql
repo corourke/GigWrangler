@@ -138,7 +138,7 @@ UPDATE gigs SET start = now() - interval '3 days', "end" = now() - interval '2 d
 DELETE FROM public.gig_change_batches;
 SELECT rls_test.exec('a_admin', format($q$UPDATE gigs SET start = start + interval '1 hour' WHERE id = %L$q$, rls_test.u('gig')));
 SELECT rls_test.expect('changing a gig that is over tells nobody', (SELECT count(*)::int FROM public.gig_change_batches), 0);
-SELECT rls_test.expect('signed-in people cannot read the batches', rls_test.visible(rls_test.u('a_admin'), 'public.gig_change_batches'), 0);
+SELECT rls_test.expect('signed-in people cannot read the batches', rls_test.visible(rls_test.u('a_admin'), 'public.gig_change_batches'), -1);
 
 -- 4. Payments ------------------------------------------------------------------------------------
 -- Org A's books: one due today (money in), one overdue since yesterday (money out), and ones that
@@ -180,6 +180,6 @@ SELECT rls_test.expect('... org C: overdue', (SELECT count(*)::int FROM public.n
 UPDATE gig_financials SET due_date = current_date + 5 WHERE id = rls_test.u('due_today');
 SELECT rls_test.expect('a new due date is reminded again on that day', public.send_payment_reminders(current_date + 5), 1);
 SELECT rls_test.expect('nothing to remind: no notification', public.send_payment_reminders(current_date + 60), 0);
-SELECT rls_test.expect('signed-in people cannot read the reminder ledger', rls_test.visible(rls_test.u('a_admin'), 'public.payment_reminders'), 0);
+SELECT rls_test.expect('signed-in people cannot read the reminder ledger', rls_test.visible(rls_test.u('a_admin'), 'public.payment_reminders'), -1);
 SELECT rls_test.expect('signed-in people cannot run the jobs', rls_test.exec('a_admin', 'SELECT public.send_payment_reminders(current_date)'), -1);
 SELECT rls_test.expect('... either of them', rls_test.exec('a_admin', 'SELECT public.flush_gig_change_batches(now())'), -1);
