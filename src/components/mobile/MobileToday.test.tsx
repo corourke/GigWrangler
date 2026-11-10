@@ -187,6 +187,13 @@ describe('MobileToday (day-of-show sheet)', () => {
       expect(await screen.findByText('Saved on this phone · 1.0 MB')).toBeInTheDocument()
     })
 
+    it('shows a small saved file in KB, not 0.0 MB', async () => {
+      setOnline(false)
+      vi.mocked(listSavedDocuments).mockResolvedValue({ 'att-1': { size: 240 * 1024, type: 'image/png' } })
+      render(<MobileToday onViewGigDetail={vi.fn()} />)
+      expect(await screen.findByText('Saved on this phone · 240 KB')).toBeInTheDocument()
+    })
+
     it('says why a document could not be saved', async () => {
       vi.mocked(saveDayOfShowDocument).mockResolvedValue({ saved: false, reason: 'gig-full' })
       render(<MobileToday onViewGigDetail={vi.fn()} />)
