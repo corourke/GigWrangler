@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { screen, waitFor, fireEvent, within, act } from '@testing-library/react'
 import { renderWithQuery as render } from '../../test/renderWithQuery'
 import MobileGigList from './MobileGigList'
 
@@ -183,6 +183,57 @@ describe('MobileGigList', () => {
     const buttons = screen.getAllByRole('button')
     const plusButton = buttons.find(btn => btn.querySelector('svg.lucide-plus'))
     expect(plusButton).toBeDefined()
+  })
+
+  describe('the New Gig sheet on a phone (#442)', () => {
+    afterEach(() => vi.unstubAllGlobals())
+    const openSheet = async () => {
+      render(<MobileGigList onViewGig={vi.fn()} />)
+      await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+      const plus = screen.getAllByRole('button').find(btn => btn.querySelector('svg.lucide-plus'))!
+      fireEvent.click(plus)
+      return screen.getByTestId('new-gig-sheet')
+    }
+
+    it('sits in the area the keyboard leaves visible', async () => {
+      const vv = Object.assign(new EventTarget(), { height: window.innerHeight, offsetTop: 0, width: 390 })
+      vi.stubGlobal('visualViewport', vv)
+      const sheet = await openSheet()
+      act(() => { Object.assign(vv, { height: 380, offsetTop: 60 }); vv.dispatchEvent(new Event('resize')) })
+      expect(sheet.style.top).toBe('60px')
+      expect(sheet.style.height).toBe('380px')
+      expect(sheet.style.bottom).toBe('auto')
+      act(() => { Object.assign(vv, { height: window.innerHeight, offsetTop: 0 }); vv.dispatchEvent(new Event('resize')) })
+      expect(sheet.style.bottom).toContain('56px')
+    })
+
+    it('keeps its header below the status bar', async () => {
+      const sheet = await openSheet()
+      expect(sheet.className).toContain('pt-[env(safe-area-inset-top,0px)]')
+    })
+
+    it('scrolls a field into view when it gets focus', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      try {
+        const sheet = await openSheet()
+        const title = within(sheet).getByPlaceholderText('Gig title')
+        const scroll = vi.fn()
+        title.scrollIntoView = scroll
+        fireEvent.focus(title)
+        act(() => { vi.advanceTimersByTime(400) })
+        expect(scroll).toHaveBeenCalledWith({ block: 'center' })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('keeps the date and time fields inside the screen width', async () => {
+      const sheet = await openSheet()
+      for (const input of sheet.querySelectorAll('input[type=date], input[type=time]')) {
+        expect(input.className).toContain('min-w-0')
+        expect(input.parentElement!.className).toContain('min-w-0')
+      }
+    })
   })
 
   it('sorts upcoming gigs in ascending order (nearest first)', async () => {

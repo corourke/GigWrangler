@@ -34,6 +34,7 @@ import { GigDateFilterDropdown } from '../gigs/GigDateFilterDropdown';
 import { applyDateFilter, FUTURE_FILTER_LABEL, PAST_FILTER_LABEL } from '../gigs/gigDateFilter';
 import { GigStatusFilterDropdown } from '../gigs/GigStatusFilterDropdown';
 import { plural } from '../../utils/plural';
+import { useVisualViewport, scrollFieldIntoView } from '../../hooks/useVisualViewport';
 
 interface MobileGigListProps {
   onViewGig: (gigId: string) => void;
@@ -393,6 +394,9 @@ function GigListCard({
 }
 
 const CREATE_INPUT_CLASS = 'w-full h-10 px-3 text-sm bg-muted/50 rounded-lg border-0 outline-none focus:ring-2 focus:ring-sky-500/30';
+// iOS date and time fields have a minimum width of their own; in a two-column row they ran off the
+// screen (#442). min-w-0 on the field and its grid cell lets them share the row.
+const CREATE_DATE_INPUT_CLASS = cn(CREATE_INPUT_CLASS, 'min-w-0 appearance-none');
 
 interface CreateParticipant {
   organization_id: string;
@@ -409,6 +413,7 @@ function QuickCreateGigModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const viewport = useVisualViewport();
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState('');
   const [startTime, setStartTime] = useState('19:00');
@@ -540,10 +545,21 @@ function QuickCreateGigModal({
   };
 
   return (
-    <div className="fixed inset-x-0 top-0 z-50 flex items-end justify-center" style={{ bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' }}>
+    <div
+      data-testid="new-gig-sheet"
+      // pt-[…]: clear of the status bar at the top.
+      className="fixed inset-x-0 z-50 flex items-end justify-center pt-[env(safe-area-inset-top,0px)]"
+      style={{
+        // With the keyboard open, fill the area it leaves visible (iOS doesn't shrink the page for
+        // the keyboard, so the bottom of the page is behind it); otherwise sit above the tab bar.
+        ...(viewport.keyboardOpen
+          ? { top: `${viewport.offsetTop}px`, height: `${viewport.height}px`, bottom: 'auto' }
+          : { top: 0, bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' }),
+      }}
+    >
       {/* The backdrop closes the sheet on a tap; the Close button does the same from the keyboard. */}
       <div role="presentation" className="absolute inset-0 bg-black/40" onClick={saving ? undefined : onClose} />
-      <div className="relative w-full max-w-lg bg-background rounded-t-2xl max-h-full overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-background rounded-t-2xl max-h-full overflow-y-auto" onFocus={scrollFieldIntoView}>
         <div className="sticky top-0 bg-background px-4 py-3 border-b border-border/50 flex items-center justify-between rounded-t-2xl">
           <h2 className="text-base font-bold">New Gig</h2>
           <Button aria-label="Close" variant="ghost" size="icon" onClick={onClose} disabled={saving} className="h-8 w-8">
@@ -616,44 +632,44 @@ function QuickCreateGigModal({
               </label>
             </div>
             <div className={cn('grid gap-2', allDay ? 'grid-cols-2' : 'grid-cols-2')}>
-              <div>
+              <div className="min-w-0">
                 <p className="text-[10px] text-muted-foreground mb-0.5">Start date *</p>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => handleStartDateChange(e.target.value)}
-                  className={CREATE_INPUT_CLASS}
+                  className={CREATE_DATE_INPUT_CLASS}
                   required
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-[10px] text-muted-foreground mb-0.5">End date</p>
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className={CREATE_INPUT_CLASS}
+                  className={CREATE_DATE_INPUT_CLASS}
                 />
               </div>
             </div>
             {!allDay && (
               <div className="grid grid-cols-2 gap-2">
-                <div>
+                <div className="min-w-0">
                   <p className="text-[10px] text-muted-foreground mb-0.5">Start time</p>
                   <input
                     type="time"
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
-                    className={CREATE_INPUT_CLASS}
+                    className={CREATE_DATE_INPUT_CLASS}
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-[10px] text-muted-foreground mb-0.5">End time</p>
                   <input
                     type="time"
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
-                    className={CREATE_INPUT_CLASS}
+                    className={CREATE_DATE_INPUT_CLASS}
                   />
                 </div>
               </div>

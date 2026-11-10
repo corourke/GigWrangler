@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { act } from '@testing-library/react'
 import { render, screen } from '@testing-library/react'
 import MobileLayout from './MobileLayout'
 import { AuthProvider } from '../../contexts/AuthProvider'
@@ -66,5 +67,27 @@ describe('MobileLayout bottom nav: the Today tab (§3e)', () => {
     )
     const today = screen.getByRole('button', { name: 'Today' })
     expect(today).toHaveAttribute('aria-current', 'page')
+  })
+})
+
+// #442: on iPhone the keyboard doesn't shrink the page, so the tab bar would ride up above it.
+describe('MobileLayout with the keyboard open', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('hides the tab bar while the keyboard is open, and shows it again after', () => {
+    const vv = Object.assign(new EventTarget(), { height: window.innerHeight, offsetTop: 0, width: 390 })
+    vi.stubGlobal('visualViewport', vv)
+    render(
+      <AuthProvider>
+        <MobileLayout currentRoute="mobile-gig-list" onNavigate={vi.fn()}>
+          <div />
+        </MobileLayout>
+      </AuthProvider>
+    )
+    expect(screen.getByTestId('mobile-bottom-nav')).toBeVisible()
+    act(() => { vv.height = window.innerHeight - 320; vv.dispatchEvent(new Event('resize')) })
+    expect(screen.getByTestId('mobile-bottom-nav')).not.toBeVisible()
+    act(() => { vv.height = window.innerHeight; vv.dispatchEvent(new Event('resize')) })
+    expect(screen.getByTestId('mobile-bottom-nav')).toBeVisible()
   })
 })
