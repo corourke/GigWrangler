@@ -1,5 +1,5 @@
 import React from 'react';
-import { useVisualViewport } from '../../hooks/useVisualViewport';
+import { useVisualViewport, scrollFieldIntoView } from '../../hooks/useVisualViewport';
 import { safeHref } from '../../utils/safeHref';
 import {Barcode, Settings, Building2, List, LayoutDashboard, CalendarClock } from 'lucide-react';
 import type { UserRole } from '../../utils/supabase/types';
@@ -33,9 +33,10 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
 
   const [isApplePWA] = React.useState(getIsAppleStandalone);
 
-  // The visible area: the layout fits it, and the tab bar steps aside while a keyboard is open
-  // (on iOS it would otherwise ride up above the keyboard, #442).
-  const { height: vpHeight, keyboardOpen } = useVisualViewport();
+  // The visible area: the layout fits it, and while a keyboard is open it follows where iOS has
+  // scrolled the visible area to (or the headers go off the top) and the tab bar steps aside
+  // (or it rides up above the keyboard) (#442).
+  const { height: vpHeight, offsetTop, keyboardOpen } = useVisualViewport();
 
   const getInitials = (firstName: string = '', lastName: string = '') => {
     const f = firstName?.[0] || '';
@@ -65,6 +66,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
       style={{
         backgroundColor: 'var(--background)',
         ...(vpHeight ? { height: `${vpHeight}px` } : {}),
+        top: keyboardOpen ? `${offsetTop}px` : '0px',
       }}
     >
       <header
@@ -126,6 +128,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
       <main
         data-testid="mobile-main-content"
         data-mobile-scroll
+        onFocus={scrollFieldIntoView}
         style={{
           flex: 1,
           minHeight: 0,

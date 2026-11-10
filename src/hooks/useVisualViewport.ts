@@ -9,20 +9,40 @@ export interface VisualViewportState {
   keyboardOpen: boolean;
 }
 
-/** More than this much of the window hidden means a keyboard, not just browser bars moving. */
+/** The visible height dropping by more than this, with a text field focused, is a keyboard. */
 const KEYBOARD_MIN_HEIGHT = 150;
+
+const NON_TEXT_INPUTS = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'range', 'color', 'image', 'hidden']);
+
+/** Something the keyboard types into has focus. */
+function typing(): boolean {
+  const el = typeof document !== 'undefined' ? document.activeElement : null;
+  if (el instanceof HTMLInputElement) return !NON_TEXT_INPUTS.has(el.type);
+  return el instanceof HTMLTextAreaElement || (el instanceof HTMLElement && el.isContentEditable === true);
+}
+
+/**
+ * The visible height while nothing is being typed in. Measured rather than taken from
+ * window.innerHeight, which in an installed iPhone app can shrink with the keyboard as well.
+ */
+let restingHeight = 0;
 
 function read(): VisualViewportState {
   const vv = typeof window !== 'undefined' ? window.visualViewport : undefined;
   const height = vv?.height ?? window.innerHeight;
   const offsetTop = vv?.offsetTop ?? 0;
-  return { height, offsetTop, keyboardOpen: window.innerHeight - height > KEYBOARD_MIN_HEIGHT };
+  const zoomed = (vv?.scale ?? 1) > 1.01;
+  const isTyping = typing();
+  if (!isTyping && !zoomed) restingHeight = height;
+  if (!restingHeight) restingHeight = Math.max(height, window.innerHeight);
+  return { height, offsetTop, keyboardOpen: isTyping && !zoomed && restingHeight - height > KEYBOARD_MIN_HEIGHT };
 }
 
 /**
  * The visible part of the page. On iOS the keyboard doesn't shrink the page (the layout viewport),
- * only this visual viewport, so anything fixed to the bottom of the page ends up behind the keyboard
- * unless it follows these numbers (#442).
+ * only this visual viewport, and iOS scrolls the visible part down the page to show the focused
+ * field; anything fixed to the page ends up behind the keyboard or off the top unless it follows
+ * these numbers (#442).
  */
 export function useVisualViewport(): VisualViewportState {
   const [state, setState] = useState(read);
@@ -38,10 +58,14 @@ export function useVisualViewport(): VisualViewportState {
     vv?.addEventListener('resize', update);
     vv?.addEventListener('scroll', update);
     window.addEventListener('resize', update);
+    document.addEventListener('focusin', update);
+    document.addEventListener('focusout', update);
     return () => {
       vv?.removeEventListener('resize', update);
       vv?.removeEventListener('scroll', update);
       window.removeEventListener('resize', update);
+      document.removeEventListener('focusin', update);
+      document.removeEventListener('focusout', update);
     };
   }, []);
   return state;
