@@ -1,6 +1,6 @@
 import React from 'react';
 import { safeHref } from '../../utils/safeHref';
-import {Barcode, Settings, Building2, List, LayoutDashboard } from 'lucide-react';
+import {Barcode, Settings, Building2, List, LayoutDashboard, CalendarClock } from 'lucide-react';
 import type { UserRole } from '../../utils/supabase/types';
 import { useAuth } from '../../contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
@@ -54,13 +54,17 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
     return `${f}${l}`.toUpperCase() || '?';
   };
 
+  // The Today tab (day-of-show sheet, §3e) comes first for Staff, Admin and Manager; not Viewer.
+  const today = { id: 'mobile-today', label: 'Today', icon: CalendarClock };
   const navItems = userRole === 'Staff'
     ? [
+        today,
         { id: 'mobile-dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'mobile-inventory', label: 'Scanning', icon: Barcode },
         { id: 'mobile-settings', label: 'Settings', icon: Settings },
       ]
     : [
+        ...(userRole === 'Admin' || userRole === 'Manager' ? [today] : []),
         { id: 'mobile-gig-list', label: 'Gigs', icon: List },
         { id: 'mobile-inventory', label: 'Scanning', icon: Barcode },
         { id: 'mobile-settings', label: 'Settings', icon: Settings },
@@ -169,6 +173,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
+                aria-current={isActive ? 'page' : undefined}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',

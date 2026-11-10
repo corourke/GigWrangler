@@ -204,6 +204,10 @@ export const queryKeys = {
   mobileGig: (gigId: string) => ['gig', gigId, 'mobile'] as const,
   myUpcomingAssignments: (userId: string, orgId: string) => ['myUpcomingAssignments', userId, orgId] as const,
   myDevices: (userId: string) => ['myDevices', userId] as const,
+  /** The gigs the Today tab chooses from (§3e): Staff's own, or the organization's. */
+  todayGigs: (userId: string, orgId: string) => ['todayGigs', userId, orgId] as const,
+  /** One gig's day-of-show sheet; under gig(gigId), so a change to the gig refreshes it. */
+  dayOfShow: (gigId: string) => ['gig', gigId, 'dayOfShow'] as const,
 
   // ── Mobile inventory (A10, Engineer O) ──
   // Inventory Mode's packing list is local-first: the device copy, then the server's.

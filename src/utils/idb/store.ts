@@ -37,10 +37,15 @@ interface GigWranglerDB extends DBSchema {
     key: string;
     value: any;
   };
+  /** The day-of-show sheet saved for offline use, one per gig (§3e). */
+  day_of_show: {
+    key: string;
+    value: { gig_id: string; saved_at: number; [field: string]: any };
+  };
 }
 
 const DB_NAME = 'gig-manager-mobile';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 let dbPromise: Promise<IDBPDatabase<GigWranglerDB>>;
 
@@ -74,6 +79,10 @@ export const getDB = () => {
         if (oldVersion < 4) {
           // The organization's kits and equipment, for scanning or adding anything it owns (#185).
           db.createObjectStore('org_index', { keyPath: 'org_id' });
+        }
+        if (oldVersion < 5) {
+          // The day-of-show sheet, for a venue with poor signal (§3e).
+          db.createObjectStore('day_of_show', { keyPath: 'gig_id' });
         }
       },
     });
@@ -152,6 +161,22 @@ export const idbStore = {
     const db = await getDB();
     return db.get('org_index', orgId);
   },
+  async putDayOfShow(sheet: GigWranglerDB['day_of_show']['value']) {
+    const db = await getDB();
+    return db.put('day_of_show', sheet);
+  },
+  async getDayOfShow(gigId: string) {
+    const db = await getDB();
+    return db.get('day_of_show', gigId);
+  },
+  async getAllDayOfShow() {
+    const db = await getDB();
+    return db.getAll('day_of_show');
+  },
+  async deleteDayOfShow(gigId: string) {
+    const db = await getDB();
+    return db.delete('day_of_show', gigId);
+  },
   /** Stamps queued changes that name no one (queued by the older app) with this person. */
   async adoptUnownedOutbox(userId: string) {
     const db = await getDB();
@@ -166,14 +191,14 @@ export const idbStore = {
   /** The cached data (not the queued changes), for a sign-in when no owner was recorded. */
   async clearCaches() {
     const db = await getDB();
-    const stores = ['gigs', 'packing_lists', 'staff_assignments', 'org_index'] as const;
+    const stores = ['gigs', 'packing_lists', 'staff_assignments', 'org_index', 'day_of_show'] as const;
     const tx = db.transaction([...stores], 'readwrite');
     await Promise.all([...stores.map((s) => tx.objectStore(s).clear()), tx.done]);
   },
   /** Everything, for a sign-out or a different person signing in on this device. */
   async clearAll() {
     const db = await getDB();
-    const stores = ['gigs', 'packing_lists', 'staff_assignments', 'org_index', 'outbox'] as const;
+    const stores = ['gigs', 'packing_lists', 'staff_assignments', 'org_index', 'day_of_show', 'outbox'] as const;
     const tx = db.transaction([...stores], 'readwrite');
     await Promise.all([...stores.map((s) => tx.objectStore(s).clear()), tx.done]);
   },

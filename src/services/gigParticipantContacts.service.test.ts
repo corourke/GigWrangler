@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getGigParticipantContacts,
+  getAllGigContacts,
   addGigParticipantContact,
   setGigParticipantContactPrimary,
   removeGigParticipantContact,
@@ -43,6 +44,25 @@ describe('gigParticipantContacts.service', () => {
       expect(mockSupabase.from).toHaveBeenCalledWith('gig_participant_contacts');
       expect(eq1).toHaveBeenCalledWith('gig_id', 'gig-1');
       expect(eq2).toHaveBeenCalledWith('organization_id', 'org-1');
+      expect(result).toEqual(mockRows);
+    });
+  });
+
+  describe('getAllGigContacts', () => {
+    it("queries every organization's contacts on the gig, primary first", async () => {
+      const mockRows = [{ id: 'gpc-1', gig_id: 'gig-1', organization_id: 'org-1' }];
+      const order2 = vi.fn().mockResolvedValue({ data: mockRows, error: null });
+      const order1 = vi.fn().mockReturnValue({ order: order2 });
+      const eq1 = vi.fn().mockReturnValue({ order: order1 });
+      const select = vi.fn().mockReturnValue({ eq: eq1 });
+      mockSupabase.from.mockReturnValue({ select });
+
+      const result = await getAllGigContacts('gig-1');
+
+      expect(mockSupabase.from).toHaveBeenCalledWith('gig_participant_contacts');
+      expect(eq1).toHaveBeenCalledTimes(1);
+      expect(eq1).toHaveBeenCalledWith('gig_id', 'gig-1');
+      expect(order1).toHaveBeenCalledWith('is_primary_contact', { ascending: false });
       expect(result).toEqual(mockRows);
     });
   });
