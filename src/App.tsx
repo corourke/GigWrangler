@@ -9,6 +9,7 @@ import MobileLockScreen from './components/mobile/MobileLockScreen';
 import InvitationErrorScreen from './components/InvitationErrorScreen';
 import { AppShellProvider } from './routes/appShell';
 import { AppRoutes } from './routes/screens';
+import { usePushOpen } from './hooks/usePushOpen';
 import { useNav } from './routes/useNav';
 import { ChunkLoadBoundary } from './routes/ChunkLoadBoundary';
 
@@ -49,6 +50,8 @@ function AppContent() {
   const { isLocked, lock, unlock } = useMobileLock(user?.email ?? undefined, isMobile, user?.id);
   const navigate = useNavigate();
   const nav = useNav();
+  // A tapped push notification opens its screen and clears it from the bell.
+  usePushOpen(user?.id);
 
   const [showEditProfileDialog, setShowEditProfileDialog] = useState(false);
   // Mounted from the first time it opens, so it keeps its close animation after that.

@@ -5,6 +5,7 @@ import { getCompleteUserData, createUserProfile } from '../services/user.service
 import { convertPendingToActive } from '../services/organization.service';
 import { claimOfflineStore, releaseOfflineStore } from '../services/mobile/offlineOwner';
 import { claimQueryCache, releaseQueryCache } from '../lib/queryCacheOwner';
+import { releasePushOnSignOut } from '../services/push.service';
 import { getTwoFactorStatus, reminderUntil } from '../services/twoFactor.service';
 
 /** Clearing the phone's offline copy must never block signing in or out. */
@@ -210,6 +211,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (import.meta.env.DEV) console.log(`[TRACE] AuthContext: Handling ${event} (no session)`);
           if (event === 'SIGNED_OUT') {
             void quietly(releaseOfflineStore());
+            // Signed out elsewhere: the server call is no longer allowed, but the browser lets go.
+            void releasePushOnSignOut();
             releaseQueryCache();
           }
           setProfileLoadError(null);
@@ -287,6 +290,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     const supabase = createClient();
     await quietly(releaseOfflineStore());
+    // While still signed in, so the server removes this device (a shared phone stops getting
+    // the last person's notifications).
+    await releasePushOnSignOut();
     await supabase.auth.signOut();
     releaseQueryCache();
     setMustChangePassword(false);

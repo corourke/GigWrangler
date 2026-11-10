@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Calendar, Tags, Building2, ShieldCheck } from 'lucide-react';
+import { Settings, Calendar, Tags, Building2, ShieldCheck, Bell } from 'lucide-react';
 
 import AppHeader from './AppHeader';
 import { PageHeader } from './layout/PageHeader';
@@ -8,16 +8,17 @@ import { Tabs, TabsContent } from './ui/tabs';
 import CalendarIntegrationSettings from './CalendarIntegrationSettings';
 import CategoriesSettings from './settings/CategoriesSettings';
 import TwoFactorSettings from './security/TwoFactorSettings';
+import NotificationSettingsSection from './settings/NotificationSettingsSection';
 import { Button } from './ui/button';
 import { Organization, User, UserRole } from '../utils/supabase/types';
 
-export type SettingsTab = 'calendar' | 'categories' | 'security';
+import type { SettingsTab } from './settingsTab';
 
 interface SettingsScreenProps {
   organization: Organization;
   user: User;
   userRole?: UserRole;
-  /** The open tab (from the URL: /settings/calendar, /settings/categories, /settings/security). */
+  /** The open tab (from the URL: /settings/calendar, /settings/categories, /settings/notifications, /settings/security). */
   tab?: SettingsTab;
   onTabChange?: (tab: SettingsTab) => void;
   onBack: () => void;
@@ -48,7 +49,7 @@ export default function SettingsScreen({
   // so Settings offers them a direct path to Edit Organization (#176).
   const showEditOrganization = !!onEditOrganization && userRole === 'Admin';
   const active: SettingsTab =
-    tab === 'security' ? 'security' : tab === 'categories' && showCategories ? 'categories' : 'calendar';
+    tab === 'security' || tab === 'notifications' ? tab : tab === 'categories' && showCategories ? 'categories' : 'calendar';
 
   return (
     <div className="min-h-screen bg-background">
@@ -85,6 +86,10 @@ export default function SettingsScreen({
                   Categories
                 </PageTabsTrigger>
               )}
+              <PageTabsTrigger value="notifications">
+                <Bell />
+                Notifications
+              </PageTabsTrigger>
               <PageTabsTrigger value="security">
                 <ShieldCheck />
                 Security
@@ -101,6 +106,9 @@ export default function SettingsScreen({
               organizationId={organization.id}
               onSettingsChanged={() => {}}
             />
+          </TabsContent>
+          <TabsContent value="notifications" className="max-w-3xl">
+            <NotificationSettingsSection />
           </TabsContent>
           <TabsContent value="security" className="max-w-3xl">
             <TwoFactorSettings />

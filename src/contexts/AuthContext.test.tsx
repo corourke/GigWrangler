@@ -18,6 +18,11 @@ vi.mock('../services/mobile/offlineOwner', () => ({
 }));
 import { claimOfflineStore, releaseOfflineStore } from '../services/mobile/offlineOwner';
 
+vi.mock('../services/push.service', () => ({
+  releasePushOnSignOut: vi.fn().mockResolvedValue(undefined),
+}));
+import { releasePushOnSignOut } from '../services/push.service';
+
 const getTwoFactorStatus = vi.fn().mockResolvedValue({ factors: [], needsCode: false, signedInWithGoogle: false });
 vi.mock('../services/twoFactor.service', async (importOriginal) => ({
   // The reminder rule is pure; the tests use the real one.
@@ -326,6 +331,23 @@ describe('AuthContext: offline store', () => {
     renderHook(() => useAuth(), { wrapper });
     await act(async () => { authChangeHandler('SIGNED_OUT', null); });
     expect(releaseOfflineStore).toHaveBeenCalled();
+  });
+
+  // Push notifications: a shared phone stops getting the last person's notifications at sign-out.
+  // The device is removed while still signed in, so the server call is allowed.
+  it('turns this device\'s notifications off before signing out', async () => {
+    const order: string[] = [];
+    (releasePushOnSignOut as any).mockImplementationOnce(async () => { order.push('push'); });
+    mockSupabase.auth.signOut.mockImplementationOnce(async () => { order.push('signOut'); return { error: null }; });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await act(async () => { await result.current.logout(); });
+    expect(order).toEqual(['push', 'signOut']);
+  });
+
+  it('turns this device\'s notifications off when the session ends elsewhere', async () => {
+    renderHook(() => useAuth(), { wrapper });
+    await act(async () => { authChangeHandler('SIGNED_OUT', null); });
+    expect(releasePushOnSignOut).toHaveBeenCalled();
   });
 });
 

@@ -21,6 +21,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
 import { cn } from '../ui/utils';
 import { OfflineBadge } from './OfflineBadge';
+import CaptureReceiptButton from './receipts/CaptureReceiptButton';
 import { useIsOffline } from './useIsOffline';
 import type { GigStatus } from '../../utils/supabase/types';
 import type { OrganizationRole } from '../../utils/supabase/types';
@@ -166,6 +167,7 @@ export default function MobileGigList({ onViewGig, initialScrollTop, onScrollPos
           </div>
           <div className="flex items-center gap-1">
             {isOffline && <OfflineBadge />}
+            <CaptureReceiptButton />
             <Button aria-label="New gig" variant="ghost" size="icon" onClick={() => setShowCreateModal(true)} className="h-9 w-9">
               <Plus className="w-5 h-5" />
             </Button>

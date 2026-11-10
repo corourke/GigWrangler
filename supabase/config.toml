@@ -343,6 +343,10 @@ GOOGLE_PLACES_API_KEY = "env(GOOGLE_PLACES_API_KEY)"
 [functions.health-check]
 verify_jwt = false
 
+# Called by the database with its own token, checked by the function (PUSH_FUNCTION_SECRET).
+[functions.push]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

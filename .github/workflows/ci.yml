@@ -78,7 +78,7 @@ jobs:
         env:
           # The functions run without the app's package.json; check them the same way.
           DENO_NO_PACKAGE_JSON: '1'
-        run: deno check --no-config --lock=deno.lock --frozen server/index.ts ai-scan/index.ts health-check/index.ts
+        run: deno check --no-config --lock=deno.lock --frozen server/index.ts ai-scan/index.ts health-check/index.ts push/index.ts
       - name: Route and middleware tests
         working-directory: supabase/functions
         env:

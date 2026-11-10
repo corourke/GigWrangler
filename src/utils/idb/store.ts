@@ -4,7 +4,7 @@ export interface OutboxItem {
   id?: number;
   type: 'INVENTORY_SCAN' | 'INVENTORY_CLEAR' | 'INVENTORY_NOTE_UPDATE' | 'ASSET_STATUS_UPDATE'
     | 'MAINTENANCE_SEND' | 'MAINTENANCE_RETURN' | 'MAINTENANCE_UPDATE' | 'BIO_ENROLL' | 'STAFF_ASSIGNMENT_UPDATE'
-    | 'KIT_ASSIGNMENT_ADD' | 'KIT_ASSIGNMENT_REMOVE';
+    | 'KIT_ASSIGNMENT_ADD' | 'KIT_ASSIGNMENT_REMOVE' | 'RECEIPT_UPLOAD';
   payload: any;
   timestamp: number;
   attempts: number;
@@ -37,10 +37,32 @@ interface GigWranglerDB extends DBSchema {
     key: string;
     value: any;
   };
+  /** The day-of-show sheet saved for offline use, one per gig (§3e). */
+  day_of_show: {
+    key: string;
+    value: { gig_id: string; saved_at: number; [field: string]: any };
+  };
+  /** A gig's documents (stage plots, input lists) saved with its day-of-show sheet, by attachment id. */
+  day_of_show_files: {
+    key: string;
+    value: DayOfShowFile;
+    indexes: { 'by-gig': string };
+  };
+}
+
+export interface DayOfShowFile {
+  /** The attachment's id. */
+  id: string;
+  gig_id: string;
+  file_name: string;
+  type: string;
+  size: number;
+  blob: Blob;
+  saved_at: number;
 }
 
 const DB_NAME = 'gig-manager-mobile';
-const DB_VERSION = 4;
+const DB_VERSION = 6;
 
 let dbPromise: Promise<IDBPDatabase<GigWranglerDB>>;
 
@@ -74,6 +96,14 @@ export const getDB = () => {
         if (oldVersion < 4) {
           // The organization's kits and equipment, for scanning or adding anything it owns (#185).
           db.createObjectStore('org_index', { keyPath: 'org_id' });
+        }
+        if (oldVersion < 5) {
+          // The day-of-show sheet, for a venue with poor signal (§3e).
+          db.createObjectStore('day_of_show', { keyPath: 'gig_id' });
+        }
+        if (oldVersion < 6) {
+          // Its documents, within size limits (dayOfShowFiles.service).
+          db.createObjectStore('day_of_show_files', { keyPath: 'id' }).createIndex('by-gig', 'gig_id');
         }
       },
     });
@@ -152,6 +182,38 @@ export const idbStore = {
     const db = await getDB();
     return db.get('org_index', orgId);
   },
+  async putDayOfShow(sheet: GigWranglerDB['day_of_show']['value']) {
+    const db = await getDB();
+    return db.put('day_of_show', sheet);
+  },
+  async getDayOfShow(gigId: string) {
+    const db = await getDB();
+    return db.get('day_of_show', gigId);
+  },
+  async getAllDayOfShow() {
+    const db = await getDB();
+    return db.getAll('day_of_show');
+  },
+  async deleteDayOfShow(gigId: string) {
+    const db = await getDB();
+    return db.delete('day_of_show', gigId);
+  },
+  async putDayOfShowFile(file: DayOfShowFile) {
+    const db = await getDB();
+    return db.put('day_of_show_files', file);
+  },
+  async getDayOfShowFile(id: string) {
+    const db = await getDB();
+    return db.get('day_of_show_files', id);
+  },
+  async getAllDayOfShowFiles() {
+    const db = await getDB();
+    return db.getAll('day_of_show_files');
+  },
+  async deleteDayOfShowFile(id: string) {
+    const db = await getDB();
+    return db.delete('day_of_show_files', id);
+  },
   /** Stamps queued changes that name no one (queued by the older app) with this person. */
   async adoptUnownedOutbox(userId: string) {
     const db = await getDB();
@@ -166,14 +228,14 @@ export const idbStore = {
   /** The cached data (not the queued changes), for a sign-in when no owner was recorded. */
   async clearCaches() {
     const db = await getDB();
-    const stores = ['gigs', 'packing_lists', 'staff_assignments', 'org_index'] as const;
+    const stores = ['gigs', 'packing_lists', 'staff_assignments', 'org_index', 'day_of_show', 'day_of_show_files'] as const;
     const tx = db.transaction([...stores], 'readwrite');
     await Promise.all([...stores.map((s) => tx.objectStore(s).clear()), tx.done]);
   },
   /** Everything, for a sign-out or a different person signing in on this device. */
   async clearAll() {
     const db = await getDB();
-    const stores = ['gigs', 'packing_lists', 'staff_assignments', 'org_index', 'outbox'] as const;
+    const stores = ['gigs', 'packing_lists', 'staff_assignments', 'org_index', 'day_of_show', 'day_of_show_files', 'outbox'] as const;
     const tx = db.transaction([...stores], 'readwrite');
     await Promise.all([...stores.map((s) => tx.objectStore(s).clear()), tx.done]);
   },

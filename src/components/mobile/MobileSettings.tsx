@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
-import { Settings, LogOut, Smartphone, Trash2, Plus, Fingerprint, Loader2, Lock } from 'lucide-react';
+import { Settings, LogOut, Smartphone, Trash2, Plus, Fingerprint, Loader2, Lock, Bell } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useMobileSettingsData } from './useMobileSettingsData';
 import { toast } from 'sonner';
+import NotificationSettingsSection from '../settings/NotificationSettingsSection';
 
 interface MobileSettingsProps {
   onLogout: () => void;
@@ -124,6 +125,18 @@ export default function MobileSettings({ onLogout, onLock }: MobileSettingsProps
               </>
             )}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center">
+            <Bell className="w-4 h-4 mr-2" />
+            Notifications
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <NotificationSettingsSection />
         </CardContent>
       </Card>
 
