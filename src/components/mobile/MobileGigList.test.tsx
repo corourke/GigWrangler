@@ -196,9 +196,11 @@ describe('MobileGigList', () => {
     }
 
     it('sits in the area the keyboard leaves visible', async () => {
-      const vv = Object.assign(new EventTarget(), { height: window.innerHeight, offsetTop: 0, width: 390 })
+      const vv = Object.assign(new EventTarget(), { height: window.innerHeight, offsetTop: 0, width: 390, scale: 1 })
       vi.stubGlobal('visualViewport', vv)
       const sheet = await openSheet()
+      // The Title field has focus as the sheet opens; the keyboard comes up for it.
+      expect(document.activeElement).toBe(within(sheet).getByPlaceholderText('Gig title'))
       act(() => { Object.assign(vv, { height: 380, offsetTop: 60 }); vv.dispatchEvent(new Event('resize')) })
       expect(sheet.style.top).toBe('60px')
       expect(sheet.style.height).toBe('380px')

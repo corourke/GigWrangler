@@ -9,39 +9,75 @@ export interface VisualViewportState {
   keyboardOpen: boolean;
 }
 
-/** More than this much of the window hidden means a keyboard, not just browser bars moving. */
+/** The visible height dropping by more than this, with a text field focused, is a keyboard. */
 const KEYBOARD_MIN_HEIGHT = 150;
 
-function read(): VisualViewportState {
+const NON_TEXT_INPUTS = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'range', 'color', 'image', 'hidden']);
+
+/** Something the keyboard types into has focus. */
+function typing(): boolean {
+  const el = typeof document !== 'undefined' ? document.activeElement : null;
+  if (el instanceof HTMLInputElement) return !NON_TEXT_INPUTS.has(el.type);
+  return el instanceof HTMLTextAreaElement || (el instanceof HTMLElement && el.isContentEditable === true);
+}
+
+/**
+ * The visible height while nothing is being typed in. Measured rather than taken from
+ * window.innerHeight, which in an installed iPhone app can shrink with the keyboard as well. Only
+ * ever raised by focus and visual-viewport events: between two fields focus is briefly on the page
+ * itself while the keyboard is still up, and taking that height would lose the keyboard. Measured
+ * afresh only when the window itself changes size with nothing focused (rotation, browser bars).
+ */
+let restingHeight = 0;
+
+function read(remeasure = false): VisualViewportState {
   const vv = typeof window !== 'undefined' ? window.visualViewport : undefined;
   const height = vv?.height ?? window.innerHeight;
   const offsetTop = vv?.offsetTop ?? 0;
-  return { height, offsetTop, keyboardOpen: window.innerHeight - height > KEYBOARD_MIN_HEIGHT };
+  const zoomed = (vv?.scale ?? 1) > 1.01;
+  const isTyping = typing();
+  if (!isTyping && !zoomed) restingHeight = remeasure ? height : Math.max(restingHeight, height);
+  if (!restingHeight) restingHeight = Math.max(height, window.innerHeight);
+  return { height, offsetTop, keyboardOpen: isTyping && !zoomed && restingHeight - height > KEYBOARD_MIN_HEIGHT };
 }
 
 /**
  * The visible part of the page. On iOS the keyboard doesn't shrink the page (the layout viewport),
- * only this visual viewport, so anything fixed to the bottom of the page ends up behind the keyboard
- * unless it follows these numbers (#442).
+ * only this visual viewport, and iOS scrolls the visible part down the page to show the focused
+ * field; anything fixed to the page ends up behind the keyboard or off the top unless it follows
+ * these numbers (#442).
  */
 export function useVisualViewport(): VisualViewportState {
   const [state, setState] = useState(read);
   useEffect(() => {
-    const update = () => {
-      const next = read();
+    const apply = (next: VisualViewportState) =>
       setState((prev) =>
         prev.height === next.height && prev.offsetTop === next.offsetTop && prev.keyboardOpen === next.keyboardOpen ? prev : next,
       );
+    const update = () => apply(read());
+    const windowResized = () => apply(read(true));
+    // Focus has not reached the next field yet while focusout runs; look once it has.
+    let pending: number | undefined;
+    const focusLeft = () => {
+      window.clearTimeout(pending);
+      pending = window.setTimeout(update, 0);
     };
     update();
     const vv = window.visualViewport;
     vv?.addEventListener('resize', update);
     vv?.addEventListener('scroll', update);
-    window.addEventListener('resize', update);
+    window.addEventListener('resize', windowResized);
+    window.addEventListener('orientationchange', windowResized);
+    document.addEventListener('focusin', update);
+    document.addEventListener('focusout', focusLeft);
     return () => {
+      window.clearTimeout(pending);
       vv?.removeEventListener('resize', update);
       vv?.removeEventListener('scroll', update);
-      window.removeEventListener('resize', update);
+      window.removeEventListener('resize', windowResized);
+      window.removeEventListener('orientationchange', windowResized);
+      document.removeEventListener('focusin', update);
+      document.removeEventListener('focusout', focusLeft);
     };
   }, []);
   return state;
