@@ -323,6 +323,16 @@ Cameron chose three mobile features. **All three are in prod (11-10, a548510; si
 2. **Notifications.** Phone push alerts (web push for the installed app), each switchable per person in Settings. Events (Cameron, 11-10): assignment invites (to the invited person); accept/decline replies (to the gig's Admins and Managers); gig changes to date, time, venue or cancellation (to assigned staff); join and access requests (to Admins and Managers); payment due and overdue reminders (to Admins; no amounts or client names in the notification text).
 3. **Day-of-show sheet.** One "Today" screen for the current gig: schedule, venue and directions, one-tap contacts, and the gig's documents, available offline.
 
+### 3f. Mobile, next (Cameron, 11-10)
+
+Order set by Cameron: **A first, then 1, 2 and 6.** Each needs a plan approved by Cameron before code.
+
+- **A. Day sheet for any gig, and Today as home** (Engineering Lead, planning). A Day sheet button on every phone gig page (any date, Save for offline) and Choose another gig on Today; Today becomes a home screen: today's or the next gig, a "Needs you" list (invites, unfilled slots, join and access requests, scan queue, payments due for Admins, equipment conflicts) and This week. The Docs Lead drafts the guide changes.
+- **1. Gig list speed:** the conflicts query (about 5 s).
+- **2. Answer invites from the notification:** Accept or Decline from the push alert and the bell.
+- **6. Crew check-in on the day sheet:** Arrived and Done times per person (migration; product questions for Cameron first).
+- *Not chosen for now:* calendar feed, quick mileage from the day sheet, Face ID unlock.
+
 ## 4. Agents and documentation
 
 **Secrets and access tokens (setup notes for Cameron; checked 10-08).**
