@@ -1,56 +1,60 @@
 ---
 title: The Today sheet
-description: "One phone screen for the day of the show: the schedule, the venue and directions, contacts and the gig's documents, even offline."
+description: "One phone screen for the day of the show: the schedule, the venue and directions, the crew and contacts, and the gig's documents, even offline."
 draft: true
 sidebar:
   order: 7
 ---
 
-<!-- Written from the approved plan (WORK_PLAN §3e item 3), ahead of the feature. Kept draft: true until
-     the prod deploy that ships it; then check the wording on dev and prod, add the screenshots, and
-     remove draft. -->
+<!-- Checked on dev at 98beecf (#427, #429). Kept draft: true until the prod deploy that ships it;
+     then check it on prod (including PDF scrolling in the installed iPhone app), add the screenshots,
+     and remove draft. -->
 
 On the day of a gig, **Today** puts what you need on one screen: the run of day, where the venue is, who to call, and the gig's documents. It keeps working when the venue has no signal.
 
-**Today** is the first tab in the phone's bottom bar. Staff, Managers and Admins have it; Viewers don't.
+**Today** is the first tab in the phone's bottom bar for Staff, Managers and Admins. Viewers don't have it. It's a phone screen: on a computer, the address takes you to the dashboard.
 
 ## Which gig it shows
 
-**Today** shows your gig that's on now or later today. "Today" is the gig's date in the gig's own time zone, and all-day gigs count for their whole day.
+**Today** shows a gig that's on now or later today. "Today" is the gig's date in the gig's own time zone, so a gig at 11 PM shows on its own day, and an all-day gig counts for its whole date. Staff see the gigs they're staffing; Admins and Managers see their organization's gigs.
 
-- If you have more than one gig today, pick the one you want.
-- If you have none today, it shows your next gig in the next 7 days, marked **Not today**.
+- **More than one gig today:** you see "2 gigs today" with each gig's start time (or **All day**). Tap one to open its sheet.
+- **None today:** you see "No gig today. Next up:" and your next gig in the next 7 days.
+- **None in the next 7 days:** "No gigs in the next 7 days".
+
+The top of the sheet shows the gig's title, date and times, its status, and when the sheet was last saved on the phone, such as "Saved Nov 12, 3:00 PM". **Open gig** goes to the full gig page (online only). **Refresh** loads it again.
 
 ## What's on it
 
 ### Schedule
 
-The gig's [schedule](/gigs/schedule/): load-in, soundcheck, doors, sets and the rest, with their times.
+The gig's [schedule](/gigs/schedule/), in the gig's time zone: load-in, soundcheck, doors, sets and the rest. An item with an end time reads "to 6:00 PM". With nothing scheduled you see "No schedule yet."
 
 ### Venue
 
-The venue's address, as text you can select and copy, and **Directions**, which opens Apple Maps on an iPhone and Google Maps on other phones.
+The venue's name, address and phone number, shown as text you can select and copy. **Directions** opens Apple Maps on an iPhone, iPad or Mac, and Google Maps elsewhere. **Call** rings the venue.
 
-### Contacts
+### Contacts and Crew
 
-The venue, act and other contacts on the gig, and the crew working it. Tap a phone number to call or text. The number is also shown as text, so you can read it out or copy it. Rates and fees aren't shown.
+**Contacts** lists the contacts of the venue, act and other organizations on the gig. **Crew** lists the people staffing it, with their positions. Each person has **Call**, **Text** and **Email** buttons where they have a number or email, and the number is also shown as text.
+
+There's no money on the sheet: no rates, fees or payments, and no gig notes.
 
 ### Documents
 
-The gig's [attachments](/gigs/documents-and-notes/), such as a stage plot, rider or parking pass. Tap one to open it.
+The gig's [attachments](/gigs/documents-and-notes/), such as a stage plot, rider or parking pass. Tap one to open it in a full-screen viewer: images and PDFs show in the app. Other files say "This file can't be shown here. Use Share to open it in another app." and offer **Share**. **Close** returns to the sheet.
+
+A document saved on the phone says "Saved on this phone · 1.2 MB" underneath. Any other shows **Save for offline**: tap it to save that document.
 
 ## Offline
 
-**Today** saves itself to the phone, so it opens without a connection:
+**Today** keeps a copy on the phone, so it opens without a connection. It's saved each time you open **Today** online, and in the background, from any phone screen, for gigs today or within the next 24 hours.
 
-- whenever the app is open and online and a gig of yours is within the next 24 hours, and
-- each time you open **Today** online.
+PDFs and images up to 10 MB are saved along with it. Larger files, and other kinds such as Word documents, are saved only when you tap **Save for offline**. A gig's saved documents can take up to 50 MB, and all gigs together up to 150 MB. If a save is refused, you see why: "This gig's saved documents would pass 50 MB", "Not enough room on this phone for it", or "Couldn't download it".
 
-Documents are saved too: PDFs and images up to 10 MB each, up to 50 MB per gig and 150 MB in all. A larger document has **Save for offline**, to save it yourself.
+Offline, the screen shows an **Offline** badge and the sheet as last saved, with its "Saved" time. Saved documents open as usual. A document that isn't saved reads "Not saved on this phone – connect to open". If the gig's sheet was never saved, you see "This gig's sheet isn't saved on this phone. Connect to load it."
 
-Offline, the sheet shows when it was saved, such as "Saved 2:15 PM". A document that isn't on the phone shows "Not saved on this phone – connect to open".
-
-The saved copy is cleared after the gig, and when you sign out.
+A gig's saved sheet and documents are removed a day after the gig ends. Signing out removes them all.
 
 ## Related
 
