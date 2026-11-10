@@ -36,6 +36,8 @@ export function useReceiptCapture(organizationId: string, userId: string, gigId:
     queryKey: pendingKey,
     queryFn: () => listPendingReceipts(organizationId, userId),
     enabled: !!organizationId && !!userId,
+    // Read from the phone (IndexedDB), so it must run offline too.
+    networkMode: 'always',
   });
   const [sending, setSending] = useState<{ done: number; total: number } | null>(null);
   const [lastQueued, setLastQueued] = useState<number | null>(null);

@@ -37,4 +37,15 @@ describe('ScanInvoiceTab: receipts captured on a gig (mobile)', () => {
     expect(screen.getByTestId('purchase-form')).toHaveTextContent('gig: none');
     expect(screen.queryByRole('checkbox', { name: /Add to the costs of/ })).not.toBeInTheDocument();
   });
+
+  it('names the gig on a queue row captured on a gig, so same-named files can be told apart', () => {
+    const queued = (id: string, over: Record<string, unknown> = {}) =>
+      ready({ id, status: 'queued', scanned_data: null, file_name: 'image.jpg', ...over });
+    const queue = queueWith([queued('q1', { gig_id: 'gig-1', gigs: { title: 'Spring Show' } }), queued('q2')]);
+    queue.counts = { ready: 0, scanning: 0, queued: 2, failed: 0 };
+    render(<ScanInvoiceTab organizationId="org-1" onSaved={vi.fn()} queue={queue} />);
+    const rows = screen.getAllByRole('listitem');
+    expect(rows[0]).toHaveTextContent('image.jpg for Spring Show');
+    expect(rows[1]).not.toHaveTextContent(' for ');
+  });
 });

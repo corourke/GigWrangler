@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { onlineManager } from '@tanstack/react-query';
 import { screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { renderWithQuery as render } from '../../../test/renderWithQuery';
 import ReceiptCaptureSheet from './ReceiptCaptureSheet';
@@ -167,5 +168,24 @@ describe('ReceiptCaptureSheet', () => {
   it('online: sends anything kept on the phone when it opens', async () => {
     render(<ReceiptCaptureSheet {...props} />);
     await waitFor(() => expect(offlineSyncService.processOutbox).toHaveBeenCalled());
+  });
+
+  describe('with the browser offline (react-query paused)', () => {
+    afterEach(() => onlineManager.setOnline(true));
+
+    it('still lists the receipts kept on the phone, and Remove works', async () => {
+      offline.value = true;
+      onlineManager.setOnline(false);
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      vi.mocked(listPendingReceipts).mockResolvedValue([
+        { id: 7, file_name: 'receipt-a.jpg', gig_id: null, timestamp: Date.now(), failed: false },
+      ] as any);
+      render(<ReceiptCaptureSheet {...props} />);
+      const list = await screen.findByRole('list', { name: 'Receipts waiting on this phone' });
+      vi.mocked(listPendingReceipts).mockResolvedValue([]);
+      fireEvent.click(within(list).getByRole('button', { name: 'Remove receipt-a.jpg' }));
+      await waitFor(() => expect(removePendingReceipt).toHaveBeenCalledWith(7));
+      await waitFor(() => expect(screen.queryByRole('list', { name: 'Receipts waiting on this phone' })).not.toBeInTheDocument());
+    });
   });
 });
