@@ -1,13 +1,9 @@
 ---
 title: Capturing receipts on your phone
 description: "Photograph a receipt or pick a file on the phone. It's scanned straight away and waits on the computer for review."
-draft: true
 sidebar:
   order: 5
 ---
-
-<!-- Checked on dev at fc15131 (#428, #430) and a3e6bd1 (#435). Kept draft: true until the prod deploy that ships it;
-     then check it on prod, add the screenshots, and remove draft. -->
 
 Snap a receipt on your phone the moment you get it, and review it later on a computer. The phone only captures: the receipt goes into your organization's scan queue, it's scanned straight away, and you check it and save the purchase on the computer, as with any [scanned invoice](/financials/receipts-and-invoices/).
 

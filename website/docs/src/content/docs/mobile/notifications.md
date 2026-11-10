@@ -1,14 +1,9 @@
 ---
 title: Phone notifications
 description: "Alerts on your phone or computer for gig requests, replies, gig changes, access requests and payments. Each kind can be switched off in Settings."
-draft: true
 sidebar:
   order: 6
 ---
-
-<!-- Checked on dev at 98beecf (#424, #426, #431, #432). Kept draft: true until the prod deploy that ships
-     it; then check it on prod (a real phone: turning on, an alert arriving, tapping it), add the
-     screenshots, and remove draft. -->
 
 GigWrangler can send an alert to your phone, or to a computer's browser, when something needs you: a request to work a gig, a reply to one you sent, a change to a gig you're working, a request to join your organization, or a payment that's due. Each alert is also a notification in the bell (top right), so nothing is lost if you don't turn alerts on.
 
