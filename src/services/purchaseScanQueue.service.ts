@@ -19,10 +19,17 @@ export interface ScanQueueItem {
   error: string | null;
   created_at: string;
   updated_at: string;
+  /** The gig it was captured on (mobile, 11-10): its review opens as a cost of that gig. */
+  gig_id?: string | null;
+  created_by?: string | null;
   attachments?: { file_path: string } | null;
+  gigs?: { title: string } | null;
 }
 
-const COLUMNS = 'id, organization_id, attachment_id, file_name, status, scanned_data, error, created_at, updated_at, attachments(file_path)';
+const COLUMNS = 'id, organization_id, attachment_id, file_name, status, scanned_data, error, created_at, updated_at, gig_id, created_by, attachments(file_path), gigs(title)';
+
+/** How far back the phone's "what I queued" list goes. */
+export const RECENT_RECEIPT_DAYS = 7;
 
 /** The org's queue, oldest first, so invoices are reviewed in the order they were added. */
 export async function listScanQueue(organizationId: string): Promise<ScanQueueItem[]> {
@@ -34,12 +41,30 @@ export async function listScanQueue(organizationId: string): Promise<ScanQueueIt
   });
 }
 
-/** Uploads an invoice file and adds it to the queue, waiting to be scanned. */
-export async function enqueueInvoice(organizationId: string, file: File): Promise<ScanQueueItem> {
+/** The receipts this person queued in the last week, newest first (mobile receipt capture). */
+export async function listMyRecentReceipts(organizationId: string, userId: string): Promise<ScanQueueItem[]> {
+  const since = new Date(Date.now() - RECENT_RECEIPT_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  return listRecords<ScanQueueItem>('purchase_scan_queue', {
+    select: COLUMNS,
+    filters: [
+      { column: 'organization_id', operator: 'eq', value: organizationId },
+      { column: 'created_by', operator: 'eq', value: userId },
+      { column: 'created_at', operator: 'gte', value: since },
+    ],
+    order: { column: 'created_at', ascending: false },
+    context: 'load your queued receipts',
+  });
+}
+
+/**
+ * Uploads an invoice file and adds it to the queue, waiting to be scanned. A receipt
+ * captured on a gig's page carries the gig (the org must take part in it).
+ */
+export async function enqueueInvoice(organizationId: string, file: File, gigId?: string): Promise<ScanQueueItem> {
   const attachment = await uploadAttachment(organizationId, file);
   try {
     const { data, error } = await getSupabase().from('purchase_scan_queue')
-      .insert({ organization_id: organizationId, attachment_id: attachment.id, file_name: file.name })
+      .insert({ organization_id: organizationId, attachment_id: attachment.id, file_name: file.name, ...(gigId ? { gig_id: gigId } : {}) })
       .select(COLUMNS)
       .single();
     if (error) throw error;
