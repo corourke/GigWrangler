@@ -74,7 +74,8 @@ To keep even titles and names off the lock screen, turn on **Hide details on the
 
 ## Tapping an alert
 
-Tapping an alert opens GigWrangler on the screen it's about: the gig, the requests on **Team**, or **Financials** for payments. It switches to the right organization if needed, and marks the notification in the bell as read.
+<!-- DRAFT CHANGE (Docs Lead, plan #445 decision 1): invite alerts open the invites list; check on dev. -->
+Tapping an alert opens GigWrangler on the screen it's about: a gig request opens your [invites to reply to](/mobile/home/#needs-you), where you can accept or decline; other gig alerts open the gig; access requests open the requests on **Team**; payments open **Financials**. It switches to the right organization if needed, and marks the notification in the bell as read.
 
 ## Related
 
