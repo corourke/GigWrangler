@@ -120,6 +120,14 @@ Deno.test('push: only sends through the browsers\' push services; any other devi
   assertEquals(fake.tables().push_subscriptions.map((d: any) => d.id), ['d1']);
 });
 
+Deno.test('push: Chrome devices on jmt17.google.com are sent to', async () => {
+  const fake = world({ push_subscriptions: [device('chrome', { endpoint: 'https://jmt17.google.com/fcm/send/chrome' })] });
+  const sent = transport();
+  await push({ notification_id: 'n1' });
+  assertEquals(sent.map((s) => s.endpoint), ['https://jmt17.google.com/fcm/send/chrome']);
+  assertEquals(fake.tables().push_subscriptions.length, 1);
+});
+
 Deno.test('push: a busy push service is tried again once', async () => {
   const fake = world();
   const sent = transport({ d1: [503, 201] });

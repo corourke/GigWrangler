@@ -484,10 +484,10 @@ the daily health check below. `push` is deployed with `verify_jwt = false` (`[fu
 `supabase/config.toml`) and checks the token itself against `PUSH_FUNCTION_SECRET`. Until this is done the bell
 works as before and no pushes are sent. Each project (dev, prod) has its own keys; dev first.
 
-Devices are only registered and sent to on the browsers' push services: `fcm.googleapis.com` (Chrome and other
-Chromium browsers), `updates.push.services.mozilla.com` (Firefox), `web.push.apple.com` (Safari) and
+Devices are only registered and sent to on the browsers' push services: `fcm.googleapis.com` and
+`<name>.google.com` (Chrome and other Chromium browsers; current Chrome uses `jmt17.google.com`), `updates.push.services.mozilla.com` (Firefox), `web.push.apple.com` (Safari) and
 `<name>.notify.windows.com` (Edge on Windows). The list is in `public.push_endpoint_allowed` (migration
-`20261110115000_push_endpoint_hosts.sql`) and `supabase/functions/server/lib/pure/pushEndpoint.ts`; change both
+`20261110115000_push_endpoint_hosts.sql`, widened in `20261110130000_push_google_hosts.sql`) and `supabase/functions/server/lib/pure/pushEndpoint.ts`; change both
 together if a browser adds a service.
 
 1. **Generate the keys and a token** in your terminal (nothing here goes into git, an issue or a PR):
