@@ -69,6 +69,14 @@ describe('turning notifications on for this device', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  it('says in its own words when the browser refuses to subscribe (e.g. incognito)', async () => {
+    requestPermission.mockResolvedValue('granted');
+    pushManager.subscribe.mockRejectedValueOnce(new DOMException('Registration failed - permission denied', 'NotAllowedError'));
+    await expect(enablePushOnThisDevice()).rejects.toThrow(
+      "Couldn't turn on notifications. Check that this browser allows notifications for this site.");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it('undoes the browser subscription when the server refuses the device', async () => {
     requestPermission.mockResolvedValue('granted');
     rpc.mockResolvedValue({ data: null, error: { message: 'Notifications are on for 10 devices already; remove one in Settings first' } });

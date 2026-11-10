@@ -11,6 +11,9 @@ describe('isAllowedPushEndpoint', () => {
       'https://web.push.apple.com/QGx1-abc',
       'https://wns2-par02p.notify.windows.com/w/?token=abc',
       'https://db5p.notify.windows.com/w/?token=abc',
+      // Current Chrome, desktop and Android, hands out jmt17.google.com addresses; Google may rotate the host.
+      'https://jmt17.google.com/fcm/send/abc:def',
+      'https://push2.l.google.com/fcm/send/abc',
     ]) expect(isAllowedPushEndpoint(url), url).toBe(true);
   });
 
@@ -25,6 +28,13 @@ describe('isAllowedPushEndpoint', () => {
       'https://fcm.googleapis.com:8443/x',
       'https://notify.windows.com.example.test/x',
       'https://evilnotify.windows.com/x',
+      'https://google.com.evil.example/x',
+      'https://evilgoogle.com/x',
+      'https://google.com/x',
+      'https://jmt17.google.com.evil.example/x',
+      'https://jmt17.google.com:8443/x',
+      'https://user@jmt17.google.com/x',
+      'http://jmt17.google.com/fcm/send/abc',
       'https://127.0.0.1/x',
       'https://localhost/x',
       'not a url',
