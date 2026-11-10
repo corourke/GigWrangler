@@ -1,4 +1,4 @@
-// The push sender (plan approved 11-10): POST /internal/push sends one notification to the
+// The push sender (plan approved 11-10): the `push` function sends one notification to the
 // recipient's devices. Run: DENO_TESTING=1 deno test --no-config --allow-env server/test/ (from supabase/functions).
 import { fakeSupabase } from './fakeSupabase.ts';
 
@@ -7,9 +7,8 @@ Deno.env.set('SUPABASE_URL', 'http://localhost:54321');
 Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role');
 Deno.env.set('PUSH_FUNCTION_SECRET', 'push-secret');
 
-const { app } = await import('../app.ts');
 const { setSupabaseAdminForTests } = await import('../lib/supabaseAdmin.ts');
-const { setPushTransportForTests, webPushTransport } = await import('../lib/push.ts');
+const { setPushTransportForTests, webPushTransport, handlePushRequest } = await import('../lib/push.ts');
 const { webpush } = await import('../deps.ts');
 
 function assertEquals(actual: unknown, expected: unknown, msg = '') {
@@ -40,11 +39,11 @@ function transport(statuses: Record<string, number[]> = {}) {
   return sent;
 }
 
-const push = (body: unknown, secret: string | null = 'push-secret') => app.request('/internal/push', {
+const push = (body: unknown, secret: string | null = 'push-secret') => handlePushRequest(new Request('https://example.test/functions/v1/push', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', ...(secret ? { Authorization: `Bearer ${secret}` } : {}) },
   body: JSON.stringify(body),
-});
+}));
 
 Deno.test('push: needs the push secret', async () => {
   world(); const sent = transport();
@@ -71,7 +70,7 @@ Deno.test('push: sends the notification to each of the recipient\'s devices', as
   assertEquals(sent[0].payload, { title: 'New gig request', body: "You've been asked to work Sound Tech · Sat, Oct 10 · Spring Show", url: '/gigs/g1', tag: 'gig-g1', notification_id: 'n1' });
   assert(!JSON.stringify(sent).includes('300'), 'no amount in the push');
   const d1 = fake.tables().push_subscriptions.find((d: any) => d.id === 'd1');
-  assert(d1.last_success_at, 'records the send');
+  assert(d1?.last_success_at, 'records the send');
 });
 
 Deno.test('push: nothing for a notification that is not a push event', async () => {

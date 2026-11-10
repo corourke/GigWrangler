@@ -469,8 +469,57 @@ Set with `supabase secrets set NAME=VALUE` against the **verified** target proje
 | `SENTRY_API_TOKEN` | Optional | `health-check` | Health check reports the Sentry check as "not configured" |
 | `SENTRY_ORG_SLUG` | Optional (with `SENTRY_API_TOKEN`) | `health-check` | Same — Sentry check reports "not configured" |
 | `SENTRY_PROJECT_SLUG` | Optional (with `SENTRY_API_TOKEN`) | `health-check` | Same — Sentry check reports "not configured" |
+| `PUSH_FUNCTION_SECRET` | For push notifications | `push` | The database's calls 401; no pushes (the bell still works) |
+| `VAPID_PUBLIC_KEY` | For push notifications | `push` | Pushes fail; devices are dropped after five failures |
+| `VAPID_PRIVATE_KEY` | For push notifications | `push` | Same |
+| `VAPID_SUBJECT` | For push notifications | `push` | Same (a `mailto:` address push services can contact) |
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are **injected automatically by the Supabase platform**. Do not set them by hand.
+
+#### Push notifications — one-time setup
+
+New notifications of a push kind call the `push` edge function through pg_net (migration
+`20261110110000_push_delivery.sql`), with the function's URL and a bearer token read from Vault, the same pattern as
+the daily health check below. `push` is deployed with `verify_jwt = false` (`[functions.push]` in
+`supabase/config.toml`) and checks the token itself against `PUSH_FUNCTION_SECRET`. Until this is done the bell
+works as before and no pushes are sent. Each project (dev, prod) has its own keys; dev first.
+
+1. **Generate the keys and a token** in your terminal (nothing here goes into git, an issue or a PR):
+
+   ```bash
+   npx -y web-push@3.6.7 generate-vapid-keys --json   # {"publicKey": "...", "privateKey": "..."}
+   export T=$(openssl rand -hex 32)
+   ```
+
+2. **Function secrets** (from the repo root, linked to the intended project):
+
+   ```bash
+   cat supabase/.temp/project-ref            # must print the intended project ref
+   supabase secrets set VAPID_PUBLIC_KEY='<publicKey>' VAPID_PRIVATE_KEY='<privateKey>' \
+     VAPID_SUBJECT='mailto:<an address you read>' PUSH_FUNCTION_SECRET="$T"
+   ```
+
+3. **Vault** (the project's SQL Editor):
+
+   ```sql
+   select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/push', 'push_function_url', 'URL new notifications are sent to for push');
+   select vault.create_secret('<PASTE TOKEN>', 'push_function_secret', 'Bearer token for the push function');
+   ```
+
+4. **The app's public key**: `VITE_VAPID_PUBLIC_KEY=<publicKey>` in `.env.development.local` (dev) or
+   `.env.production.local` (prod). It is public by design; the private key never leaves the function secrets.
+
+5. **Deploy** (`./deploy_dev.sh`; prod through `./deploy_prod.sh`), then check that the function refuses a call
+   without the token (expect `401`) and answers one with it (expect `200` and `{"sent":0,"skipped":"not_found"}`):
+
+   ```bash
+   curl -sS -X POST https://<project-ref>.supabase.co/functions/v1/push -d '{}'
+   curl -sS -X POST -H "Authorization: Bearer $T" -H 'Content-Type: application/json' \
+     -d '{"notification_id":"00000000-0000-0000-0000-000000000000"}' https://<project-ref>.supabase.co/functions/v1/push
+   ```
+
+   After a real notification, `select status_code from net._http_response order by created desc limit 5;` shows the
+   database's calls. `unset T` when done.
 
 #### Daily health check — one-time setup (issue #52)
 

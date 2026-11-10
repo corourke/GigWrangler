@@ -17,14 +17,14 @@ SELECT rls_test.expect('without the Vault secrets the notification is saved', (S
 SELECT rls_test.expect('... and no request is made', (SELECT count(*)::int FROM rls_test.http_calls), 0);
 
 -- 2. Set up -----------------------------------------------------------------------------------
-SELECT vault.create_secret('https://example.test/functions/v1/server/internal/push', 'push_function_url');
+SELECT vault.create_secret('https://example.test/functions/v1/push', 'push_function_url');
 SELECT vault.create_secret('push-secret', 'push_function_secret');
 
 CREATE TABLE rls_test.ids2 (id uuid);
 INSERT INTO rls_test.ids2 SELECT rls_test.notify('assignment.requested');
 SELECT rls_test.expect('a push kind asks the server to send it', (SELECT count(*)::int FROM rls_test.http_calls), 1);
 SELECT rls_test.expect('... to the push URL', (SELECT count(*)::int FROM rls_test.http_calls
-  WHERE url = 'https://example.test/functions/v1/server/internal/push'), 1);
+  WHERE url = 'https://example.test/functions/v1/push'), 1);
 SELECT rls_test.expect('... with the push secret', (SELECT count(*)::int FROM rls_test.http_calls
   WHERE headers->>'Authorization' = 'Bearer push-secret'), 1);
 SELECT rls_test.expect('... naming the notification', (SELECT count(*)::int FROM rls_test.http_calls c, rls_test.ids2 i
