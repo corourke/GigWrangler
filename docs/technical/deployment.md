@@ -472,7 +472,7 @@ Set with `supabase secrets set NAME=VALUE` against the **verified** target proje
 | `PUSH_FUNCTION_SECRET` | For push notifications | `push` | The database's calls 401; no pushes (the bell still works) |
 | `VAPID_PUBLIC_KEY` | For push notifications | `push` | Pushes fail; devices are dropped after five failures |
 | `VAPID_PRIVATE_KEY` | For push notifications | `push` | Same |
-| `VAPID_SUBJECT` | For push notifications | `push` | Same (a `mailto:` address push services can contact) |
+| `VAPID_SUBJECT` | For push notifications | `push` | Same. The site address, `https://gigwrangler.com` (a URL, so no personal email goes to the push services; a `mailto:` address also works) |
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are **injected automatically by the Supabase platform**. Do not set them by hand.
 
@@ -483,6 +483,12 @@ New notifications of a push kind call the `push` edge function through pg_net (m
 the daily health check below. `push` is deployed with `verify_jwt = false` (`[functions.push]` in
 `supabase/config.toml`) and checks the token itself against `PUSH_FUNCTION_SECRET`. Until this is done the bell
 works as before and no pushes are sent. Each project (dev, prod) has its own keys; dev first.
+
+Devices are only registered and sent to on the browsers' push services: `fcm.googleapis.com` (Chrome and other
+Chromium browsers), `updates.push.services.mozilla.com` (Firefox), `web.push.apple.com` (Safari) and
+`<name>.notify.windows.com` (Edge on Windows). The list is in `public.push_endpoint_allowed` (migration
+`20261110115000_push_endpoint_hosts.sql`) and `supabase/functions/server/lib/pure/pushEndpoint.ts`; change both
+together if a browser adds a service.
 
 1. **Generate the keys and a token** in your terminal (nothing here goes into git, an issue or a PR):
 
@@ -496,7 +502,7 @@ works as before and no pushes are sent. Each project (dev, prod) has its own key
    ```bash
    cat supabase/.temp/project-ref            # must print the intended project ref
    supabase secrets set VAPID_PUBLIC_KEY='<publicKey>' VAPID_PRIVATE_KEY='<privateKey>' \
-     VAPID_SUBJECT='mailto:<an address you read>' PUSH_FUNCTION_SECRET="$T"
+     VAPID_SUBJECT='https://gigwrangler.com' PUSH_FUNCTION_SECRET="$T"
    ```
 
 3. **Vault** (the project's SQL Editor):

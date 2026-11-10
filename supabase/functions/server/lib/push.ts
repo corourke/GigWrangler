@@ -4,6 +4,7 @@ import { supabaseAdmin } from './supabaseAdmin.ts';
 import { isAuthorizedCronRequest } from './pure/healthCheck.ts';
 import { webpush } from '../deps.ts';
 import { pushMessage, pushOutcome, switchFor } from './pure/pushMessage.ts';
+import { isAllowedPushEndpoint } from './pure/pushEndpoint.ts';
 import { log } from '../../_shared/log.ts';
 
 export interface PushDevice { endpoint: string; p256dh: string; auth: string }
@@ -100,6 +101,12 @@ export async function sendPushForNotification(notificationId: string): Promise<P
 
   let sent = 0;
   for (const device of devices) {
+    // Only the browsers' push services; anything else is removed unsent.
+    if (!isAllowedPushEndpoint(device.endpoint)) {
+      await supabaseAdmin.from('push_subscriptions').delete().eq('id', device.id);
+      log('warn', 'push.endpoint_refused', { type: notification.type });
+      continue;
+    }
     let outcome = await sendOnce(device, payload);
     if (outcome === 'retry') {
       await new Promise((r) => setTimeout(r, Deno.env.get('DENO_TESTING') === '1' ? 0 : 1000));

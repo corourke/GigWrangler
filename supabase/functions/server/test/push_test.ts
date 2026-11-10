@@ -160,3 +160,28 @@ Deno.test('push: the web push transport sends an encrypted, signed request', asy
   assert(headers.get('Authorization')?.startsWith('vapid t='), 'VAPID signed');
   assert(!new TextDecoder().decode(seen!.init.body as Uint8Array).includes('secret text'), 'the payload is encrypted');
 });
+
+Deno.test('push: the VAPID subject can be the site address (no personal email goes to the push services)', async () => {
+  const keys = webpush.generateVAPIDKeys();
+  Deno.env.set('VAPID_PUBLIC_KEY', keys.publicKey);
+  Deno.env.set('VAPID_PRIVATE_KEY', keys.privateKey);
+  Deno.env.set('VAPID_SUBJECT', 'https://gigwrangler.com');
+  const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const b64u = (b: Uint8Array) => btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const p256dh = b64u(new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey)));
+  const auth = b64u(crypto.getRandomValues(new Uint8Array(16)));
+
+  const realFetch = globalThis.fetch;
+  let authorization = '';
+  globalThis.fetch = ((_url: string, init: RequestInit) => {
+    authorization = new Headers(init.headers).get('Authorization') ?? '';
+    return Promise.resolve(new Response(null, { status: 201 }));
+  }) as typeof fetch;
+  try {
+    assertEquals(await webPushTransport({ endpoint: 'https://fcm.googleapis.com/fcm/send/x', p256dh, auth }, '{}'), 201);
+  } finally { globalThis.fetch = realFetch; }
+  const jwt = authorization.match(/t=([^,\s]+)/)?.[1] ?? '';
+  const claims = JSON.parse(atob(jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+  assertEquals(claims.sub, 'https://gigwrangler.com');
+  assertEquals(claims.aud, 'https://fcm.googleapis.com');
+});

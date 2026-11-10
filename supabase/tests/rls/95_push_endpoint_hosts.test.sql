@@ -19,4 +19,4 @@ SELECT rls_test.expect('a host merely ending in the name is refused', rls_test.r
 
 SELECT rls_test.expect('the table refuses another host too', (
   SELECT count(*)::int FROM (SELECT 1) x WHERE NOT EXISTS (SELECT 1 FROM pg_constraint
-    WHERE conrelid = 'public.push_subscriptions'::regclass AND pg_get_constraintdef(oid) LIKE '%push_endpoint_allowed%')), 0);
+    WHERE conrelid = 'public.push_subscriptions'::regclass AND conname = 'push_subscriptions_endpoint_allowed')), 0);
