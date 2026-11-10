@@ -29,6 +29,7 @@ import { getSavedDocument, SAVE_REFUSAL } from '../../services/mobile/dayOfShowF
 import type { DayOfShowFile } from '../../utils/idb/store';
 import { pickTodayGigs } from '../../utils/todayGig';
 import { addressLines, mapsHref, smsHref, telHref } from '../../utils/contactLinks';
+import { formatFileSize } from '../../utils/fileSize';
 import { formatDateTimeDisplay, formatInTimeZone, formatTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
 import { GIG_STATUS_CONFIG, SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
 import { getAttachmentUrl } from '../../services/attachment.service';
@@ -362,7 +363,7 @@ function DocumentsSection({ sheet, isOffline }: { sheet: DayOfShowSheet; isOffli
                   <span className="truncate">{doc.file_name}</span>
                 </button>
                 {copy ? (
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Saved on this phone · {formatSize(copy.size)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Saved on this phone · {formatFileSize(copy.size)}</p>
                 ) : isOffline ? (
                   <p className="text-[10px] text-muted-foreground mt-0.5">Not saved on this phone – connect to open</p>
                 ) : (
@@ -386,8 +387,6 @@ function DocumentsSection({ sheet, isOffline }: { sheet: DayOfShowSheet; isOffli
     </Card>
   );
 }
-
-const formatSize = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
 /** A saved document, full screen in the app: an image, a PDF, or (other types) Share to open it elsewhere. */
 function DocumentViewer({ file, onClose }: { file: DayOfShowFile; onClose: () => void }) {
