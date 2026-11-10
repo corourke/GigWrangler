@@ -37,6 +37,7 @@ import { toast } from 'sonner';
 import { cn } from '../ui/utils';
 import { OfflineBadge } from './OfflineBadge';
 import { useIsOffline } from './useIsOffline';
+import CaptureReceiptButton from './receipts/CaptureReceiptButton';
 import { inactiveBannerText, isInactiveOn, managesGigOwner } from '../../utils/gigOwnership';
 import type { GigStatus } from '../../utils/supabase/types';
 import type { OrganizationRole } from '../../utils/supabase/types';
@@ -375,6 +376,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
               {isOffline && <OfflineBadge />}
             </div>
           </div>
+          {!isEditing && <CaptureReceiptButton gigId={gig.id} gigTitle={gig.title} />}
           {canEdit && !inactiveHere && !isEditing && (
             <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Edit gig" onClick={handleStartEdit}>
               <Pencil className="w-4 h-4" />

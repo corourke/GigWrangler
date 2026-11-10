@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createClient } from '../utils/supabase/client';
 import { uploadAttachment, deleteAttachment } from './attachment.service';
-import { enqueueInvoice, scanQueuedInvoice, discardQueuedInvoice, listScanQueue, removeFromScanQueue } from './purchaseScanQueue.service';
+import { enqueueInvoice, scanQueuedInvoice, discardQueuedInvoice, listScanQueue, removeFromScanQueue, listMyRecentReceipts } from './purchaseScanQueue.service';
 
 vi.mock('../utils/supabase/client', () => ({ createClient: vi.fn() }));
 vi.mock('./attachment.service', () => ({
@@ -11,7 +11,7 @@ vi.mock('./attachment.service', () => ({
 }));
 
 const chain: any = {};
-for (const m of ['from', 'select', 'insert', 'delete', 'eq', 'order', 'single']) chain[m] = vi.fn(() => chain);
+for (const m of ['from', 'select', 'insert', 'delete', 'eq', 'gte', 'order', 'single']) chain[m] = vi.fn(() => chain);
 const supabase = { from: chain.from, functions: { invoke: vi.fn() } };
 
 beforeEach(() => {
@@ -53,7 +53,7 @@ describe('purchase scan queue service', () => {
     chain.order.mockResolvedValueOnce({ data: [], error: null });
     await listScanQueue('org-1');
     expect(chain.select).toHaveBeenCalledWith(
-      'id, organization_id, attachment_id, file_name, status, scanned_data, error, created_at, updated_at, attachments(file_path)');
+      'id, organization_id, attachment_id, file_name, status, scanned_data, error, created_at, updated_at, gig_id, created_by, attachments(file_path), gigs(title)');
   });
 
   it('a failed list says what it was doing', async () => {
@@ -77,5 +77,27 @@ describe('purchase scan queue service', () => {
   it('discarding deletes the file, which takes it off the queue', async () => {
     await discardQueuedInvoice({ attachment_id: 'att-1' });
     expect(deleteAttachment).toHaveBeenCalledWith('att-1');
+  });
+
+  it('queues a receipt captured on a gig with that gig', async () => {
+    chain.single.mockResolvedValueOnce({ data: { id: 'q2', status: 'queued', gig_id: 'gig-1' }, error: null });
+    const file = new File(['x'], 'receipt.jpg', { type: 'image/jpeg' });
+    await enqueueInvoice('org-1', file, 'gig-1');
+    expect(chain.insert).toHaveBeenCalledWith({ organization_id: 'org-1', attachment_id: 'att-1', file_name: 'receipt.jpg', gig_id: 'gig-1' });
+  });
+
+  it('lists the receipts I queued in the last 7 days, newest first', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-10T12:00:00Z'));
+    try {
+      chain.order.mockResolvedValueOnce({ data: [{ id: 'q1' }], error: null });
+      expect(await listMyRecentReceipts('org-1', 'user-1')).toEqual([{ id: 'q1' }]);
+      expect(chain.eq).toHaveBeenCalledWith('organization_id', 'org-1');
+      expect(chain.eq).toHaveBeenCalledWith('created_by', 'user-1');
+      expect(chain.gte).toHaveBeenCalledWith('created_at', '2026-11-03T12:00:00.000Z');
+      expect(chain.order).toHaveBeenCalledWith('created_at', { ascending: false });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

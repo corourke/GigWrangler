@@ -79,6 +79,8 @@ export const queryKeys = {
     ['purchases', orgId, 'linkedGigExpenses', ...purchaseIds] as const,
   expenseCategories: (orgId: string) => ['purchases', orgId, 'categories', 'expense'] as const,
   equipmentCategories: (orgId: string) => ['purchases', orgId, 'categories', 'equipment'] as const,
+  /** The receipts this person queued from the phone in the last week (mobile receipt capture). */
+  myRecentReceipts: (orgId: string, userId: string) => ['purchases', orgId, 'scanQueue', 'mine', userId] as const,
   equipmentCategoryPeriods: (orgId: string) => ['purchases', orgId, 'categories', 'periods'] as const,
   /** The organization's items, as options for the purchase editor's equipment pop-up. */
   purchaseItemOptions: (orgId: string) => ['purchases', orgId, 'itemOptions'] as const,
