@@ -73,6 +73,38 @@ describe('useVisualViewport', () => {
     expect(result.current.keyboardOpen).toBe(false);
   });
 
+  it('stays open while moving from one field to the next', async () => {
+    const vv = fakeViewport(H);
+    const { result } = renderHook(() => useVisualViewport());
+    const a = focusField();
+    resize(vv, { height: H - 320, offsetTop: 100 });
+    expect(result.current.keyboardOpen).toBe(true);
+    const b = document.createElement('input');
+    document.body.appendChild(b);
+    // Between the two, focus is briefly on the page itself (focusout before focusin).
+    act(() => { a.blur(); });
+    expect(document.activeElement).toBe(document.body);
+    expect(result.current.keyboardOpen).toBe(true);
+    act(() => { b.focus(); });
+    expect(result.current.keyboardOpen).toBe(true);
+    await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
+    expect(result.current.keyboardOpen).toBe(true);
+    resize(vv, { offsetTop: 140 });
+    expect(result.current).toEqual({ height: H - 320, offsetTop: 140, keyboardOpen: true });
+  });
+
+  it('measures afresh when the window itself changes size with nothing focused (rotation)', () => {
+    const vv = fakeViewport(H);
+    const { result } = renderHook(() => useVisualViewport());
+    // Rotated: the window and the visible area are both shorter, with no keyboard.
+    vi.stubGlobal('innerHeight', 390);
+    act(() => { Object.assign(vv, { height: 390 }); window.dispatchEvent(new Event('resize')); });
+    expect(result.current.keyboardOpen).toBe(false);
+    // A field takes focus without an on-screen keyboard (e.g. a hardware keyboard): not a keyboard.
+    focusField();
+    expect(result.current.keyboardOpen).toBe(false);
+  });
+
   it('falls back to the window where there is no visual viewport', () => {
     vi.stubGlobal('visualViewport', undefined);
     const { result } = renderHook(() => useVisualViewport());
