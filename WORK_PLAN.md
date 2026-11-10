@@ -9,7 +9,7 @@
 
 This file lives on `main`. Land updates there promptly: a run that starts from `main` won't see edits parked on a feature branch.
 
-- **Last updated:** 2026-11-10 02:05 UTC (coordinator: **Prod** at d5d47d8 (database, functions and website deployed 11-09/10 with Cameron's OK; verified). **Audit remediation complete** (Parts A, B and C; private report delivered to Cameron). **Now:** the three mobile features (§3e), plans first. **Rule (Cameron, 11-04):** the repo is public: no tax-return figures, prod amounts, client or gig names, payment details or personal information in the board, docs, issues, PRs, commits or tests. **Rule (Cameron, 11-07):** the coordinator always asks Cameron questions with the AskUserQuestion prompt, never as plain text)
+- **Last updated:** 2026-11-10 06:10 UTC (coordinator: **Prod** at a548510 (the three mobile features: database, functions and website deployed 11-10 with Cameron's OK; verified). **Audit remediation complete** (Parts A, B and C; private report delivered to Cameron). **Now:** Cameron tests the mobile features on his iPhone; the Docs Lead publishes the three §3e guide pages. **Rule (Cameron, 11-04):** the repo is public: no tax-return figures, prod amounts, client or gig names, payment details or personal information in the board, docs, issues, PRs, commits or tests. **Rule (Cameron, 11-07):** the coordinator always asks Cameron questions with the AskUserQuestion prompt, never as plain text)
 
 ---
 
@@ -315,7 +315,7 @@ Not released: #174's UI half shipped in PR #199; its remaining item (the already
 
 ### 3e. Mobile features, after the audits (Cameron, 11-09)
 
-Cameron chose three mobile features. **Started 11-10** (audits finished and deployed 11-10): the Engineering Lead has notifications; two engineer sessions have receipt capture and the day-of-show sheet. Each needs a plan approved by Cameron before code (AGENTS.md rule 1).
+Cameron chose three mobile features. **All three are in prod (11-10, a548510; six migrations, the `push` function, the cron jobs and the website; verified).** Plans approved by Cameron; built by the Engineering Lead and two engineer sessions; merged and smoke-tested on dev by the coordinator. **Next:** Cameron tests on his iPhone (Add to Home Screen first, then Settings → Notifications); the Docs Lead checks the three guide pages on prod and removes `draft: true` in one PR.
 
 1. **Receipt capture.** Take a photo of a receipt (or pick a file) on the phone and add it to the purchase scan queue (`purchase_scan_queue`). **No review on the phone**: scanning and review happen on desktop, as today.
 2. **Notifications.** Phone push alerts (web push for the installed app), each switchable per person in Settings. Events (Cameron, 11-10): assignment invites (to the invited person); accept/decline replies (to the gig's Admins and Managers); gig changes to date, time, venue or cancellation (to assigned staff); join and access requests (to Admins and Managers); payment due and overdue reminders (to Admins; no amounts or client names in the notification text).

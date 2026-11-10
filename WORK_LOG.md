@@ -5,6 +5,7 @@ Append new entries at the top of each section; never edit an old entry to descri
 
 ## Shipped (newest first)
 
+- **Mobile features in prod, 11-10** (Cameron's OK): receipt capture into the scan queue from the phone (online and offline, optional gig link), web push notifications (invites, accept/decline replies, batched gig changes, join and access requests, payment due and overdue reminders for Admins, per-person switches and a lock-screen setting), and the Today tab (schedule, venue, contacts, offline documents). Migrations `20261110000000` through `20261110130000`, the `push` function and its cron jobs, website a548510. Verified: site 200, entry script matches the build, service worker served.
 - **#337 depreciation on Schedule C** (Engineering Lead; merged 11-03/11-04 with Cameron's OK): #339 (migration `20261103000000`, `tax_year_depreciation` and its rows, RLS 67; applied to dev by the coordinator), #341 (Pub 946 MACRS tables, the estimate engine, Form 4562 entry under Filed tax years), #342 (line 13 row: From Form 4562 / Estimated / Not entered, net after depreciation, disposals pointer, CSV). Plan trimmed by Cameron to an estimate, not a tax program. Prod deploy pending.
 - **PR #338** (Engineering Lead; merged 11-03): Needs attention lists only a blank equipment cost; $0 counts as free. **PR #335** (merged 11-03): Filed tax years card under Schedule C only.
 - **#135 closed** (11-04, Cameron's OK).
