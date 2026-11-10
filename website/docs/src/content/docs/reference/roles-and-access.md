@@ -13,6 +13,8 @@ You can be an **Admin** of one organization and a **Viewer** of another. Switchi
 
 ## What each role can do
 
+<!-- DRAFT CHANGE (Docs Lead, plan #445): the Home and accept/decline rows; check the Viewer column on dev (plan: no Home or invites list for Viewers). -->
+
 | You want to… | Admin | Manager | Staff | Viewer |
 |---|---|---|---|---|
 | See your organization's gigs, calendar, schedule and participants | ✓ | ✓ | ✓ | ✓ |
@@ -20,7 +22,8 @@ You can be an **Admin** of one organization and a **Viewer** of another. Switchi
 | Create, edit and duplicate gigs; import gigs | ✓ | ✓ | — | — |
 | Delete a gig | ✓ | — | — | — |
 | Staff a gig and assign people to slots | ✓ | ✓ | — | — |
-| Confirm or decline a slot you're assigned to (on your phone) | ✓ | ✓ | ✓ | ✓ |
+| Use **Home** and day sheets on your phone | ✓ | ✓ | ✓ | — |
+| Accept or decline a slot you're asked to work (on your phone, from **Home**) | ✓ | ✓ | ✓ | — |
 | See staff pay rates and fees | ✓ | ✓ | — | — |
 | See a gig's **Financials** tab and **Financials → Purchases** | ✓ | ✓ | — | — |
 | Add and edit purchases and a gig's money in and out | ✓ | ✓ | — | — |
