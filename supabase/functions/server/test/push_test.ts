@@ -18,7 +18,7 @@ function assertEquals(actual: unknown, expected: unknown, msg = '') {
 function assert(cond: unknown, msg: string) { if (!cond) throw new Error(msg); }
 
 const device = (id: string, extra: Record<string, unknown> = {}) =>
-  ({ id, user_id: 'u-staff', endpoint: `https://push.example.test/${id}`, p256dh: 'k', auth: 'a', failure_count: 0, last_success_at: null, ...extra });
+  ({ id, user_id: 'u-staff', endpoint: `https://fcm.googleapis.com/fcm/send/${id}`, p256dh: 'k', auth: 'a', failure_count: 0, last_success_at: null, ...extra });
 const invite = { id: 'n1', recipient_id: 'u-staff', type: 'assignment.requested',
   payload: { gig_id: 'g1', gig_title: 'Spring Show', gig_date: 'Sat, Oct 10', role_name: 'Sound Tech', fee: 300 } };
 
@@ -66,7 +66,7 @@ Deno.test('push: sends the notification to each of the recipient\'s devices', as
   const sent = transport();
   const res = await push({ notification_id: 'n1' });
   assertEquals(res.status, 200);
-  assertEquals(sent.map((s) => s.endpoint).sort(), ['https://push.example.test/d1', 'https://push.example.test/d2']);
+  assertEquals(sent.map((s) => s.endpoint).sort(), ['https://fcm.googleapis.com/fcm/send/d1', 'https://fcm.googleapis.com/fcm/send/d2']);
   assertEquals(sent[0].payload, { title: 'New gig request', body: "You've been asked to work Sound Tech · Sat, Oct 10 · Spring Show", url: '/gigs/g1', tag: 'gig-g1', notification_id: 'n1' });
   assert(!JSON.stringify(sent).includes('300'), 'no amount in the push');
   const d1 = fake.tables().push_subscriptions.find((d: any) => d.id === 'd1');
@@ -108,6 +108,15 @@ Deno.test('push: a device the push service dropped is removed', async () => {
   const fake = world({ push_subscriptions: [device('d1'), device('gone')] });
   transport({ gone: [410] });
   await push({ notification_id: 'n1' });
+  assertEquals(fake.tables().push_subscriptions.map((d: any) => d.id), ['d1']);
+});
+
+Deno.test('push: only sends through the browsers\' push services; any other device is removed', async () => {
+  const fake = world({ push_subscriptions: [device('d1'), device('elsewhere', { endpoint: 'https://example.test/elsewhere' }),
+    device('plain', { endpoint: 'http://fcm.googleapis.com/fcm/send/plain' })] });
+  const sent = transport();
+  await push({ notification_id: 'n1' });
+  assertEquals(sent.map((s) => s.endpoint), ['https://fcm.googleapis.com/fcm/send/d1']);
   assertEquals(fake.tables().push_subscriptions.map((d: any) => d.id), ['d1']);
 });
 

@@ -37,45 +37,45 @@ CREATE FUNCTION rls_test.owner_of(p_endpoint text) RETURNS uuid LANGUAGE sql STA
 $$;
 
 -- 1. Registering a device ---------------------------------------------------------------------
-SELECT rls_test.expect('register a device', rls_test.act('a_staff', rls_test.reg('https://push.example.test/a1')), 1);
+SELECT rls_test.expect('register a device', rls_test.act('a_staff', rls_test.reg('https://fcm.googleapis.com/fcm/send/a1')), 1);
 SELECT rls_test.expect('... it is theirs', (SELECT count(*)::int FROM public.push_subscriptions
-  WHERE endpoint = 'https://push.example.test/a1' AND user_id = rls_test.u('a_staff') AND device_label = 'Test phone'), 1);
+  WHERE endpoint = 'https://fcm.googleapis.com/fcm/send/a1' AND user_id = rls_test.u('a_staff') AND device_label = 'Test phone'), 1);
 SELECT rls_test.expect('they see their device', rls_test.visible(rls_test.u('a_staff'), 'public.push_subscriptions'), 1);
 SELECT rls_test.expect('nobody else sees it', rls_test.visible(rls_test.u('a_admin'), 'public.push_subscriptions'), 0);
-SELECT rls_test.expect('registering the same device again keeps one row', rls_test.act('a_staff', rls_test.reg('https://push.example.test/a1')), 1);
-SELECT rls_test.expect('... one row', (SELECT count(*)::int FROM public.push_subscriptions WHERE endpoint = 'https://push.example.test/a1'), 1);
+SELECT rls_test.expect('registering the same device again keeps one row', rls_test.act('a_staff', rls_test.reg('https://fcm.googleapis.com/fcm/send/a1')), 1);
+SELECT rls_test.expect('... one row', (SELECT count(*)::int FROM public.push_subscriptions WHERE endpoint = 'https://fcm.googleapis.com/fcm/send/a1'), 1);
 
 SELECT rls_test.expect('no direct insert', rls_test.try(rls_test.u('a_staff'), format(
-  $q$INSERT INTO public.push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (%L, 'https://push.example.test/x', 'k', 'a')$q$, rls_test.u('a_staff'))), -1);
+  $q$INSERT INTO public.push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (%L, 'https://fcm.googleapis.com/fcm/send/x', 'k', 'a')$q$, rls_test.u('a_staff'))), -1);
 SELECT rls_test.expect('no direct update', rls_test.try(rls_test.u('a_staff'),
   $q$UPDATE public.push_subscriptions SET device_label = 'changed'$q$), -1);
 SELECT rls_test.expect('someone else cannot delete it', rls_test.try(rls_test.u('a_admin'),
-  $q$DELETE FROM public.push_subscriptions WHERE endpoint = 'https://push.example.test/a1'$q$), 0);
-SELECT rls_test.expect('signed out cannot register', rls_test.try_anon(rls_test.reg('https://push.example.test/anon')), -1);
-SELECT rls_test.expect('only https push addresses', rls_test.try(rls_test.u('a_staff'), rls_test.reg('http://push.example.test/plain')), -1);
+  $q$DELETE FROM public.push_subscriptions WHERE endpoint = 'https://fcm.googleapis.com/fcm/send/a1'$q$), 0);
+SELECT rls_test.expect('signed out cannot register', rls_test.try_anon(rls_test.reg('https://fcm.googleapis.com/fcm/send/anon')), -1);
+SELECT rls_test.expect('only https push addresses', rls_test.try(rls_test.u('a_staff'), rls_test.reg('http://fcm.googleapis.com/fcm/send/plain')), -1);
 
 -- 2. The same device, another person ---------------------------------------------------------
-SELECT rls_test.expect('another person signs in on the device and registers it', rls_test.act('b_staff', rls_test.reg('https://push.example.test/a1')), 1);
+SELECT rls_test.expect('another person signs in on the device and registers it', rls_test.act('b_staff', rls_test.reg('https://fcm.googleapis.com/fcm/send/a1')), 1);
 SELECT rls_test.expect('... the device is now theirs', (SELECT count(*)::int FROM public.push_subscriptions
-  WHERE endpoint = 'https://push.example.test/a1' AND user_id = rls_test.u('b_staff')), 1);
+  WHERE endpoint = 'https://fcm.googleapis.com/fcm/send/a1' AND user_id = rls_test.u('b_staff')), 1);
 SELECT rls_test.expect('... and no longer the first person''s', rls_test.visible(rls_test.u('a_staff'), 'public.push_subscriptions'), 0);
 
 -- 3. Removing a device ------------------------------------------------------------------------
 SELECT rls_test.expect('unregister removes their device', rls_test.act('b_staff',
-  $q$SELECT public.unregister_push_subscription('https://push.example.test/a1')$q$), 1);
-SELECT rls_test.expect('... gone', (SELECT count(*)::int FROM public.push_subscriptions WHERE endpoint = 'https://push.example.test/a1'), 0);
-SELECT rls_test.act('a_staff', rls_test.reg('https://push.example.test/a2'));
+  $q$SELECT public.unregister_push_subscription('https://fcm.googleapis.com/fcm/send/a1')$q$), 1);
+SELECT rls_test.expect('... gone', (SELECT count(*)::int FROM public.push_subscriptions WHERE endpoint = 'https://fcm.googleapis.com/fcm/send/a1'), 0);
+SELECT rls_test.act('a_staff', rls_test.reg('https://fcm.googleapis.com/fcm/send/a2'));
 SELECT rls_test.expect('unregister leaves someone else''s device', rls_test.act('b_staff',
-  $q$SELECT public.unregister_push_subscription('https://push.example.test/a2')$q$), 1);
-SELECT rls_test.expect('... still there', (SELECT count(*)::int FROM public.push_subscriptions WHERE endpoint = 'https://push.example.test/a2'), 1);
+  $q$SELECT public.unregister_push_subscription('https://fcm.googleapis.com/fcm/send/a2')$q$), 1);
+SELECT rls_test.expect('... still there', (SELECT count(*)::int FROM public.push_subscriptions WHERE endpoint = 'https://fcm.googleapis.com/fcm/send/a2'), 1);
 SELECT rls_test.expect('they can delete their own device row', rls_test.try(rls_test.u('a_staff'),
-  $q$DELETE FROM public.push_subscriptions WHERE endpoint = 'https://push.example.test/a2'$q$), 1);
+  $q$DELETE FROM public.push_subscriptions WHERE endpoint = 'https://fcm.googleapis.com/fcm/send/a2'$q$), 1);
 
 -- 4. At most 10 devices -----------------------------------------------------------------------
-SELECT rls_test.act('a_viewer', rls_test.reg('https://push.example.test/v' || i)) FROM generate_series(1, 10) i;
+SELECT rls_test.act('a_viewer', rls_test.reg('https://fcm.googleapis.com/fcm/send/v' || i)) FROM generate_series(1, 10) i;
 SELECT rls_test.expect('ten devices', (SELECT count(*)::int FROM public.push_subscriptions WHERE user_id = rls_test.u('a_viewer')), 10);
-SELECT rls_test.expect('an eleventh is refused', rls_test.try(rls_test.u('a_viewer'), rls_test.reg('https://push.example.test/v11')), -1);
-SELECT rls_test.expect('one already registered is still fine', rls_test.try(rls_test.u('a_viewer'), rls_test.reg('https://push.example.test/v3')), 1);
+SELECT rls_test.expect('an eleventh is refused', rls_test.try(rls_test.u('a_viewer'), rls_test.reg('https://fcm.googleapis.com/fcm/send/v11')), -1);
+SELECT rls_test.expect('one already registered is still fine', rls_test.try(rls_test.u('a_viewer'), rls_test.reg('https://fcm.googleapis.com/fcm/send/v3')), 1);
 
 -- 5. Switches and the lock-screen setting ---------------------------------------------------
 SELECT rls_test.expect('turn an event off', rls_test.try(rls_test.u('a_staff'), format(
