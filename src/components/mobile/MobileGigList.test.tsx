@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { renderWithQuery as render } from '../../test/renderWithQuery'
 import MobileGigList from './MobileGigList'
@@ -32,6 +32,7 @@ const auth = vi.hoisted(() => ({ role: 'Admin' as string | undefined }))
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
     selectedOrganization: { id: 'org-1', name: 'Test Org' },
+    user: { id: 'user-1' },
     userRole: auth.role,
   }),
 }))
@@ -287,6 +288,18 @@ describe('MobileGigList', () => {
       await openMenu()
       expect(screen.queryByText('Change status:')).not.toBeInTheDocument()
     })
+  })
+})
+
+// Mobile receipt capture (11-10): the Gigs header has a Capture receipt button for Admins and Managers.
+describe('MobileGigList: Capture receipt', () => {
+  afterEach(() => { auth.role = 'Admin' })
+  it.each([['Admin', true], ['Manager', true], ['Staff', false], ['Viewer', false]])('%s sees it: %s', async (role, shown) => {
+    auth.role = role
+    vi.mocked(getGigsForOrganization).mockResolvedValueOnce([] as any)
+    render(<MobileGigList onViewGig={vi.fn()} />)
+    await screen.findByRole('heading', { name: 'Gigs' })
+    expect(!!screen.queryByRole('button', { name: 'Capture receipt' })).toBe(shown)
   })
 })
 

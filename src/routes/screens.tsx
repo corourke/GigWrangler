@@ -64,6 +64,9 @@ const MobileGigDetail = lazy(() => import('../components/mobile/MobileGigDetail'
 const MobileDashboard = lazy(() => import('../components/mobile/MobileDashboard'));
 const MobileInventoryMode = lazy(() => import('../components/mobile/MobileInventoryMode'));
 const MobileSettings = lazy(() => import('../components/mobile/MobileSettings'));
+const MobileToday = lazy(() => import('../components/mobile/MobileToday'));
+const SaveTodaySheetsAhead = lazy(() => import('../components/mobile/SaveTodaySheetsAhead'));
+import { hasTodayTab } from '../components/mobile/todayTab';
 import MobileLayout from '../components/mobile/MobileLayout';
 import { parseSettingsTab } from '../components/settingsTab';
 import { financialsPath, gigPath, inventoryPath, legacyInventoryTab, parseFinancialsPath, parseGigTab, parseInventoryTab } from './paths';
@@ -76,11 +79,12 @@ function useOrgScope() {
 
 /** Mobile chrome (header + bottom nav) wrapping the active mobile screen. */
 function MobileShell({ active, children }: { active: string; children: ReactNode }) {
-  const { organizations, userRole } = useAuth();
+  const { organizations, userRole, user, selectedOrganization } = useAuth();
   const nav = useNav();
   const navigate = useNavigate();
   const onNavigate = (route: string) => {
-    if (route === 'mobile-dashboard') navigate('/dashboard');
+    if (route === 'mobile-today') navigate('/today');
+    else if (route === 'mobile-dashboard') navigate('/dashboard');
     else if (route === 'mobile-gig-list') navigate('/gigs');
     else if (route === 'mobile-inventory') navigate('/inventory');
     else if (route === 'mobile-settings') navigate('/settings');
@@ -92,6 +96,12 @@ function MobileShell({ active, children }: { active: string; children: ReactNode
       onSwitchOrganization={organizations.length > 1 ? nav.switchOrganization : undefined}
       userRole={userRole}
     >
+      {/* Today's day-of-show sheets are saved on the phone from any screen, not only Today (§3e). */}
+      {hasTodayTab(userRole) && (
+        <Suspense fallback={null}>
+          <SaveTodaySheetsAhead userId={user?.id} orgId={selectedOrganization?.id} role={userRole} />
+        </Suspense>
+      )}
       {children}
     </MobileLayout>
   );
@@ -274,6 +284,26 @@ function DashboardRoute() {
       onEditProfile={openEditProfile}
       onNavigateToGigEdit={(id) => nav.viewGig(id)}
     />
+  );
+}
+
+/** The phone's Today tab (§3e): the day-of-show sheet. Desktop goes to the dashboard; Viewer has no Today. */
+function TodayRoute() {
+  const { user, organization, userRole } = useOrgScope();
+  const { isMobile } = useAppShell();
+  const nav = useNav();
+  const [params, setParams] = useSearchParams();
+  if (!user || !organization) return <LoadingSpinner />;
+  if (!isMobile) return <Navigate to="/dashboard" replace />;
+  if (!hasTodayTab(userRole)) return <Navigate to="/gigs" replace />;
+  return (
+    <MobileShell active="mobile-today">
+      <MobileToday
+        gigId={params.get('gig')}
+        onChooseGig={(id) => setParams({ gig: id }, { replace: true })}
+        onViewGigDetail={(id) => nav.viewGig(id)}
+      />
+    </MobileShell>
   );
 }
 
@@ -748,6 +778,7 @@ function RouteTable() {
           <Route element={<RequireOrg />}>
             <Route path="/" element={<LandingRedirect />} />
             <Route path="/dashboard" element={<DashboardRoute />} />
+            <Route path="/today" element={<TodayRoute />} />
             <Route path="/gigs" element={<GigListRoute />} />
             <Route path="/calendar" element={<GigListRoute view="calendar" />} />
             <Route path="/gigs/new" element={<GigCreateRoute />} />

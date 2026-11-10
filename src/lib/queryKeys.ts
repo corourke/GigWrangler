@@ -79,6 +79,8 @@ export const queryKeys = {
     ['purchases', orgId, 'linkedGigExpenses', ...purchaseIds] as const,
   expenseCategories: (orgId: string) => ['purchases', orgId, 'categories', 'expense'] as const,
   equipmentCategories: (orgId: string) => ['purchases', orgId, 'categories', 'equipment'] as const,
+  /** The receipts this person queued from the phone in the last week (mobile receipt capture). */
+  myRecentReceipts: (orgId: string, userId: string) => ['purchases', orgId, 'scanQueue', 'mine', userId] as const,
   equipmentCategoryPeriods: (orgId: string) => ['purchases', orgId, 'categories', 'periods'] as const,
   /** The organization's items, as options for the purchase editor's equipment pop-up. */
   purchaseItemOptions: (orgId: string) => ['purchases', orgId, 'itemOptions'] as const,
@@ -210,6 +212,10 @@ export const queryKeys = {
   pushDevices: (userId: string) => ['pushSettings', userId, 'devices'] as const,
   pushPreferences: (userId: string) => ['pushSettings', userId, 'preferences'] as const,
   pushHideDetails: (userId: string) => ['pushSettings', userId, 'hideDetails'] as const,
+  /** The gigs the Today tab chooses from (§3e): Staff's own, or the organization's. */
+  todayGigs: (userId: string, orgId: string) => ['todayGigs', userId, orgId] as const,
+  /** One gig's day-of-show sheet; under gig(gigId), so a change to the gig refreshes it. */
+  dayOfShow: (gigId: string) => ['gig', gigId, 'dayOfShow'] as const,
 
   // ── Mobile inventory (A10, Engineer O) ──
   // Inventory Mode's packing list is local-first: the device copy, then the server's.

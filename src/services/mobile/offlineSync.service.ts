@@ -230,6 +230,16 @@ registerSyncHandler('STAFF_ASSIGNMENT_UPDATE', async (payload: any) => {
   }
 });
 
+// Receipts kept on the phone (mobile receipt capture, 11-10). Registered here so they sync from
+// app start; the upload code loads only when one is sent.
+registerSyncHandler('RECEIPT_UPLOAD', async (payload: any) => {
+  const { sendQueuedReceipt } = await import('./receiptOutbox.service');
+  await sendQueuedReceipt(payload);
+});
+
+/** The sync in progress, if any: a second call joins it rather than sending the same changes again. */
+let running: Promise<void> | null = null;
+
 /** After this many failed tries a change stops retrying and counts as one that couldn't sync. */
 export const MAX_SYNC_ATTEMPTS = 5;
 
@@ -249,7 +259,14 @@ export const offlineSyncService = {
    * MAX_SYNC_ATTEMPTS times is marked failed and left alone, and the person is told how many
    * couldn't sync.
    */
-  async processOutbox() {
+  processOutbox(): Promise<void> {
+    if (!running) {
+      running = this.sendOutbox().finally(() => { running = null; });
+    }
+    return running;
+  },
+
+  async sendOutbox() {
     const outbox = await idbStore.getOutbox();
     if (outbox.length === 0) return;
     const me = await currentUserId();

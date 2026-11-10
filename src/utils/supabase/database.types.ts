@@ -1726,6 +1726,7 @@ export type Database = {
           created_by: string | null
           error: string | null
           file_name: string
+          gig_id: string | null
           id: string
           organization_id: string
           scanned_data: Json | null
@@ -1738,6 +1739,7 @@ export type Database = {
           created_by?: string | null
           error?: string | null
           file_name: string
+          gig_id?: string | null
           id?: string
           organization_id: string
           scanned_data?: Json | null
@@ -1750,6 +1752,7 @@ export type Database = {
           created_by?: string | null
           error?: string | null
           file_name?: string
+          gig_id?: string | null
           id?: string
           organization_id?: string
           scanned_data?: Json | null
@@ -1762,6 +1765,13 @@ export type Database = {
             columns: ["attachment_id"]
             isOneToOne: false
             referencedRelation: "attachments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_scan_queue_gig_id_fkey"
+            columns: ["gig_id"]
+            isOneToOne: false
+            referencedRelation: "gigs"
             referencedColumns: ["id"]
           },
           {
