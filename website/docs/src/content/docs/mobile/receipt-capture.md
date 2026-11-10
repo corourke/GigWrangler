@@ -1,13 +1,9 @@
 ---
 title: Capturing receipts on your phone
 description: "Photograph a receipt or pick a file on the phone. It's scanned straight away and waits on the computer for review."
-draft: true
 sidebar:
   order: 5
 ---
-
-<!-- Checked on dev at fc15131 (#428, #430). Kept draft: true until the prod deploy that ships it;
-     then check it on prod, add the screenshots, and remove draft. -->
 
 Snap a receipt on your phone the moment you get it, and review it later on a computer. The phone only captures: the receipt goes into your organization's scan queue, it's scanned straight away, and you check it and save the purchase on the computer, as with any [scanned invoice](/financials/receipts-and-invoices/).
 
@@ -50,7 +46,7 @@ Under the buttons, **Queued in the last 7 days** lists the receipts you've captu
 
 On a computer, open **Financials → Purchases → Scan invoices**. Your receipts are in the **Scan queue** with the rest of the organization's: the first one that's ready opens for review, and **Review** on a row opens that one. Check it and select **Save Purchase**, as described in [Receipts & invoices](/financials/receipts-and-invoices/#1-financials--purchases--scan-invoices).
 
-A receipt captured on a gig's page opens with **Add to the costs of *gig*** ticked, so saving it also adds the gig expense. Untick it to save the purchase without the gig.
+A receipt captured on a gig's page is listed as "*file* for *gig*", and opens with **Add to the costs of *gig*** ticked, so saving it also adds the gig expense. Untick it to save the purchase without the gig.
 
 There's no review on the phone.
 

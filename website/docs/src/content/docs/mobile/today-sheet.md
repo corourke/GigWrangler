@@ -1,14 +1,9 @@
 ---
 title: The Today sheet
 description: "One phone screen for the day of the show: the schedule, the venue and directions, the crew and contacts, and the gig's documents, even offline."
-draft: true
 sidebar:
   order: 7
 ---
-
-<!-- Checked on dev at 98beecf (#427, #429). Kept draft: true until the prod deploy that ships it;
-     then check it on prod (including PDF scrolling in the installed iPhone app), add the screenshots,
-     and remove draft. -->
 
 On the day of a gig, **Today** puts what you need on one screen: the run of day, where the venue is, who to call, and the gig's documents. It keeps working when the venue has no signal.
 
