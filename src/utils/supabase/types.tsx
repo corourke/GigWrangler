@@ -63,7 +63,12 @@ export type NotificationType =
   | 'access_request.created'
   | 'access_request.outcome'
   | 'invitation.accepted'
-  | 'health_check.failure';
+  | 'health_check.failure'
+  | 'assignment.requested'
+  | 'assignment.accepted'
+  | 'assignment.declined'
+  | 'gig.changed'
+  | 'payment.reminder';
 
 export interface AccessRequestCreatedPayload {
   access_request_id: string;
@@ -95,13 +100,45 @@ export interface HealthCheckFailurePayload {
   checked_at: string;
 }
 
+/** Push notifications: asked to work a gig (assignment.requested), or the reply (accepted/declined). */
+export interface AssignmentNotificationPayload {
+  assignment_id: string;
+  gig_id: string;
+  gig_title: string;
+  role_name: string | null;
+  organization_id: string;
+  /** assignment.requested: e.g. "Sat 14 Nov". */
+  gig_date?: string;
+  /** assignment.accepted / assignment.declined: who replied. */
+  first_name?: string;
+}
+
+export type GigChangeKind = 'cancelled' | 'date' | 'time' | 'venue';
+
+export interface GigChangedPayload {
+  gig_id: string;
+  gig_title: string;
+  organization_id: string;
+  kinds: GigChangeKind[];
+}
+
+export interface PaymentReminderPayload {
+  organization_id: string;
+  organization_name: string;
+  due_count: number;
+  overdue_count: number;
+}
+
 export type Notification = DbNotification & {
   type: NotificationType;
   payload:
     | AccessRequestCreatedPayload
     | AccessRequestOutcomePayload
     | InvitationAcceptedPayload
-    | HealthCheckFailurePayload;
+    | HealthCheckFailurePayload
+    | AssignmentNotificationPayload
+    | GigChangedPayload
+    | PaymentReminderPayload;
 };
 
 export type DbAsset = Tables['assets']['Row'];

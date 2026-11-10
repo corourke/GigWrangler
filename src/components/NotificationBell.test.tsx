@@ -31,8 +31,10 @@ vi.mock('../contexts/AuthContext', () => ({
 
 const mockToTeam = vi.fn();
 const mockToModeratorQueue = vi.fn();
+const mockViewGig = vi.fn();
+const mockToFinancials = vi.fn();
 vi.mock('../routes/useNav', () => ({
-  useNav: () => ({ toTeam: mockToTeam, toModeratorQueue: mockToModeratorQueue }),
+  useNav: () => ({ toTeam: mockToTeam, toModeratorQueue: mockToModeratorQueue, viewGig: mockViewGig, toFinancials: mockToFinancials }),
 }));
 
 vi.mock('../services/notification.service', async (importOriginal) => {
@@ -353,5 +355,68 @@ describe('NotificationBell (issue #52 — generic notifications)', () => {
     await user.click(screen.getByText(/Google Places/));
 
     await waitFor(() => expect(notificationService.markNotificationRead).toHaveBeenCalledWith('notif-8'));
+  });
+});
+
+// Push notifications, part 4: the bell shows the new kinds and opens their screen.
+describe('NotificationBell: gigs, staffing and payments', () => {
+  const selectOrganization = vi.fn();
+  const note = (type: string, payload: Record<string, unknown>) => ({
+    id: `n-${type}`, recipient_id: 'user-1', type, payload, read_at: null, created_at: '2026-01-01T00:00:00Z',
+  }) as any;
+  const gig = { gig_id: 'gig-1', gig_title: 'Spring Gala', organization_id: 'org-1' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuth.mockReturnValue({
+      user: makeUser(),
+      organizations: [{ organization: org, role: 'Staff' }],
+      selectOrganization,
+    });
+  });
+
+  async function open(notifications: unknown[]) {
+    vi.mocked(notificationService.getMyNotifications).mockResolvedValue(notifications as any);
+    const user = userEvent.setup();
+    render(<NotificationBell />);
+    await waitFor(() => expect(screen.getByText(String(notifications.length))).toBeInTheDocument());
+    await openBell(user);
+    return user;
+  }
+
+  it('a request to work a gig opens the gig in its organization', async () => {
+    const user = await open([note('assignment.requested', { ...gig, role_name: 'A1', gig_date: 'Sat 14 Nov', assignment_id: 'a-1' })]);
+    const item = screen.getByRole('menuitem', { name: /You've been asked to work A1 on Spring Gala/ });
+    expect(item).toHaveTextContent('Sat 14 Nov');
+    await user.click(item);
+    expect(notificationService.markNotificationRead).toHaveBeenCalledWith('n-assignment.requested');
+    expect(selectOrganization).toHaveBeenCalledWith(org);
+    expect(mockViewGig).toHaveBeenCalledWith('gig-1');
+  });
+
+  it('shows replies', async () => {
+    await open([
+      note('assignment.accepted', { ...gig, role_name: 'A1', first_name: 'Sam', assignment_id: 'a-1' }),
+      note('assignment.declined', { ...gig, role_name: 'Lights', first_name: 'Robin', assignment_id: 'a-2' }),
+    ]);
+    expect(screen.getByRole('menuitem', { name: /Sam accepted A1 on Spring Gala/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Robin declined Lights on Spring Gala/ })).toBeInTheDocument();
+  });
+
+  it('shows gig changes and cancellations', async () => {
+    await open([
+      note('gig.changed', { ...gig, kinds: ['venue', 'date'] }),
+      note('gig.changed', { ...gig, gig_id: 'gig-2', gig_title: 'Autumn Ball', kinds: ['cancelled'] }),
+    ]);
+    expect(screen.getByRole('menuitem', { name: /Spring Gala\s?: the date and venue changed/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Autumn Ball was cancelled/ })).toBeInTheDocument();
+  });
+
+  it('payment reminders open Financials in their organization', async () => {
+    const user = await open([note('payment.reminder', { organization_id: 'org-1', organization_name: 'Acme Productions', due_count: 2, overdue_count: 1 })]);
+    const item = screen.getByRole('menuitem', { name: /Acme Productions\s?: 2 payments are due today · 1 is overdue/ });
+    await user.click(item);
+    expect(selectOrganization).toHaveBeenCalledWith(org);
+    expect(mockToFinancials).toHaveBeenCalled();
   });
 });
