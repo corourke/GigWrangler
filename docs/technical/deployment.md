@@ -524,6 +524,11 @@ together if a browser adds a service.
      -d '{"notification_id":"00000000-0000-0000-0000-000000000000"}' https://<project-ref>.supabase.co/functions/v1/push
    ```
 
+**Scheduled jobs.** Migration `20261110120000_push_events.sql` schedules two pg_cron jobs, which need no setup:
+`push-gig-changes` (every minute; sends gig changes that have been quiet for two minutes, or waiting 15) and
+`push-payment-reminders` (15:00 UTC daily; payments due today and newly overdue, to each organization's Admins).
+Check them with `select jobname, schedule from cron.job;` and their runs in `cron.job_run_details`.
+
    After a real notification, `select status_code from net._http_response order by created desc limit 5;` shows the
    database's calls. `unset T` when done.
 
