@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('@simplewebauthn/browser', () => ({ startRegistration: vi.fn() }))
+// Push notifications have their own tests (settings/NotificationSettings.test.tsx).
+vi.mock('../settings/NotificationSettingsSection', () => ({ default: () => <div data-testid="notification-settings" /> }))
 
 const db = vi.hoisted(() => ({
   devices: [] as Array<{ id: string; device_name: string; created_at: string; last_used_at: string }>,
@@ -44,6 +46,15 @@ beforeEach(() => {
   db.devices = [device('d1', 'Phone A')]
   db.fail = false
   db.deleted = []
+})
+
+describe('MobileSettings: notifications', () => {
+  it('has a Notifications card', async () => {
+    render(<MobileSettings onLogout={vi.fn()} onLock={vi.fn()} />)
+    expect(screen.getByText('Notifications')).toBeInTheDocument()
+    expect(screen.getByTestId('notification-settings')).toBeInTheDocument()
+    await screen.findByText('Phone A')
+  })
 })
 
 describe('MobileSettings: devices', () => {

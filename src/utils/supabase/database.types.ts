@@ -1517,6 +1517,61 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_preferences: {
+        Row: {
+          event_type: string
+          push_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          event_type: string
+          push_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          event_type?: string
+          push_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_settings: {
+        Row: {
+          hide_lock_screen_details: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          hide_lock_screen_details?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          hide_lock_screen_details?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -1828,6 +1883,50 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          device_label: string | null
+          endpoint: string
+          failure_count: number
+          id: string
+          last_success_at: string | null
+          p256dh: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          device_label?: string | null
+          endpoint: string
+          failure_count?: number
+          id?: string
+          last_success_at?: string | null
+          p256dh: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          device_label?: string | null
+          endpoint?: string
+          failure_count?: number
+          id?: string
+          last_success_at?: string | null
+          p256dh?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -2178,7 +2277,20 @@ export type Database = {
         Args: { p_amount: number; p_id: string; p_paid_at: string; p_reference: string | null; p_split: boolean }
         Returns: Json
       }
+      register_push_subscription: {
+        Args: {
+          p_auth: string
+          p_endpoint: string
+          p_label?: string
+          p_p256dh: string
+        }
+        Returns: string
+      }
       two_factor_requirement: { Args: never; Returns: Json }
+      unregister_push_subscription: {
+        Args: { p_endpoint: string }
+        Returns: boolean
+      }
       update_purchase_v1: { Args: { p_plan: Json; p_purchase_id: string }; Returns: Json }
       set_purchase_line_gig: {
         Args: { p_gig_id: string | null; p_line_id: string; p_remove_entries?: boolean }

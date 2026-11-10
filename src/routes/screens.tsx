@@ -68,6 +68,7 @@ const MobileToday = lazy(() => import('../components/mobile/MobileToday'));
 const SaveTodaySheetsAhead = lazy(() => import('../components/mobile/SaveTodaySheetsAhead'));
 import { hasTodayTab } from '../components/mobile/todayTab';
 import MobileLayout from '../components/mobile/MobileLayout';
+import { parseSettingsTab } from '../components/settingsTab';
 import { financialsPath, gigPath, inventoryPath, legacyInventoryTab, parseFinancialsPath, parseGigTab, parseInventoryTab } from './paths';
 
 /** Narrow the (nullable) auth values for org-scoped screens. */
@@ -680,7 +681,7 @@ function SettingsRoute() {
       organization={organization}
       user={user}
       userRole={userRole}
-      tab={tab === 'categories' || tab === 'security' ? tab : 'calendar'}
+      tab={parseSettingsTab(tab)}
       onTabChange={t => nav.navigate(`/settings/${t}`, { replace: true })}
       onBack={nav.toDashboard}
       onNavigateToDashboard={nav.toDashboard}

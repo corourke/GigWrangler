@@ -206,6 +206,12 @@ export const queryKeys = {
   mobileGig: (gigId: string) => ['gig', gigId, 'mobile'] as const,
   myUpcomingAssignments: (userId: string, orgId: string) => ['myUpcomingAssignments', userId, orgId] as const,
   myDevices: (userId: string) => ['myDevices', userId] as const,
+  // Push notifications: this browser, the person's devices, switches and lock-screen setting.
+  pushSettings: (userId: string) => ['pushSettings', userId] as const,
+  pushThisDevice: (userId: string) => ['pushSettings', userId, 'thisDevice'] as const,
+  pushDevices: (userId: string) => ['pushSettings', userId, 'devices'] as const,
+  pushPreferences: (userId: string) => ['pushSettings', userId, 'preferences'] as const,
+  pushHideDetails: (userId: string) => ['pushSettings', userId, 'hideDetails'] as const,
   /** The gigs the Today tab chooses from (§3e): Staff's own, or the organization's. */
   todayGigs: (userId: string, orgId: string) => ['todayGigs', userId, orgId] as const,
   /** One gig's day-of-show sheet; under gig(gigId), so a change to the gig refreshes it. */
