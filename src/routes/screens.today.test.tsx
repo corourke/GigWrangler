@@ -37,6 +37,15 @@ vi.mock('../components/mobile/MobileToday', () => ({
   ),
 }));
 vi.mock('../components/mobile/MobileGigList', () => ({ default: () => <div>MobileGigList stub</div> }));
+vi.mock('../components/mobile/MobileDaySheet', () => ({
+  default: ({ gigId, onBack }: any) => (
+    <div>
+      MobileDaySheet stub gig={gigId}
+      <button onClick={onBack}>back</button>
+    </div>
+  ),
+}));
+vi.mock('../components/gig/GigPage', () => ({ default: ({ gigId }: any) => <div>GigPage stub {gigId}</div> }));
 vi.mock('../components/Dashboard', () => ({ default: () => <div>Dashboard stub</div> }));
 vi.mock('../components/GigListScreen', () => ({ default: () => <div>GigListScreen stub</div> }));
 
@@ -125,5 +134,45 @@ describe('/today (day-of-show sheet, §3e)', () => {
     renderAt('/gigs');
     await screen.findByText('MobileGigList stub');
     expect(saveAhead).not.toHaveBeenCalled();
+  });
+});
+
+// Plan #445 (A1): the day sheet for any gig.
+describe('/gigs/:id/day-sheet', () => {
+  beforeEach(() => {
+    isMobile = true;
+  });
+
+  for (const role of ['Staff', 'Admin', 'Manager']) {
+    it(`opens the gig's day sheet on the phone for ${role}`, async () => {
+      signInAs(role);
+      renderAt('/gigs/g7/day-sheet');
+      expect(await screen.findByText('MobileDaySheet stub gig=g7')).toBeInTheDocument();
+    });
+  }
+
+  it('sends a Viewer to the gig list', async () => {
+    signInAs('Viewer');
+    renderAt('/gigs/g7/day-sheet');
+    expect(await screen.findByText('MobileGigList stub')).toBeInTheDocument();
+  });
+
+  it('opens the gig page on desktop', async () => {
+    isMobile = false;
+    signInAs('Manager');
+    renderAt('/gigs/g7/day-sheet');
+    expect(await screen.findByText('at:/gigs/g7')).toBeInTheDocument();
+  });
+
+  it('goes back to the page it came from', async () => {
+    signInAs('Staff');
+    render(
+      <MemoryRouter initialEntries={['/today', '/gigs/g7/day-sheet']} initialIndex={1}>
+        <AppRoutes />
+        <Where />
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByText('back'));
+    expect(await screen.findByText('at:/today')).toBeInTheDocument();
   });
 });

@@ -22,6 +22,15 @@ vi.mock('../../services/mobile/dayOfShowFiles.service', async (importOriginal) =
   }
 })
 const toastError = vi.fn()
+vi.mock('./DaySheetGigPicker', () => ({
+  default: ({ onChoose, onClose }: any) => (
+    <div>
+      <span>Gig picker</span>
+      <button onClick={() => onChoose('g9')}>pick g9</button>
+      <button onClick={onClose}>close picker</button>
+    </div>
+  ),
+}))
 vi.mock('sonner', () => ({ toast: { error: (...a: any[]) => toastError(...a), success: vi.fn() } }))
 
 import { loadTodayCandidates, loadDayOfShowSheet, type DayOfShowSheet } from '../../services/mobile/dayOfShow.service'
@@ -200,5 +209,32 @@ describe('MobileToday (day-of-show sheet)', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Save stage-plot.pdf for offline' }))
       await waitFor(() => expect(toastError).toHaveBeenCalledWith("This gig's saved documents would pass 50 MB"))
     })
+  })
+})
+
+// Plan #445 (A1): any gig's day sheet from Today.
+describe('MobileToday: Choose another gig', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setOnline(true)
+    vi.mocked(loadDayOfShowSheet).mockImplementation(async (id: string) => sheetFor(gig(id, '2026-11-12T22:00:00Z', '2026-11-13T02:00:00Z')))
+  })
+
+  it('opens the gig picker, and the day sheet of the gig chosen', async () => {
+    vi.mocked(loadTodayCandidates).mockResolvedValue([])
+    const onOpenDaySheet = vi.fn()
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={onOpenDaySheet} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose another gig' }))
+    expect(screen.getByText('Gig picker')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('pick g9'))
+    expect(onOpenDaySheet).toHaveBeenCalledWith('g9')
+  })
+
+  it('closes the picker', async () => {
+    vi.mocked(loadTodayCandidates).mockResolvedValue([])
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose another gig' }))
+    fireEvent.click(screen.getByText('close picker'))
+    expect(screen.queryByText('Gig picker')).not.toBeInTheDocument()
   })
 })
