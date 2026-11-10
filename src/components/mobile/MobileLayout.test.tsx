@@ -31,3 +31,40 @@ describe('MobileLayout', () => {
     expect(main.style.overflowY).toBe('auto')
   })
 })
+
+describe('MobileLayout bottom nav: the Today tab (§3e)', () => {
+  const tabs = (role: any) => {
+    render(
+      <AuthProvider>
+        <MobileLayout currentRoute="mobile-today" onNavigate={vi.fn()} userRole={role}>
+          <div />
+        </MobileLayout>
+      </AuthProvider>
+    )
+    return Array.from(screen.getByTestId('mobile-bottom-nav').querySelectorAll('button')).map((b) => b.textContent)
+  }
+
+  it('comes first for Staff, before My Schedule', () => {
+    expect(tabs('Staff')).toEqual(['Today', 'Dashboard', 'Scanning', 'Settings'])
+  })
+
+  it('comes first for Admin and Manager, before Gigs', () => {
+    expect(tabs('Admin')).toEqual(['Today', 'Gigs', 'Scanning', 'Settings'])
+  })
+
+  it('is not shown to a Viewer', () => {
+    expect(tabs('Viewer')).toEqual(['Gigs', 'Scanning', 'Settings'])
+  })
+
+  it('shows Today as the current tab on the Today screen', () => {
+    render(
+      <AuthProvider>
+        <MobileLayout currentRoute="mobile-today" onNavigate={vi.fn()} userRole="Manager">
+          <div />
+        </MobileLayout>
+      </AuthProvider>
+    )
+    const today = screen.getByRole('button', { name: 'Today' })
+    expect(today).toHaveAttribute('aria-current', 'page')
+  })
+})

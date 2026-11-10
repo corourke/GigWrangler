@@ -1,8 +1,8 @@
 import { idbStore } from '../../utils/idb/store';
 
 /**
- * The phone's offline copy (gigs, packing lists, staff assignments, kits and equipment, and changes
- * waiting to sync) belongs to one signed-in person at a time. Claimed at sign-in: cleared first if
+ * The phone's offline copy (gigs, packing lists, staff assignments, kits and equipment, day-of-show
+ * sheets, and changes waiting to sync) belongs to one signed-in person at a time. Claimed at sign-in: cleared first if
  * someone else had it (only the cached data if no owner was recorded). Cleared again at sign-out.
  */
 export const OFFLINE_OWNER_KEY = 'gw.offlineOwner';

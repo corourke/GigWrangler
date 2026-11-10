@@ -57,6 +57,31 @@ export async function getGigParticipantContacts(
 }
 
 /**
+ * Every participating organization's contacts on one gig (the day-of-show sheet, §3e), primary
+ * first. RLS decides which rows the signed-in person gets.
+ */
+export async function getAllGigContacts(gigId: string): Promise<GigParticipantContact[]> {
+  return listRecords<GigParticipantContact>('gig_participant_contacts', {
+    context: 'fetch gig contacts',
+    select: `
+        id,
+        gig_id,
+        organization_id,
+        user_id,
+        is_primary_contact,
+        title,
+        created_at,
+        user:users(id, first_name, last_name, email, phone)
+      `,
+    filters: [{ column: 'gig_id', operator: 'eq', value: gigId }],
+    order: [
+      { column: 'is_primary_contact', ascending: false },
+      { column: 'created_at', ascending: true },
+    ],
+  });
+}
+
+/**
  * Add (or reactivate) a person as a contact for this gig's participation by
  * this organization. Upserts — re-adding someone already linked is a
  * harmless no-op, not an error, unlike organization_members' uniqueness
