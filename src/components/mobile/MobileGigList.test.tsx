@@ -209,7 +209,7 @@ describe('MobileGigList', () => {
 
     it('keeps its header below the status bar', async () => {
       const sheet = await openSheet()
-      expect(sheet.style.paddingTop).toContain('safe-area-inset-top')
+      expect(sheet.className).toContain('pt-[env(safe-area-inset-top,0px)]')
     })
 
     it('scrolls a field into view when it gets focus', async () => {

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useVisualViewport } from '../../hooks/useVisualViewport';
 import { safeHref } from '../../utils/safeHref';
 import {Barcode, Settings, Building2, List, LayoutDashboard, CalendarClock } from 'lucide-react';
 import type { UserRole } from '../../utils/supabase/types';
@@ -32,21 +33,9 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
 
   const [isApplePWA] = React.useState(getIsAppleStandalone);
 
-  const [vpHeight, setVpHeight] = React.useState<number | null>(null);
-
-  React.useEffect(() => {
-    const update = () => {
-      const h = window.visualViewport?.height ?? window.innerHeight;
-      setVpHeight(h);
-    };
-    update();
-    window.visualViewport?.addEventListener('resize', update);
-    window.addEventListener('resize', update);
-    return () => {
-      window.visualViewport?.removeEventListener('resize', update);
-      window.removeEventListener('resize', update);
-    };
-  }, []);
+  // The visible area: the layout fits it, and the tab bar steps aside while a keyboard is open
+  // (on iOS it would otherwise ride up above the keyboard, #442).
+  const { height: vpHeight, keyboardOpen } = useVisualViewport();
 
   const getInitials = (firstName: string = '', lastName: string = '') => {
     const f = firstName?.[0] || '';
@@ -152,6 +141,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
       <nav
         data-testid="mobile-bottom-nav"
         className="mobile-bottom-nav"
+        hidden={keyboardOpen}
         style={{
           flexShrink: 0,
           backgroundColor: 'var(--background)',
@@ -159,6 +149,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
           WebkitUserSelect: 'none',
           userSelect: 'none',
           ...(isApplePWA ? { paddingBottom: 0 } : {}),
+          ...(keyboardOpen ? { display: 'none' } : {}),
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', height: 56, maxWidth: 480, margin: '0 auto', padding: '0 8px' }}>

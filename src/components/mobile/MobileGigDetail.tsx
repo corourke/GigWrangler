@@ -67,6 +67,9 @@ const ASSIGNMENT_STATUS_CONFIG: Record<string, { label: string; color: string; t
 };
 
 const INPUT_CLASS = 'w-full h-10 px-3 text-sm bg-muted/50 rounded-lg border-0 outline-none focus:ring-2 focus:ring-primary/30';
+// iOS date and time fields have a minimum width of their own; in a two-column row they ran off the
+// screen (#442). min-w-0 on the field and its grid cell lets them share the row.
+const DATE_INPUT_CLASS = `${INPUT_CLASS} min-w-0 appearance-none`;
 
 export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: MobileGigDetailProps) {
   const { user, userRole, selectedOrganization } = useAuth();
@@ -522,21 +525,21 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                     </label>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Start Date</p>
                       <input
                         type="date"
-                        className={INPUT_CLASS}
+                        className={DATE_INPUT_CLASS}
                         value={editStartDate}
                         onChange={e => setEditStartDate(e.target.value)}
                       />
                     </div>
                     {!editAllDay && (
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">Start Time</p>
                         <input
                           type="time"
-                          className={INPUT_CLASS}
+                          className={DATE_INPUT_CLASS}
                           value={editStartTime}
                           onChange={e => setEditStartTime(e.target.value)}
                         />
@@ -544,21 +547,21 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-2 mt-2">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">End Date</p>
                       <input
                         type="date"
-                        className={INPUT_CLASS}
+                        className={DATE_INPUT_CLASS}
                         value={editEndDate}
                         onChange={e => setEditEndDate(e.target.value)}
                       />
                     </div>
                     {!editAllDay && (
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1">End Time</p>
                         <input
                           type="time"
-                          className={INPUT_CLASS}
+                          className={DATE_INPUT_CLASS}
                           value={editEndTime}
                           onChange={e => setEditEndTime(e.target.value)}
                         />
