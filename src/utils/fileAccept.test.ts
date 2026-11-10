@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { SCAN_FILE_ACCEPT, ATTACHMENT_FILE_ACCEPT } from './fileAccept';
+import { SCAN_FILE_ACCEPT, ATTACHMENT_FILE_ACCEPT, RECEIPT_FILE_ACCEPT } from './fileAccept';
 import { ALLOWED_MEDIA_TYPES } from '../../supabase/functions/ai-scan/scanQueue';
 import { attachmentContentType } from '../services/attachment.service';
 
@@ -13,6 +13,10 @@ describe('file picker accept lists', () => {
   it('scan pickers offer exactly what the scanner reads', () => {
     expect(exts(SCAN_FILE_ACCEPT).every(e => e.startsWith('.'))).toBe(true);
     expect(new Set(exts(SCAN_FILE_ACCEPT).map(e => typeOf[e]))).toEqual(ALLOWED_MEDIA_TYPES);
+  });
+
+  it('the phone receipt picker offers exactly what the scanner reads, as media types', () => {
+    expect(new Set(exts(RECEIPT_FILE_ACCEPT))).toEqual(ALLOWED_MEDIA_TYPES);
   });
 
   it('attachment pickers offer exactly what the bucket takes', () => {

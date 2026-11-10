@@ -146,7 +146,7 @@ describe('purchase.service', () => {
 });
 
 describe('purchaseScanQueue.service', () => {
-  const COLUMNS = 'id, organization_id, attachment_id, file_name, status, scanned_data, error, created_at, updated_at, attachments(file_path)';
+  const COLUMNS = 'id, organization_id, attachment_id, file_name, status, scanned_data, error, created_at, updated_at, gig_id, created_by, attachments(file_path), gigs(title)';
 
   it('listScanQueue reads the org\'s queue, oldest first', async () => {
     const calls = respond({ data: [{ id: 'q1' }], error: null });
