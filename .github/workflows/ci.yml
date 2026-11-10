@@ -9,8 +9,63 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same PR replaces the run in progress.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Decides which jobs this change needs, to save Actions minutes (Cameron, 11-10).
+  # Skipped jobs report success, so required checks still pass. If this job fails, everything runs.
+  #   - A push to main that merged a PR runs nothing: the PR's run already checked it.
+  #   - Markdown outside website/docs (the board, the log, internal notes) runs nothing.
+  #   - website/docs runs docs; supabase runs edge and rls; anything else runs ci.
+  #   - A change to this workflow runs everything.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ci: ${{ steps.pick.outputs.ci }}
+      edge: ${{ steps.pick.outputs.edge }}
+      docs: ${{ steps.pick.outputs.docs }}
+      rls: ${{ steps.pick.outputs.rls }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          ci=false; edge=false; docs=false; rls=false
+          all() { ci=true; edge=true; docs=true; rls=true; }
+          if [ "$EVENT" = push ] && [ -n "$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD/pulls" --jq '.[] | select(.merged_at != null) | .number')" ]; then
+            echo "Merged from a PR that CI already checked; nothing to run."
+          elif [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ] \
+            || ! files=$(git diff --name-only "$BASE...$HEAD" 2>/dev/null); then
+            all
+          else
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              case "$f" in
+                .github/workflows/*) all ;;
+                website/docs/*) docs=true ;;
+                supabase/*) edge=true; rls=true ;;
+                *.md) ;;
+                *) ci=true ;;
+              esac
+            done <<< "$files"
+          fi
+          printf 'ci=%s\nedge=%s\ndocs=%s\nrls=%s\n' $ci $edge $docs $rls | tee -a "$GITHUB_OUTPUT"
+
   ci:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.ci == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -67,6 +122,8 @@ jobs:
   edge:
     # Type-checks the edge functions against their pinned dependencies (A7, A23). The lockfile is
     # frozen: a dependency that changed without an updated supabase/functions/deno.lock fails here.
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.edge == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -88,6 +145,8 @@ jobs:
 
   docs:
     # Builds the documentation site (website/docs) so a broken page fails the PR, not the deploy (A23).
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.docs == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -106,6 +165,8 @@ jobs:
   rls:
     # Applies every migration to a throwaway Postgres 17 and checks tenant
     # isolation (supabase/tests/rls/). See supabase/tests/rls/README.md.
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.rls == 'true') }}
     runs-on: ubuntu-latest
     services:
       postgres:
