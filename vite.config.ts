@@ -86,6 +86,8 @@
           // version.json must always come from the network, never the
           // precache, or the version check would only ever see this build.
           globIgnores: ['**/node_modules/**/*', 'static/404.html', 'version.json'],
+          // Push notifications: showing them and opening the app from a tap (public/push-sw.js).
+          importScripts: ['push-sw.js'],
         },
         devOptions: {
           enabled: true,

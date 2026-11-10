@@ -2,7 +2,8 @@ import { renderWithQuery as render } from '../../test/renderWithQuery';
 import { describe, it, expect, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import SettingsScreen, { parseSettingsTab } from '../SettingsScreen';
+import SettingsScreen from '../SettingsScreen';
+import { parseSettingsTab } from '../settingsTab';
 
 // Push notifications: Settings → Notifications (/settings/notifications).
 vi.mock('../AppHeader', () => ({ default: () => null }));

@@ -21,7 +21,8 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function setup(initial: string, userId: string | undefined = 'u1') {
+function setup(initial: string, { signedIn = true } = {}) {
+  const userId = signedIn ? 'u1' : undefined;
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={[initial]}>{children}</MemoryRouter>
@@ -59,7 +60,7 @@ describe('usePushOpen', () => {
   });
 
   it('waits for sign-in before marking it read', async () => {
-    setup('/financials?push=n2', undefined);
+    setup('/financials?push=n2', { signedIn: false });
     await new Promise((r) => setTimeout(r, 10));
     expect(markNotificationRead).not.toHaveBeenCalled();
   });

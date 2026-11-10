@@ -28,5 +28,9 @@
 /registerSW.js
   Cache-Control: no-cache
 
+# Push notifications: imported by the service worker, so it updates with it.
+/push-sw.js
+  Cache-Control: no-cache
+
 /version.json
   Cache-Control: no-cache

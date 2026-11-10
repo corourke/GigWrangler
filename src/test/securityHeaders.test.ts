@@ -58,7 +58,7 @@ describe('security headers (public/_headers)', () => {
   });
 
   it('keeps the page and the update files from being cached', () => {
-    for (const path of ['/', '/index.html', '/sw.js', '/registerSW.js', '/version.json']) {
+    for (const path of ['/', '/index.html', '/sw.js', '/registerSW.js', '/push-sw.js', '/version.json']) {
       expect(rules[path]?.['cache-control'], path).toBe('no-cache');
     }
   });
