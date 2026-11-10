@@ -10,9 +10,9 @@ import {
 } from '../../services/mobile/dayOfShow.service';
 import type { UserRole } from '../../utils/supabase/types';
 
-/** The roles with a Today tab (§3e): not Viewer. */
-export const hasTodayTab = (role: UserRole | null | undefined) =>
-  role === 'Staff' || role === 'Admin' || role === 'Manager';
+import { hasTodayTab } from './todayTab';
+
+export { hasTodayTab };
 
 /** The gigs the Today tab chooses from: the device copy first, then the server's. */
 export function useTodayGigs({ userId, orgId, role }: { userId?: string; orgId?: string; role?: UserRole | null }) {

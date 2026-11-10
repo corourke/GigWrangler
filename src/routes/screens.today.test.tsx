@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { AppRoutes } from './screens';
 
@@ -13,9 +13,11 @@ vi.mock('./appShell', () => ({
 vi.mock('./prefetch', () => ({ prefetchLandingScreen: vi.fn() }));
 
 const saveAhead = vi.fn();
-vi.mock('../components/mobile/useDayOfShowData', () => ({
-  useSaveTodaySheetsAhead: (args: any) => saveAhead(args),
-  hasTodayTab: (role: string) => ['Staff', 'Admin', 'Manager'].includes(role),
+vi.mock('../components/mobile/SaveTodaySheetsAhead', () => ({
+  default: (props: any) => {
+    saveAhead(props);
+    return null;
+  },
 }));
 vi.mock('../components/mobile/MobileLayout', () => ({
   default: ({ children, currentRoute, onNavigate }: any) => (
@@ -115,6 +117,13 @@ describe('/today (day-of-show sheet, §3e)', () => {
     signInAs('Staff');
     renderAt('/gigs');
     await screen.findByText('MobileGigList stub');
-    expect(saveAhead).toHaveBeenCalledWith({ userId: 'u1', orgId: 'org-1', role: 'Staff' });
+    await waitFor(() => expect(saveAhead).toHaveBeenCalledWith({ userId: 'u1', orgId: 'org-1', role: 'Staff' }));
+  });
+
+  it('saves nothing ahead for a Viewer', async () => {
+    signInAs('Viewer');
+    renderAt('/gigs');
+    await screen.findByText('MobileGigList stub');
+    expect(saveAhead).not.toHaveBeenCalled();
   });
 });

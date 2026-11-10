@@ -65,7 +65,8 @@ const MobileDashboard = lazy(() => import('../components/mobile/MobileDashboard'
 const MobileInventoryMode = lazy(() => import('../components/mobile/MobileInventoryMode'));
 const MobileSettings = lazy(() => import('../components/mobile/MobileSettings'));
 const MobileToday = lazy(() => import('../components/mobile/MobileToday'));
-import { hasTodayTab, useSaveTodaySheetsAhead } from '../components/mobile/useDayOfShowData';
+const SaveTodaySheetsAhead = lazy(() => import('../components/mobile/SaveTodaySheetsAhead'));
+import { hasTodayTab } from '../components/mobile/todayTab';
 import MobileLayout from '../components/mobile/MobileLayout';
 import { financialsPath, gigPath, inventoryPath, legacyInventoryTab, parseFinancialsPath, parseGigTab, parseInventoryTab } from './paths';
 
@@ -80,8 +81,6 @@ function MobileShell({ active, children }: { active: string; children: ReactNode
   const { organizations, userRole, user, selectedOrganization } = useAuth();
   const nav = useNav();
   const navigate = useNavigate();
-  // Today's day-of-show sheets are saved on the phone from any screen, not only Today (§3e).
-  useSaveTodaySheetsAhead({ userId: user?.id, orgId: selectedOrganization?.id, role: userRole });
   const onNavigate = (route: string) => {
     if (route === 'mobile-today') navigate('/today');
     else if (route === 'mobile-dashboard') navigate('/dashboard');
@@ -96,6 +95,12 @@ function MobileShell({ active, children }: { active: string; children: ReactNode
       onSwitchOrganization={organizations.length > 1 ? nav.switchOrganization : undefined}
       userRole={userRole}
     >
+      {/* Today's day-of-show sheets are saved on the phone from any screen, not only Today (§3e). */}
+      {hasTodayTab(userRole) && (
+        <Suspense fallback={null}>
+          <SaveTodaySheetsAhead userId={user?.id} orgId={selectedOrganization?.id} role={userRole} />
+        </Suspense>
+      )}
       {children}
     </MobileLayout>
   );
