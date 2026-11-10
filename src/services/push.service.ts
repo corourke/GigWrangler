@@ -17,6 +17,7 @@ export interface PushDevice {
   last_success_at: string | null;
 }
 
+export const SUBSCRIBE_FAILED_MESSAGE = "Couldn't turn on notifications. Check that this browser allows notifications for this site.";
 export const BLOCKED_MESSAGE = "Notifications are blocked for GigWrangler in this browser's settings.";
 
 const vapidKey = (): string => (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) ?? '';
@@ -58,8 +59,14 @@ export async function enablePushOnThisDevice(): Promise<void> {
     throw new Error(permission === 'denied' ? BLOCKED_MESSAGE : 'Notifications were not allowed.');
   }
   const registration = await navigator.serviceWorker.ready;
-  const subscription = (await registration.pushManager.getSubscription())
-    ?? (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(vapidKey()) as BufferSource }));
+  let subscription: PushSubscription;
+  try {
+    subscription = (await registration.pushManager.getSubscription())
+      ?? (await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(vapidKey()) as BufferSource }));
+  } catch {
+    // The browser's own text (e.g. "Registration failed - permission denied" in incognito) isn't for people.
+    throw new Error(SUBSCRIBE_FAILED_MESSAGE);
+  }
   const { p256dh, auth } = subscription.toJSON().keys ?? {};
   if (!p256dh || !auth) throw new Error("This browser didn't provide notification keys. Try again.");
   const { error } = await getSupabase().rpc('register_push_subscription', {
