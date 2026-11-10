@@ -177,18 +177,31 @@ function QueuedInvoiceReview({ item, organizationId, onDiscard, onSaved }: {
     return () => { cancelled = true; };
   }, [item]);
 
+  // Captured on a gig's page (mobile, 11-10): saved as a cost of that gig unless unticked.
+  const [asGigCost, setAsGigCost] = useState(true);
+  const gigId = item.gig_id && asGigCost ? item.gig_id : undefined;
+
   return (
-    <ReviewScannedDataDialog
-      layout="page"
-      open
-      cancelLabel="Discard"
-      onOpenChange={(open) => { if (!open) onDiscard(); }}
-      organizationId={organizationId}
-      scannedData={item.scanned_data}
-      file={file}
-      attachmentId={item.attachment_id}
-      onSuccess={onSaved}
-    />
+    <>
+      {item.gig_id && (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" className="h-4 w-4" checked={asGigCost} onChange={(e) => setAsGigCost(e.target.checked)} />
+          Add to the costs of {item.gigs?.title ?? 'the gig it was captured on'}
+        </label>
+      )}
+      <ReviewScannedDataDialog
+        layout="page"
+        open
+        cancelLabel="Discard"
+        onOpenChange={(open) => { if (!open) onDiscard(); }}
+        organizationId={organizationId}
+        scannedData={item.scanned_data}
+        file={file}
+        gigId={gigId}
+        attachmentId={item.attachment_id}
+        onSuccess={onSaved}
+      />
+    </>
   );
 }
 

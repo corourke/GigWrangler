@@ -184,6 +184,14 @@ describe('MobileGigDetail', () => {
     })
   })
 
+  // Mobile receipt capture (11-10): a receipt captured here is a cost of this gig.
+  it.each([['Manager', true], ['Staff', false]])('%s sees Capture receipt for this gig: %s', async (role, shown) => {
+    mockUseAuth.mockReturnValue({ user: { id: 'user-1' }, userRole: role, selectedOrganization: { id: 'org-1' } })
+    render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+    expect(!!screen.queryByRole('button', { name: 'Capture receipt for this gig' })).toBe(shown)
+  })
+
   // #175: the status is the gig owner's Admins' and Managers' to change.
   it.each([
     ["the owner's Staff", 'Staff', 'org-1'],
