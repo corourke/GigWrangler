@@ -13,6 +13,7 @@ vi.mock('../gig.service', () => ({ getGig: vi.fn() }));
 vi.mock('../gigParticipantContacts.service', () => ({ getAllGigContacts: vi.fn() }));
 vi.mock('../attachment.service', () => ({ getEntityAttachments: vi.fn() }));
 vi.mock('./myAssignments.service', () => ({ loadMyUpcomingAssignments: vi.fn() }));
+vi.mock('./dayOfShowFiles.service', () => ({ removeSavedDocumentsForGig: vi.fn(async () => {}) }));
 vi.mock('./packingList.service', () => ({ packingListService: { fetchUpcomingGigs: vi.fn() } }));
 
 import { idbStore } from '../../utils/idb/store';
@@ -21,6 +22,7 @@ import { getAllGigContacts } from '../gigParticipantContacts.service';
 import { getEntityAttachments } from '../attachment.service';
 import { loadMyUpcomingAssignments } from './myAssignments.service';
 import { packingListService } from './packingList.service';
+import { removeSavedDocumentsForGig } from './dayOfShowFiles.service';
 import {
   buildDayOfShowSheet,
   loadDayOfShowSheet,
@@ -148,6 +150,18 @@ describe('pruneDayOfShow', () => {
     await pruneDayOfShow(now);
     expect(idbStore.deleteDayOfShow).toHaveBeenCalledTimes(1);
     expect(idbStore.deleteDayOfShow).toHaveBeenCalledWith('old');
+  });
+
+  it("removes those gigs' saved documents too", async () => {
+    vi.mocked(removeSavedDocumentsForGig).mockClear();
+    const now = new Date('2026-11-10T12:00:00Z').getTime();
+    (idbStore.getAllDayOfShow as any).mockResolvedValue([
+      { gig_id: 'old', gig: { end: '2026-11-09T06:00:00Z', start: '2026-11-09T01:00:00Z' } },
+      { gig_id: 'soon', gig: { end: '2026-11-12T06:00:00Z', start: '2026-11-12T01:00:00Z' } },
+    ]);
+    await pruneDayOfShow(now);
+    expect(removeSavedDocumentsForGig).toHaveBeenCalledTimes(1);
+    expect(removeSavedDocumentsForGig).toHaveBeenCalledWith('old');
   });
 });
 

@@ -1,13 +1,19 @@
 import { useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryKeys';
 import {
   loadDayOfShowSheet,
   loadTodayCandidates,
   shouldSaveAhead,
+  type DayOfShowDocument,
   type DayOfShowGig,
   type DayOfShowSheet,
 } from '../../services/mobile/dayOfShow.service';
+import {
+  listSavedDocuments,
+  saveDayOfShowDocument,
+  saveGigDocumentsAhead,
+} from '../../services/mobile/dayOfShowFiles.service';
 import type { UserRole } from '../../utils/supabase/types';
 
 import { hasTodayTab } from './todayTab';
@@ -45,7 +51,34 @@ export function useDayOfShowSheet(gigId: string | null | undefined) {
 }
 
 /**
- * Saves the sheet of each gig on today or starting within 24 hours, once the app has its gig list
+ * Which of the sheet's documents are saved on the phone. Online, first saves its PDFs and images
+ * (within the limits). `save` saves one more when the person asks.
+ */
+export function useDayOfShowDocuments(sheet: DayOfShowSheet | null | undefined) {
+  const queryClient = useQueryClient();
+  const gigId = sheet?.gig_id ?? '';
+  const key = queryKeys.dayOfShowFiles(gigId);
+  const savedQuery = useQuery({
+    queryKey: [...key, sheet?.saved_at ?? 0],
+    queryFn: async () => {
+      if (sheet && navigator.onLine) await saveGigDocumentsAhead(sheet).catch(() => {});
+      return listSavedDocuments(gigId);
+    },
+    enabled: !!sheet,
+    networkMode: 'always',
+  });
+  const save = useMutation({
+    mutationFn: (doc: DayOfShowDocument) => saveDayOfShowDocument(gigId, doc, { manual: true }),
+    networkMode: 'always',
+    onSuccess: (result) => {
+      if (result.saved) return queryClient.invalidateQueries({ queryKey: key });
+    },
+  });
+  return { saved: savedQuery.data ?? {}, savedQuery, save };
+}
+
+/**
+ * Saves the sheet (and its PDFs and images) of each gig on today or starting within 24 hours, once the app has its gig list
  * and is online, so it is there at a venue with no signal even if Today was never opened.
  */
 export function useSaveTodaySheetsAhead(args: { userId?: string; orgId?: string; role?: UserRole | null }) {
@@ -59,7 +92,12 @@ export function useSaveTodaySheetsAhead(args: { userId?: string; orgId?: string;
       const key = queryKeys.dayOfShow(gig.id);
       void queryClient.prefetchQuery({
         queryKey: key,
-        queryFn: () => loadDayOfShowSheet(gig.id, () => {}),
+        queryFn: async () => {
+          const sheet = await loadDayOfShowSheet(gig.id, () => {});
+          // Its PDFs and images too, in the background.
+          if (sheet) void saveGigDocumentsAhead(sheet).catch(() => {});
+          return sheet;
+        },
         staleTime: 5 * 60 * 1000,
       });
     }

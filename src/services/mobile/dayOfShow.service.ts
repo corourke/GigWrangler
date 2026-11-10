@@ -10,6 +10,7 @@ import { getAllGigContacts, type GigParticipantContact } from '../gigParticipant
 import { getEntityAttachments } from '../attachment.service';
 import { loadMyUpcomingAssignments } from './myAssignments.service';
 import { packingListService } from './packingList.service';
+import { removeSavedDocumentsForGig } from './dayOfShowFiles.service';
 import { pickTodayGigs, type TodayGigLike } from '../../utils/todayGig';
 import type { UserRole } from '../../utils/supabase/types';
 
@@ -157,13 +158,14 @@ export function buildDayOfShowSheet(
   };
 }
 
-/** Removes saved sheets whose gig ended more than a day ago. */
+/** Removes saved sheets, and their saved documents, whose gig ended more than a day ago. */
 export async function pruneDayOfShow(now: number = Date.now()): Promise<void> {
   const saved = await idbStore.getAllDayOfShow();
   for (const sheet of saved) {
     const end = new Date(sheet.gig?.end ?? sheet.gig?.start ?? 0).getTime();
     if (Number.isNaN(end) || end < now - DAY_MS) {
       await idbStore.deleteDayOfShow(sheet.gig_id);
+      await removeSavedDocumentsForGig(sheet.gig_id).catch(() => {});
     }
   }
 }

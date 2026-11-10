@@ -3,6 +3,8 @@ import {
   uploadAttachment,
   deleteAttachment,
   getAttachmentUrl,
+  downloadAttachment,
+  AttachmentTooLargeError,
   linkAttachmentToEntity,
   getEntityAttachments,
   unlinkAttachmentFromEntity,
@@ -136,6 +138,44 @@ describe('attachment.service', () => {
       await expect(uploadAttachment(orgId, file, 'invoice.pdf')).rejects.toThrow('insert failed');
 
       expect(mockStorageBucket.remove).toHaveBeenCalledWith([`${orgId}/invoice.pdf`]);
+    });
+  });
+
+  describe('downloadAttachment (day-of-show documents)', () => {
+    const respond = (size: number, contentLength: string | null = String(size)) => ({
+      ok: true,
+      status: 200,
+      headers: { get: (h: string) => (h.toLowerCase() === 'content-length' ? contentLength : null) },
+      blob: vi.fn(async () => ({ size, type: 'application/pdf' })),
+    });
+
+    it('downloads the file through a signed link', async () => {
+      const fetchMock = vi.fn(async () => respond(1000));
+      vi.stubGlobal('fetch', fetchMock);
+      const blob = await downloadAttachment(`${orgId}/plot.pdf`, 5000);
+      expect(fetchMock).toHaveBeenCalledWith('https://signed.example/url', expect.anything());
+      expect(blob.size).toBe(1000);
+      vi.unstubAllGlobals();
+    });
+
+    it('stops before reading a file whose stated size is over the limit', async () => {
+      const res = respond(9000);
+      vi.stubGlobal('fetch', vi.fn(async () => res));
+      await expect(downloadAttachment(`${orgId}/plot.pdf`, 5000)).rejects.toBeInstanceOf(AttachmentTooLargeError);
+      expect(res.blob).not.toHaveBeenCalled();
+      vi.unstubAllGlobals();
+    });
+
+    it('refuses a file over the limit with no stated size', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => respond(9000, null)));
+      await expect(downloadAttachment(`${orgId}/plot.pdf`, 5000)).rejects.toMatchObject({ size: 9000 });
+      vi.unstubAllGlobals();
+    });
+
+    it('fails on an error response', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ...respond(10), ok: false, status: 403 })));
+      await expect(downloadAttachment(`${orgId}/plot.pdf`, 5000)).rejects.toThrow('403');
+      vi.unstubAllGlobals();
     });
   });
 
