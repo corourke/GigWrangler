@@ -29,10 +29,10 @@ vi.mock('../components/mobile/MobileLayout', () => ({
   ),
 }));
 vi.mock('../components/mobile/MobileToday', () => ({
-  default: ({ gigId, onChooseGig }: any) => (
+  default: ({ onOpenDaySheet }: any) => (
     <div>
-      MobileToday stub gig={gigId ?? 'auto'}
-      <button onClick={() => onChooseGig('g2')}>choose</button>
+      MobileToday stub
+      <button onClick={() => onOpenDaySheet('g2')}>choose</button>
     </div>
   ),
 }));
@@ -87,18 +87,23 @@ describe('/today (day-of-show sheet, §3e)', () => {
     it(`opens the Today tab on the phone for ${role}`, async () => {
       signInAs(role);
       renderAt('/today');
-      expect(await screen.findByText('MobileToday stub gig=auto')).toBeInTheDocument();
+      expect(await screen.findByText('MobileToday stub')).toBeInTheDocument();
       expect(screen.getByText('tab:mobile-today')).toBeInTheDocument();
     });
   }
 
-  it('opens a gig chosen from several, and keeps the choice in the address', async () => {
+  // #445: Today is a home screen; a gig's sheet is its own screen. Old /today?gig= links still work.
+  it("opens a gig's day sheet from Today, and old /today?gig= links go to it", async () => {
+    signInAs('Staff');
+    renderAt('/today');
+    fireEvent.click(await screen.findByText('choose'));
+    expect(await screen.findByText('at:/gigs/g2/day-sheet')).toBeInTheDocument();
+  });
+
+  it('sends an old /today?gig= link to that gig\'s day sheet', async () => {
     signInAs('Staff');
     renderAt('/today?gig=g1');
-    expect(await screen.findByText('MobileToday stub gig=g1')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('choose'));
-    expect(await screen.findByText('MobileToday stub gig=g2')).toBeInTheDocument();
-    expect(screen.getByText('at:/today?gig=g2')).toBeInTheDocument();
+    expect(await screen.findByText('MobileDaySheet stub gig=g1')).toBeInTheDocument();
   });
 
   it('sends a Viewer to the gig list', async () => {
@@ -119,7 +124,7 @@ describe('/today (day-of-show sheet, §3e)', () => {
     renderAt('/gigs');
     await screen.findByText('MobileGigList stub');
     fireEvent.click(screen.getByText('go-today'));
-    expect(await screen.findByText('MobileToday stub gig=auto')).toBeInTheDocument();
+    expect(await screen.findByText('MobileToday stub')).toBeInTheDocument();
   });
 
   it("saves today's sheets ahead from every phone screen", async () => {
