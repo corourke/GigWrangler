@@ -6,15 +6,17 @@ import { renderWithQuery as render } from '../../test/renderWithQuery';
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'u1' }, selectedOrganization: { id: 'org-1' }, userRole: 'Staff' }) }));
 vi.mock('../../services/mobile/dayOfShow.service', async (importOriginal) => {
   const actual: any = await importOriginal();
-  return { ...actual, loadDayOfShowSheet: vi.fn() };
+  return { ...actual, loadDayOfShowSheet: vi.fn(), keepDayOfShowSheet: vi.fn(), forgetDayOfShowSheet: vi.fn() };
 });
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock('sonner', () => ({ toast }));
 vi.mock('../../services/attachment.service', () => ({ getAttachmentUrl: vi.fn() }));
 vi.mock('../../services/mobile/dayOfShowFiles.service', async (importOriginal) => {
   const actual: any = await importOriginal();
   return { ...actual, saveGigDocumentsAhead: vi.fn(async () => {}), listSavedDocuments: vi.fn(async () => ({})), saveDayOfShowDocument: vi.fn(), getSavedDocument: vi.fn() };
 });
 
-import { loadDayOfShowSheet, type DayOfShowSheet } from '../../services/mobile/dayOfShow.service';
+import { loadDayOfShowSheet, keepDayOfShowSheet, forgetDayOfShowSheet, type DayOfShowSheet } from '../../services/mobile/dayOfShow.service';
 import MobileDaySheet from './MobileDaySheet';
 
 const PAST = { id: 'g-past', title: 'Last Month Show', start: '2026-10-01T20:00:00Z', end: '2026-10-02T02:00:00Z', timezone: 'UTC', all_day: false, status: 'Completed' };
@@ -53,5 +55,38 @@ describe('MobileDaySheet', () => {
     vi.mocked(loadDayOfShowSheet).mockResolvedValue(null);
     render(<MobileDaySheet gigId="g-past" onBack={vi.fn()} onViewGigDetail={vi.fn()} />);
     expect(await screen.findByText("This gig's sheet isn't saved on this phone. Connect to load it.")).toBeInTheDocument();
+  });
+});
+
+// Plan #445 (A1b): Save on this phone.
+describe('MobileDaySheet: Save on this phone', () => {
+  it('saves the gig on the phone, then offers to remove it', async () => {
+    let kept = false;
+    vi.mocked(loadDayOfShowSheet).mockImplementation(async () => ({ ...sheet(PAST), kept }));
+    vi.mocked(keepDayOfShowSheet).mockImplementation(async () => { kept = true; return { roomShort: false }; });
+    render(<MobileDaySheet gigId="g-past" onBack={vi.fn()} onViewGigDetail={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Save on this phone' }));
+    expect(await screen.findByText('Saved on this phone')).toBeInTheDocument();
+    expect(keepDayOfShowSheet).toHaveBeenCalledWith('g-past');
+    expect(toast.success).toHaveBeenCalledWith('Saved on this phone');
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    await vi.waitFor(() => expect(forgetDayOfShowSheet).toHaveBeenCalledWith('g-past'));
+  });
+
+  it("says when there isn't room for all its documents", async () => {
+    vi.mocked(loadDayOfShowSheet).mockImplementation(async () => sheet(PAST));
+    vi.mocked(keepDayOfShowSheet).mockResolvedValue({ roomShort: true });
+    render(<MobileDaySheet gigId="g-past" onBack={vi.fn()} onViewGigDetail={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Save on this phone' }));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith(
+      "Not enough room on this phone for this gig's documents. Remove a saved gig first."));
+  });
+
+  it("can't save without a connection", async () => {
+    setOnline(false);
+    vi.mocked(loadDayOfShowSheet).mockImplementation(async () => sheet(PAST));
+    render(<MobileDaySheet gigId="g-past" onBack={vi.fn()} onViewGigDetail={vi.fn()} />);
+    await screen.findByText('Last Month Show');
+    expect(screen.queryByRole('button', { name: 'Save on this phone' })).not.toBeInTheDocument();
   });
 });

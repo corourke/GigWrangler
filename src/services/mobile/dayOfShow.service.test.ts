@@ -13,7 +13,11 @@ vi.mock('../gig.service', () => ({ getGig: vi.fn() }));
 vi.mock('../gigParticipantContacts.service', () => ({ getAllGigContacts: vi.fn() }));
 vi.mock('../attachment.service', () => ({ getEntityAttachments: vi.fn() }));
 vi.mock('./myAssignments.service', () => ({ loadMyUpcomingAssignments: vi.fn() }));
-vi.mock('./dayOfShowFiles.service', () => ({ removeSavedDocumentsForGig: vi.fn(async () => {}) }));
+vi.mock('./dayOfShowFiles.service', () => ({
+  removeSavedDocumentsForGig: vi.fn(async () => {}),
+  saveDayOfShowDocument: vi.fn(async () => ({ saved: true })),
+  isAutoSaveType: (name: string) => /\.(pdf|png|jpe?g)$/i.test(name),
+}));
 vi.mock('./packingList.service', () => ({ packingListService: { fetchUpcomingGigs: vi.fn() } }));
 
 import { idbStore } from '../../utils/idb/store';
@@ -22,13 +26,15 @@ import { getAllGigContacts } from '../gigParticipantContacts.service';
 import { getEntityAttachments } from '../attachment.service';
 import { loadMyUpcomingAssignments } from './myAssignments.service';
 import { packingListService } from './packingList.service';
-import { removeSavedDocumentsForGig } from './dayOfShowFiles.service';
+import { removeSavedDocumentsForGig, saveDayOfShowDocument } from './dayOfShowFiles.service';
 import {
   buildDayOfShowSheet,
   loadDayOfShowSheet,
   loadTodayCandidates,
   pruneDayOfShow,
   shouldSaveAhead,
+  keepDayOfShowSheet,
+  forgetDayOfShowSheet,
 } from './dayOfShow.service';
 
 const GIG = {
@@ -162,6 +168,71 @@ describe('pruneDayOfShow', () => {
     await pruneDayOfShow(now);
     expect(removeSavedDocumentsForGig).toHaveBeenCalledTimes(1);
     expect(removeSavedDocumentsForGig).toHaveBeenCalledWith('old');
+  });
+});
+
+// Plan #445 (A1b): a gig the person saves on the phone is kept until they remove it, or 30 days
+// after it ends; sheets saved automatically still go a day after the gig.
+describe('pruneDayOfShow: sheets the person saved', () => {
+  const now = new Date('2026-11-10T12:00:00Z').getTime();
+  it('keeps a saved sheet until 30 days after its gig, then removes it and its documents', async () => {
+    vi.mocked(idbStore.deleteDayOfShow).mockClear();
+    vi.mocked(removeSavedDocumentsForGig).mockClear();
+    (idbStore.getAllDayOfShow as any).mockResolvedValue([
+      { gig_id: 'kept-recent', kept: true, gig: { end: '2026-10-20T06:00:00Z', start: '2026-10-20T01:00:00Z' } },
+      { gig_id: 'kept-old', kept: true, gig: { end: '2026-10-09T06:00:00Z', start: '2026-10-09T01:00:00Z' } },
+      { gig_id: 'auto-old', gig: { end: '2026-11-08T06:00:00Z', start: '2026-11-08T01:00:00Z' } },
+    ]);
+    await pruneDayOfShow(now);
+    expect(vi.mocked(idbStore.deleteDayOfShow).mock.calls.map((c) => c[0]).sort()).toEqual(['auto-old', 'kept-old']);
+    expect(removeSavedDocumentsForGig).toHaveBeenCalledWith('kept-old');
+  });
+});
+
+describe('keepDayOfShowSheet and forgetDayOfShowSheet', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setOnline(true);
+    (getGig as any).mockResolvedValue(GIG);
+    (getAllGigContacts as any).mockResolvedValue(CONTACTS);
+    (getEntityAttachments as any).mockResolvedValue([
+      ...DOCS,
+      { id: 'att-2', file_name: 'rider.docx', file_path: 'org/att-2.docx' },
+      { id: 'att-3', file_name: 'map.png', file_path: 'org/att-3.png' },
+    ]);
+    (idbStore.getAllDayOfShow as any).mockResolvedValue([]);
+    (idbStore.getDayOfShow as any).mockResolvedValue(undefined);
+    vi.mocked(saveDayOfShowDocument).mockResolvedValue({ saved: true });
+  });
+
+  it("saves the sheet as kept, with its PDFs and images", async () => {
+    const result = await keepDayOfShowSheet('gig-1');
+    expect(idbStore.putDayOfShow).toHaveBeenLastCalledWith(expect.objectContaining({ gig_id: 'gig-1', kept: true }));
+    expect(vi.mocked(saveDayOfShowDocument).mock.calls.map((c) => c[1].id)).toEqual(['att-1', 'att-3']);
+    expect(result).toEqual({ roomShort: false });
+  });
+
+  it("says when the phone hasn't room for all its documents", async () => {
+    vi.mocked(saveDayOfShowDocument).mockResolvedValueOnce({ saved: true }).mockResolvedValueOnce({ saved: false, reason: 'phone-full' });
+    expect(await keepDayOfShowSheet('gig-1')).toEqual({ roomShort: true });
+  });
+
+  it('needs a connection', async () => {
+    setOnline(false);
+    await expect(keepDayOfShowSheet('gig-1')).rejects.toThrow();
+    setOnline(true);
+  });
+
+  it('a refresh keeps it kept', async () => {
+    (idbStore.getDayOfShow as any).mockResolvedValue({ gig_id: 'gig-1', saved_at: 1, kept: true });
+    await loadDayOfShowSheet('gig-1', vi.fn());
+    expect(idbStore.putDayOfShow).toHaveBeenLastCalledWith(expect.objectContaining({ gig_id: 'gig-1', kept: true }));
+  });
+
+  it('Remove takes the sheet and its documents off the phone', async () => {
+    await forgetDayOfShowSheet('gig-1');
+    expect(idbStore.deleteDayOfShow).toHaveBeenCalledWith('gig-1');
+    expect(removeSavedDocumentsForGig).toHaveBeenCalledWith('gig-1');
   });
 });
 
