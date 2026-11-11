@@ -178,6 +178,19 @@ describe('gig.service', () => {
       expect(result[0].act?.name).toBe('The Band');
     });
 
+    it('embeds only the id and name of each participant organization (#453)', async () => {
+      const participantChain = makeChain({ data: [{ gig_id: 'gig-1' }], error: null });
+      const gigChain = makeChain({ data: [], error: null });
+      mockSupabase.from.mockImplementation((table: string) => (table === 'gig_participants' ? participantChain : gigChain));
+
+      await getGigsForOrganization('org-1');
+
+      const select = gigChain.select.mock.calls[0][0] as string;
+      expect(select).toContain('organization:organization_id(id, name)');
+      expect(select).not.toContain('organization_id(*)');
+      expect(select).toContain('participants:gig_participants(');
+    });
+
     it('propagates errors from the gig_participants query', async () => {
       const dbError = new Error('connection refused');
       mockSupabase.from.mockReturnValue(makeChain({ data: null, error: dbError }));
