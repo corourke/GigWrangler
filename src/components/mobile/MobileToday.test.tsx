@@ -22,6 +22,14 @@ vi.mock('../../services/mobile/dayOfShowFiles.service', async (importOriginal) =
   }
 })
 const toastError = vi.fn()
+vi.mock('./NeedsYou', () => ({
+  default: ({ onOpenTeam }: any) => (
+    <div>
+      <span>NeedsYou stub</span>
+      <button onClick={onOpenTeam}>stub open team</button>
+    </div>
+  ),
+}))
 vi.mock('./DaySheetGigPicker', () => ({
   default: ({ onChoose, onClose }: any) => (
     <div>
@@ -131,6 +139,16 @@ describe('MobileToday (day-of-show sheet)', () => {
     ])
     fireEvent.click(within(rows[0]).getByRole('button'))
     expect(onViewGigDetail).toHaveBeenCalledWith('g3')
+  })
+
+  it('shows Needs you under the gig card, without waiting for it', async () => {
+    vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY])
+    const onOpenTeam = vi.fn()
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={onOpenTeam} />)
+    await screen.findByRole('region', { name: 'Tonight Show' })
+    expect(screen.getByText('NeedsYou stub')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('stub open team'))
+    expect(onOpenTeam).toHaveBeenCalled()
   })
 
   it('offline: the cards come from the phone', async () => {
