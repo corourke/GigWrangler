@@ -21,7 +21,7 @@ Staff, Managers and Admins have day sheets; Viewers don't. They're phone screens
 
   Tap a gig to open its day sheet.
 
-The day sheet's top bar has **Back**, which returns to where you opened it, and **Refresh**. Under it are the gig's title, date and times, its status, and when the sheet was last saved on the phone, such as "Saved Nov 12, 3:00 PM". **Open gig** goes to the full gig page (online only).
+The day sheet's top bar has **Back**, which returns to where you opened it, and **Refresh**. Under it are the gig's title, date and times, its status, and when the copy on the phone was last updated, such as "Updated Nov 12, 3:00 PM". Once you've saved the sheet it says "Saved on this phone · Nov 12, 3:00 PM" instead. **Open gig** goes to the full gig page (online only).
 
 ## What's on it
 
@@ -49,7 +49,7 @@ A document saved on the phone says "Saved on this phone · 1.2 MB" underneath. A
 
 To keep a gig's day sheet for when you're offline, open it while you're online and tap **Save on this phone**. You see "Saved on this phone", and the sheet is saved along with its PDFs and images. The button becomes **Saved on this phone · Remove**.
 
-A sheet you save stays on the phone until you tap **Remove**, or until 30 days after the gig ends. **Remove** also works offline.
+A sheet you save is kept until you remove it, or 30 days after the gig or after you saved it, whichever is later. **Remove** also works offline.
 
 The sheet for today's gig, and any gig starting in the next 24 hours, is also saved automatically: when you open Home or the sheet online, and in the background from any phone screen. A sheet saved automatically is removed a day after the gig ends, unless you saved it yourself.
 
@@ -57,7 +57,7 @@ PDFs and images up to 10 MB are saved along with the sheet. Larger files, and ot
 
 ## Offline
 
-Offline, the screen shows an **Offline** badge and the sheet as last saved, with its "Saved" time. Saved documents open as usual. A document that isn't saved reads "Not saved on this phone – connect to open". If the gig's sheet was never saved, you see "This gig's sheet isn't saved on this phone. Connect to load it." **Save on this phone** isn't offered offline.
+Offline, the screen shows an **Offline** badge and the sheet as last saved, with its "Updated" or "Saved on this phone" time. Saved documents open as usual. A document that isn't saved reads "Not saved on this phone – connect to open". If the gig's sheet was never saved, you see "This gig's sheet isn't saved on this phone. Connect to load it." **Save on this phone** isn't offered offline.
 
 Signing out removes every saved sheet and document.
 

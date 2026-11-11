@@ -7,7 +7,7 @@ sidebar:
 
 The first tab in the phone's bottom bar is your home screen: the gig you're working today, anything that needs you, and the week ahead. Staff, Managers and Admins open the app here; Viewers start on **Gigs** and don't have it.
 
-For Staff the tab is called **Home**, and the bottom bar is **Home · Scanning · Settings**. Admins and Managers see it as **Today**, with **Today · Gigs · Scanning · Settings**. An old link to the Staff dashboard opens it too.
+For Staff the screen and its tab are called **Home**, and the bottom bar is **Home · Scanning · Settings**. Admins and Managers see it as **Today**, with **Today · Gigs · Scanning · Settings**. An old link to the Staff dashboard opens it too.
 
 **Refresh**, at the top right, loads it again.
 
@@ -27,9 +27,9 @@ Tap **Open day sheet** on a card to open its [day sheet](/mobile/today-sheet/). 
 |---|---|---|---|
 | **Invites to reply to** | Gigs you've been asked to work and haven't answered, in any organization, that haven't ended or been cancelled. | Staff, Managers, Admins | Each invite with **Accept** and **Decline**. Tap the gig to open its page. |
 | **Open crew spots (14 days)** | Places still to fill on your organization's gigs starting in the next 14 days. Someone who declined doesn't fill a place. | Managers, Admins | Each gig as "Sat, Nov 14 · 2 open"; tap one to open its page. |
-| **Access requests** | Requests waiting for a decision: requests to join for Managers, and requests for more access too for Admins. | Managers, Admins | **Open Team** goes to the requests. |
+| **Access requests** | Requests waiting for a decision: requests to join for Managers, and requests for more access too for Admins. | Managers, Admins | "Decide them on a computer: Team → Access Requests." |
 | **Receipts to review** | Receipts and invoices in the scan queue not yet saved or discarded. | Managers, Admins | The receipts, with "Review them on a computer: Purchases → Scan invoices." See [Capturing receipts on your phone](/mobile/receipt-capture/). |
-| **Payments due or overdue** | Unpaid lines, money in or out, due today or earlier, shown as "2 due today · 1 overdue". | Admins | Each line as **Money in** or **Money out** with its due date; tap one to open its gig. |
+| **Payments due or overdue** | Unpaid lines, money in or out, due today or earlier, shown as "2 due today · 1 overdue". | Admins | Each line as **Money in** or **Money out** with its due date, such as "Money in · due Fri, Sep 25"; tap one to open its gig. |
 | **Equipment conflicts this week** | Your organization's gigs in the next 7 days that clash over equipment with another gig. | Managers, Admins | Each gig with "Clashes with …"; tap one to open its page. |
 
 Staff see only **Invites to reply to**. Accepting or declining there sends your reply straight away: you see "Accepted" or "Declined".
