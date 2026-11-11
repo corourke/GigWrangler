@@ -293,15 +293,16 @@ function TodayRoute() {
   const { user, organization, userRole } = useOrgScope();
   const { isMobile } = useAppShell();
   const nav = useNav();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   if (!user || !organization) return <LoadingSpinner />;
   if (!isMobile) return <Navigate to="/dashboard" replace />;
   if (!hasTodayTab(userRole)) return <Navigate to="/gigs" replace />;
+  // Before #445 a gig's sheet opened on Today (/today?gig=…); it has its own screen now.
+  const gig = params.get('gig');
+  if (gig) return <Navigate to={`/gigs/${encodeURIComponent(gig)}/day-sheet`} replace />;
   return (
     <MobileShell active="mobile-today">
       <MobileToday
-        gigId={params.get('gig')}
-        onChooseGig={(id) => setParams({ gig: id }, { replace: true })}
         onViewGigDetail={(id) => nav.viewGig(id)}
         onOpenDaySheet={(id) => nav.navigate(`/gigs/${id}/day-sheet`)}
       />

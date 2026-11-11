@@ -34,7 +34,6 @@ vi.mock('./DaySheetGigPicker', () => ({
 vi.mock('sonner', () => ({ toast: { error: (...a: any[]) => toastError(...a), success: vi.fn() } }))
 
 import { loadTodayCandidates, loadDayOfShowSheet, type DayOfShowSheet } from '../../services/mobile/dayOfShow.service'
-import { saveGigDocumentsAhead, listSavedDocuments, saveDayOfShowDocument, getSavedDocument } from '../../services/mobile/dayOfShowFiles.service'
 
 const NOW = new Date('2026-11-10T17:00:00Z') // 9 AM in Los Angeles
 const gig = (id: string, start: string, end: string, title = id) =>

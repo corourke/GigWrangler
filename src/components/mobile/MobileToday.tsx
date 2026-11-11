@@ -1,116 +1,118 @@
 import { useState } from 'react';
-import { Calendar, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
+import { Calendar, ChevronRight, Loader2, MapPin, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card } from '../ui/card';
+import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { cn } from '../ui/utils';
 import { OfflineBadge } from './OfflineBadge';
 import { useIsOffline } from './useIsOffline';
 import { useDayOfShowSheet, useTodayGigs } from './useDayOfShowData';
-import DaySheet from './DaySheet';
 import DaySheetGigPicker from './DaySheetGigPicker';
 import { pickTodayGigs } from '../../utils/todayGig';
-import { formatTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
+import { formatInTimeZone, formatTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
+import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
 import type { DayOfShowGig } from '../../services/mobile/dayOfShow.service';
+import type { GigStatus } from '../../utils/supabase/types';
 
 interface MobileTodayProps {
-  /** The gig picked from several today (/today?gig=…); else the app picks. */
-  gigId?: string | null;
-  onChooseGig?: (gigId: string) => void;
   onViewGigDetail: (gigId: string) => void;
-  /** Opens any gig's day sheet, chosen from the gig picker (#445). */
-  onOpenDaySheet?: (gigId: string) => void;
+  /** Opens a gig's day sheet (#445). */
+  onOpenDaySheet: (gigId: string) => void;
 }
 
+const SECTION_TITLE = 'text-[11px] font-semibold text-muted-foreground uppercase tracking-wide';
+
+/** "Thu, Nov 12", in the gig's own time zone (all-day gigs are a calendar day). */
+const dayLabel = (g: DayOfShowGig) =>
+  formatInTimeZone(g.start, isGigAllDay(g) ? 'UTC' : g.timezone || undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+const timeLabel = (g: DayOfShowGig) => (isGigAllDay(g) ? 'All day' : formatTimeDisplay(g.start, g.timezone || undefined));
+
 /**
- * The Today tab (§3e): the day-of-show sheet for the signed-in person's gig today, or the next one.
- * It opens from the copy saved on the phone, so it works at a venue with no signal.
+ * The Today tab, the phone's home screen (#445): today's gig (or the next one) as a card opening its
+ * day sheet, then the rest of the next 7 days. It opens from the copy saved on the phone, so it
+ * works at a venue with no signal.
  */
-export default function MobileToday({ gigId, onChooseGig, onViewGigDetail, onOpenDaySheet }: MobileTodayProps) {
-  const [picking, setPicking] = useState(false);
+export default function MobileToday({ onViewGigDetail, onOpenDaySheet }: MobileTodayProps) {
   const { user, selectedOrganization, userRole } = useAuth();
   const isOffline = useIsOffline();
+  const [picking, setPicking] = useState(false);
   const gigsQuery = useTodayGigs({ userId: user?.id, orgId: selectedOrganization?.id, role: userRole });
-  const { today, next } = pickTodayGigs(gigsQuery.data ?? []);
-
-  const chosen = gigId ? (gigsQuery.data ?? []).find((g) => g.id === gigId) : undefined;
-  const choosing = !gigId && today.length > 1;
-  const shownId = gigId ?? (choosing ? null : (today[0]?.id ?? next?.id ?? null));
-  const isNext = !!shownId && today.length === 0 && !chosen;
-  const sheetQuery = useDayOfShowSheet(shownId);
-
-  const loading = gigsQuery.isPending || (!!shownId && sheetQuery.isPending);
-  const refreshing = gigsQuery.isFetching || sheetQuery.isFetching;
-  const refresh = () => {
-    void gigsQuery.refetch();
-    if (shownId) void sheetQuery.refetch();
-  };
+  const gigs = gigsQuery.data ?? [];
+  const { today, next } = pickTodayGigs(gigs);
+  const cards = today.length > 0 ? today : next ? [next] : [];
+  const shown = new Set(cards.map((g) => g.id));
+  const now = Date.now();
+  const thisWeek = gigs
+    .filter((g) => !shown.has(g.id) && g.status !== 'Cancelled' && new Date(g.start).getTime() > now)
+    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
   return (
     <div className="flex flex-col">
       <div className="sticky top-0 z-40 bg-background/90 backdrop-blur-md px-4 py-3 border-b border-border/50 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Today</h1>
-          <p className="text-xs text-muted-foreground">Day-of-show sheet</p>
-        </div>
+        <h1 className="text-xl font-bold">Today</h1>
         <div className="flex items-center gap-2">
           {isOffline && <OfflineBadge />}
-          <Button aria-label="Refresh" variant="ghost" size="icon" onClick={refresh} disabled={refreshing || isOffline} className="h-9 w-9">
-            <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+          <Button aria-label="Refresh" variant="ghost" size="icon" onClick={() => void gigsQuery.refetch()} disabled={gigsQuery.isFetching || isOffline} className="h-9 w-9">
+            <RefreshCw className={`w-5 h-5 ${gigsQuery.isFetching ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 p-4 space-y-3 pb-12">
+      <div className="flex-1 p-4 space-y-4 pb-12">
         {gigsQuery.error && !gigsQuery.data && (
           <Card className="p-4 text-center bg-red-50 border-red-200">
             <p className="text-red-600 text-sm font-medium">Couldn't load your gigs</p>
           </Card>
         )}
 
-        {today.length > 1 && (
-          <GigChooser gigs={today} selectedId={shownId} onChoose={(id) => onChooseGig?.(id)} />
-        )}
-
-        {loading ? (
+        {gigsQuery.isPending ? (
           <div className="flex flex-col items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
             <p className="text-sm text-muted-foreground">Loading…</p>
           </div>
-        ) : !shownId ? (
-          !choosing && (
-            <Card className="p-8 text-center bg-muted/30 border-dashed">
-              <Calendar className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="text-muted-foreground font-medium">No gigs in the next 7 days</p>
-            </Card>
-          )
-        ) : sheetQuery.data ? (
-          <>
-            {isNext && (
-              <p className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                No gig today. Next up:
-              </p>
-            )}
-            <DaySheet sheet={sheetQuery.data} isOffline={isOffline} onViewGigDetail={onViewGigDetail} />
-          </>
-        ) : sheetQuery.error ? (
-          <Card className="p-4 text-center bg-red-50 border-red-200">
-            <p className="text-red-600 text-sm font-medium">Couldn't load this gig's sheet</p>
+        ) : cards.length === 0 ? (
+          <Card className="p-8 text-center bg-muted/30 border-dashed">
+            <Calendar className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
+            <p className="text-muted-foreground font-medium">No gigs in the next 7 days</p>
           </Card>
         ) : (
-          <Card className="p-6 text-center bg-muted/30 border-dashed">
-            <p className="text-sm text-muted-foreground">This gig's sheet isn't saved on this phone. Connect to load it.</p>
-          </Card>
+          <div className="space-y-3">
+            {cards.map((g) => (
+              <GigCard key={g.id} gig={g} isNext={today.length === 0} onOpen={() => onOpenDaySheet(g.id)} />
+            ))}
+          </div>
         )}
 
-        {onOpenDaySheet && !loading && (
-          <button type="button" onClick={() => setPicking(true)} className="w-full text-sm font-medium text-primary py-2">
+        {!gigsQuery.isPending && (
+          <button type="button" onClick={() => setPicking(true)} className="w-full text-sm font-medium text-primary py-1">
             Choose another gig
           </button>
         )}
+
+        {thisWeek.length > 0 && (
+          <section aria-labelledby="today-this-week">
+            <h2 id="today-this-week" className={cn(SECTION_TITLE, 'mb-2')}>This week</h2>
+            <ul aria-labelledby="today-this-week" className="rounded-lg border border-border divide-y divide-border/50 bg-background">
+              {thisWeek.map((g) => {
+                const status = GIG_STATUS_CONFIG[g.status as GigStatus];
+                return (
+                  <li key={g.id}>
+                    <button type="button" onClick={() => onViewGigDetail(g.id)} className="w-full text-left px-3 py-2.5 flex items-center gap-3 active:bg-muted">
+                      <span className="w-20 shrink-0 text-xs font-semibold text-muted-foreground">{dayLabel(g)}</span>
+                      <span className="flex-1 min-w-0 text-sm truncate">{g.title}</span>
+                      {status && <Badge variant="outline" className={cn('text-[10px] shrink-0', status.color)}>{status.label}</Badge>}
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
       </div>
 
-      {picking && onOpenDaySheet && (
+      {picking && (
         <DaySheetGigPicker
           onClose={() => setPicking(false)}
           onChoose={(id) => {
@@ -123,33 +125,31 @@ export default function MobileToday({ gigId, onChooseGig, onViewGigDetail, onOpe
   );
 }
 
-function GigChooser({ gigs, selectedId, onChoose }: { gigs: DayOfShowGig[]; selectedId: string | null; onChoose: (id: string) => void }) {
+/**
+ * Today's gig, or the next one. Loading its sheet here also saves it on the phone ahead of the
+ * show, and gives the venue.
+ */
+function GigCard({ gig, isNext, onOpen }: { gig: DayOfShowGig; isNext: boolean; onOpen: () => void }) {
+  const sheetQuery = useDayOfShowSheet(gig.id);
+  const venue = sheetQuery.data?.venue?.name;
+  const status = GIG_STATUS_CONFIG[gig.status as GigStatus];
+  const headingId = `today-gig-${gig.id}`;
   return (
-    <div>
-      <p className="text-xs font-semibold text-muted-foreground mb-2">{gigs.length} gigs today</p>
-      <div className="grid gap-2">
-        {gigs.map((g) => (
-          <button
-            key={g.id}
-            type="button"
-            onClick={() => onChoose(g.id)}
-            aria-current={g.id === selectedId ? 'true' : undefined}
-            className={cn(
-              'w-full text-left rounded-md border px-3 py-2 flex items-center justify-between gap-2',
-              g.id === selectedId ? 'border-primary bg-primary/5' : 'border-border bg-background',
-            )}
-          >
-            <span className="min-w-0">
-              <span className="block text-sm font-medium truncate">{g.title}</span>
-              <span className="block text-xs text-muted-foreground">
-                {isGigAllDay(g) ? 'All day' : formatTimeDisplay(g.start, g.timezone || undefined)}
-              </span>
-            </span>
-            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-          </button>
-        ))}
+    <section aria-labelledby={headingId} className="rounded-xl border border-border bg-background p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <p className={cn(SECTION_TITLE, isNext ? 'text-amber-700' : 'text-primary')}>
+          {isNext ? `Next up · ${dayLabel(gig)}` : 'Today'} · {timeLabel(gig)}
+        </p>
+        {status && <Badge variant="outline" className={cn('text-[10px] shrink-0', status.color)}>{status.label}</Badge>}
       </div>
-    </div>
+      <h2 id={headingId} className="text-lg font-bold leading-tight mt-1">{gig.title}</h2>
+      {venue && (
+        <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1">
+          <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">{venue}</span>
+        </p>
+      )}
+      <Button className="w-full mt-3 h-10" onClick={onOpen}>Open day sheet</Button>
+    </section>
   );
 }
-
