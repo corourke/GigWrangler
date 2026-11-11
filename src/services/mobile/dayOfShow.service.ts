@@ -10,7 +10,7 @@ import { getAllGigContacts, type GigParticipantContact } from '../gigParticipant
 import { getEntityAttachments } from '../attachment.service';
 import { loadMyUpcomingAssignments } from './myAssignments.service';
 import { packingListService } from './packingList.service';
-import { removeSavedDocumentsForGig } from './dayOfShowFiles.service';
+import { isAutoSaveType, removeSavedDocumentsForGig, saveDayOfShowDocument } from './dayOfShowFiles.service';
 import { pickTodayGigs, type TodayGigLike } from '../../utils/todayGig';
 import type { UserRole } from '../../utils/supabase/types';
 
@@ -65,9 +65,13 @@ export interface DayOfShowSheet {
   contacts: DayOfShowPerson[];
   crew: (DayOfShowPerson & { role: string })[];
   documents: DayOfShowDocument[];
+  /** Saved on the phone by the person (#445): kept until removed, or 30 days after the gig. */
+  kept?: boolean;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** How long after its gig a sheet the person saved stays on the phone. */
+export const KEEP_DAYS = 30;
 
 const fullName = (u?: { first_name?: string | null; last_name?: string | null } | null) =>
   u ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() : '';
@@ -158,12 +162,27 @@ export function buildDayOfShowSheet(
   };
 }
 
-/** Removes saved sheets, and their saved documents, whose gig ended more than a day ago. */
+/** How long a sheet only viewed (not kept, not coming up) stays on the phone. */
+export const VIEWED_DAYS = 7;
+
+/**
+ * Removes saved sheets, and their saved documents:
+ * - whose gig ended more than a day ago, or 30 days ago for a sheet the person kept (#445);
+ * - only viewed (not kept) more than 7 days ago, for a gig not on today or starting within 24 hours.
+ */
 export async function pruneDayOfShow(now: number = Date.now()): Promise<void> {
   const saved = await idbStore.getAllDayOfShow();
-  for (const sheet of saved) {
+  for (const sheet of saved as DayOfShowSheet[]) {
     const end = new Date(sheet.gig?.end ?? sheet.gig?.start ?? 0).getTime();
-    if (Number.isNaN(end) || end < now - DAY_MS) {
+    const keepFor = sheet.kept ? KEEP_DAYS * DAY_MS : DAY_MS;
+    const ended = Number.isNaN(end) || end < now - keepFor;
+    const staleView =
+      !sheet.kept &&
+      typeof sheet.saved_at === 'number' &&
+      sheet.saved_at < now - VIEWED_DAYS * DAY_MS &&
+      !!sheet.gig &&
+      !shouldSaveAhead(sheet.gig, new Date(now));
+    if (ended || staleView) {
       await idbStore.deleteDayOfShow(sheet.gig_id);
       await removeSavedDocumentsForGig(sheet.gig_id).catch(() => {});
     }
@@ -191,6 +210,7 @@ export async function loadDayOfShowSheet(
       getEntityAttachments('gig', gigId),
     ]);
     fresh = buildDayOfShowSheet(gig, contacts, attachments ?? []);
+    if (cached?.kept) fresh.kept = true;
   } catch (error) {
     if (cached) return cached;
     throw error;
@@ -198,6 +218,35 @@ export async function loadDayOfShowSheet(
   await idbStore.putDayOfShow(fresh).catch(() => {});
   await pruneDayOfShow().catch(() => {});
   return fresh;
+}
+
+/**
+ * Save on this phone (#445): fetches the sheet, keeps it (until removed, or 30 days after the gig)
+ * and saves its PDFs and images within the usual limits. Needs a connection. `roomShort` when some
+ * documents didn't fit.
+ */
+export async function keepDayOfShowSheet(gigId: string): Promise<{ roomShort: boolean }> {
+  if (!navigator.onLine) throw new Error('Saving a gig needs a connection');
+  const [gig, contacts, attachments] = await Promise.all([
+    getGig(gigId),
+    getAllGigContacts(gigId),
+    getEntityAttachments('gig', gigId),
+  ]);
+  const sheet: DayOfShowSheet = { ...buildDayOfShowSheet(gig, contacts, attachments ?? []), kept: true };
+  await idbStore.putDayOfShow(sheet);
+  let roomShort = false;
+  for (const doc of sheet.documents) {
+    if (!isAutoSaveType(doc.file_name)) continue;
+    const result = await saveDayOfShowDocument(gigId, doc);
+    if (!result.saved && result.reason !== 'error') roomShort = true;
+  }
+  return { roomShort };
+}
+
+/** Remove (#445): takes a saved sheet and its documents off the phone. */
+export async function forgetDayOfShowSheet(gigId: string): Promise<void> {
+  await idbStore.deleteDayOfShow(gigId);
+  await removeSavedDocumentsForGig(gigId).catch(() => {});
 }
 
 /** Whether to save a gig's sheet ahead of time: it is on today, or starts within 24 hours. */

@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Check,
   Clock,
   Download,
   FileText,
@@ -18,7 +19,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { cn } from '../ui/utils';
 import { toast } from 'sonner';
-import { useDayOfShowDocuments } from './useDayOfShowData';
+import { useDayOfShowDocuments, useKeepDayOfShowSheet } from './useDayOfShowData';
 import { getSavedDocument, SAVE_REFUSAL } from '../../services/mobile/dayOfShowFiles.service';
 import type { DayOfShowFile } from '../../utils/idb/store';
 import { addressLines, mapsHref, smsHref, telHref } from '../../utils/contactLinks';
@@ -58,6 +59,7 @@ export default function DaySheet({ sheet, isOffline, onViewGigDetail }: { sheet:
               <Badge variant="outline" className={cn('text-[10px] shrink-0', status.color)}>{status.label}</Badge>
             )}
           </div>
+          <KeepRow sheet={sheet} isOffline={isOffline} />
           <div className="flex items-center justify-between mt-2">
             <span className="text-[10px] text-muted-foreground">Saved {savedAt}</span>
             {!isOffline && (
@@ -75,6 +77,49 @@ export default function DaySheet({ sheet, isOffline, onViewGigDetail }: { sheet:
       <PeopleSection title="Crew" people={sheet.crew} />
       <DocumentsSection sheet={sheet} isOffline={isOffline} />
     </>
+  );
+}
+
+/** Save on this phone, or Saved on this phone · Remove (#445). Saving needs a connection. */
+function KeepRow({ sheet, isOffline }: { sheet: DayOfShowSheet; isOffline: boolean }) {
+  const { keep, forget } = useKeepDayOfShowSheet(sheet.gig_id);
+  if (sheet.kept) {
+    return (
+      <div className="flex items-center justify-between mt-2 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-1.5">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-800">
+          <Check className="w-3.5 h-3.5" aria-hidden="true" />
+          Saved on this phone
+        </span>
+        <button
+          type="button"
+          className="text-xs font-medium text-emerald-900 underline disabled:opacity-50"
+          disabled={forget.isPending}
+          onClick={() => forget.mutate(undefined, { onError: () => toast.error("Couldn't remove it. Try again.") })}
+        >
+          Remove
+        </button>
+      </div>
+    );
+  }
+  if (isOffline) return null;
+  return (
+    <button
+      type="button"
+      className={cn(ACTION, 'w-full mt-2')}
+      disabled={keep.isPending}
+      onClick={() =>
+        keep.mutate(undefined, {
+          onSuccess: ({ roomShort }) => {
+            if (roomShort) toast.error("Not enough room on this phone for this gig's documents. Remove a saved gig first.");
+            else toast.success('Saved on this phone');
+          },
+          onError: () => toast.error("Couldn't save it. Try again."),
+        })
+      }
+    >
+      {keep.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+      Save on this phone
+    </button>
   );
 }
 
