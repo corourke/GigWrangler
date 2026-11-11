@@ -158,14 +158,15 @@ export async function getGigsForOrganization(organizationId: string) {
 
     const gigIds = participatingGigs.map(pg => pg.gig_id);
 
-    // 2. Fetch those gigs with their participants in one query
+    // 2. Fetch those gigs with their participants in one query. Each organization embeds only what the
+    //    lists read (id, name, and claimed for Delete gig's rule); the full rows were most of the payload (#453).
     const { data: gigs, error } = await supabase
       .from('gigs')
       .select(`
         *,
         participants:gig_participants(
           *,
-          organization:organization_id(*)
+          organization:organization_id(id, name, claimed)
         )
       `)
       .in('id', gigIds)

@@ -81,6 +81,8 @@ describe('DaySheetGigPicker', () => {
     expect(list).toHaveTextContent('Autumn Ball');
     expect(screen.getByText('Offline: showing the gigs saved on this phone.')).toBeInTheDocument();
     expect(listOfflineGigs).toHaveBeenCalledWith('org-1');
+    // No request is made while offline (it only logged a network error).
+    expect(getGigsForOrganization).not.toHaveBeenCalled();
   });
 
   it("lists the organization's gigs for Admins and Managers, and search narrows them", async () => {
