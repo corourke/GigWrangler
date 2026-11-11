@@ -44,6 +44,7 @@ function renderWithRouter() {
         <Route path="/" element={<LandingRedirect />} />
         <Route path="/dashboard" element={<Capture path="/dashboard" />} />
         <Route path="/gigs" element={<Capture path="/gigs" />} />
+        <Route path="/today" element={<Capture path="/today" />} />
       </Routes>
     </MemoryRouter>
   );
@@ -55,23 +56,31 @@ describe('LandingRedirect', () => {
     vi.clearAllMocks();
   });
 
-  it('redirects mobile Staff to /dashboard', () => {
+  // #445: on the phone, Today is the home screen for Staff, Admin and Manager.
+  it('redirects mobile Staff to /today (Home)', () => {
     mockUseAppShell.mockReturnValue({ isMobile: true });
     mockUseAuth.mockReturnValue({ userRole: 'Staff' });
     const result = renderWithRouter();
-    expect(result).toBe('/dashboard');
+    expect(result).toBe('/today');
   });
 
-  it('redirects mobile Admin to /gigs', () => {
+  it('redirects mobile Admin to /today', () => {
     mockUseAppShell.mockReturnValue({ isMobile: true });
     mockUseAuth.mockReturnValue({ userRole: 'Admin' });
     const result = renderWithRouter();
-    expect(result).toBe('/gigs');
+    expect(result).toBe('/today');
   });
 
-  it('redirects mobile Manager to /gigs', () => {
+  it('redirects mobile Manager to /today', () => {
     mockUseAppShell.mockReturnValue({ isMobile: true });
     mockUseAuth.mockReturnValue({ userRole: 'Manager' });
+    const result = renderWithRouter();
+    expect(result).toBe('/today');
+  });
+
+  it('redirects mobile Viewer to /gigs', () => {
+    mockUseAppShell.mockReturnValue({ isMobile: true });
+    mockUseAuth.mockReturnValue({ userRole: 'Viewer' });
     const result = renderWithRouter();
     expect(result).toBe('/gigs');
   });
