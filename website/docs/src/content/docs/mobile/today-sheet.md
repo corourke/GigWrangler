@@ -16,6 +16,7 @@ Staff, Managers and Admins have day sheets; Viewers don't. They're phone screens
 - **For another gig:** on Home, tap **Choose another gig**. **Choose a gig** opens:
   - Staff see the gigs they're staffing and haven't declined, from 30 days ago on.
   - Admins and Managers see their organization's gigs, with **Search gigs**.
+  - Upcoming gigs come first, soonest first; past ones follow under **Earlier**, most recent first.
   - Gigs saved on the phone are marked **Saved on this phone**.
 
   Tap a gig to open its day sheet.
