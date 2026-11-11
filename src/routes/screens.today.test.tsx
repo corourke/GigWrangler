@@ -47,6 +47,7 @@ vi.mock('../components/mobile/MobileDaySheet', () => ({
 }));
 vi.mock('../components/gig/GigPage', () => ({ default: ({ gigId }: any) => <div>GigPage stub {gigId}</div> }));
 vi.mock('../components/Dashboard', () => ({ default: () => <div>Dashboard stub</div> }));
+vi.mock('../components/mobile/MobileDashboard', () => ({ default: () => <div>MobileDashboard stub</div> }));
 vi.mock('../components/GigListScreen', () => ({ default: () => <div>GigListScreen stub</div> }));
 
 const org = { id: 'org-1', name: 'Org' };
@@ -179,5 +180,28 @@ describe('/gigs/:id/day-sheet', () => {
     );
     fireEvent.click(await screen.findByText('back'));
     expect(await screen.findByText('at:/today')).toBeInTheDocument();
+  });
+});
+
+// #445: Today is the phone's home; Staff's old Dashboard (My Schedule) is part of it.
+describe('the old phone Dashboard', () => {
+  beforeEach(() => {
+    isMobile = true;
+  });
+
+  for (const role of ['Staff', 'Admin', 'Manager']) {
+    it(`goes to Today (Home) on the phone for ${role}`, async () => {
+      signInAs(role);
+      renderAt('/dashboard');
+      expect(await screen.findByText('MobileToday stub')).toBeInTheDocument();
+      expect(screen.getByText('at:/today')).toBeInTheDocument();
+    });
+  }
+
+  it('is still the dashboard on desktop', async () => {
+    isMobile = false;
+    signInAs('Staff');
+    renderAt('/dashboard');
+    expect(await screen.findByText('Dashboard stub')).toBeInTheDocument();
   });
 });

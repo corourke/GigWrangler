@@ -45,8 +45,9 @@ describe('MobileLayout bottom nav: the Today tab (§3e)', () => {
     return Array.from(screen.getByTestId('mobile-bottom-nav').querySelectorAll('button')).map((b) => b.textContent)
   }
 
-  it('comes first for Staff, before My Schedule', () => {
-    expect(tabs('Staff')).toEqual(['Today', 'Dashboard', 'Scanning', 'Settings'])
+  // #445: Staff's Today and Dashboard are one Home tab.
+  it('is Home for Staff, with Scanning and Settings', () => {
+    expect(tabs('Staff')).toEqual(['Home', 'Scanning', 'Settings'])
   })
 
   it('comes first for Admin and Manager, before Gigs', () => {

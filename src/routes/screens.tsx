@@ -62,7 +62,6 @@ const AssetScreen = lazy(() => import('../components/AssetScreen'));
 const MobileGigList = lazy(() => import('../components/mobile/MobileGigList'));
 const MobileGigDetail = lazy(() => import('../components/mobile/MobileGigDetail'));
 const MobileDaySheet = lazy(() => import('../components/mobile/MobileDaySheet'));
-const MobileDashboard = lazy(() => import('../components/mobile/MobileDashboard'));
 const MobileInventoryMode = lazy(() => import('../components/mobile/MobileInventoryMode'));
 const MobileSettings = lazy(() => import('../components/mobile/MobileSettings'));
 const MobileToday = lazy(() => import('../components/mobile/MobileToday'));
@@ -260,16 +259,8 @@ function DashboardRoute() {
   const nav = useNav();
   if (!user || !organization) return <LoadingSpinner />;
   if (userRole === 'Viewer') return <Navigate to="/gigs" replace />;
-  if (isMobile) {
-    return (
-      <MobileShell active="mobile-dashboard">
-        <MobileDashboard
-          onViewGigDetail={(id: string) => nav.viewGig(id)}
-          onViewAllGigs={() => nav.navigate('/gigs')}
-        />
-      </MobileShell>
-    );
-  }
+  // On the phone, Today is the home screen (#445); Staff's old Dashboard (My Schedule) is part of it.
+  if (isMobile) return <Navigate to="/today" replace />;
   return (
     <Dashboard
       organization={organization}
@@ -305,6 +296,7 @@ function TodayRoute() {
       <MobileToday
         onViewGigDetail={(id) => nav.viewGig(id)}
         onOpenDaySheet={(id) => nav.navigate(`/gigs/${id}/day-sheet`)}
+        onOpenTeam={nav.toTeam}
       />
     </MobileShell>
   );

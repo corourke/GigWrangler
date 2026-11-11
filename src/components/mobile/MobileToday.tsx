@@ -9,6 +9,7 @@ import { OfflineBadge } from './OfflineBadge';
 import { useIsOffline } from './useIsOffline';
 import { useDayOfShowSheet, useTodayGigs } from './useDayOfShowData';
 import DaySheetGigPicker from './DaySheetGigPicker';
+import NeedsYou from './NeedsYou';
 import { pickTodayGigs } from '../../utils/todayGig';
 import { formatInTimeZone, formatTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
 import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
@@ -19,6 +20,8 @@ interface MobileTodayProps {
   onViewGigDetail: (gigId: string) => void;
   /** Opens a gig's day sheet (#445). */
   onOpenDaySheet: (gigId: string) => void;
+  /** Opens the Team screen, where access requests are decided. */
+  onOpenTeam: () => void;
 }
 
 const SECTION_TITLE = 'text-[11px] font-semibold text-muted-foreground uppercase tracking-wide';
@@ -33,7 +36,7 @@ const timeLabel = (g: DayOfShowGig) => (isGigAllDay(g) ? 'All day' : formatTimeD
  * day sheet, then the rest of the next 7 days. It opens from the copy saved on the phone, so it
  * works at a venue with no signal.
  */
-export default function MobileToday({ onViewGigDetail, onOpenDaySheet }: MobileTodayProps) {
+export default function MobileToday({ onViewGigDetail, onOpenDaySheet, onOpenTeam }: MobileTodayProps) {
   const { user, selectedOrganization, userRole } = useAuth();
   const isOffline = useIsOffline();
   const [picking, setPicking] = useState(false);
@@ -89,6 +92,8 @@ export default function MobileToday({ onViewGigDetail, onOpenDaySheet }: MobileT
             Choose another gig
           </button>
         )}
+
+        <NeedsYou onViewGigDetail={onViewGigDetail} onOpenTeam={onOpenTeam} />
 
         {thisWeek.length > 0 && (
           <section aria-labelledby="today-this-week">

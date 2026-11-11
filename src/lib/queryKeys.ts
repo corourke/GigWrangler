@@ -221,6 +221,12 @@ export const queryKeys = {
   /** "Choose another gig" for the day sheet (#445): a person's own gigs, and the sheets on the phone. */
   myDaySheetGigs: (userId: string) => ['myDaySheetGigs', userId] as const,
   savedDaySheets: (userId: string) => ['savedDaySheets', userId] as const,
+  /** Today's "Needs you" counts (#445). The role-filtered ones carry the user. */
+  needsYouInvites: (userId: string) => ['needsYou', userId, 'invites'] as const,
+  needsYouCrewSpots: (orgId: string) => ['needsYou', 'crewSpots', orgId] as const,
+  needsYouAccessRequests: (userId: string, orgId: string) => ['needsYou', userId, 'accessRequests', orgId] as const,
+  needsYouReceipts: (orgId: string) => ['needsYou', 'receipts', orgId] as const,
+  needsYouPayments: (orgId: string) => ['needsYou', 'payments', orgId] as const,
 
   // ── Mobile inventory (A10, Engineer O) ──
   // Inventory Mode's packing list is local-first: the device copy, then the server's.

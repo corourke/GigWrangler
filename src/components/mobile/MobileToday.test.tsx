@@ -22,6 +22,14 @@ vi.mock('../../services/mobile/dayOfShowFiles.service', async (importOriginal) =
   }
 })
 const toastError = vi.fn()
+vi.mock('./NeedsYou', () => ({
+  default: ({ onOpenTeam }: any) => (
+    <div>
+      <span>NeedsYou stub</span>
+      <button onClick={onOpenTeam}>stub open team</button>
+    </div>
+  ),
+}))
 vi.mock('./DaySheetGigPicker', () => ({
   default: ({ onChoose, onClose }: any) => (
     <div>
@@ -75,7 +83,7 @@ describe('MobileToday (day-of-show sheet)', () => {
   it("shows today's gig as a card with its time and venue, opening its day sheet", async () => {
     vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY])
     const onOpenDaySheet = vi.fn()
-    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={onOpenDaySheet} />)
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={onOpenDaySheet} onOpenTeam={vi.fn()} />)
     const card = await screen.findByRole('region', { name: 'Tonight Show' })
     expect(card).toHaveTextContent('Today')
     expect(card).toHaveTextContent('2:00 PM')
@@ -88,7 +96,7 @@ describe('MobileToday (day-of-show sheet)', () => {
 
   it("loads today's sheet, so it is saved on the phone ahead of the show", async () => {
     vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY])
-    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} />)
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
     await screen.findByRole('region', { name: 'Tonight Show' })
     await waitFor(() => expect(loadDayOfShowSheet).toHaveBeenCalledWith('g1', expect.any(Function)))
   })
@@ -96,7 +104,7 @@ describe('MobileToday (day-of-show sheet)', () => {
   it('shows one card for each gig today', async () => {
     const matinee = gig('g2', '2026-11-10T19:00:00Z', '2026-11-10T21:00:00Z', 'Matinee')
     vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY, matinee])
-    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} />)
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
     expect(await screen.findByRole('region', { name: 'Matinee' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Tonight Show' })).toBeInTheDocument()
   })
@@ -104,7 +112,7 @@ describe('MobileToday (day-of-show sheet)', () => {
   it('shows the next gig, marked as next, when none is today', async () => {
     const later = gig('g9', '2026-11-12T22:00:00Z', '2026-11-13T02:00:00Z', 'Friday Show')
     vi.mocked(loadTodayCandidates).mockResolvedValue([later])
-    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} />)
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
     const card = await screen.findByRole('region', { name: 'Friday Show' })
     expect(card).toHaveTextContent('Next up')
     expect(card).toHaveTextContent('Thu, Nov 12')
@@ -112,7 +120,7 @@ describe('MobileToday (day-of-show sheet)', () => {
 
   it('says so when there is no gig in the next 7 days', async () => {
     vi.mocked(loadTodayCandidates).mockResolvedValue([])
-    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} />)
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
     expect(await screen.findByText('No gigs in the next 7 days')).toBeInTheDocument()
     expect(loadDayOfShowSheet).not.toHaveBeenCalled()
   })
@@ -122,7 +130,7 @@ describe('MobileToday (day-of-show sheet)', () => {
     const sun = { ...gig('g4', '2026-11-15T12:00:00Z', '2026-11-15T12:00:00Z', 'Sunday Fair'), all_day: true, status: 'DateHold' }
     vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY, fri, sun])
     const onViewGigDetail = vi.fn()
-    render(<MobileToday onViewGigDetail={onViewGigDetail} onOpenDaySheet={vi.fn()} />)
+    render(<MobileToday onViewGigDetail={onViewGigDetail} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
     const week = await screen.findByRole('list', { name: 'This week' })
     const rows = within(week).getAllByRole('listitem')
     expect(rows.map((r) => r.textContent)).toEqual([
@@ -133,10 +141,20 @@ describe('MobileToday (day-of-show sheet)', () => {
     expect(onViewGigDetail).toHaveBeenCalledWith('g3')
   })
 
+  it('shows Needs you under the gig card, without waiting for it', async () => {
+    vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY])
+    const onOpenTeam = vi.fn()
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={onOpenTeam} />)
+    await screen.findByRole('region', { name: 'Tonight Show' })
+    expect(screen.getByText('NeedsYou stub')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('stub open team'))
+    expect(onOpenTeam).toHaveBeenCalled()
+  })
+
   it('offline: the cards come from the phone', async () => {
     setOnline(false)
     vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY])
-    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} />)
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
     expect(await screen.findByRole('region', { name: 'Tonight Show' })).toBeInTheDocument()
     expect(screen.getByText(/Offline/i)).toBeInTheDocument()
   })
@@ -153,7 +171,7 @@ describe('MobileToday: Choose another gig', () => {
   it('opens the gig picker, and the day sheet of the gig chosen', async () => {
     vi.mocked(loadTodayCandidates).mockResolvedValue([])
     const onOpenDaySheet = vi.fn()
-    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={onOpenDaySheet} />)
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={onOpenDaySheet} onOpenTeam={vi.fn()} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Choose another gig' }))
     expect(screen.getByText('Gig picker')).toBeInTheDocument()
     fireEvent.click(screen.getByText('pick g9'))
@@ -162,7 +180,7 @@ describe('MobileToday: Choose another gig', () => {
 
   it('closes the picker', async () => {
     vi.mocked(loadTodayCandidates).mockResolvedValue([])
-    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} />)
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Choose another gig' }))
     fireEvent.click(screen.getByText('close picker'))
     expect(screen.queryByText('Gig picker')).not.toBeInTheDocument()
