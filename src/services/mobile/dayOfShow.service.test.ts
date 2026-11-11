@@ -189,6 +189,41 @@ describe('pruneDayOfShow: sheets the person saved', () => {
   });
 });
 
+// Smoke fix (#445): saving a gig that ended long ago must not be pruned at once. A kept sheet stays
+// until 30 days after the later of the gig's end and the day it was saved.
+describe('pruneDayOfShow: a past gig the person saved', () => {
+  const now = new Date('2026-11-10T12:00:00Z').getTime();
+  const DAY = 24 * 60 * 60 * 1000;
+  const oldGig = { end: '2026-10-09T06:00:00Z', start: '2026-10-09T01:00:00Z' };
+  const run = async (sheets: any[], at = now) => {
+    vi.mocked(idbStore.deleteDayOfShow).mockClear();
+    (idbStore.getAllDayOfShow as any).mockResolvedValue(sheets);
+    await pruneDayOfShow(at);
+    return vi.mocked(idbStore.deleteDayOfShow).mock.calls.map((c) => c[0]);
+  };
+
+  it('survives a prune the day it was saved', async () => {
+    expect(await run([{ gig_id: 'a', kept: true, kept_at: now, gig: oldGig }])).toEqual([]);
+  });
+
+  it('goes 30 days after it was saved', async () => {
+    const sheets = [{ gig_id: 'a', kept: true, kept_at: now, gig: oldGig }];
+    expect(await run(sheets, now + 29 * DAY)).toEqual([]);
+    expect(await run(sheets, now + 31 * DAY)).toEqual(['a']);
+  });
+
+  it('still goes 30 days after a gig that ended after it was saved', async () => {
+    const gig = { end: '2026-11-20T06:00:00Z', start: '2026-11-20T01:00:00Z' };
+    const sheets = [{ gig_id: 'a', kept: true, kept_at: now, gig }];
+    expect(await run(sheets, new Date('2026-12-19T00:00:00Z').getTime())).toEqual([]);
+    expect(await run(sheets, new Date('2026-12-21T00:00:00Z').getTime())).toEqual(['a']);
+  });
+
+  it('a sheet kept before kept_at was stored counts from when it was last saved', async () => {
+    expect(await run([{ gig_id: 'a', kept: true, saved_at: now - DAY, gig: oldGig }])).toEqual([]);
+  });
+});
+
 // #447 review: viewing a sheet saves it; one only viewed, outside the save-ahead window, goes after 7 days.
 describe('pruneDayOfShow: sheets only viewed', () => {
   const now = new Date('2026-11-10T12:00:00Z').getTime();
@@ -224,7 +259,7 @@ describe('keepDayOfShowSheet and forgetDayOfShowSheet', () => {
 
   it("saves the sheet as kept, with its PDFs and images", async () => {
     const result = await keepDayOfShowSheet('gig-1');
-    expect(idbStore.putDayOfShow).toHaveBeenLastCalledWith(expect.objectContaining({ gig_id: 'gig-1', kept: true }));
+    expect(idbStore.putDayOfShow).toHaveBeenLastCalledWith(expect.objectContaining({ gig_id: 'gig-1', kept: true, kept_at: expect.any(Number) }));
     expect(vi.mocked(saveDayOfShowDocument).mock.calls.map((c) => c[1].id)).toEqual(['att-1', 'att-3']);
     expect(result).toEqual({ roomShort: false });
   });
@@ -241,9 +276,9 @@ describe('keepDayOfShowSheet and forgetDayOfShowSheet', () => {
   });
 
   it('a refresh keeps it kept', async () => {
-    (idbStore.getDayOfShow as any).mockResolvedValue({ gig_id: 'gig-1', saved_at: 1, kept: true });
+    (idbStore.getDayOfShow as any).mockResolvedValue({ gig_id: 'gig-1', saved_at: 1, kept: true, kept_at: 5 });
     await loadDayOfShowSheet('gig-1', vi.fn());
-    expect(idbStore.putDayOfShow).toHaveBeenLastCalledWith(expect.objectContaining({ gig_id: 'gig-1', kept: true }));
+    expect(idbStore.putDayOfShow).toHaveBeenLastCalledWith(expect.objectContaining({ gig_id: 'gig-1', kept: true, kept_at: 5 }));
   });
 
   it('Remove takes the sheet and its documents off the phone', async () => {

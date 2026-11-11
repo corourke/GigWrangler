@@ -21,7 +21,6 @@ interface MobileTodayProps {
   /** Opens a gig's day sheet (#445). */
   onOpenDaySheet: (gigId: string) => void;
   /** Opens the Team screen, where access requests are decided. */
-  onOpenTeam: () => void;
 }
 
 const SECTION_TITLE = 'text-[11px] font-semibold text-muted-foreground uppercase tracking-wide';
@@ -36,7 +35,7 @@ const timeLabel = (g: DayOfShowGig) => (isGigAllDay(g) ? 'All day' : formatTimeD
  * day sheet, then the rest of the next 7 days. It opens from the copy saved on the phone, so it
  * works at a venue with no signal.
  */
-export default function MobileToday({ onViewGigDetail, onOpenDaySheet, onOpenTeam }: MobileTodayProps) {
+export default function MobileToday({ onViewGigDetail, onOpenDaySheet }: MobileTodayProps) {
   const { user, selectedOrganization, userRole } = useAuth();
   const isOffline = useIsOffline();
   const [picking, setPicking] = useState(false);
@@ -53,7 +52,7 @@ export default function MobileToday({ onViewGigDetail, onOpenDaySheet, onOpenTea
   return (
     <div className="flex flex-col">
       <div className="sticky top-0 z-40 bg-background/90 backdrop-blur-md px-4 py-3 border-b border-border/50 flex items-center justify-between">
-        <h1 className="text-xl font-bold">Today</h1>
+        <h1 className="text-xl font-bold">{userRole === 'Staff' ? 'Home' : 'Today'}</h1>
         <div className="flex items-center gap-2">
           {isOffline && <OfflineBadge />}
           <Button aria-label="Refresh" variant="ghost" size="icon" onClick={() => void gigsQuery.refetch()} disabled={gigsQuery.isFetching || isOffline} className="h-9 w-9">
@@ -93,7 +92,7 @@ export default function MobileToday({ onViewGigDetail, onOpenDaySheet, onOpenTea
           </button>
         )}
 
-        <NeedsYou onViewGigDetail={onViewGigDetail} onOpenTeam={onOpenTeam} weekGigs={gigsQuery.data} />
+        <NeedsYou onViewGigDetail={onViewGigDetail} weekGigs={gigsQuery.data} />
 
         {thisWeek.length > 0 && (
           <section aria-labelledby="today-this-week">
