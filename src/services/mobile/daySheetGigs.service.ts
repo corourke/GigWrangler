@@ -51,3 +51,32 @@ export async function listSavedSheetIds(): Promise<Set<string>> {
     return new Set();
   }
 }
+
+const asGig = (g: any): DayOfShowGig => ({
+  id: g.id,
+  title: g.title ?? '',
+  start: g.start,
+  end: g.end ?? null,
+  timezone: g.timezone ?? null,
+  all_day: g.all_day ?? null,
+  status: g.status ?? null,
+});
+
+/**
+ * Offline, with nothing loaded yet: the organization's gigs on the phone (the saved gig list) and
+ * the gigs whose day sheet is saved, each once.
+ */
+export async function listOfflineGigs(orgId: string): Promise<DayOfShowGig[]> {
+  const [gigs, sheets] = await Promise.all([
+    idbStore.getGigs().catch(() => [] as any[]),
+    idbStore.getAllDayOfShow().catch(() => [] as any[]),
+  ]);
+  const byId = new Map<string, DayOfShowGig>();
+  for (const g of gigs as any[]) {
+    if ((g.participants ?? []).some((p: any) => p.organization_id === orgId)) byId.set(g.id, asGig(g));
+  }
+  for (const sheet of sheets as any[]) {
+    if (sheet?.gig && !byId.has(sheet.gig_id)) byId.set(sheet.gig_id, asGig({ ...sheet.gig, id: sheet.gig_id }));
+  }
+  return [...byId.values()];
+}

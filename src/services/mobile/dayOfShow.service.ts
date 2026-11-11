@@ -162,16 +162,27 @@ export function buildDayOfShowSheet(
   };
 }
 
+/** How long a sheet only viewed (not kept, not coming up) stays on the phone. */
+export const VIEWED_DAYS = 7;
+
 /**
- * Removes saved sheets, and their saved documents, whose gig ended more than a day ago, or 30 days
- * ago for a sheet the person saved (#445).
+ * Removes saved sheets, and their saved documents:
+ * - whose gig ended more than a day ago, or 30 days ago for a sheet the person kept (#445);
+ * - only viewed (not kept) more than 7 days ago, for a gig not on today or starting within 24 hours.
  */
 export async function pruneDayOfShow(now: number = Date.now()): Promise<void> {
   const saved = await idbStore.getAllDayOfShow();
-  for (const sheet of saved) {
+  for (const sheet of saved as DayOfShowSheet[]) {
     const end = new Date(sheet.gig?.end ?? sheet.gig?.start ?? 0).getTime();
-    const keepFor = (sheet as DayOfShowSheet).kept ? KEEP_DAYS * DAY_MS : DAY_MS;
-    if (Number.isNaN(end) || end < now - keepFor) {
+    const keepFor = sheet.kept ? KEEP_DAYS * DAY_MS : DAY_MS;
+    const ended = Number.isNaN(end) || end < now - keepFor;
+    const staleView =
+      !sheet.kept &&
+      typeof sheet.saved_at === 'number' &&
+      sheet.saved_at < now - VIEWED_DAYS * DAY_MS &&
+      !!sheet.gig &&
+      !shouldSaveAhead(sheet.gig, new Date(now));
+    if (ended || staleView) {
       await idbStore.deleteDayOfShow(sheet.gig_id);
       await removeSavedDocumentsForGig(sheet.gig_id).catch(() => {});
     }

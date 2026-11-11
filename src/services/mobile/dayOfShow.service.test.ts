@@ -189,6 +189,23 @@ describe('pruneDayOfShow: sheets the person saved', () => {
   });
 });
 
+// #447 review: viewing a sheet saves it; one only viewed, outside the save-ahead window, goes after 7 days.
+describe('pruneDayOfShow: sheets only viewed', () => {
+  const now = new Date('2026-11-10T12:00:00Z').getTime();
+  const DAY = 24 * 60 * 60 * 1000;
+  it('removes a viewed sheet for a later gig after 7 days, but not a kept one or one for a gig coming up', async () => {
+    vi.mocked(idbStore.deleteDayOfShow).mockClear();
+    (idbStore.getAllDayOfShow as any).mockResolvedValue([
+      { gig_id: 'viewed-old', saved_at: now - 8 * DAY, gig: { start: '2026-12-20T20:00:00Z', end: '2026-12-20T23:00:00Z', status: 'Booked' } },
+      { gig_id: 'viewed-recent', saved_at: now - 2 * DAY, gig: { start: '2026-12-20T20:00:00Z', end: '2026-12-20T23:00:00Z', status: 'Booked' } },
+      { gig_id: 'kept-old', kept: true, saved_at: now - 8 * DAY, gig: { start: '2026-12-20T20:00:00Z', end: '2026-12-20T23:00:00Z', status: 'Booked' } },
+      { gig_id: 'tomorrow-old', saved_at: now - 8 * DAY, gig: { start: '2026-11-11T02:00:00Z', end: '2026-11-11T05:00:00Z', status: 'Booked' } },
+    ]);
+    await pruneDayOfShow(now);
+    expect(vi.mocked(idbStore.deleteDayOfShow).mock.calls.map((c) => c[0])).toEqual(['viewed-old']);
+  });
+});
+
 describe('keepDayOfShowSheet and forgetDayOfShowSheet', () => {
   beforeEach(() => {
     vi.clearAllMocks();
