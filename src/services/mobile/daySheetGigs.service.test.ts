@@ -16,10 +16,10 @@ vi.mock('../base/dataAccess', () => ({
     from: (table: string) => { calls.push(['from', table]); return chain; },
   }),
 }));
-vi.mock('../../utils/idb/store', () => ({ idbStore: { getAllDayOfShow: vi.fn() } }));
+vi.mock('../../utils/idb/store', () => ({ idbStore: { getAllDayOfShow: vi.fn(), getGigs: vi.fn() } }));
 
 import { idbStore } from '../../utils/idb/store';
-import { listMyDaySheetGigs, listSavedSheetIds } from './daySheetGigs.service';
+import { listMyDaySheetGigs, listSavedSheetIds, listOfflineGigs } from './daySheetGigs.service';
 
 const NOW = new Date('2026-11-10T17:00:00Z');
 const gig = (id: string, start: string, status = 'Booked') =>
@@ -69,5 +69,16 @@ describe('listSavedSheetIds', () => {
   it('is empty when the phone has no store', async () => {
     vi.mocked(idbStore.getAllDayOfShow).mockRejectedValue(new Error('no idb'));
     expect(await listSavedSheetIds()).toEqual(new Set());
+  });
+});
+
+describe('listOfflineGigs', () => {
+  it("lists the organization's gigs on the phone and the gigs whose sheet is saved, each once", async () => {
+    vi.mocked(idbStore.getGigs).mockResolvedValue([
+      { ...gig('a', '2026-11-12T20:00:00Z'), participants: [{ organization_id: 'org-1' }] },
+      { ...gig('x', '2026-11-12T20:00:00Z'), participants: [{ organization_id: 'org-9' }] },
+    ] as any);
+    vi.mocked(idbStore.getAllDayOfShow).mockResolvedValue([{ gig_id: 'a', gig: gig('a', '2026-11-12T20:00:00Z') }, { gig_id: 'b', gig: gig('b', '2026-11-14T20:00:00Z') }] as any);
+    expect((await listOfflineGigs('org-1')).map((g) => g.id)).toEqual(['a', 'b']);
   });
 });
