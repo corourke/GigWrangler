@@ -88,11 +88,12 @@ describe('DaySheetGigPicker', () => {
     vi.mocked(getGigsForOrganization).mockResolvedValue([gig('g1', 'Spring Gala', '2026-11-01T20:00:00Z'), gig('g3', 'Winter Fair', '2026-12-01T20:00:00Z')] as any);
     render(<DaySheetGigPicker onChoose={vi.fn()} onClose={vi.fn()} />);
     const list = await screen.findByRole('list', { name: 'Gigs' });
-    expect(within(list).getAllByRole('listitem')).toHaveLength(2);
+    expect(list).toHaveTextContent('Winter Fair');
+    expect(screen.getByRole('list', { name: 'Earlier' })).toHaveTextContent('Spring Gala');
     expect(getGigsForOrganization).toHaveBeenCalledWith('org-1');
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search gigs' }), { target: { value: 'winter' } });
-    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
-    expect(list).toHaveTextContent('Winter Fair');
+    expect(within(screen.getByRole('list', { name: 'Gigs' })).getAllByRole('listitem')).toHaveLength(1);
+    expect(screen.queryByRole('list', { name: 'Earlier' })).not.toBeInTheDocument();
   });
 
   it('closes', async () => {

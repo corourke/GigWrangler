@@ -5,7 +5,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/button';
 import { queryKeys } from '../../lib/queryKeys';
 import { getGigsForOrganization } from '../../services/gig.service';
-import { listMyDaySheetGigs, listSavedSheetIds } from '../../services/mobile/daySheetGigs.service';
+import { listMyDaySheetGigs, listOfflineGigs, listSavedSheetIds } from '../../services/mobile/daySheetGigs.service';
+import { useIsOffline } from './useIsOffline';
 import type { DayOfShowGig } from '../../services/mobile/dayOfShow.service';
 import { formatInTimeZone, formatTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
 import { useVisualViewport } from '../../hooks/useVisualViewport';
@@ -49,14 +50,33 @@ export default function DaySheetGigPicker({ onChoose, onClose }: DaySheetGigPick
     enabled: !isStaff && !!orgId,
     networkMode: 'always',
   });
-  const saved = useQuery({ queryKey: queryKeys.savedDaySheets(), queryFn: () => listSavedSheetIds(), networkMode: 'always' });
+  const saved = useQuery({ queryKey: queryKeys.savedDaySheets(user?.id ?? ''), queryFn: () => listSavedSheetIds(), networkMode: 'always' });
+  // Offline with nothing loaded (#446 review): the gigs on the phone, so a saved sheet still opens.
+  const isOffline = useIsOffline();
+  const orgFailed = !isStaff && !org.data && (org.isError || isOffline);
+  const onPhone = useQuery({
+    queryKey: [...queryKeys.savedDaySheets(user?.id ?? ''), 'gigs', orgId],
+    queryFn: () => listOfflineGigs(orgId),
+    enabled: orgFailed,
+    networkMode: 'always',
+  });
+  const showingPhone = orgFailed && !!onPhone.data;
 
-  const query = isStaff ? mine : org;
-  const gigs = useMemo(() => {
-    const all = isStaff ? (mine.data ?? []) : (org.data ?? []).map(asGig);
+  const query = isStaff ? mine : showingPhone ? onPhone : org;
+  const { upcoming, earlier } = useMemo(() => {
+    const all = isStaff ? (mine.data ?? []) : showingPhone ? (onPhone.data ?? []) : (org.data ?? []).map(asGig);
     const term = search.trim().toLowerCase();
-    return term ? all.filter((g) => g.title.toLowerCase().includes(term)) : all;
-  }, [isStaff, mine.data, org.data, search]);
+    const found = term ? all.filter((g) => g.title.toLowerCase().includes(term)) : all;
+    // Upcoming (not yet ended) soonest first; then earlier ones, most recent first.
+    const now = Date.now();
+    const time = (iso: string | null | undefined) => new Date(iso ?? 0).getTime();
+    const isEarlier = (g: DayOfShowGig) => time(g.end ?? g.start) < now;
+    return {
+      upcoming: found.filter((g) => !isEarlier(g)).sort((a, b) => time(a.start) - time(b.start)),
+      earlier: found.filter(isEarlier).sort((a, b) => time(b.start) - time(a.start)),
+    };
+  }, [isStaff, mine.data, org.data, onPhone.data, showingPhone, search]);
+  const gigs = [...upcoming, ...earlier];
 
   return (
     <div
@@ -92,38 +112,55 @@ export default function DaySheetGigPicker({ onChoose, onClose }: DaySheetGigPick
           <div className="flex justify-center py-10">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" aria-label="Loading" />
           </div>
-        ) : query.error && gigs.length === 0 ? (
+        ) : query.error && gigs.length === 0 && !showingPhone ? (
           <p className="text-sm text-center text-red-600 py-10">Couldn't load the gigs</p>
         ) : gigs.length === 0 ? (
           <p className="text-sm text-center text-muted-foreground py-10">No gigs to show</p>
         ) : (
-          <ul aria-label="Gigs" className="divide-y divide-border/50">
-            {gigs.map((g) => {
-              const tz = g.timezone || undefined;
-              const when = `${formatInTimeZone(g.start, tz, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}${
-                isGigAllDay(g) ? '' : ` · ${formatTimeDisplay(g.start, tz)}`
-              }`;
-              return (
-                <li key={g.id}>
-                  <button type="button" onClick={() => onChoose(g.id)} className="w-full text-left px-4 py-3 flex items-center justify-between gap-2 active:bg-muted">
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium truncate">{g.title}</span>
-                      <span className="block text-xs text-muted-foreground">{when}</span>
-                      {saved.data?.has(g.id) && (
-                        <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-emerald-700">
-                          <Download className="w-3 h-3" aria-hidden="true" />
-                          Saved on this phone
-                        </span>
-                      )}
-                    </span>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            {showingPhone && (
+              <p className="px-4 pt-3 text-xs text-amber-700">Offline: showing the gigs saved on this phone.</p>
+            )}
+            {upcoming.length > 0 && (
+              <ul aria-label="Gigs" className="divide-y divide-border/50">
+                {upcoming.map((g) => <GigRow key={g.id} gig={g} saved={!!saved.data?.has(g.id)} onChoose={onChoose} />)}
+              </ul>
+            )}
+            {earlier.length > 0 && (
+              <>
+                <h3 id="day-sheet-picker-earlier" className="px-4 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Earlier</h3>
+                <ul aria-labelledby="day-sheet-picker-earlier" className="divide-y divide-border/50">
+                  {earlier.map((g) => <GigRow key={g.id} gig={g} saved={!!saved.data?.has(g.id)} onChoose={onChoose} />)}
+                </ul>
+              </>
+            )}
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+function GigRow({ gig: g, saved, onChoose }: { gig: DayOfShowGig; saved: boolean; onChoose: (id: string) => void }) {
+  const tz = g.timezone || undefined;
+  const when = `${formatInTimeZone(g.start, tz, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}${
+    isGigAllDay(g) ? '' : ` · ${formatTimeDisplay(g.start, tz)}`
+  }`;
+  return (
+    <li>
+      <button type="button" onClick={() => onChoose(g.id)} className="w-full text-left px-4 py-3 flex items-center justify-between gap-2 active:bg-muted">
+        <span className="min-w-0">
+          <span className="block text-sm font-medium truncate">{g.title}</span>
+          <span className="block text-xs text-muted-foreground">{when}</span>
+          {saved && (
+            <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-emerald-700">
+              <Download className="w-3 h-3" aria-hidden="true" />
+              Saved on this phone
+            </span>
+          )}
+        </span>
+        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+      </button>
+    </li>
   );
 }
