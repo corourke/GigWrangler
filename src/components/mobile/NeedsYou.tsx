@@ -170,7 +170,7 @@ export default function NeedsYou({ onViewGigDetail, onOpenTeam }: NeedsYouProps)
 
   if (isOffline) {
     return (
-      <section aria-labelledby="needs-you-title" role="region" className="rounded-lg border border-border bg-background px-3 py-3">
+      <section aria-labelledby="needs-you-title" className="rounded-lg border border-border bg-background px-3 py-3">
         <h2 id="needs-you-title" className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Needs you</h2>
         <p className="text-sm text-muted-foreground mt-1">Counts need a connection.</p>
       </section>
@@ -181,7 +181,7 @@ export default function NeedsYou({ onViewGigDetail, onOpenTeam }: NeedsYouProps)
   if (visible.length === 0) return null;
 
   return (
-    <section aria-labelledby="needs-you-title" role="region" className="rounded-lg border border-border bg-background">
+    <section aria-labelledby="needs-you-title" className="rounded-lg border border-border bg-background">
       <h2 id="needs-you-title" className="px-3 pt-3 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Needs you</h2>
       <ul className="divide-y divide-border/50">
         {visible.map((r) => (

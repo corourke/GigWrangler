@@ -1,7 +1,7 @@
 import React from 'react';
 import { useVisualViewport, scrollFieldIntoView } from '../../hooks/useVisualViewport';
 import { safeHref } from '../../utils/safeHref';
-import {Barcode, Settings, Building2, List, LayoutDashboard, CalendarClock } from 'lucide-react';
+import {Barcode, Settings, Building2, List, Home, CalendarClock } from 'lucide-react';
 import type { UserRole } from '../../utils/supabase/types';
 import { useAuth } from '../../contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
@@ -44,12 +44,12 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, currentRoute, onN
     return `${f}${l}`.toUpperCase() || '?';
   };
 
-  // The Today tab (day-of-show sheet, §3e) comes first for Staff, Admin and Manager; not Viewer.
+  // Today is the home screen for Staff, Admin and Manager; not Viewer (#445). For Staff, who have no
+  // Gigs tab, it is called Home and also holds what Dashboard (My Schedule) showed.
   const today = { id: 'mobile-today', label: 'Today', icon: CalendarClock };
   const navItems = userRole === 'Staff'
     ? [
-        today,
-        { id: 'mobile-dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'mobile-today', label: 'Home', icon: Home },
         { id: 'mobile-inventory', label: 'Scanning', icon: Barcode },
         { id: 'mobile-settings', label: 'Settings', icon: Settings },
       ]
