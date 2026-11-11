@@ -99,12 +99,21 @@ describe('The day sheet (DaySheet, via MobileDaySheet)', () => {
     expect(screen.getByRole('link', { name: /Directions/ }).getAttribute('href')).toMatch(/maps/)
   })
 
-  it('offline: shows when the sheet was saved, and that a document needs a connection', async () => {
+  it('offline: a cached sheet says when it was updated, not that it was saved, and a document needs a connection', async () => {
     setOnline(false)
     render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
-    expect(await screen.findByText(/Saved .*9:00 AM/)).toBeInTheDocument()
+    expect(await screen.findByText(/Updated .*9:00 AM/)).toBeInTheDocument()
+    expect(screen.queryByText(/Saved .*9:00 AM/)).not.toBeInTheDocument()
     expect(screen.getByText('Not saved on this phone – connect to open')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /stage-plot\.pdf/ })).toBeDisabled()
+  })
+
+  it('a sheet the person saved says Saved on this phone with the time; a cached one never does', async () => {
+    setOnline(false)
+    vi.mocked(loadDayOfShowSheet).mockImplementation(async (id: string) => ({ ...sheetFor(TODAY), kept: true }))
+    render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
+    expect(await screen.findByText(/Saved on this phone · .*9:00 AM/)).toBeInTheDocument()
+    expect(screen.queryByText(/Updated /)).not.toBeInTheDocument()
   })
 
   it('offline with no saved sheet, says it is not saved', async () => {

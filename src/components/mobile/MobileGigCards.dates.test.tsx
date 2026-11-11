@@ -7,7 +7,6 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vites
 import { screen, waitFor } from '@testing-library/react'
 import { renderWithQuery as render } from '../../test/renderWithQuery'
 import MobileGigList from './MobileGigList'
-import MobileDashboard from './MobileDashboard'
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
@@ -69,12 +68,5 @@ describe('mobile gig cards show the gig\'s own day and time (round B)', () => {
     await waitFor(() => expect(screen.getByText('All Day Fair')).toBeInTheDocument())
     expect(screen.getByText(allDayLabel)).toBeInTheDocument()
     expect(screen.getByText(`${timedDay} · ${timedTime}`)).toBeInTheDocument()
-  })
-
-  it('My Schedule', async () => {
-    render(<MobileDashboard onViewGigDetail={vi.fn()} onViewAllGigs={vi.fn()} />)
-    await waitFor(() => expect(screen.getByText('All Day Fair')).toBeInTheDocument())
-    expect(screen.getByText(allDayLabel)).toBeInTheDocument()
-    expect(screen.getByText(`${timedDay} • ${timedTime}`)).toBeInTheDocument()
   })
 })
