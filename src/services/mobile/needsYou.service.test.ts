@@ -17,10 +17,12 @@ vi.mock('../base/dataAccess', () => ({
 }));
 vi.mock('../accessRequest.service', () => ({ getOrgAccessRequests: vi.fn() }));
 vi.mock('../purchaseScanQueue.service', () => ({ listScanQueue: vi.fn() }));
+vi.mock('../conflictDetection.service', () => ({ checkAllConflictsForGigs: vi.fn() }));
 
 import { getOrgAccessRequests } from '../accessRequest.service';
 import { listScanQueue } from '../purchaseScanQueue.service';
-import { fetchMyInvites, fetchOpenCrewSpots, fetchPaymentsDue, fetchAccessRequestCount, fetchReceiptsToReview } from './needsYou.service';
+import { checkAllConflictsForGigs } from '../conflictDetection.service';
+import { fetchMyInvites, fetchOpenCrewSpots, fetchPaymentsDue, fetchAccessRequestCount, fetchReceiptsToReview, fetchEquipmentConflicts } from './needsYou.service';
 
 const NOW = new Date('2026-11-10T17:00:00Z');
 beforeEach(() => { calls.length = 0; result = { data: [], error: null }; vi.clearAllMocks(); });
@@ -74,3 +76,22 @@ describe('needsYou.service', () => {
     await expect(fetchPaymentsDue('org-1', '2026-11-10')).rejects.toThrow('nope');
   });
 });
+
+describe('fetchEquipmentConflicts', () => {
+  const gig = (id: string, start: string, status = 'Booked') => ({ id, title: `Gig ${id}`, start, end: start, timezone: 'UTC', all_day: false, status });
+  const conflict = (gig_id: string, other: string) => ({ level: 'conflict', type: 'equipment', gig_id, gig_title: `Gig ${gig_id}`, start: '2026-11-12T20:00:00Z', end: '', details: { other_gig_id: other, other_gig_title: `Gig ${other}` } });
+
+  it("runs the conflict check on this week's gigs only, for the organization", async () => {
+    vi.mocked(checkAllConflictsForGigs).mockResolvedValue([conflict('a', 'b'), conflict('b', 'a')] as any);
+    const result = await fetchEquipmentConflicts('org-1', [gig('a', '2026-11-12T20:00:00Z'), gig('b', '2026-11-12T21:00:00Z'), gig('far', '2026-12-30T20:00:00Z')], NOW);
+    expect(checkAllConflictsForGigs).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: 'a' }), expect.objectContaining({ id: 'b' })], 'org-1');
+    expect(result.count).toBe(2);
+  });
+
+  it('does not run the check when fewer than two gigs could clash', async () => {
+    expect((await fetchEquipmentConflicts('org-1', [gig('a', '2026-11-12T20:00:00Z')], NOW)).count).toBe(0);
+    expect(checkAllConflictsForGigs).not.toHaveBeenCalled();
+  });
+});
+

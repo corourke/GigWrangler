@@ -11,6 +11,7 @@ vi.mock('../../services/mobile/needsYou.service', () => ({
   fetchPaymentsDue: vi.fn(),
   fetchAccessRequestCount: vi.fn(),
   fetchReceiptsToReview: vi.fn(),
+  fetchEquipmentConflicts: vi.fn(),
 }));
 vi.mock('../../services/mobile/myAssignments.service', () => ({ setMyAssignmentStatus: vi.fn(async () => {}) }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
@@ -27,10 +28,15 @@ function everythingHas() {
   vi.mocked(svc.fetchMyInvites).mockResolvedValue([{ assignmentId: 'a1', role: 'FOH', gig: gig('g1', 'Spring Gala') }]);
   vi.mocked(svc.fetchOpenCrewSpots).mockResolvedValue({ spots: 3, gigs: [{ gig: gig('g2', 'Autumn Ball'), open: 3 }] });
   vi.mocked(svc.fetchAccessRequestCount).mockResolvedValue(1);
+  vi.mocked(svc.fetchEquipmentConflicts).mockResolvedValue({ count: 2, gigs: [
+    { gigId: 'g5', title: 'Spring Gala', start: '2026-11-12T20:00:00Z', others: ['Gala Load-in'] },
+    { gigId: 'g6', title: 'Gala Load-in', start: '2026-11-12T21:00:00Z', others: ['Spring Gala'] },
+  ] });
   vi.mocked(svc.fetchReceiptsToReview).mockResolvedValue([{ id: 'q1', status: 'ready', file_name: 'fuel.jpg', created_at: '2026-11-10T10:00:00Z' } as any]);
   vi.mocked(svc.fetchPaymentsDue).mockResolvedValue({ due: 2, overdue: 1, lines: [{ id: 'f1', gigId: 'g3', gigTitle: 'Winter Fair', direction: 'in', due_date: '2026-11-10' }] });
 }
-const props = () => ({ onViewGigDetail: vi.fn(), onOpenTeam: vi.fn() });
+const week = [gig('g5', 'Spring Gala'), gig('g6', 'Gala Load-in')];
+const props = (): any => ({ onViewGigDetail: vi.fn(), onOpenTeam: vi.fn(), weekGigs: week });
 const rows = () => within(screen.getByRole('region', { name: 'Needs you' })).getAllByRole('button', { expanded: false }).map((b) => b.textContent);
 
 beforeEach(() => { vi.clearAllMocks(); setOnline(true); everythingHas(); });
@@ -41,11 +47,12 @@ describe('NeedsYou', () => {
     auth.userRole = 'Admin';
     render(<NeedsYou {...props()} />);
     expect(await screen.findByRole('button', { name: /Payments due or overdue/ })).toBeInTheDocument();
-    await waitFor(() => expect(rows()).toHaveLength(5));
+    await waitFor(() => expect(rows()).toHaveLength(6));
     expect(rows()).toEqual([
       expect.stringMatching(/1.*Invite to reply to/),
       expect.stringMatching(/3.*Open crew spots \(14 days\)/),
       expect.stringMatching(/1.*Access request/),
+      expect.stringMatching(/2.*Equipment conflicts this week/),
       expect.stringMatching(/1.*Receipt to review/),
       expect.stringMatching(/2 due today · 1 overdue.*Payments due or overdue/),
     ]);
@@ -127,3 +134,41 @@ describe('NeedsYou', () => {
     expect(p.onViewGigDetail).toHaveBeenCalledWith('g3');
   });
 });
+
+// Plan #445 (A2c): equipment conflicts this week, after the other counts, from the gigs Today has.
+describe('NeedsYou: equipment conflicts', () => {
+  it('shows Admins and Managers the gigs that clash, and opens a gig', async () => {
+    auth.userRole = 'Manager';
+    const p = props();
+    render(<NeedsYou {...p} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Equipment conflicts this week/ }));
+    const list = screen.getByRole('list', { name: 'Equipment conflicts' });
+    expect(list).toHaveTextContent('Clashes with Gala Load-in');
+    fireEvent.click(within(list).getByRole('button', { name: /^Spring Gala/ }));
+    expect(p.onViewGigDetail).toHaveBeenCalledWith('g5');
+    expect(svc.fetchEquipmentConflicts).toHaveBeenCalledWith('org-1', week);
+  });
+
+  it('is not shown to Staff, and the check does not run', async () => {
+    auth.userRole = 'Staff';
+    render(<NeedsYou {...props()} />);
+    await screen.findByRole('button', { name: /Invite to reply to/ });
+    expect(svc.fetchEquipmentConflicts).not.toHaveBeenCalled();
+  });
+
+  it("waits for Today's gigs: the check doesn't run until they are in", async () => {
+    auth.userRole = 'Manager';
+    render(<NeedsYou {...props()} weekGigs={undefined} />);
+    await screen.findByRole('button', { name: /Invite to reply to/ });
+    expect(svc.fetchEquipmentConflicts).not.toHaveBeenCalled();
+  });
+
+  it("a failed check doesn't hide the others, and zero is hidden", async () => {
+    auth.userRole = 'Manager';
+    vi.mocked(svc.fetchEquipmentConflicts).mockRejectedValue(new Error('slow'));
+    render(<NeedsYou {...props()} />);
+    expect(await screen.findByText("Couldn't load equipment conflicts")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Invite to reply to/ })).toBeInTheDocument();
+  });
+});
+
