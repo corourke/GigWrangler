@@ -47,7 +47,6 @@ vi.mock('../components/mobile/MobileDaySheet', () => ({
 }));
 vi.mock('../components/gig/GigPage', () => ({ default: ({ gigId }: any) => <div>GigPage stub {gigId}</div> }));
 vi.mock('../components/Dashboard', () => ({ default: () => <div>Dashboard stub</div> }));
-vi.mock('../components/mobile/MobileDashboard', () => ({ default: () => <div>MobileDashboard stub</div> }));
 vi.mock('../components/GigListScreen', () => ({ default: () => <div>GigListScreen stub</div> }));
 
 const org = { id: 'org-1', name: 'Org' };
