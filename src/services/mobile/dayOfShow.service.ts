@@ -67,6 +67,8 @@ export interface DayOfShowSheet {
   documents: DayOfShowDocument[];
   /** Saved on the phone by the person (#445): kept until removed, or 30 days after the gig. */
   kept?: boolean;
+  /** When the person saved it (ms): a kept sheet stays 30 days from the later of this and the gig's end. */
+  kept_at?: number;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -173,7 +175,11 @@ export const VIEWED_DAYS = 7;
 export async function pruneDayOfShow(now: number = Date.now()): Promise<void> {
   const saved = await idbStore.getAllDayOfShow();
   for (const sheet of saved as DayOfShowSheet[]) {
-    const end = new Date(sheet.gig?.end ?? sheet.gig?.start ?? 0).getTime();
+    const gigEnd = new Date(sheet.gig?.end ?? sheet.gig?.start ?? 0).getTime();
+    // A saved sheet is kept 30 days from the later of the gig's end and when it was saved, so
+    // saving a gig that ended long ago doesn't prune it at once. Older saves have no kept_at.
+    const keptFrom = sheet.kept ? (sheet.kept_at ?? (typeof sheet.saved_at === 'number' ? sheet.saved_at : 0)) : 0;
+    const end = Number.isNaN(gigEnd) ? gigEnd : Math.max(gigEnd, keptFrom);
     const keepFor = sheet.kept ? KEEP_DAYS * DAY_MS : DAY_MS;
     const ended = Number.isNaN(end) || end < now - keepFor;
     const staleView =
@@ -210,7 +216,7 @@ export async function loadDayOfShowSheet(
       getEntityAttachments('gig', gigId),
     ]);
     fresh = buildDayOfShowSheet(gig, contacts, attachments ?? []);
-    if (cached?.kept) fresh.kept = true;
+    if (cached?.kept) { fresh.kept = true; if (cached.kept_at !== undefined) fresh.kept_at = cached.kept_at; }
   } catch (error) {
     if (cached) return cached;
     throw error;
@@ -232,7 +238,7 @@ export async function keepDayOfShowSheet(gigId: string): Promise<{ roomShort: bo
     getAllGigContacts(gigId),
     getEntityAttachments('gig', gigId),
   ]);
-  const sheet: DayOfShowSheet = { ...buildDayOfShowSheet(gig, contacts, attachments ?? []), kept: true };
+  const sheet: DayOfShowSheet = { ...buildDayOfShowSheet(gig, contacts, attachments ?? []), kept: true, kept_at: Date.now() };
   await idbStore.putDayOfShow(sheet);
   let roomShort = false;
   for (const doc of sheet.documents) {

@@ -296,7 +296,6 @@ function TodayRoute() {
       <MobileToday
         onViewGigDetail={(id) => nav.viewGig(id)}
         onOpenDaySheet={(id) => nav.navigate(`/gigs/${id}/day-sheet`)}
-        onOpenTeam={nav.toTeam}
       />
     </MobileShell>
   );
