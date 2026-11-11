@@ -5,7 +5,8 @@
 import { getSupabase } from '../base/dataAccess';
 import { getOrgAccessRequests } from '../accessRequest.service';
 import { listScanQueue, type ScanQueueItem } from '../purchaseScanQueue.service';
-import { CREW_SPOTS_DAYS, UNPAID_STAGES, isPendingInvite, isReceiptToReview, openCrewSpots, paymentsDue } from '../../utils/needsYou';
+import { checkAllConflictsForGigs } from '../conflictDetection.service';
+import { CREW_SPOTS_DAYS, UNPAID_STAGES, equipmentConflicts, gigsThisWeek, isPendingInvite, isReceiptToReview, openCrewSpots, paymentsDue } from '../../utils/needsYou';
 import type { DayOfShowGig } from './dayOfShow.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -89,4 +90,27 @@ export async function fetchAccessRequestCount(orgId: string): Promise<number> {
 /** Receipts still in the organization's scan queue. */
 export async function fetchReceiptsToReview(orgId: string): Promise<ScanQueueItem[]> {
   return (await listScanQueue(orgId)).filter(isReceiptToReview);
+}
+
+/**
+ * Equipment conflicts among the organization's gigs in the next 7 days, from the existing conflict
+ * check run on just those gigs (never the whole list: it is the slow one). With fewer than two
+ * gigs there is nothing to clash, so it isn't run.
+ */
+export async function fetchEquipmentConflicts(orgId: string, gigs: DayOfShowGig[], now: Date = new Date()) {
+  const week = gigsThisWeek(gigs, now);
+  if (week.length < 2) return { count: 0, gigs: [] };
+  const conflicts = await checkAllConflictsForGigs(
+    week.map((g) => ({
+      id: g.id,
+      title: g.title,
+      start: g.start,
+      end: g.end ?? g.start,
+      all_day: g.all_day ?? undefined,
+      timezone: g.timezone ?? undefined,
+      status: g.status ?? undefined,
+    })),
+    orgId,
+  );
+  return equipmentConflicts(conflicts);
 }

@@ -82,6 +82,7 @@ describe('NeedsYou', () => {
     vi.mocked(svc.fetchOpenCrewSpots).mockResolvedValue({ spots: 0, gigs: [] });
     vi.mocked(svc.fetchAccessRequestCount).mockResolvedValue(0);
     vi.mocked(svc.fetchReceiptsToReview).mockResolvedValue([]);
+    vi.mocked(svc.fetchEquipmentConflicts).mockResolvedValue({ count: 0, gigs: [] });
     render(<NeedsYou {...props()} />);
     await waitFor(() => expect(svc.fetchReceiptsToReview).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Needs you' })).not.toBeInTheDocument());

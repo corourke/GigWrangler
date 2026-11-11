@@ -93,7 +93,7 @@ export default function MobileToday({ onViewGigDetail, onOpenDaySheet, onOpenTea
           </button>
         )}
 
-        <NeedsYou onViewGigDetail={onViewGigDetail} onOpenTeam={onOpenTeam} />
+        <NeedsYou onViewGigDetail={onViewGigDetail} onOpenTeam={onOpenTeam} weekGigs={gigsQuery.data} />
 
         {thisWeek.length > 0 && (
           <section aria-labelledby="today-this-week">

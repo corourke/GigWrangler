@@ -80,3 +80,52 @@ export function receiptsToReview(items: { status: string }[]): number {
 }
 
 export const isReceiptToReview = (i: { status: string }) => TO_REVIEW.has(i.status);
+
+/** The days ahead "Equipment conflicts" looks at. */
+export const CONFLICT_DAYS = 7;
+
+/** Gigs that haven't ended, start within the next 7 days and aren't cancelled. */
+export function gigsThisWeek<G extends GigLike>(gigs: G[], now: Date = new Date()): G[] {
+  const from = now.getTime();
+  const to = from + CONFLICT_DAYS * DAY_MS;
+  return gigs.filter((g) => {
+    if (g.status === 'Cancelled') return false;
+    const start = new Date(g.start).getTime();
+    const end = new Date(g.end ?? g.start).getTime();
+    return end >= from && start <= to;
+  });
+}
+
+interface ConflictLike {
+  level: string;
+  type: string;
+  gig_id: string;
+  gig_title: string;
+  start: string;
+  details: { other_gig_title?: string };
+}
+
+export interface EquipmentConflictGig {
+  gigId: string;
+  title: string;
+  start: string;
+  /** The titles of the gigs it clashes with. */
+  others: string[];
+}
+
+/**
+ * Equipment conflicts among a set of gigs, from the conflict check: the gigs that have one, each
+ * once (the check reports a clash for both gigs of a pair), soonest first, with what they clash with.
+ */
+export function equipmentConflicts(conflicts: ConflictLike[]): { count: number; gigs: EquipmentConflictGig[] } {
+  const byGig = new Map<string, EquipmentConflictGig>();
+  for (const c of conflicts) {
+    if (c.type !== 'equipment' || c.level !== 'conflict') continue;
+    const entry = byGig.get(c.gig_id) ?? { gigId: c.gig_id, title: c.gig_title, start: c.start, others: [] };
+    const other = c.details?.other_gig_title;
+    if (other && !entry.others.includes(other)) entry.others.push(other);
+    byGig.set(c.gig_id, entry);
+  }
+  const gigs = [...byGig.values()].sort((a, b) => String(a.start).localeCompare(String(b.start)));
+  return { count: gigs.length, gigs };
+}
