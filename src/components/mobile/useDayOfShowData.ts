@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryKeys';
 import {
+  forgetDayOfShowSheet,
+  keepDayOfShowSheet,
   loadDayOfShowSheet,
   loadTodayCandidates,
   shouldSaveAhead,
@@ -102,4 +104,32 @@ export function useSaveTodaySheetsAhead(args: { userId?: string; orgId?: string;
       });
     }
   }, [data, queryClient]);
+}
+
+/** Save on this phone, and Remove (#445). */
+export function useKeepDayOfShowSheet(gigId: string) {
+  const queryClient = useQueryClient();
+  const sheetKey = queryKeys.dayOfShow(gigId);
+  const keep = useMutation({
+    mutationFn: () => keepDayOfShowSheet(gigId),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: sheetKey }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.savedDaySheets() }),
+      ]),
+  });
+  const forget = useMutation({
+    mutationFn: () => forgetDayOfShowSheet(gigId),
+    networkMode: 'always',
+    onSuccess: () => {
+      // Shown as not saved straight away (a refetch online would only save it again for a while).
+      const current = queryClient.getQueryData<DayOfShowSheet | null>(sheetKey);
+      if (current) queryClient.setQueryData(sheetKey, { ...current, kept: false });
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.dayOfShowFiles(gigId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.savedDaySheets() }),
+      ]);
+    },
+  });
+  return { keep, forget };
 }
