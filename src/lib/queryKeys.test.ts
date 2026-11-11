@@ -40,6 +40,8 @@ describe('user-scoped keys', () => {
       (u: string) => queryKeys.recentActivity(u),
       (u: string) => queryKeys.notifications(u),
       (u: string) => queryKeys.moderatorAccessRequests(u),
+      // #446 review: the day sheets saved on the phone are the signed-in person's.
+      (u: string) => (queryKeys.savedDaySheets as (u: string) => readonly unknown[])(u),
     ]) {
       expect(key('user-a')).toContain('user-a');
       expect(key('user-a')).not.toEqual(key('user-b'));
