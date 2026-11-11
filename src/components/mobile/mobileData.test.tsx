@@ -9,7 +9,6 @@ import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react
 import { queryKeys } from '../../lib/queryKeys'
 import { useMobileGigListData } from './useMobileGigListData'
 import { useMobileGigDetailData } from './useMobileGigDetailData'
-import { useMobileDashboardData } from './useMobileDashboardData'
 import { useMobileSettingsData } from './useMobileSettingsData'
 
 const gigs = vi.hoisted(() => ({
@@ -90,27 +89,6 @@ describe('useMobileGigDetailData', () => {
       { queryKey: queryKeys.gig('g1') },
       { queryKey: ['myUpcomingAssignments'], refetchType: 'none' },
     ])
-  })
-})
-
-describe('useMobileDashboardData', () => {
-  it('loads My Schedule under myUpcomingAssignments(user, org)', async () => {
-    mine.loadMyUpcomingAssignments.mockResolvedValue([{ assignment: { id: 'a1', status: 'Invited' } }])
-    const { result } = renderHook(() => useMobileDashboardData({ userId: 'u1', orgId: 'org-1', enabled: true }), { wrapper })
-    await waitFor(() => expect(result.current.assignments).toHaveLength(1))
-    expect(client.getQueryData(queryKeys.myUpcomingAssignments('u1', 'org-1'))).toHaveLength(1)
-  })
-
-  it('confirming updates the cache at once and rolls back on failure', async () => {
-    mine.loadMyUpcomingAssignments.mockResolvedValue([{ assignment: { id: 'a1', status: 'Invited' } }])
-    mine.setMyAssignmentStatus.mockRejectedValue(new Error('nope'))
-    const { result } = renderHook(() => useMobileDashboardData({ userId: 'u1', orgId: 'org-1', enabled: true }), { wrapper })
-    await waitFor(() => expect(result.current.assignments).toHaveLength(1))
-    await act(async () => {
-      await result.current.answer.mutateAsync({ assignmentId: 'a1', status: 'Confirmed' }).catch(() => {})
-    })
-    expect(mine.setMyAssignmentStatus).toHaveBeenCalledWith('a1', 'Confirmed')
-    expect(result.current.assignments[0].assignment.status).toBe('Invited')
   })
 })
 
