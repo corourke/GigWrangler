@@ -1,429 +1,160 @@
-import React from 'react';
-import {
-  Calendar,
-  ChevronRight,
-  Clock,
-  Download,
-  FileText,
-  Loader2,
-  Mail,
-  MapPin,
-  MessageSquare,
-  Navigation,
-  Phone,
-  RefreshCw,
-  Share2,
-  Users,
-  X,
-} from 'lucide-react';
+import { useState } from 'react';
+import { Calendar, ChevronRight, Loader2, MapPin, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Card, CardContent } from '../ui/card';
+import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { cn } from '../ui/utils';
-import { toast } from 'sonner';
 import { OfflineBadge } from './OfflineBadge';
 import { useIsOffline } from './useIsOffline';
-import { useDayOfShowDocuments, useDayOfShowSheet, useTodayGigs } from './useDayOfShowData';
-import { getSavedDocument, SAVE_REFUSAL } from '../../services/mobile/dayOfShowFiles.service';
-import type { DayOfShowFile } from '../../utils/idb/store';
+import { useDayOfShowSheet, useTodayGigs } from './useDayOfShowData';
+import DaySheetGigPicker from './DaySheetGigPicker';
+import NeedsYou from './NeedsYou';
 import { pickTodayGigs } from '../../utils/todayGig';
-import { addressLines, mapsHref, smsHref, telHref } from '../../utils/contactLinks';
-import { formatFileSize } from '../../utils/fileSize';
-import { formatDateTimeDisplay, formatInTimeZone, formatTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
-import { GIG_STATUS_CONFIG, SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
-import { getAttachmentUrl } from '../../services/attachment.service';
-import type { DayOfShowDocument, DayOfShowGig, DayOfShowPerson, DayOfShowSheet } from '../../services/mobile/dayOfShow.service';
+import { formatInTimeZone, formatTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
+import { GIG_STATUS_CONFIG } from '../../utils/supabase/constants';
+import type { DayOfShowGig } from '../../services/mobile/dayOfShow.service';
 import type { GigStatus } from '../../utils/supabase/types';
 
 interface MobileTodayProps {
-  /** The gig picked from several today (/today?gig=…); else the app picks. */
-  gigId?: string | null;
-  onChooseGig?: (gigId: string) => void;
   onViewGigDetail: (gigId: string) => void;
+  /** Opens a gig's day sheet (#445). */
+  onOpenDaySheet: (gigId: string) => void;
+  /** Opens the Team screen, where access requests are decided. */
+  onOpenTeam: () => void;
 }
 
-const SECTION_TITLE = 'text-[11px] font-semibold flex items-center gap-1.5 text-muted-foreground mb-2 uppercase tracking-wide';
-const ACTION = 'inline-flex items-center justify-center gap-1.5 h-10 px-3 rounded-md border border-border text-xs font-medium bg-background active:bg-muted';
+const SECTION_TITLE = 'text-[11px] font-semibold text-muted-foreground uppercase tracking-wide';
+
+/** "Thu, Nov 12", in the gig's own time zone (all-day gigs are a calendar day). */
+const dayLabel = (g: DayOfShowGig) =>
+  formatInTimeZone(g.start, isGigAllDay(g) ? 'UTC' : g.timezone || undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+const timeLabel = (g: DayOfShowGig) => (isGigAllDay(g) ? 'All day' : formatTimeDisplay(g.start, g.timezone || undefined));
 
 /**
- * The Today tab (§3e): the day-of-show sheet for the signed-in person's gig today, or the next one.
- * It opens from the copy saved on the phone, so it works at a venue with no signal.
+ * The Today tab, the phone's home screen (#445): today's gig (or the next one) as a card opening its
+ * day sheet, then the rest of the next 7 days. It opens from the copy saved on the phone, so it
+ * works at a venue with no signal.
  */
-export default function MobileToday({ gigId, onChooseGig, onViewGigDetail }: MobileTodayProps) {
+export default function MobileToday({ onViewGigDetail, onOpenDaySheet, onOpenTeam }: MobileTodayProps) {
   const { user, selectedOrganization, userRole } = useAuth();
   const isOffline = useIsOffline();
+  const [picking, setPicking] = useState(false);
   const gigsQuery = useTodayGigs({ userId: user?.id, orgId: selectedOrganization?.id, role: userRole });
-  const { today, next } = pickTodayGigs(gigsQuery.data ?? []);
-
-  const chosen = gigId ? (gigsQuery.data ?? []).find((g) => g.id === gigId) : undefined;
-  const choosing = !gigId && today.length > 1;
-  const shownId = gigId ?? (choosing ? null : (today[0]?.id ?? next?.id ?? null));
-  const isNext = !!shownId && today.length === 0 && !chosen;
-  const sheetQuery = useDayOfShowSheet(shownId);
-
-  const loading = gigsQuery.isPending || (!!shownId && sheetQuery.isPending);
-  const refreshing = gigsQuery.isFetching || sheetQuery.isFetching;
-  const refresh = () => {
-    void gigsQuery.refetch();
-    if (shownId) void sheetQuery.refetch();
-  };
+  const gigs = gigsQuery.data ?? [];
+  const { today, next } = pickTodayGigs(gigs);
+  const cards = today.length > 0 ? today : next ? [next] : [];
+  const shown = new Set(cards.map((g) => g.id));
+  const now = Date.now();
+  const thisWeek = gigs
+    .filter((g) => !shown.has(g.id) && g.status !== 'Cancelled' && new Date(g.start).getTime() > now)
+    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
   return (
     <div className="flex flex-col">
       <div className="sticky top-0 z-40 bg-background/90 backdrop-blur-md px-4 py-3 border-b border-border/50 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Today</h1>
-          <p className="text-xs text-muted-foreground">Day-of-show sheet</p>
-        </div>
+        <h1 className="text-xl font-bold">Today</h1>
         <div className="flex items-center gap-2">
           {isOffline && <OfflineBadge />}
-          <Button aria-label="Refresh" variant="ghost" size="icon" onClick={refresh} disabled={refreshing || isOffline} className="h-9 w-9">
-            <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+          <Button aria-label="Refresh" variant="ghost" size="icon" onClick={() => void gigsQuery.refetch()} disabled={gigsQuery.isFetching || isOffline} className="h-9 w-9">
+            <RefreshCw className={`w-5 h-5 ${gigsQuery.isFetching ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 p-4 space-y-3 pb-12">
+      <div className="flex-1 p-4 space-y-4 pb-12">
         {gigsQuery.error && !gigsQuery.data && (
           <Card className="p-4 text-center bg-red-50 border-red-200">
             <p className="text-red-600 text-sm font-medium">Couldn't load your gigs</p>
           </Card>
         )}
 
-        {today.length > 1 && (
-          <GigChooser gigs={today} selectedId={shownId} onChoose={(id) => onChooseGig?.(id)} />
-        )}
-
-        {loading ? (
+        {gigsQuery.isPending ? (
           <div className="flex flex-col items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
             <p className="text-sm text-muted-foreground">Loading…</p>
           </div>
-        ) : !shownId ? (
-          !choosing && (
-            <Card className="p-8 text-center bg-muted/30 border-dashed">
-              <Calendar className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="text-muted-foreground font-medium">No gigs in the next 7 days</p>
-            </Card>
-          )
-        ) : sheetQuery.data ? (
-          <>
-            {isNext && (
-              <p className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                No gig today. Next up:
-              </p>
-            )}
-            <Sheet sheet={sheetQuery.data} isOffline={isOffline} onViewGigDetail={onViewGigDetail} />
-          </>
-        ) : sheetQuery.error ? (
-          <Card className="p-4 text-center bg-red-50 border-red-200">
-            <p className="text-red-600 text-sm font-medium">Couldn't load this gig's sheet</p>
+        ) : cards.length === 0 ? (
+          <Card className="p-8 text-center bg-muted/30 border-dashed">
+            <Calendar className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
+            <p className="text-muted-foreground font-medium">No gigs in the next 7 days</p>
           </Card>
         ) : (
-          <Card className="p-6 text-center bg-muted/30 border-dashed">
-            <p className="text-sm text-muted-foreground">This gig's sheet isn't saved on this phone. Connect to load it.</p>
-          </Card>
+          <div className="space-y-3">
+            {cards.map((g) => (
+              <GigCard key={g.id} gig={g} isNext={today.length === 0} onOpen={() => onOpenDaySheet(g.id)} />
+            ))}
+          </div>
         )}
-      </div>
-    </div>
-  );
-}
 
-function GigChooser({ gigs, selectedId, onChoose }: { gigs: DayOfShowGig[]; selectedId: string | null; onChoose: (id: string) => void }) {
-  return (
-    <div>
-      <p className="text-xs font-semibold text-muted-foreground mb-2">{gigs.length} gigs today</p>
-      <div className="grid gap-2">
-        {gigs.map((g) => (
-          <button
-            key={g.id}
-            type="button"
-            onClick={() => onChoose(g.id)}
-            aria-current={g.id === selectedId ? 'true' : undefined}
-            className={cn(
-              'w-full text-left rounded-md border px-3 py-2 flex items-center justify-between gap-2',
-              g.id === selectedId ? 'border-primary bg-primary/5' : 'border-border bg-background',
-            )}
-          >
-            <span className="min-w-0">
-              <span className="block text-sm font-medium truncate">{g.title}</span>
-              <span className="block text-xs text-muted-foreground">
-                {isGigAllDay(g) ? 'All day' : formatTimeDisplay(g.start, g.timezone || undefined)}
-              </span>
-            </span>
-            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        {!gigsQuery.isPending && (
+          <button type="button" onClick={() => setPicking(true)} className="w-full text-sm font-medium text-primary py-1">
+            Choose another gig
           </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Sheet({ sheet, isOffline, onViewGigDetail }: { sheet: DayOfShowSheet; isOffline: boolean; onViewGigDetail: (id: string) => void }) {
-  const { gig } = sheet;
-  const tz = gig.timezone || undefined;
-  const status = GIG_STATUS_CONFIG[gig.status as GigStatus];
-  const savedAt = formatInTimeZone(new Date(sheet.saved_at), tz, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
-
-  return (
-    <>
-      <Card style={{ gap: 0 }}>
-        <CardContent className="p-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h2 className="text-lg font-bold leading-tight">{gig.title}</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {formatDateTimeDisplay(gig.start, gig.end ?? gig.start, tz, isGigAllDay(gig))}
-              </p>
-            </div>
-            {status && (
-              <Badge variant="outline" className={cn('text-[10px] shrink-0', status.color)}>{status.label}</Badge>
-            )}
-          </div>
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-[10px] text-muted-foreground">Saved {savedAt}</span>
-            {!isOffline && (
-              <button type="button" className="text-xs text-primary font-medium" onClick={() => onViewGigDetail(gig.id)}>
-                Open gig
-              </button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <ScheduleSection sheet={sheet} />
-      <VenueSection sheet={sheet} />
-      <PeopleSection title="Contacts" people={sheet.contacts} />
-      <PeopleSection title="Crew" people={sheet.crew} />
-      <DocumentsSection sheet={sheet} isOffline={isOffline} />
-    </>
-  );
-}
-
-function ScheduleSection({ sheet }: { sheet: DayOfShowSheet }) {
-  const tz = sheet.gig.timezone || undefined;
-  const dayOf = (iso: string) => formatInTimeZone(iso, tz, { weekday: 'short', month: 'short', day: 'numeric' });
-  const multiDay = new Set(sheet.schedule.map((e) => dayOf(e.start_time))).size > 1;
-  return (
-    <Card style={{ gap: 0 }}>
-      <CardContent className="p-3">
-        <p className={SECTION_TITLE}><Clock className="w-3.5 h-3.5" />Schedule</p>
-        {sheet.schedule.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No schedule yet.</p>
-        ) : (
-          <div className="divide-y divide-border/50">
-            {sheet.schedule.map((e, i) => {
-              const config = SCHEDULE_ACTIVITY_CONFIG[e.activity_type];
-              const showDay = multiDay && (i === 0 || dayOf(sheet.schedule[i - 1].start_time) !== dayOf(e.start_time));
-              return (
-                <div key={e.id}>
-                  {showDay && <p className="text-[10px] font-semibold text-muted-foreground pt-2">{dayOf(e.start_time)}</p>}
-                  <div className="py-2 flex items-center gap-3">
-                    <span className="w-20 shrink-0 text-right text-sm font-semibold tabular-nums">{formatTimeDisplay(e.start_time, tz)}</span>
-                    <span className={cn('text-xs font-semibold px-1.5 py-0.5 rounded', config?.color || 'bg-gray-100 text-gray-700')}>
-                      {e.label || config?.label || e.activity_type}
-                    </span>
-                    {e.act_name && <span className="text-xs text-muted-foreground truncate">{e.act_name}</span>}
-                    {e.end_time && <span className="ml-auto text-[10px] text-muted-foreground tabular-nums">to {formatTimeDisplay(e.end_time, tz)}</span>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         )}
-      </CardContent>
-    </Card>
-  );
-}
 
-function VenueSection({ sheet }: { sheet: DayOfShowSheet }) {
-  const venue = sheet.venue;
-  if (!venue) return null;
-  const directions = mapsHref(venue);
-  const call = telHref(venue.phone_number);
-  return (
-    <Card style={{ gap: 0 }}>
-      <CardContent className="p-3">
-        <p className={SECTION_TITLE}><MapPin className="w-3.5 h-3.5" />Venue</p>
-        <p className="text-sm font-semibold">{venue.name}</p>
-        <div className="text-sm text-muted-foreground select-text">
-          {addressLines(venue).map((line) => <div key={line}>{line}</div>)}
-        </div>
-        {venue.phone_number && <p className="text-sm select-text mt-1 tabular-nums">{venue.phone_number}</p>}
-        <div className="flex gap-2 mt-2">
-          {directions && (
-            <a className={ACTION} href={directions} target="_blank" rel="noopener noreferrer">
-              <Navigation className="w-4 h-4" />Directions
-            </a>
-          )}
-          {call && (
-            <a className={ACTION} href={call} aria-label={`Call ${venue.name}`}>
-              <Phone className="w-4 h-4" />Call
-            </a>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+        <NeedsYou onViewGigDetail={onViewGigDetail} onOpenTeam={onOpenTeam} weekGigs={gigsQuery.data} />
 
-function PeopleSection({ title, people }: { title: string; people: DayOfShowPerson[] }) {
-  if (people.length === 0) return null;
-  return (
-    <Card style={{ gap: 0 }}>
-      <CardContent className="p-3">
-        <p className={SECTION_TITLE}><Users className="w-3.5 h-3.5" />{title}</p>
-        <div className="divide-y divide-border/50">
-          {people.map((p) => <PersonRow key={p.key} person={p} />)}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+        {thisWeek.length > 0 && (
+          <section aria-labelledby="today-this-week">
+            <h2 id="today-this-week" className={cn(SECTION_TITLE, 'mb-2')}>This week</h2>
+            <ul aria-labelledby="today-this-week" className="rounded-lg border border-border divide-y divide-border/50 bg-background">
+              {thisWeek.map((g) => {
+                const status = GIG_STATUS_CONFIG[g.status as GigStatus];
+                return (
+                  <li key={g.id}>
+                    <button type="button" onClick={() => onViewGigDetail(g.id)} className="w-full text-left px-3 py-2.5 flex items-center gap-3 active:bg-muted">
+                      <span className="w-20 shrink-0 text-xs font-semibold text-muted-foreground">{dayLabel(g)}</span>
+                      <span className="flex-1 min-w-0 text-sm truncate">{g.title}</span>
+                      {status && <Badge variant="outline" className={cn('text-[10px] shrink-0', status.color)}>{status.label}</Badge>}
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+      </div>
 
-function PersonRow({ person }: { person: DayOfShowPerson }) {
-  const call = telHref(person.phone);
-  const text = smsHref(person.phone);
-  const detail = [person.title, person.org_name && `${person.org_name}${person.org_role ? ` (${person.org_role})` : ''}`]
-    .filter(Boolean)
-    .join(' · ');
-  return (
-    <div className="py-2">
-      <p className="text-sm font-medium">{person.name}</p>
-      {detail && <p className="text-xs text-muted-foreground">{detail}</p>}
-      {person.phone && <p className="text-sm select-text tabular-nums mt-0.5">{person.phone}</p>}
-      {person.email && <p className="text-xs select-text text-muted-foreground break-all">{person.email}</p>}
-      {(call || person.email) && (
-        <div className="flex gap-2 mt-1.5">
-          {call && <a className={ACTION} href={call} aria-label={`Call ${person.name}`}><Phone className="w-4 h-4" />Call</a>}
-          {text && <a className={ACTION} href={text} aria-label={`Text ${person.name}`}><MessageSquare className="w-4 h-4" />Text</a>}
-          {person.email && (
-            <a className={ACTION} href={`mailto:${person.email}`} aria-label={`Email ${person.name}`}><Mail className="w-4 h-4" />Email</a>
-          )}
-        </div>
+      {picking && (
+        <DaySheetGigPicker
+          onClose={() => setPicking(false)}
+          onChoose={(id) => {
+            setPicking(false);
+            onOpenDaySheet(id);
+          }}
+        />
       )}
     </div>
   );
 }
 
-function DocumentsSection({ sheet, isOffline }: { sheet: DayOfShowSheet; isOffline: boolean }) {
-  const { saved, save } = useDayOfShowDocuments(sheet);
-  const [viewing, setViewing] = React.useState<DayOfShowFile | null>(null);
-  const documents = sheet.documents;
-  if (documents.length === 0) return null;
-
-  // Not saved: as AttachmentManager, open the tab inside the tap, then send it to the signed link.
-  const openOnline = async (doc: DayOfShowDocument) => {
-    const tab = window.open('about:blank', '_blank');
-    try {
-      const url = await getAttachmentUrl(doc.file_path);
-      if (tab) {
-        tab.opener = null;
-        tab.location.replace(url);
-      } else {
-        window.location.assign(url);
-      }
-    } catch {
-      tab?.close();
-      toast.error('Failed to open document');
-    }
-  };
-
-  // Saved: open the phone's copy in the app (works offline and in the installed app).
-  const openSaved = async (doc: DayOfShowDocument) => {
-    const file = await getSavedDocument(doc.id).catch(() => undefined);
-    if (file) setViewing(file);
-    else if (!isOffline) void openOnline(doc);
-    else toast.error('Not saved on this phone');
-  };
-
-  const saveForOffline = async (doc: DayOfShowDocument) => {
-    const result = await save.mutateAsync(doc).catch(() => ({ saved: false as const, reason: 'error' as const }));
-    if (!result.saved) toast.error(SAVE_REFUSAL[result.reason]);
-  };
-
+/**
+ * Today's gig, or the next one. Loading its sheet here also saves it on the phone ahead of the
+ * show, and gives the venue.
+ */
+function GigCard({ gig, isNext, onOpen }: { gig: DayOfShowGig; isNext: boolean; onOpen: () => void }) {
+  const sheetQuery = useDayOfShowSheet(gig.id);
+  const venue = sheetQuery.data?.venue?.name;
+  const status = GIG_STATUS_CONFIG[gig.status as GigStatus];
+  const headingId = `today-gig-${gig.id}`;
   return (
-    <Card style={{ gap: 0 }}>
-      <CardContent className="p-3">
-        <p className={SECTION_TITLE}><FileText className="w-3.5 h-3.5" />Documents</p>
-        <div className="divide-y divide-border/50">
-          {documents.map((doc) => {
-            const copy = saved[doc.id];
-            const saving = save.isPending && save.variables?.id === doc.id;
-            return (
-              <div key={doc.id} className="py-2">
-                <button
-                  type="button"
-                  disabled={isOffline && !copy}
-                  onClick={() => (copy ? openSaved(doc) : openOnline(doc))}
-                  className="w-full text-left text-sm font-medium text-primary disabled:text-muted-foreground flex items-center gap-2"
-                >
-                  <FileText className="w-4 h-4 shrink-0" />
-                  <span className="truncate">{doc.file_name}</span>
-                </button>
-                {copy ? (
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Saved on this phone · {formatFileSize(copy.size)}</p>
-                ) : isOffline ? (
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Not saved on this phone – connect to open</p>
-                ) : (
-                  <button
-                    type="button"
-                    className="text-[11px] text-primary font-medium mt-1 inline-flex items-center gap-1 disabled:opacity-60"
-                    aria-label={`Save ${doc.file_name} for offline`}
-                    disabled={saving}
-                    onClick={() => saveForOffline(doc)}
-                  >
-                    {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-                    Save for offline
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-      {viewing && <DocumentViewer file={viewing} onClose={() => setViewing(null)} />}
-    </Card>
-  );
-}
-
-/** A saved document, full screen in the app: an image, a PDF, or (other types) Share to open it elsewhere. */
-function DocumentViewer({ file, onClose }: { file: DayOfShowFile; onClose: () => void }) {
-  const [url] = React.useState(() => URL.createObjectURL(file.blob));
-  React.useEffect(() => () => URL.revokeObjectURL(url), [url]);
-
-  const shareable = React.useMemo(() => {
-    if (typeof navigator === 'undefined' || !navigator.canShare || typeof File === 'undefined') return null;
-    const f = new File([file.blob], file.file_name, { type: file.type });
-    return navigator.canShare({ files: [f] }) ? f : null;
-  }, [file]);
-  const share = () => {
-    if (shareable) void navigator.share({ files: [shareable], title: file.file_name }).catch(() => {});
-  };
-
-  const isImage = file.type.startsWith('image/');
-  const isPdf = file.type === 'application/pdf';
-  return (
-    <div role="dialog" aria-modal="true" aria-label={file.file_name} className="fixed inset-0 z-50 bg-background flex flex-col">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border" style={{ paddingTop: 'max(8px, env(safe-area-inset-top))' }}>
-        <span className="flex-1 min-w-0 truncate text-sm font-semibold">{file.file_name}</span>
-        {shareable && (
-          <Button variant="ghost" size="sm" onClick={share} className="h-9 gap-1"><Share2 className="w-4 h-4" />Share</Button>
-        )}
-        <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose} className="h-9 w-9"><X className="w-5 h-5" /></Button>
+    <section aria-labelledby={headingId} className="rounded-xl border border-border bg-background p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <p className={cn(SECTION_TITLE, isNext ? 'text-amber-700' : 'text-primary')}>
+          {isNext ? `Next up · ${dayLabel(gig)}` : 'Today'} · {timeLabel(gig)}
+        </p>
+        {status && <Badge variant="outline" className={cn('text-[10px] shrink-0', status.color)}>{status.label}</Badge>}
       </div>
-      <div className="flex-1 min-h-0 overflow-auto">
-        {isImage ? (
-          <img src={url} alt={file.file_name} className="w-full h-auto" />
-        ) : isPdf ? (
-          <iframe src={url} title={file.file_name} className="w-full h-full border-0" />
-        ) : (
-          <p className="p-6 text-sm text-muted-foreground text-center">
-            This file can't be shown here.{shareable ? ' Use Share to open it in another app.' : ''}
-          </p>
-        )}
-      </div>
-    </div>
+      <h2 id={headingId} className="text-lg font-bold leading-tight mt-1">{gig.title}</h2>
+      {venue && (
+        <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1">
+          <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          <span className="truncate">{venue}</span>
+        </p>
+      )}
+      <Button className="w-full mt-3 h-10" onClick={onOpen}>Open day sheet</Button>
+    </section>
   );
 }

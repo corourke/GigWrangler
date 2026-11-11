@@ -61,7 +61,7 @@ const AssetScreen = lazy(() => import('../components/AssetScreen'));
 // Mobile screens
 const MobileGigList = lazy(() => import('../components/mobile/MobileGigList'));
 const MobileGigDetail = lazy(() => import('../components/mobile/MobileGigDetail'));
-const MobileDashboard = lazy(() => import('../components/mobile/MobileDashboard'));
+const MobileDaySheet = lazy(() => import('../components/mobile/MobileDaySheet'));
 const MobileInventoryMode = lazy(() => import('../components/mobile/MobileInventoryMode'));
 const MobileSettings = lazy(() => import('../components/mobile/MobileSettings'));
 const MobileToday = lazy(() => import('../components/mobile/MobileToday'));
@@ -259,16 +259,8 @@ function DashboardRoute() {
   const nav = useNav();
   if (!user || !organization) return <LoadingSpinner />;
   if (userRole === 'Viewer') return <Navigate to="/gigs" replace />;
-  if (isMobile) {
-    return (
-      <MobileShell active="mobile-dashboard">
-        <MobileDashboard
-          onViewGigDetail={(id: string) => nav.viewGig(id)}
-          onViewAllGigs={() => nav.navigate('/gigs')}
-        />
-      </MobileShell>
-    );
-  }
+  // On the phone, Today is the home screen (#445); Staff's old Dashboard (My Schedule) is part of it.
+  if (isMobile) return <Navigate to="/today" replace />;
   return (
     <Dashboard
       organization={organization}
@@ -292,17 +284,39 @@ function TodayRoute() {
   const { user, organization, userRole } = useOrgScope();
   const { isMobile } = useAppShell();
   const nav = useNav();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   if (!user || !organization) return <LoadingSpinner />;
   if (!isMobile) return <Navigate to="/dashboard" replace />;
   if (!hasTodayTab(userRole)) return <Navigate to="/gigs" replace />;
+  // Before #445 a gig's sheet opened on Today (/today?gig=…); it has its own screen now.
+  const gig = params.get('gig');
+  if (gig) return <Navigate to={`/gigs/${encodeURIComponent(gig)}/day-sheet`} replace />;
   return (
     <MobileShell active="mobile-today">
       <MobileToday
-        gigId={params.get('gig')}
-        onChooseGig={(id) => setParams({ gig: id }, { replace: true })}
         onViewGigDetail={(id) => nav.viewGig(id)}
+        onOpenDaySheet={(id) => nav.navigate(`/gigs/${id}/day-sheet`)}
+        onOpenTeam={nav.toTeam}
       />
+    </MobileShell>
+  );
+}
+
+/** Any gig's day sheet on the phone (#445). Desktop has the gig page and its sheet report; Viewer has no day sheet. */
+function DaySheetRoute() {
+  const { user, organization, userRole } = useOrgScope();
+  const { isMobile } = useAppShell();
+  const nav = useNav();
+  const location = useLocation();
+  const { gigId } = useParams();
+  if (!user || !organization || !gigId) return <LoadingSpinner />;
+  if (!isMobile) return <Navigate to={`/gigs/${gigId}`} replace />;
+  if (!hasTodayTab(userRole)) return <Navigate to="/gigs" replace />;
+  // Back to where it was opened from; opened directly (a link), back to the gig.
+  const back = () => (location.key !== 'default' ? nav.navigate(-1) : nav.navigate(`/gigs/${gigId}`));
+  return (
+    <MobileShell active="mobile-gig-detail">
+      <MobileDaySheet gigId={gigId} onBack={back} onViewGigDetail={(id) => nav.viewGig(id)} />
     </MobileShell>
   );
 }
@@ -383,6 +397,7 @@ function GigDetailRoute({ editing = false }: { editing?: boolean }) {
           gigId={gigId}
           onBack={() => nav.navigate('/gigs')}
           onViewPackingList={(id) => nav.navigate(`/inventory?gig=${id}`)}
+          onViewDaySheet={(id) => nav.navigate(`/gigs/${id}/day-sheet`)}
         />
       </MobileShell>
     );
@@ -783,6 +798,7 @@ function RouteTable() {
             <Route path="/calendar" element={<GigListRoute view="calendar" />} />
             <Route path="/gigs/new" element={<GigCreateRoute />} />
             <Route path="/gigs/:gigId" element={<GigDetailRoute />} />
+            <Route path="/gigs/:gigId/day-sheet" element={<DaySheetRoute />} />
             <Route path="/gigs/:gigId/edit" element={<GigDetailRoute editing />} />
             <Route path="/gigs/:gigId/edit/:tab" element={<GigDetailRoute editing />} />
             <Route path="/gigs/:gigId/:tab" element={<GigDetailRoute />} />

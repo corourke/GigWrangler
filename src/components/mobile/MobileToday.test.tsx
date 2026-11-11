@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { screen, waitFor, fireEvent } from '@testing-library/react'
+import { screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { renderWithQuery as render } from '../../test/renderWithQuery'
 import MobileToday from './MobileToday'
 
@@ -22,10 +22,26 @@ vi.mock('../../services/mobile/dayOfShowFiles.service', async (importOriginal) =
   }
 })
 const toastError = vi.fn()
+vi.mock('./NeedsYou', () => ({
+  default: ({ onOpenTeam, weekGigs }: any) => (
+    <div>
+      <span>NeedsYou stub gigs={weekGigs ? weekGigs.map((g: any) => g.id).join(',') : 'none'}</span>
+      <button onClick={onOpenTeam}>stub open team</button>
+    </div>
+  ),
+}))
+vi.mock('./DaySheetGigPicker', () => ({
+  default: ({ onChoose, onClose }: any) => (
+    <div>
+      <span>Gig picker</span>
+      <button onClick={() => onChoose('g9')}>pick g9</button>
+      <button onClick={onClose}>close picker</button>
+    </div>
+  ),
+}))
 vi.mock('sonner', () => ({ toast: { error: (...a: any[]) => toastError(...a), success: vi.fn() } }))
 
 import { loadTodayCandidates, loadDayOfShowSheet, type DayOfShowSheet } from '../../services/mobile/dayOfShow.service'
-import { saveGigDocumentsAhead, listSavedDocuments, saveDayOfShowDocument, getSavedDocument } from '../../services/mobile/dayOfShowFiles.service'
 
 const NOW = new Date('2026-11-10T17:00:00Z') // 9 AM in Los Angeles
 const gig = (id: string, start: string, end: string, title = id) =>
@@ -62,143 +78,112 @@ describe('MobileToday (day-of-show sheet)', () => {
     setOnline(true)
   })
 
-  it("shows today's gig: schedule, venue, contacts, crew and documents", async () => {
+  // Plan #445 (A2a): Today is a home screen. Today's gig (or the next) is a card that opens its
+  // day sheet; This week lists the rest of the next 7 days.
+  it("shows today's gig as a card with its time and venue, opening its day sheet", async () => {
     vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY])
-    render(<MobileToday onViewGigDetail={vi.fn()} />)
-
-    expect(await screen.findByText('Tonight Show')).toBeInTheDocument()
-    expect(screen.getByText('Schedule')).toBeInTheDocument()
-    expect(screen.getByText('2:00 PM')).toBeInTheDocument() // load-in, in the gig's time zone
-    expect(screen.getByText('7:00 PM')).toBeInTheDocument() // doors
-    expect(screen.getByText('Test Hall', { selector: 'p' })).toBeInTheDocument()
-    expect(screen.getByText('Town, CA 90000')).toBeInTheDocument()
-    expect(screen.getByText('Pat Venue')).toBeInTheDocument()
-    expect(screen.getByText('Sam Crew')).toBeInTheDocument()
-    expect(screen.getByText('stage-plot.pdf')).toBeInTheDocument()
+    const onOpenDaySheet = vi.fn()
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={onOpenDaySheet} onOpenTeam={vi.fn()} />)
+    const card = await screen.findByRole('region', { name: 'Tonight Show' })
+    expect(card).toHaveTextContent('Today')
+    expect(card).toHaveTextContent('2:00 PM')
+    expect(await within(card).findByText('Test Hall')).toBeInTheDocument()
+    fireEvent.click(within(card).getByRole('button', { name: 'Open day sheet' }))
+    expect(onOpenDaySheet).toHaveBeenCalledWith('g1')
+    // The sheet itself is its own screen now.
+    expect(screen.queryByText('Schedule')).not.toBeInTheDocument()
   })
 
-  it('makes contacts one tap (call, text, email) and shows the number as text too', async () => {
+  it("loads today's sheet, so it is saved on the phone ahead of the show", async () => {
     vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY])
-    render(<MobileToday onViewGigDetail={vi.fn()} />)
-    await screen.findByText('Pat Venue')
-
-    expect(screen.getByRole('link', { name: 'Call Pat Venue' })).toHaveAttribute('href', 'tel:5550100109')
-    expect(screen.getByRole('link', { name: 'Text Pat Venue' })).toHaveAttribute('href', 'sms:5550100109')
-    expect(screen.getByRole('link', { name: 'Email Pat Venue' })).toHaveAttribute('href', 'mailto:p@example.com')
-    const number = screen.getByText('(555) 010-0109')
-    expect(number.className).toContain('select-text')
-    expect(screen.getByRole('link', { name: 'Call Test Hall' })).toHaveAttribute('href', 'tel:5550100')
-    expect(screen.getByRole('link', { name: /Directions/ }).getAttribute('href')).toMatch(/maps/)
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
+    await screen.findByRole('region', { name: 'Tonight Show' })
+    await waitFor(() => expect(loadDayOfShowSheet).toHaveBeenCalledWith('g1', expect.any(Function)))
   })
 
-  it('shows the next gig, marked as not today, when none is today', async () => {
+  it('shows one card for each gig today', async () => {
+    const matinee = gig('g2', '2026-11-10T19:00:00Z', '2026-11-10T21:00:00Z', 'Matinee')
+    vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY, matinee])
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
+    expect(await screen.findByRole('region', { name: 'Matinee' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Tonight Show' })).toBeInTheDocument()
+  })
+
+  it('shows the next gig, marked as next, when none is today', async () => {
     const later = gig('g9', '2026-11-12T22:00:00Z', '2026-11-13T02:00:00Z', 'Friday Show')
     vi.mocked(loadTodayCandidates).mockResolvedValue([later])
-    vi.mocked(loadDayOfShowSheet).mockResolvedValue(sheetFor(later))
-    render(<MobileToday onViewGigDetail={vi.fn()} />)
-    expect(await screen.findByText(/No gig today/)).toBeInTheDocument()
-    expect(await screen.findByText('Friday Show')).toBeInTheDocument()
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
+    const card = await screen.findByRole('region', { name: 'Friday Show' })
+    expect(card).toHaveTextContent('Next up')
+    expect(card).toHaveTextContent('Thu, Nov 12')
   })
 
   it('says so when there is no gig in the next 7 days', async () => {
     vi.mocked(loadTodayCandidates).mockResolvedValue([])
-    render(<MobileToday onViewGigDetail={vi.fn()} />)
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
     expect(await screen.findByText('No gigs in the next 7 days')).toBeInTheDocument()
     expect(loadDayOfShowSheet).not.toHaveBeenCalled()
   })
 
-  it('lists the gigs to choose from when there are several today', async () => {
-    const matinee = gig('g2', '2026-11-10T19:00:00Z', '2026-11-10T21:00:00Z', 'Matinee')
-    vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY, matinee])
-    const onChooseGig = vi.fn()
-    render(<MobileToday onViewGigDetail={vi.fn()} onChooseGig={onChooseGig} />)
-    expect(await screen.findByText('2 gigs today')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Matinee/ }))
-    expect(onChooseGig).toHaveBeenCalledWith('g2')
+  it('lists the rest of the next 7 days under This week, each opening its gig', async () => {
+    const fri = gig('g3', '2026-11-13T03:00:00Z', '2026-11-13T06:00:00Z', 'Friday Late')
+    const sun = { ...gig('g4', '2026-11-15T12:00:00Z', '2026-11-15T12:00:00Z', 'Sunday Fair'), all_day: true, status: 'DateHold' }
+    vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY, fri, sun])
+    const onViewGigDetail = vi.fn()
+    render(<MobileToday onViewGigDetail={onViewGigDetail} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
+    const week = await screen.findByRole('list', { name: 'This week' })
+    const rows = within(week).getAllByRole('listitem')
+    expect(rows.map((r) => r.textContent)).toEqual([
+      expect.stringMatching(/Thu, Nov 12.*Friday Late.*Booked/),
+      expect.stringMatching(/Sun, Nov 15.*Sunday Fair.*Date Hold/),
+    ])
+    fireEvent.click(within(rows[0]).getByRole('button'))
+    expect(onViewGigDetail).toHaveBeenCalledWith('g3')
   })
 
-  it('opens the chosen gig', async () => {
-    const matinee = gig('g2', '2026-11-10T19:00:00Z', '2026-11-10T21:00:00Z', 'Matinee')
-    vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY, matinee])
-    render(<MobileToday gigId="g1" onViewGigDetail={vi.fn()} onChooseGig={vi.fn()} />)
-    expect(await screen.findByRole('heading', { name: 'Tonight Show' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Tonight Show/ })).toHaveAttribute('aria-current', 'true')
-    expect(loadDayOfShowSheet).toHaveBeenCalledWith('g1', expect.any(Function))
+  it('shows Needs you under the gig card, without waiting for it', async () => {
+    vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY])
+    const onOpenTeam = vi.fn()
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={onOpenTeam} />)
+    await screen.findByRole('region', { name: 'Tonight Show' })
+    // It is given the gigs Today has, so the conflict check needs no fetch of its own.
+    expect(await screen.findByText('NeedsYou stub gigs=g1')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('stub open team'))
+    expect(onOpenTeam).toHaveBeenCalled()
   })
 
-  it('offline: shows when the sheet was saved, and that a document needs a connection', async () => {
+  it('offline: the cards come from the phone', async () => {
     setOnline(false)
     vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY])
-    render(<MobileToday onViewGigDetail={vi.fn()} />)
-    expect(await screen.findByText(/Saved .*9:00 AM/)).toBeInTheDocument()
-    expect(screen.getByText('Not saved on this phone – connect to open')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /stage-plot\.pdf/ })).toBeDisabled()
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
+    expect(await screen.findByRole('region', { name: 'Tonight Show' })).toBeInTheDocument()
+    expect(screen.getByText(/Offline/i)).toBeInTheDocument()
+  })
+})
+
+// Plan #445 (A1): any gig's day sheet from Today.
+describe('MobileToday: Choose another gig', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setOnline(true)
+    vi.mocked(loadDayOfShowSheet).mockImplementation(async (id: string) => sheetFor(gig(id, '2026-11-12T22:00:00Z', '2026-11-13T02:00:00Z')))
   })
 
-  it('offline with no saved sheet, says it is not saved', async () => {
-    setOnline(false)
-    vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY])
-    vi.mocked(loadDayOfShowSheet).mockResolvedValue(null)
-    render(<MobileToday onViewGigDetail={vi.fn()} />)
-    await waitFor(() => expect(screen.getByText(/isn't saved on this phone/)).toBeInTheDocument())
+  it('opens the gig picker, and the day sheet of the gig chosen', async () => {
+    vi.mocked(loadTodayCandidates).mockResolvedValue([])
+    const onOpenDaySheet = vi.fn()
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={onOpenDaySheet} onOpenTeam={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose another gig' }))
+    expect(screen.getByText('Gig picker')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('pick g9'))
+    expect(onOpenDaySheet).toHaveBeenCalledWith('g9')
   })
 
-  describe('documents saved on the phone (PR 2)', () => {
-    beforeEach(() => {
-      vi.mocked(loadTodayCandidates).mockResolvedValue([TODAY])
-      vi.mocked(listSavedDocuments).mockResolvedValue({})
-      ;(URL as any).createObjectURL = vi.fn(() => 'blob:local/1')
-      ;(URL as any).revokeObjectURL = vi.fn()
-    })
-
-    it("saves the gig's PDFs and images ahead when the sheet loads online", async () => {
-      render(<MobileToday onViewGigDetail={vi.fn()} />)
-      await screen.findByText('stage-plot.pdf')
-      await waitFor(() => expect(saveGigDocumentsAhead).toHaveBeenCalledWith(expect.objectContaining({ gig_id: 'g1' })))
-    })
-
-    it('offline, opens a saved document in the app', async () => {
-      setOnline(false)
-      vi.mocked(listSavedDocuments).mockResolvedValue({ 'att-1': { size: 2 * 1024 * 1024, type: 'application/pdf' } })
-      vi.mocked(getSavedDocument).mockResolvedValue({
-        id: 'att-1', gig_id: 'g1', file_name: 'stage-plot.pdf', type: 'application/pdf', size: 1, saved_at: 1,
-        blob: new Blob(['%PDF'], { type: 'application/pdf' }),
-      })
-      render(<MobileToday onViewGigDetail={vi.fn()} />)
-      expect(await screen.findByText('Saved on this phone · 2.0 MB')).toBeInTheDocument()
-      expect(saveGigDocumentsAhead).not.toHaveBeenCalled()
-      const open = screen.getByRole('button', { name: /stage-plot\.pdf/ })
-      expect(open).toBeEnabled()
-      fireEvent.click(open)
-      const viewer = await screen.findByRole('dialog', { name: 'stage-plot.pdf' })
-      expect(viewer.querySelector('iframe')?.getAttribute('src')).toBe('blob:local/1')
-      fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:local/1')
-    })
-
-    it('online, saves a document that is not saved yet when asked', async () => {
-      vi.mocked(saveDayOfShowDocument).mockResolvedValue({ saved: true })
-      render(<MobileToday onViewGigDetail={vi.fn()} />)
-      await screen.findByText('stage-plot.pdf')
-      vi.mocked(listSavedDocuments).mockResolvedValue({ 'att-1': { size: 1024 * 1024, type: 'application/pdf' } })
-      fireEvent.click(await screen.findByRole('button', { name: 'Save stage-plot.pdf for offline' }))
-      await waitFor(() => expect(saveDayOfShowDocument).toHaveBeenCalledWith('g1', expect.objectContaining({ id: 'att-1' }), { manual: true }))
-      expect(await screen.findByText('Saved on this phone · 1.0 MB')).toBeInTheDocument()
-    })
-
-    it('shows a small saved file in KB, not 0.0 MB', async () => {
-      setOnline(false)
-      vi.mocked(listSavedDocuments).mockResolvedValue({ 'att-1': { size: 240 * 1024, type: 'image/png' } })
-      render(<MobileToday onViewGigDetail={vi.fn()} />)
-      expect(await screen.findByText('Saved on this phone · 240 KB')).toBeInTheDocument()
-    })
-
-    it('says why a document could not be saved', async () => {
-      vi.mocked(saveDayOfShowDocument).mockResolvedValue({ saved: false, reason: 'gig-full' })
-      render(<MobileToday onViewGigDetail={vi.fn()} />)
-      fireEvent.click(await screen.findByRole('button', { name: 'Save stage-plot.pdf for offline' }))
-      await waitFor(() => expect(toastError).toHaveBeenCalledWith("This gig's saved documents would pass 50 MB"))
-    })
+  it('closes the picker', async () => {
+    vi.mocked(loadTodayCandidates).mockResolvedValue([])
+    render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose another gig' }))
+    fireEvent.click(screen.getByText('close picker'))
+    expect(screen.queryByText('Gig picker')).not.toBeInTheDocument()
   })
 })

@@ -84,6 +84,25 @@ describe('MobileGigDetail', () => {
     })
   })
 
+  // Plan #445 (A1): the day sheet for any gig, from its page.
+  for (const role of ['Staff', 'Admin', 'Manager']) {
+    it(`offers the Day sheet to ${role}`, async () => {
+      mockUseAuth.mockReturnValue({ user: { id: 'user-1' }, userRole: role, selectedOrganization: { id: 'org-1' } })
+      const onViewDaySheet = vi.fn()
+      render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} onViewDaySheet={onViewDaySheet} />)
+      await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+      fireEvent.click(screen.getByRole('button', { name: 'Day sheet' }))
+      expect(onViewDaySheet).toHaveBeenCalledWith('gig-1')
+    })
+  }
+
+  it("doesn't offer the Day sheet to a Viewer", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: 'user-1' }, userRole: 'Viewer', selectedOrganization: { id: 'org-1' } })
+    render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} onViewDaySheet={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Day sheet' })).not.toBeInTheDocument()
+  })
+
   it('renders gig title and status', async () => {
     render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
 

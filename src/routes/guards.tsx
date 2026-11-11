@@ -158,8 +158,9 @@ export function LandingRedirect() {
   const { isMobile } = useAppShell();
   const { userRole } = useAuth();
   if (isMobile) {
-    if (userRole === 'Staff') return <Navigate to="/dashboard" replace />;
-    return <Navigate to="/gigs" replace />;
+    // Today is the phone's home screen for Staff, Admin and Manager (#445).
+    if (userRole === 'Viewer') return <Navigate to="/gigs" replace />;
+    return <Navigate to="/today" replace />;
   }
   if (userRole === 'Viewer') return <Navigate to="/gigs" replace />;
   return <Navigate to="/dashboard" replace />;
