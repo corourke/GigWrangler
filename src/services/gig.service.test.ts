@@ -16,6 +16,7 @@ import {
   duplicateGig,
 } from './gig.service';
 import { createClient } from '../utils/supabase/client';
+import { deleteGigBlockedReason } from '../utils/gigOwnership';
 import { requireAuth } from '../utils/supabase/auth-utils';
 
 vi.mock('../utils/supabase/client', () => ({
@@ -178,7 +179,7 @@ describe('gig.service', () => {
       expect(result[0].act?.name).toBe('The Band');
     });
 
-    it('embeds only the id and name of each participant organization (#453)', async () => {
+    it('embeds only the organization fields the lists read: id, name and claimed (#453)', async () => {
       const participantChain = makeChain({ data: [{ gig_id: 'gig-1' }], error: null });
       const gigChain = makeChain({ data: [], error: null });
       mockSupabase.from.mockImplementation((table: string) => (table === 'gig_participants' ? participantChain : gigChain));
@@ -186,9 +187,26 @@ describe('gig.service', () => {
       await getGigsForOrganization('org-1');
 
       const select = gigChain.select.mock.calls[0][0] as string;
-      expect(select).toContain('organization:organization_id(id, name)');
+      expect(select).toContain('organization:organization_id(id, name, claimed)');
       expect(select).not.toContain('organization_id(*)');
       expect(select).toContain('participants:gig_participants(');
+    });
+
+    it('rows carry what Delete gig needs to see other claimed participants (Cameron 10-13)', async () => {
+      const participantChain = makeChain({ data: [{ gig_id: 'gig-1' }], error: null });
+      const gigChain = makeChain({
+        data: [{
+          id: 'gig-1', owner_organization_id: 'org-a',
+          participants: [
+            { organization_id: 'org-a', role: 'Production', organization: { id: 'org-a', name: 'A', claimed: true } },
+            { organization_id: 'org-b', role: 'Sound', organization: { id: 'org-b', name: 'B', claimed: true } },
+          ],
+        }],
+        error: null,
+      });
+      mockSupabase.from.mockImplementation((table: string) => (table === 'gig_participants' ? participantChain : gigChain));
+      const [row] = await getGigsForOrganization('org-a');
+      expect(deleteGigBlockedReason(row, 'org-a', 'Admin', 0)).toMatch(/other claimed organizations participating/);
     });
 
     it('propagates errors from the gig_participants query', async () => {
