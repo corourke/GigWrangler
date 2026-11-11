@@ -61,6 +61,7 @@ const AssetScreen = lazy(() => import('../components/AssetScreen'));
 // Mobile screens
 const MobileGigList = lazy(() => import('../components/mobile/MobileGigList'));
 const MobileGigDetail = lazy(() => import('../components/mobile/MobileGigDetail'));
+const MobileDaySheet = lazy(() => import('../components/mobile/MobileDaySheet'));
 const MobileDashboard = lazy(() => import('../components/mobile/MobileDashboard'));
 const MobileInventoryMode = lazy(() => import('../components/mobile/MobileInventoryMode'));
 const MobileSettings = lazy(() => import('../components/mobile/MobileSettings'));
@@ -302,7 +303,27 @@ function TodayRoute() {
         gigId={params.get('gig')}
         onChooseGig={(id) => setParams({ gig: id }, { replace: true })}
         onViewGigDetail={(id) => nav.viewGig(id)}
+        onOpenDaySheet={(id) => nav.navigate(`/gigs/${id}/day-sheet`)}
       />
+    </MobileShell>
+  );
+}
+
+/** Any gig's day sheet on the phone (#445). Desktop has the gig page and its sheet report; Viewer has no day sheet. */
+function DaySheetRoute() {
+  const { user, organization, userRole } = useOrgScope();
+  const { isMobile } = useAppShell();
+  const nav = useNav();
+  const location = useLocation();
+  const { gigId } = useParams();
+  if (!user || !organization || !gigId) return <LoadingSpinner />;
+  if (!isMobile) return <Navigate to={`/gigs/${gigId}`} replace />;
+  if (!hasTodayTab(userRole)) return <Navigate to="/gigs" replace />;
+  // Back to where it was opened from; opened directly (a link), back to the gig.
+  const back = () => (location.key !== 'default' ? nav.navigate(-1) : nav.navigate(`/gigs/${gigId}`));
+  return (
+    <MobileShell active="mobile-gig-detail">
+      <MobileDaySheet gigId={gigId} onBack={back} onViewGigDetail={(id) => nav.viewGig(id)} />
     </MobileShell>
   );
 }
@@ -383,6 +404,7 @@ function GigDetailRoute({ editing = false }: { editing?: boolean }) {
           gigId={gigId}
           onBack={() => nav.navigate('/gigs')}
           onViewPackingList={(id) => nav.navigate(`/inventory?gig=${id}`)}
+          onViewDaySheet={(id) => nav.navigate(`/gigs/${id}/day-sheet`)}
         />
       </MobileShell>
     );
@@ -783,6 +805,7 @@ function RouteTable() {
             <Route path="/calendar" element={<GigListRoute view="calendar" />} />
             <Route path="/gigs/new" element={<GigCreateRoute />} />
             <Route path="/gigs/:gigId" element={<GigDetailRoute />} />
+            <Route path="/gigs/:gigId/day-sheet" element={<DaySheetRoute />} />
             <Route path="/gigs/:gigId/edit" element={<GigDetailRoute editing />} />
             <Route path="/gigs/:gigId/edit/:tab" element={<GigDetailRoute editing />} />
             <Route path="/gigs/:gigId/:tab" element={<GigDetailRoute />} />

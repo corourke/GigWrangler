@@ -22,8 +22,8 @@ import {
   Plus,
   Check,
   ChevronDown,
-  ChevronUp,
-} from 'lucide-react';
+  ChevronUp, ClipboardList } from 'lucide-react';
+import { hasTodayTab } from './todayTab';
 import { SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
 import type { ScheduleActivityType } from '../../utils/supabase/types';
 import { format, parseISO } from 'date-fns';
@@ -46,6 +46,8 @@ interface MobileGigDetailProps {
   gigId: string;
   onBack: () => void;
   onViewPackingList: (gigId: string) => void;
+  /** Opens the gig's day sheet (#445); not offered to Viewers. */
+  onViewDaySheet?: (gigId: string) => void;
 }
 
 interface EditParticipant {
@@ -71,7 +73,7 @@ const INPUT_CLASS = 'w-full h-10 px-3 text-sm bg-muted/50 rounded-lg border-0 ou
 // screen (#442). min-w-0 on the field and its grid cell lets them share the row.
 const DATE_INPUT_CLASS = `${INPUT_CLASS} min-w-0 appearance-none`;
 
-export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: MobileGigDetailProps) {
+export default function MobileGigDetail({ gigId, onBack, onViewPackingList, onViewDaySheet }: MobileGigDetailProps) {
   const { user, userRole, selectedOrganization } = useAuth();
   const isOffline = useIsOffline();
   const canEdit = userRole?.toLowerCase() === 'admin' || userRole?.toLowerCase() === 'manager';
@@ -649,6 +651,16 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList }: Mo
             >
               <Phone className="w-3.5 h-3.5" />
               Call Venue
+            </Button>
+          )}
+          {onViewDaySheet && hasTodayTab(userRole) && (
+            <Button
+              variant="secondary"
+              className="flex-1 h-9 gap-1.5 text-xs"
+              onClick={() => onViewDaySheet(gigId)}
+            >
+              <ClipboardList className="w-3.5 h-3.5" />
+              Day sheet
             </Button>
           )}
           <Button

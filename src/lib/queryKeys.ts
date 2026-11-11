@@ -218,6 +218,9 @@ export const queryKeys = {
   dayOfShow: (gigId: string) => ['gig', gigId, 'dayOfShow'] as const,
   /** Which of its documents are saved on the phone (size and type by attachment id). */
   dayOfShowFiles: (gigId: string) => ['gig', gigId, 'dayOfShow', 'files'] as const,
+  /** "Choose another gig" for the day sheet (#445): a person's own gigs, and the sheets on the phone. */
+  myDaySheetGigs: (userId: string) => ['myDaySheetGigs', userId] as const,
+  savedDaySheets: () => ['savedDaySheets'] as const,
 
   // ── Mobile inventory (A10, Engineer O) ──
   // Inventory Mode's packing list is local-first: the device copy, then the server's.
