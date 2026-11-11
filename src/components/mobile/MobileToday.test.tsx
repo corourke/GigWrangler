@@ -23,9 +23,9 @@ vi.mock('../../services/mobile/dayOfShowFiles.service', async (importOriginal) =
 })
 const toastError = vi.fn()
 vi.mock('./NeedsYou', () => ({
-  default: ({ onOpenTeam }: any) => (
+  default: ({ onOpenTeam, weekGigs }: any) => (
     <div>
-      <span>NeedsYou stub</span>
+      <span>NeedsYou stub gigs={weekGigs ? weekGigs.map((g: any) => g.id).join(',') : 'none'}</span>
       <button onClick={onOpenTeam}>stub open team</button>
     </div>
   ),
@@ -146,7 +146,8 @@ describe('MobileToday (day-of-show sheet)', () => {
     const onOpenTeam = vi.fn()
     render(<MobileToday onViewGigDetail={vi.fn()} onOpenDaySheet={vi.fn()} onOpenTeam={onOpenTeam} />)
     await screen.findByRole('region', { name: 'Tonight Show' })
-    expect(screen.getByText('NeedsYou stub')).toBeInTheDocument()
+    // It is given the gigs Today has, so the conflict check needs no fetch of its own.
+    expect(await screen.findByText('NeedsYou stub gigs=g1')).toBeInTheDocument()
     fireEvent.click(screen.getByText('stub open team'))
     expect(onOpenTeam).toHaveBeenCalled()
   })

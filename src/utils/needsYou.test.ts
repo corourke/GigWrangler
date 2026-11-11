@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isPendingInvite, openCrewSpots, paymentsDue, receiptsToReview, UNPAID_STAGES } from './needsYou';
+import { isPendingInvite, openCrewSpots, paymentsDue, receiptsToReview, UNPAID_STAGES, gigsThisWeek, equipmentConflicts } from './needsYou';
 
 // Plan #445 (A2b): the definitions of Today's "Needs you" counts.
 const NOW = new Date('2026-11-10T17:00:00Z');
@@ -65,5 +65,36 @@ describe('receiptsToReview', () => {
   it('counts what is still in the scan queue', () => {
     expect(receiptsToReview([{ status: 'queued' }, { status: 'scanning' }, { status: 'ready' }, { status: 'failed' }])).toBe(4);
     expect(receiptsToReview([])).toBe(0);
+  });
+});
+
+// Plan #445 (A2c): equipment conflicts this week.
+describe('gigsThisWeek', () => {
+  const g = (id: string, start: string, end: string | null = start, status = 'Booked') => ({ id, title: id, start, end, status });
+  it('keeps gigs that have not ended and start within 7 days, not cancelled', () => {
+    const out = gigsThisWeek([
+      g('now', '2026-11-10T15:00:00Z', '2026-11-10T22:00:00Z'),
+      g('soon', '2026-11-14T20:00:00Z'),
+      g('far', '2026-11-20T20:00:00Z'),
+      g('over', '2026-11-09T20:00:00Z', '2026-11-09T23:00:00Z'),
+      g('cancelled', '2026-11-12T20:00:00Z', '2026-11-12T23:00:00Z', 'Cancelled'),
+    ], NOW);
+    expect(out.map((x) => x.id)).toEqual(['now', 'soon']);
+  });
+});
+
+describe('equipmentConflicts', () => {
+  const c = (gig_id: string, other: string, type = 'equipment', level = 'conflict') =>
+    ({ level, type, gig_id, gig_title: `Gig ${gig_id}`, start: gig_id === 'a' ? '2026-11-12T20:00:00Z' : '2026-11-13T20:00:00Z', end: '', details: { other_gig_id: other, other_gig_title: `Gig ${other}` } }) as any;
+
+  it('counts the gigs with an equipment conflict, each once, soonest first, naming what they clash with', () => {
+    const result = equipmentConflicts([c('b', 'a'), c('a', 'b'), c('a', 'c'), c('c', 'a')]);
+    expect(result.count).toBe(3);
+    expect(result.gigs.map((x) => x.gigId)).toEqual(['a', 'b', 'c']);
+    expect(result.gigs[0]).toMatchObject({ gigId: 'a', others: ['Gig b', 'Gig c'] });
+  });
+
+  it('leaves out staff and venue conflicts and warnings', () => {
+    expect(equipmentConflicts([c('a', 'b', 'staff'), c('a', 'b', 'venue'), c('a', 'b', 'equipment', 'warning')]).count).toBe(0);
   });
 });

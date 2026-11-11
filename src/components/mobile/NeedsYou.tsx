@@ -9,12 +9,14 @@ import { useIsOffline } from './useIsOffline';
 import { queryKeys, invalidateAfterAssignmentChange } from '../../lib/queryKeys';
 import {
   fetchAccessRequestCount,
+  fetchEquipmentConflicts,
   fetchMyInvites,
   fetchOpenCrewSpots,
   fetchPaymentsDue,
   fetchReceiptsToReview,
 } from '../../services/mobile/needsYou.service';
 import { setMyAssignmentStatus } from '../../services/mobile/myAssignments.service';
+import type { DayOfShowGig } from '../../services/mobile/dayOfShow.service';
 import { CREW_SPOTS_DAYS } from '../../utils/needsYou';
 import { formatInTimeZone, isGigAllDay } from '../../utils/dateUtils';
 import { plural } from '../../utils/plural';
@@ -22,9 +24,13 @@ import { plural } from '../../utils/plural';
 interface NeedsYouProps {
   onViewGigDetail: (gigId: string) => void;
   onOpenTeam: () => void;
+  /** The gigs Today has loaded (the organization's next 7 days). The conflict check runs on these once they are in. */
+  weekGigs?: DayOfShowGig[];
 }
 
 const STALE = 60 * 1000;
+/** The conflict check is the slow one: kept longer. */
+const CONFLICTS_STALE = 10 * 60 * 1000;
 const when = (g: { start: string; timezone?: string | null; all_day?: boolean | null }) =>
   formatInTimeZone(g.start, isGigAllDay(g) ? 'UTC' : g.timezone || undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 
@@ -38,7 +44,7 @@ const todayISO = () => new Date().toLocaleDateString('en-CA');
  * (or the gig card above). A count of zero isn't shown; one that fails says so. Counts need a
  * connection.
  */
-export default function NeedsYou({ onViewGigDetail, onOpenTeam }: NeedsYouProps) {
+export default function NeedsYou({ onViewGigDetail, onOpenTeam, weekGigs }: NeedsYouProps) {
   const { user, selectedOrganization, userRole } = useAuth();
   const isOffline = useIsOffline();
   const queryClient = useQueryClient();
@@ -55,6 +61,15 @@ export default function NeedsYou({ onViewGigDetail, onOpenTeam }: NeedsYouProps)
   const access = useQuery({ queryKey: queryKeys.needsYouAccessRequests(userId, orgId), queryFn: () => fetchAccessRequestCount(orgId), enabled: live && isManager && !!orgId, staleTime: STALE, networkMode: 'always' });
   const receipts = useQuery({ queryKey: queryKeys.needsYouReceipts(orgId), queryFn: () => fetchReceiptsToReview(orgId), enabled: live && isManager && !!orgId, staleTime: STALE, networkMode: 'always' });
   const payments = useQuery({ queryKey: queryKeys.needsYouPayments(orgId), queryFn: () => fetchPaymentsDue(orgId, todayISO()), enabled: live && isAdmin && !!orgId, staleTime: STALE, networkMode: 'always' });
+
+  // Last: it waits for Today's gigs, and then runs on just those.
+  const conflicts = useQuery({
+    queryKey: queryKeys.needsYouConflicts(orgId, (weekGigs ?? []).map((g) => g.id)),
+    queryFn: () => fetchEquipmentConflicts(orgId, weekGigs as DayOfShowGig[]),
+    enabled: live && isManager && !!orgId && !!weekGigs,
+    staleTime: CONFLICTS_STALE,
+    networkMode: 'always',
+  });
 
   const answer = useMutation({
     mutationFn: ({ assignmentId, status }: { assignmentId: string; status: 'Confirmed' | 'Declined' }) => setMyAssignmentStatus(assignmentId, status),
@@ -121,6 +136,25 @@ export default function NeedsYou({ onViewGigDetail, onOpenTeam }: NeedsYouProps)
               <div className="px-3 py-2.5">
                 <Button size="sm" variant="outline" className="h-9" onClick={onOpenTeam}>Open Team</Button>
               </div>
+            ),
+          },
+          {
+            key: 'conflicts', query: conflicts, count: conflicts.data?.count ?? 0,
+            label: `Equipment ${conflicts.data?.count === 1 ? 'conflict' : 'conflicts'} this week`, failed: "Couldn't load equipment conflicts",
+            list: () => (
+              <ul aria-label="Equipment conflicts" className="divide-y divide-border/50">
+                {(conflicts.data?.gigs ?? []).map((g) => (
+                  <li key={g.gigId}>
+                    <button type="button" onClick={() => onViewGigDetail(g.gigId)} className="w-full text-left px-3 py-2.5 flex items-center justify-between gap-2">
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium truncate">{g.title}</span>
+                        <span className="block text-xs text-muted-foreground truncate">Clashes with {g.others.join(', ')}</span>
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
             ),
           },
           {

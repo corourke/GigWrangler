@@ -227,6 +227,8 @@ export const queryKeys = {
   needsYouAccessRequests: (userId: string, orgId: string) => ['needsYou', userId, 'accessRequests', orgId] as const,
   needsYouReceipts: (orgId: string) => ['needsYou', 'receipts', orgId] as const,
   needsYouPayments: (orgId: string) => ['needsYou', 'payments', orgId] as const,
+  /** Keyed by the gigs it checks, so it runs again when the week's gigs change. */
+  needsYouConflicts: (orgId: string, gigIds: string[]) => ['needsYou', 'conflicts', orgId, ...gigIds] as const,
 
   // ── Mobile inventory (A10, Engineer O) ──
   // Inventory Mode's packing list is local-first: the device copy, then the server's.
