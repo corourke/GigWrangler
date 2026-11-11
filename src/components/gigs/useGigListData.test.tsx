@@ -101,7 +101,7 @@ describe('useGigListData (A10, #453)', () => {
     const { result } = setup();
     await waitFor(() => expect(result.current.conflicts).toHaveLength(1));
     act(() => { result.current.setGigs((g) => g.filter((x) => x.id !== 'g1')); result.current.setConflicts((c) => c.filter((x) => x.gig_id !== 'g1')); });
-    expect(result.current.gigs).toEqual([]);
+    await waitFor(() => expect(result.current.gigs).toEqual([]));
     expect(result.current.conflicts).toEqual([]);
   });
 
