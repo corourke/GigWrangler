@@ -16,8 +16,10 @@ export const queryKeys = {
   // Gigs. Everything about one organization's gigs sits under gigs(orgId), everything about one
   // gig under gig(gigId), so one invalidation reaches all of it (A10).
   gigs: (orgId: string) => ['gigs', orgId] as const,
-  /** The gig list with its conflicts: { gigs, conflicts }. */
+  /** The organization's gigs. */
   gigList: (orgId: string) => ['gigs', orgId, 'list'] as const,
+  /** The conflicts among the list's recent and upcoming gigs, loaded after the list (#453). */
+  gigListConflicts: (orgId: string) => ['gigs', orgId, 'list', 'conflicts'] as const,
   /** Per-gig money totals for the list's optional columns and the export. */
   gigAggregates: (orgId: string) => ['gigs', orgId, 'aggregates'] as const,
   gig: (gigId: string) => ['gig', gigId] as const,
