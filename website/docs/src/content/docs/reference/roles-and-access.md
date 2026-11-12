@@ -20,7 +20,8 @@ You can be an **Admin** of one organization and a **Viewer** of another. Switchi
 | Create, edit and duplicate gigs; import gigs | ✓ | ✓ | — | — |
 | Delete a gig | ✓ | — | — | — |
 | Staff a gig and assign people to slots | ✓ | ✓ | — | — |
-| Confirm or decline a slot you're assigned to (on your phone) | ✓ | ✓ | ✓ | ✓ |
+| Use **Home** and day sheets on your phone | ✓ | ✓ | ✓ | — |
+| Accept or decline a slot you're asked to work (on your phone: from **Home**, or the gig's page) | ✓ | ✓ | ✓ | ✓ |
 | See staff pay rates and fees | ✓ | ✓ | — | — |
 | See a gig's **Financials** tab and **Financials → Purchases** | ✓ | ✓ | — | — |
 | Add and edit purchases and a gig's money in and out | ✓ | ✓ | — | — |

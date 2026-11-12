@@ -1,23 +1,27 @@
 ---
-title: The Today sheet
-description: "One phone screen for the day of the show: the schedule, the venue and directions, the crew and contacts, and the gig's documents, even offline."
+title: The day sheet
+description: "One phone screen for the day of a show: the schedule, the venue and directions, the crew and contacts, and the gig's documents. For any gig, and offline."
 sidebar:
   order: 7
 ---
 
-On the day of a gig, **Today** puts what you need on one screen: the run of day, where the venue is, who to call, and the gig's documents. It keeps working when the venue has no signal.
+A gig's **day sheet** puts what you need on one screen: the run of day, where the venue is, who to call, and the gig's documents. It keeps working when the venue has no signal.
 
-**Today** is the first tab in the phone's bottom bar for Staff, Managers and Admins. Viewers don't have it. It's a phone screen: on a computer, the address takes you to the dashboard.
+Staff, Managers and Admins have day sheets; Viewers don't. They're phone screens: on a computer, a day sheet's address opens the gig's page instead.
 
-## Which gig it shows
+## Opening a day sheet
 
-**Today** shows a gig that's on now or later today. "Today" is the gig's date in the gig's own time zone, so a gig at 11 PM shows on its own day, and an all-day gig counts for its whole date. Staff see the gigs they're staffing; Admins and Managers see their organization's gigs.
+- **For today's gig:** on [Home](/mobile/home/), the first tab in the phone's bottom bar, tap **Open day sheet** on the gig's card.
+- **For any gig:** on the gig's phone page, tap **Day sheet**, next to **Packing List**. It works for any gig you can open, past or future.
+- **For another gig:** on Home, tap **Choose another gig**. **Choose a gig** opens:
+  - Staff see the gigs they're staffing and haven't declined, from 30 days ago on.
+  - Admins and Managers see their organization's gigs, with **Search gigs**.
+  - Upcoming gigs come first, soonest first; past ones follow under **Earlier**, most recent first.
+  - Gigs saved on the phone are marked **Saved on this phone**.
 
-- **More than one gig today:** you see "2 gigs today" with each gig's start time (or **All day**). Tap one to open its sheet.
-- **None today:** you see "No gig today. Next up:" and your next gig in the next 7 days.
-- **None in the next 7 days:** "No gigs in the next 7 days".
+  Tap a gig to open its day sheet.
 
-The top of the sheet shows the gig's title, date and times, its status, and when the sheet was last saved on the phone, such as "Saved Nov 12, 3:00 PM". **Open gig** goes to the full gig page (online only). **Refresh** loads it again.
+The day sheet's top bar has **Back**, which returns to where you opened it, and **Refresh**. Under it are the gig's title, date and times, its status, and when the copy on the phone was last updated, such as "Updated Nov 12, 3:00 PM". Once you've saved the sheet it says "Saved on this phone · Nov 12, 3:00 PM" instead. **Open gig** goes to the full gig page (online only).
 
 ## What's on it
 
@@ -41,18 +45,25 @@ The gig's [attachments](/gigs/documents-and-notes/), such as a stage plot, rider
 
 A document saved on the phone says "Saved on this phone · 1.2 MB" underneath. Any other shows **Save for offline**: tap it to save that document.
 
+## Saving a day sheet on the phone
+
+To keep a gig's day sheet for when you're offline, open it while you're online and tap **Save on this phone**. You see "Saved on this phone", and the sheet is saved along with its PDFs and images. The button becomes **Saved on this phone · Remove**.
+
+A sheet you save is kept until you remove it, or 30 days after the gig or after you saved it, whichever is later. **Remove** also works offline.
+
+The sheet for today's gig, and any gig starting in the next 24 hours, is also saved automatically: when you open Home or the sheet online, and in the background from any phone screen. A sheet saved automatically is removed a day after the gig ends, unless you saved it yourself.
+
+PDFs and images up to 10 MB are saved along with the sheet. Larger files, and other kinds such as Word documents, are saved only when you tap **Save for offline**. A gig's saved documents can take up to 50 MB, and all gigs together up to 150 MB. If a gig's documents don't all fit, the sheet is still saved and you see "Not enough room on this phone for this gig's documents. Remove a saved gig first." A single document can also be refused with "This gig's saved documents would pass 50 MB", "Not enough room on this phone for it", or "Couldn't download it".
+
 ## Offline
 
-**Today** keeps a copy on the phone, so it opens without a connection. It's saved each time you open **Today** online, and in the background, from any phone screen, for gigs today or within the next 24 hours.
+Offline, the screen shows an **Offline** badge and the sheet as last saved, with its "Updated" or "Saved on this phone" time. Saved documents open as usual. A document that isn't saved reads "Not saved on this phone – connect to open". If the gig's sheet was never saved, you see "This gig's sheet isn't saved on this phone. Connect to load it." **Save on this phone** isn't offered offline.
 
-PDFs and images up to 10 MB are saved along with it. Larger files, and other kinds such as Word documents, are saved only when you tap **Save for offline**. A gig's saved documents can take up to 50 MB, and all gigs together up to 150 MB. If a save is refused, you see why: "This gig's saved documents would pass 50 MB", "Not enough room on this phone for it", or "Couldn't download it".
-
-Offline, the screen shows an **Offline** badge and the sheet as last saved, with its "Saved" time. Saved documents open as usual. A document that isn't saved reads "Not saved on this phone – connect to open". If the gig's sheet was never saved, you see "This gig's sheet isn't saved on this phone. Connect to load it."
-
-A gig's saved sheet and documents are removed a day after the gig ends. Signing out removes them all.
+Signing out removes every saved sheet and document.
 
 ## Related
 
+- [Home on your phone](/mobile/home/)
 - [Schedule / run of day](/gigs/schedule/)
 - [Documents & notes](/gigs/documents-and-notes/)
 - [Scanning equipment on your phone](/mobile/field-inventory/)
