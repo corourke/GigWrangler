@@ -59,7 +59,7 @@ import { canDeleteGig, canManage } from '../utils/permissions';
 import { deleteGigBlockedReason, isInactiveOn, managesGigOwner } from '../utils/gigOwnership';
 import { PageHeader } from './layout/PageHeader';
 import { checkAllConflictsForGigs } from '../services/conflictDetection.service';
-import { useGigListData } from './gigs/useGigListData';
+import { useGigListData, gigsForConflictCheck } from './gigs/useGigListData';
 
 const locales = { 'en-US': enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
@@ -228,7 +228,7 @@ export default function GigListScreen({
       // Strip view-model fields; inline edit only changes gig columns
       const { venue, act, participants, financials, staff_slots, ...gigFields } = updates;
       await updateGig(id, gigFields);
-      const detected = await checkAllConflictsForGigs(updatedGigs, organization.id);
+      const detected = await checkAllConflictsForGigs(gigsForConflictCheck(updatedGigs), organization.id);
       setConflicts(() => detected);
     } catch (err: any) {
       setGigs(prev => prev.map(g => (g.id === id ? gig : g)));
