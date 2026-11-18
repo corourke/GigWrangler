@@ -31,6 +31,19 @@ export function isPendingInvite(a: { status: string; gig: GigLike }, now: Date =
   return new Date(a.gig.end ?? a.gig.start).getTime() >= now.getTime();
 }
 
+/**
+ * Where an invite stands (#457): `open` (Requested or Invited, gig not ended or cancelled), the
+ * answer already given, or `closed` (no longer needed: the gig is cancelled or over, or the
+ * assignment was taken away).
+ */
+export type InviteState = 'open' | 'Confirmed' | 'Declined' | 'closed';
+export function inviteState(a: { status: string; gig: Pick<GigLike, 'start' | 'end' | 'status'> }, now: Date = new Date()): InviteState {
+  if (a.gig.status === 'Cancelled' || new Date(a.gig.end ?? a.gig.start).getTime() < now.getTime()) return 'closed';
+  if (a.status === 'Requested' || a.status === 'Invited') return 'open';
+  if (a.status === 'Confirmed' || a.status === 'Declined') return a.status;
+  return 'closed';
+}
+
 export interface CrewSlotLike<G extends GigLike = GigLike> {
   required_count: number;
   gig: G;

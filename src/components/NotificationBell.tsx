@@ -1,6 +1,10 @@
+import { Fragment, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Bell, Check, X, Loader2, AlertTriangle, CalendarClock, CalendarX, UserCheck, UserX, Briefcase, CircleDollarSign } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from './ui/badge';
+import { Button } from './ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +15,8 @@ import {
 } from './ui/dropdown-menu';
 import { useAuth } from '../contexts/AuthContext';
 import { useNav } from '../routes/useNav';
+import { queryKeys, invalidateAfterAssignmentChange } from '../lib/queryKeys';
+import { fetchMyAssignmentState, setMyAssignmentStatus } from '../services/mobile/myAssignments.service';
 import { useNotifications, useMarkNotificationRead } from '../hooks/useNotifications';
 import type {
   AccessRequestCreatedPayload,
@@ -53,6 +59,46 @@ function paymentReminderText(due: number, overdue: number): string {
   if (due) return `${are(due)} due today`;
   if (overdue) return `${are(overdue)} overdue`;
   return 'Payments need attention';
+}
+
+/**
+ * Accept and Decline under an invite (#457): while it is open. Once answered (here or elsewhere)
+ * it says what was answered; if the gig is cancelled or over, or the spot was taken away, "No
+ * longer needed". While the state is unknown (offline, loading) it shows nothing extra.
+ */
+function InviteReply({ assignmentId, gigId, userId, onReplied }: { assignmentId: string; gigId?: string; userId: string; onReplied: () => void }) {
+  const queryClient = useQueryClient();
+  const state = useQuery({
+    queryKey: queryKeys.inviteState(userId, assignmentId),
+    queryFn: () => fetchMyAssignmentState(assignmentId),
+    staleTime: 30_000,
+    retry: false,
+  });
+  const [answered, setAnswered] = useState<'Confirmed' | 'Declined' | null>(null);
+  const reply = useMutation({
+    mutationFn: (status: 'Confirmed' | 'Declined') => setMyAssignmentStatus(assignmentId, status),
+    onSuccess: (_r, status) => {
+      setAnswered(status);
+      toast.success(status === 'Confirmed' ? 'Accepted' : 'Declined');
+      void invalidateAfterAssignmentChange(queryClient, { gigId });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.needsYouInvites(userId) });
+      onReplied();
+    },
+    onError: () => toast.error("Couldn't send your reply. Try again."),
+  });
+
+  const shown = answered ?? state.data;
+  if (!shown) return null;
+  const note = 'px-2 pb-2 pl-8 text-xs text-muted-foreground';
+  if (shown === 'closed') return <p className={note}>No longer needed</p>;
+  if (shown === 'Confirmed') return <p className={note}>You accepted this.</p>;
+  if (shown === 'Declined') return <p className={note}>You declined this.</p>;
+  return (
+    <div className="flex gap-2 px-2 pb-2 pl-8">
+      <Button size="sm" className="h-8" disabled={reply.isPending} onClick={() => reply.mutate('Confirmed')}>Accept</Button>
+      <Button size="sm" variant="outline" className="h-8" disabled={reply.isPending} onClick={() => reply.mutate('Declined')}>Decline</Button>
+    </div>
+  );
 }
 
 /** A request for Viewer or Staff is a request to join the organization. */
@@ -265,8 +311,8 @@ export default function NotificationBell() {
             const Icon = notification.type === 'assignment.requested' ? Briefcase
               : notification.type === 'assignment.accepted' ? UserCheck : UserX;
             return (
+              <Fragment key={notification.id}>
               <DropdownMenuItem
-                key={notification.id}
                 onClick={() => openIn(notification, payload.organization_id, () => nav.viewGig(payload.gig_id))}
                 className="flex items-start gap-2 whitespace-normal"
               >
@@ -292,6 +338,10 @@ export default function NotificationBell() {
                 </div>
                 {isPending && <Loader2 className="w-3 h-3 animate-spin shrink-0" />}
               </DropdownMenuItem>
+              {notification.type === 'assignment.requested' && payload.assignment_id && user && (
+                <InviteReply assignmentId={payload.assignment_id} gigId={payload.gig_id} userId={user.id} onReplied={() => markRead.mutate(notification.id)} />
+              )}
+              </Fragment>
             );
           }
 

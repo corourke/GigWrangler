@@ -51,7 +51,8 @@ vi.mock('../services/mobile/myAssignments.service', () => ({
   setMyAssignmentStatus: vi.fn(),
 }));
 const toastError = vi.fn();
-vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a), success: vi.fn() } }));
+const toastSuccess = vi.fn();
+vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a), success: (...a: unknown[]) => toastSuccess(...a) } }));
 import { fetchMyAssignmentState, setMyAssignmentStatus } from '../services/mobile/myAssignments.service';
 
 const org = makeOrganization({ id: 'org-1', name: 'Acme Productions' });
@@ -457,8 +458,8 @@ describe('NotificationBell: answering an invite', () => {
     const user = await open();
     await user.click(await screen.findByRole('button', { name: 'Accept' }));
     await waitFor(() => expect(setMyAssignmentStatus).toHaveBeenCalledWith('a-1', 'Confirmed'));
-    expect(notificationService.markNotificationRead).toHaveBeenCalledWith('n-invite');
-    expect(await screen.findByText('You accepted this.')).toBeInTheDocument();
+    await waitFor(() => expect(notificationService.markNotificationRead).toHaveBeenCalledWith('n-invite'));
+    expect(toastSuccess).toHaveBeenCalledWith('Accepted');
     expect(screen.queryByRole('button', { name: 'Accept' })).not.toBeInTheDocument();
     expect(mockViewGig).not.toHaveBeenCalled(); // the menu's own click didn't also open the gig
   });
@@ -467,7 +468,8 @@ describe('NotificationBell: answering an invite', () => {
     const user = await open();
     await user.click(await screen.findByRole('button', { name: 'Decline' }));
     await waitFor(() => expect(setMyAssignmentStatus).toHaveBeenCalledWith('a-1', 'Declined'));
-    expect(await screen.findByText('You declined this.')).toBeInTheDocument();
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Declined'));
+    expect(screen.queryByRole('button', { name: 'Decline' })).not.toBeInTheDocument();
   });
 
   it('an invite already answered shows its answer, without buttons', async () => {
