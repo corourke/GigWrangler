@@ -9,13 +9,13 @@ sidebar:
 ## Cover
 
 - Installing the PWA (add to home screen); standalone mode.
-- The **mobile dashboard**: upcoming assigned gigs with venue/contact quick links.
+- **Home** (Today for Admins and Managers): today's gig, Needs you, This week; see mobile/home.md. Staff tabs: Home, Scanning, Settings.
 - Editing gigs from mobile; the mobile gig list (Upcoming/Past) and quick-create.
 - What's role-gated on mobile.
 
 ## Screenshots
 
-- 📸 Mobile dashboard.
+- 📸 Home.
 - 📸 Mobile gig detail.
 
 ## Source

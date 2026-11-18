@@ -23,7 +23,6 @@ import { plural } from '../../utils/plural';
 
 interface NeedsYouProps {
   onViewGigDetail: (gigId: string) => void;
-  onOpenTeam: () => void;
   /** The gigs Today has loaded (the organization's next 7 days). The conflict check runs on these once they are in. */
   weekGigs?: DayOfShowGig[];
 }
@@ -33,6 +32,12 @@ const STALE = 60 * 1000;
 const CONFLICTS_STALE = 10 * 60 * 1000;
 const when = (g: { start: string; timezone?: string | null; all_day?: boolean | null }) =>
   formatInTimeZone(g.start, isGigAllDay(g) ? 'UTC' : g.timezone || undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+
+/** A due date (YYYY-MM-DD, no time zone) as the other rows show dates: Fri, Sep 25. */
+const dueDay = (iso: string) => formatInTimeZone(`${iso.slice(0, 10)}T12:00:00Z`, 'UTC', { weekday: 'short', month: 'short', day: 'numeric' });
+
+/** Counts need a connection: a query that starts as the phone goes offline makes no request. */
+const needConnection = () => { if (!navigator.onLine) throw new Error('offline'); };
 
 /** Today's date as YYYY-MM-DD. */
 const todayISO = () => new Date().toLocaleDateString('en-CA');
@@ -44,7 +49,7 @@ const todayISO = () => new Date().toLocaleDateString('en-CA');
  * (or the gig card above). A count of zero isn't shown; one that fails says so. Counts need a
  * connection.
  */
-export default function NeedsYou({ onViewGigDetail, onOpenTeam, weekGigs }: NeedsYouProps) {
+export default function NeedsYou({ onViewGigDetail, weekGigs }: NeedsYouProps) {
   const { user, selectedOrganization, userRole } = useAuth();
   const isOffline = useIsOffline();
   const queryClient = useQueryClient();
@@ -56,16 +61,16 @@ export default function NeedsYou({ onViewGigDetail, onOpenTeam, weekGigs }: Need
   const isAdmin = userRole === 'Admin';
   const live = !isOffline && !!userId;
 
-  const invites = useQuery({ queryKey: queryKeys.needsYouInvites(userId), queryFn: () => fetchMyInvites(), enabled: live, staleTime: STALE, networkMode: 'always' });
-  const crew = useQuery({ queryKey: queryKeys.needsYouCrewSpots(orgId), queryFn: () => fetchOpenCrewSpots(orgId), enabled: live && isManager && !!orgId, staleTime: STALE, networkMode: 'always' });
-  const access = useQuery({ queryKey: queryKeys.needsYouAccessRequests(userId, orgId), queryFn: () => fetchAccessRequestCount(orgId), enabled: live && isManager && !!orgId, staleTime: STALE, networkMode: 'always' });
-  const receipts = useQuery({ queryKey: queryKeys.needsYouReceipts(orgId), queryFn: () => fetchReceiptsToReview(orgId), enabled: live && isManager && !!orgId, staleTime: STALE, networkMode: 'always' });
-  const payments = useQuery({ queryKey: queryKeys.needsYouPayments(orgId), queryFn: () => fetchPaymentsDue(orgId, todayISO()), enabled: live && isAdmin && !!orgId, staleTime: STALE, networkMode: 'always' });
+  const invites = useQuery({ queryKey: queryKeys.needsYouInvites(userId), queryFn: () => { needConnection(); return fetchMyInvites(); }, enabled: live, staleTime: STALE, networkMode: 'always' });
+  const crew = useQuery({ queryKey: queryKeys.needsYouCrewSpots(orgId), queryFn: () => { needConnection(); return fetchOpenCrewSpots(orgId); }, enabled: live && isManager && !!orgId, staleTime: STALE, networkMode: 'always' });
+  const access = useQuery({ queryKey: queryKeys.needsYouAccessRequests(userId, orgId), queryFn: () => { needConnection(); return fetchAccessRequestCount(orgId); }, enabled: live && isManager && !!orgId, staleTime: STALE, networkMode: 'always' });
+  const receipts = useQuery({ queryKey: queryKeys.needsYouReceipts(orgId), queryFn: () => { needConnection(); return fetchReceiptsToReview(orgId); }, enabled: live && isManager && !!orgId, staleTime: STALE, networkMode: 'always' });
+  const payments = useQuery({ queryKey: queryKeys.needsYouPayments(orgId), queryFn: () => { needConnection(); return fetchPaymentsDue(orgId, todayISO()); }, enabled: live && isAdmin && !!orgId, staleTime: STALE, networkMode: 'always' });
 
   // Last: it waits for Today's gigs, and then runs on just those.
   const conflicts = useQuery({
     queryKey: queryKeys.needsYouConflicts(orgId, (weekGigs ?? []).map((g) => g.id)),
-    queryFn: () => fetchEquipmentConflicts(orgId, weekGigs as DayOfShowGig[]),
+    queryFn: () => { needConnection(); return fetchEquipmentConflicts(orgId, weekGigs as DayOfShowGig[]); },
     enabled: live && isManager && !!orgId && !!weekGigs,
     staleTime: CONFLICTS_STALE,
     networkMode: 'always',
@@ -133,9 +138,7 @@ export default function NeedsYou({ onViewGigDetail, onOpenTeam, weekGigs }: Need
             key: 'access', query: access, count: access.data ?? 0,
             label: plural(access.data ?? 0, 'Access request').replace(/^\d+ /, ''), failed: "Couldn't load access requests",
             list: () => (
-              <div className="px-3 py-2.5">
-                <Button size="sm" variant="outline" className="h-9" onClick={onOpenTeam}>Open Team</Button>
-              </div>
+              <p className="px-3 py-2.5 text-xs text-muted-foreground">Decide them on a computer: Team → Access Requests.</p>
             ),
           },
           {
@@ -189,7 +192,7 @@ export default function NeedsYou({ onViewGigDetail, onOpenTeam, weekGigs }: Need
                     <button type="button" onClick={() => l.gigId && onViewGigDetail(l.gigId)} className="w-full text-left px-3 py-2.5 flex items-center justify-between gap-2">
                       <span className="min-w-0">
                         <span className="block text-sm font-medium truncate">{l.gigTitle || 'A gig'}</span>
-                        <span className="block text-xs text-muted-foreground">{l.direction === 'in' ? 'Money in' : 'Money out'} · due {l.due_date}</span>
+                        <span className="block text-xs text-muted-foreground">{l.direction === 'in' ? 'Money in' : 'Money out'} · due {dueDay(l.due_date)}</span>
                       </span>
                       <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
                     </button>

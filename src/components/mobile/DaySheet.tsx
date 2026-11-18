@@ -61,7 +61,7 @@ export default function DaySheet({ sheet, isOffline, onViewGigDetail }: { sheet:
           </div>
           <KeepRow sheet={sheet} isOffline={isOffline} />
           <div className="flex items-center justify-between mt-2">
-            <span className="text-[10px] text-muted-foreground">Saved {savedAt}</span>
+            <span className="text-[10px] text-muted-foreground">{sheet.kept ? `Saved on this phone · ${savedAt}` : `Updated ${savedAt}`}</span>
             {!isOffline && (
               <button type="button" className="text-xs text-primary font-medium" onClick={() => onViewGigDetail(gig.id)}>
                 Open gig

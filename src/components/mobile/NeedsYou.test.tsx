@@ -36,7 +36,7 @@ function everythingHas() {
   vi.mocked(svc.fetchPaymentsDue).mockResolvedValue({ due: 2, overdue: 1, lines: [{ id: 'f1', gigId: 'g3', gigTitle: 'Winter Fair', direction: 'in', due_date: '2026-11-10' }] });
 }
 const week = [gig('g5', 'Spring Gala'), gig('g6', 'Gala Load-in')];
-const props = (): any => ({ onViewGigDetail: vi.fn(), onOpenTeam: vi.fn(), weekGigs: week });
+const props = (): any => ({ onViewGigDetail: vi.fn(), weekGigs: week });
 const rows = () => within(screen.getByRole('region', { name: 'Needs you' })).getAllByRole('button', { expanded: false }).map((b) => b.textContent);
 
 beforeEach(() => { vi.clearAllMocks(); setOnline(true); everythingHas(); });
@@ -103,6 +103,20 @@ describe('NeedsYou', () => {
     expect(svc.fetchMyInvites).not.toHaveBeenCalled();
   });
 
+  it('runs no count query once the phone has gone offline, even before the app has noticed', async () => {
+    auth.userRole = 'Admin';
+    const { queryClient } = render(<NeedsYou {...props()} />);
+    await screen.findByRole('button', { name: /Open crew spots/ });
+    await waitFor(() => expect(svc.fetchEquipmentConflicts).toHaveBeenCalled());
+    const calls = () => [svc.fetchMyInvites, svc.fetchOpenCrewSpots, svc.fetchAccessRequestCount, svc.fetchReceiptsToReview, svc.fetchPaymentsDue, svc.fetchEquipmentConflicts]
+      .map((f) => vi.mocked(f).mock.calls.length);
+    const before = calls();
+    setOnline(false); // no 'offline' event yet: the screen still thinks it is online
+    await queryClient.invalidateQueries();
+    expect(calls()).toEqual(before);
+    setOnline(true);
+  });
+
   it('invites open their list, with Accept and Decline', async () => {
     auth.userRole = 'Staff';
     render(<NeedsYou {...props()} />);
@@ -127,11 +141,15 @@ describe('NeedsYou', () => {
     expect(screen.getByText('Review them on a computer: Purchases → Scan invoices.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Access request/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Open Team' }));
-    expect(p.onOpenTeam).toHaveBeenCalled();
+    // Phones have no Team screen: the request is decided on a computer.
+    expect(screen.queryByRole('button', { name: 'Open Team' })).not.toBeInTheDocument();
+    expect(screen.getByText('Decide them on a computer: Team → Access Requests.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Payments due or overdue/ }));
-    fireEvent.click(within(screen.getByRole('list', { name: 'Payments due or overdue' })).getByRole('button', { name: /Winter Fair/ }));
+    const payments = within(screen.getByRole('list', { name: 'Payments due or overdue' }));
+    // The short date the other rows use, not 2026-11-10.
+    expect(payments.getByText('Money in · due Tue, Nov 10')).toBeInTheDocument();
+    fireEvent.click(payments.getByRole('button', { name: /Winter Fair/ }));
     expect(p.onViewGigDetail).toHaveBeenCalledWith('g3');
   });
 });
