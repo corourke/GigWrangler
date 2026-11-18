@@ -37,6 +37,7 @@ export default function DaySheetGigPicker({ onChoose, onClose }: DaySheetGigPick
   const isStaff = userRole === 'Staff';
   const orgId = selectedOrganization?.id ?? '';
   const [search, setSearch] = useState('');
+  const isOffline = useIsOffline();
 
   const mine = useQuery({
     queryKey: queryKeys.myDaySheetGigs(user?.id ?? ''),
@@ -47,12 +48,11 @@ export default function DaySheetGigPicker({ onChoose, onClose }: DaySheetGigPick
   const org = useQuery({
     queryKey: queryKeys.mobileGigs(orgId),
     queryFn: async () => ((await getGigsForOrganization(orgId)) || []) as any[],
-    enabled: !isStaff && !!orgId,
+    enabled: !isStaff && !!orgId && !isOffline, // offline: the phone's own copy below, no failed request
     networkMode: 'always',
   });
   const saved = useQuery({ queryKey: queryKeys.savedDaySheets(user?.id ?? ''), queryFn: () => listSavedSheetIds(), networkMode: 'always' });
   // Offline with nothing loaded (#446 review): the gigs on the phone, so a saved sheet still opens.
-  const isOffline = useIsOffline();
   const orgFailed = !isStaff && !org.data && (org.isError || isOffline);
   const onPhone = useQuery({
     queryKey: [...queryKeys.savedDaySheets(user?.id ?? ''), 'gigs', orgId],
