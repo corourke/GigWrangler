@@ -36,6 +36,7 @@ function text(v: unknown, max = 60): string {
   return line.length > max ? `${line.slice(0, max - 1)}…` : line;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const count = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
 const join = (parts: string[]) => parts.filter(Boolean).join(' · ');
 
@@ -67,8 +68,16 @@ function detailed(type: string, p: Record<string, unknown>): PushMessage | null 
   const role = text(p.role_name, 40);
 
   switch (type) {
-    case 'assignment.requested':
-      return { title: 'New gig request', body: `You've been asked to work ${join([role, text(p.gig_date, 30), gig])}`, url: gigUrl, tag: gigTag };
+    case 'assignment.requested': {
+      // The reply sheet on Home (#457); an id that isn't a UUID falls back to the gig.
+      const assignmentId = typeof p.assignment_id === 'string' && UUID.test(p.assignment_id) ? p.assignment_id : '';
+      return {
+        title: 'New gig request',
+        body: `You've been asked to work ${join([role, text(p.gig_date, 30), gig])}`,
+        url: assignmentId ? `/today?invite=${assignmentId}` : gigUrl,
+        tag: gigTag,
+      };
+    }
     case 'assignment.accepted':
     case 'assignment.declined': {
       const verb = type === 'assignment.accepted' ? 'accepted' : 'declined';

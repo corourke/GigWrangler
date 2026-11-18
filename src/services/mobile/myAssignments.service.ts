@@ -36,18 +36,30 @@ export async function setMyAssignmentStatus(assignmentId: string, status: 'Confi
   }
 }
 
+/** One of the signed-in person's own assignments with its role and gig (#457). */
+export interface MyAssignment {
+  state: InviteState;
+  role: string | null;
+  gig: { id: string; title: string; start: string; end?: string | null; timezone?: string | null; all_day?: boolean | null; status?: string | null } | null;
+}
+
 /**
- * Where one of the signed-in person's own assignments stands (#457): open to reply to, already
- * answered, or no longer needed (gone, cancelled, over, or not theirs to reply to).
+ * Where one of the signed-in person's own assignments stands, with its role and gig (#457): open
+ * to reply to, already answered, or no longer needed (gone, cancelled, over, or not theirs).
  */
-export async function fetchMyAssignmentState(assignmentId: string, now: Date = new Date()): Promise<InviteState> {
+export async function fetchMyAssignment(assignmentId: string, now: Date = new Date()): Promise<MyAssignment> {
   const { data, error } = await getSupabase()
     .from('gig_staff_assignments')
-    .select('id, status, slot:gig_staff_slots!inner(gig:gigs!inner(status, start, end))')
+    .select('id, status, slot:gig_staff_slots!inner(staff_role:staff_roles(name), gig:gigs!inner(id, title, status, start, end, timezone, all_day))')
     .eq('id', assignmentId)
     .maybeSingle();
   if (error) throw error;
   const gig = (data as any)?.slot?.gig;
-  if (!data || !gig) return 'closed';
-  return inviteState({ status: (data as any).status, gig }, now);
+  if (!data || !gig) return { state: 'closed', role: null, gig: null };
+  return { state: inviteState({ status: (data as any).status, gig }, now), role: (data as any).slot?.staff_role?.name ?? null, gig };
+}
+
+/** Just the state of one of my assignments (the bell's invite row). */
+export async function fetchMyAssignmentState(assignmentId: string, now: Date = new Date()): Promise<InviteState> {
+  return (await fetchMyAssignment(assignmentId, now)).state;
 }

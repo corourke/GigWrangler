@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { makeTestQueryClient } from '../test/renderWithQuery';
 import { AppRoutes } from './screens';
 
 const mockUseAuth = vi.fn();
@@ -82,10 +84,12 @@ function Where() {
 }
 const renderAt = (path: string) =>
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <AppRoutes />
-      <Where />
-    </MemoryRouter>,
+    <QueryClientProvider client={makeTestQueryClient()}>
+      <MemoryRouter initialEntries={[path]}>
+        <AppRoutes />
+        <Where />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 describe('/today (day-of-show sheet, §3e)', () => {

@@ -28,8 +28,8 @@ beforeEach(() => {
 describe('InviteReplySheet', () => {
   it('shows the role, the gig and the day, with Accept, Decline and Open gig', async () => {
     render(<InviteReplySheet {...props()} />);
-    expect(await screen.findByText('Gig invite')).toBeInTheDocument();
-    expect(screen.getByText('FOH')).toBeInTheDocument();
+    expect(await screen.findByText('FOH')).toBeInTheDocument();
+    expect(screen.getByText('Gig invite')).toBeInTheDocument();
     expect(screen.getByText('Spring Gala')).toBeInTheDocument();
     expect(screen.getByText(/Dec 12/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Accept' })).toBeInTheDocument();
@@ -84,7 +84,7 @@ describe('InviteReplySheet', () => {
     render(<InviteReplySheet {...p} />);
     expect(await screen.findByText('No longer needed')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Accept' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     expect(p.onClose).toHaveBeenCalled();
   });
 

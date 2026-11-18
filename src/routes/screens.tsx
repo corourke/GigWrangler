@@ -1,4 +1,6 @@
 import { lazy, ReactNode, Suspense } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchMyAssignment } from '../services/mobile/myAssignments.service';
 import {
   Routes,
   Route,
@@ -65,6 +67,7 @@ const MobileDaySheet = lazy(() => import('../components/mobile/MobileDaySheet'))
 const MobileInventoryMode = lazy(() => import('../components/mobile/MobileInventoryMode'));
 const MobileSettings = lazy(() => import('../components/mobile/MobileSettings'));
 const MobileToday = lazy(() => import('../components/mobile/MobileToday'));
+const InviteReplySheet = lazy(() => import('../components/mobile/InviteReplySheet'));
 const SaveTodaySheetsAhead = lazy(() => import('../components/mobile/SaveTodaySheetsAhead'));
 import { hasTodayTab } from '../components/mobile/todayTab';
 import MobileLayout from '../components/mobile/MobileLayout';
@@ -279,6 +282,14 @@ function DashboardRoute() {
   );
 }
 
+/** Desktop, from an invite push link (#457): the invite's gig, where Accept and Decline are. */
+function InviteToGig({ assignmentId }: { assignmentId: string }) {
+  const invite = useQuery({ queryKey: ['inviteGig', assignmentId], queryFn: () => fetchMyAssignment(assignmentId), retry: false });
+  if (invite.isPending) return <LoadingSpinner />;
+  const gigId = invite.data?.gig?.id;
+  return <Navigate to={gigId ? `/gigs/${encodeURIComponent(gigId)}` : '/dashboard'} replace />;
+}
+
 /** The phone's Today tab (§3e): the day-of-show sheet. Desktop goes to the dashboard; Viewer has no Today. */
 function TodayRoute() {
   const { user, organization, userRole } = useOrgScope();
@@ -286,7 +297,8 @@ function TodayRoute() {
   const nav = useNav();
   const [params] = useSearchParams();
   if (!user || !organization) return <LoadingSpinner />;
-  if (!isMobile) return <Navigate to="/dashboard" replace />;
+  const invite = params.get('invite');
+  if (!isMobile) return invite ? <InviteToGig assignmentId={invite} /> : <Navigate to="/dashboard" replace />;
   if (!hasTodayTab(userRole)) return <Navigate to="/gigs" replace />;
   // Before #445 a gig's sheet opened on Today (/today?gig=…); it has its own screen now.
   const gig = params.get('gig');
@@ -297,6 +309,15 @@ function TodayRoute() {
         onViewGigDetail={(id) => nav.viewGig(id)}
         onOpenDaySheet={(id) => nav.navigate(`/gigs/${id}/day-sheet`)}
       />
+      {invite && (
+        <Suspense fallback={null}>
+          <InviteReplySheet
+            assignmentId={invite}
+            onClose={() => nav.navigate('/today', { replace: true })}
+            onViewGigDetail={(id) => nav.viewGig(id)}
+          />
+        </Suspense>
+      )}
     </MobileShell>
   );
 }
