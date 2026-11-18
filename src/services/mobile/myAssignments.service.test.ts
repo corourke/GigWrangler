@@ -15,7 +15,7 @@ vi.mock('./staffDashboard.service', () => ({ fetchMyUpcomingAssignments: vi.fn()
 vi.mock('../gig.service', () => ({ updateStaffAssignmentStatus: vi.fn() }));
 vi.mock('./offlineSync.service', () => ({ offlineSyncService: { queueTrackingUpdate: vi.fn() } }));
 
-import { fetchMyAssignmentState } from './myAssignments.service';
+import { fetchMyAssignmentState, fetchMyAssignment } from './myAssignments.service';
 
 const NOW = new Date('2026-11-10T12:00:00Z');
 const row = (status: string, gig: Record<string, unknown>) => ({ data: { id: 'a-1', status, slot: { gig } }, error: null });
@@ -47,5 +47,19 @@ describe('fetchMyAssignmentState (#457)', () => {
   it('throws when the lookup fails, so the row shows nothing extra', async () => {
     result = { data: null, error: new Error('network') };
     await expect(fetchMyAssignmentState('a-1', NOW)).rejects.toThrow('network');
+  });
+});
+
+describe('fetchMyAssignment (#457 part 2)', () => {
+  it('gives the state with the role and the gig, for the reply sheet', async () => {
+    result = { data: { id: 'a-1', status: 'Invited', slot: { staff_role: { name: 'FOH' }, gig: { id: 'g1', title: 'Spring Gala', timezone: 'UTC', all_day: false, ...coming } } }, error: null };
+    expect(await fetchMyAssignment('a-1', NOW)).toEqual({
+      state: 'open', role: 'FOH',
+      gig: { id: 'g1', title: 'Spring Gala', timezone: 'UTC', all_day: false, ...coming },
+    });
+  });
+  it('is closed with no gig when the assignment is not visible', async () => {
+    result = { data: null, error: null };
+    expect(await fetchMyAssignment('a-1', NOW)).toEqual({ state: 'closed', role: null, gig: null });
   });
 });

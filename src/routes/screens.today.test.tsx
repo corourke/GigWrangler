@@ -12,6 +12,17 @@ vi.mock('./appShell', () => ({
 }));
 vi.mock('./prefetch', () => ({ prefetchLandingScreen: vi.fn() }));
 
+vi.mock('../services/mobile/myAssignments.service', () => ({ fetchMyAssignment: vi.fn() }));
+vi.mock('../components/mobile/InviteReplySheet', () => ({
+  default: ({ assignmentId, onClose }: any) => (
+    <div>
+      InviteReplySheet stub {assignmentId}
+      <button onClick={onClose}>close-sheet</button>
+    </div>
+  ),
+}));
+import { fetchMyAssignment } from '../services/mobile/myAssignments.service';
+
 const saveAhead = vi.fn();
 vi.mock('../components/mobile/SaveTodaySheetsAhead', () => ({
   default: (props: any) => {
@@ -104,6 +115,33 @@ describe('/today (day-of-show sheet, §3e)', () => {
     signInAs('Staff');
     renderAt('/today?gig=g1');
     expect(await screen.findByText('MobileDaySheet stub gig=g1')).toBeInTheDocument();
+  });
+
+  // #457 part 2: an invite push opens /today?invite=<assignment id>.
+  it('opens the invite reply sheet over Today on the phone, and closing it goes back to plain Today', async () => {
+    signInAs('Staff');
+    renderAt('/today?invite=a-1');
+    expect(await screen.findByText('MobileToday stub')).toBeInTheDocument();
+    expect(await screen.findByText('InviteReplySheet stub a-1')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('close-sheet'));
+    await waitFor(() => expect(screen.queryByText('InviteReplySheet stub a-1')).not.toBeInTheDocument());
+    expect(screen.getByText('at:/today')).toBeInTheDocument();
+  });
+
+  it('on desktop, an invite link opens the invite\'s gig, where Accept and Decline are', async () => {
+    isMobile = false;
+    signInAs('Staff');
+    vi.mocked(fetchMyAssignment).mockResolvedValue({ state: 'open', role: 'FOH', gig: { id: 'g7' } } as any);
+    renderAt('/today?invite=a-1');
+    expect(await screen.findByText('GigPage stub g7')).toBeInTheDocument();
+  });
+
+  it('on desktop, an invite that cannot be found goes to the dashboard', async () => {
+    isMobile = false;
+    signInAs('Staff');
+    vi.mocked(fetchMyAssignment).mockResolvedValue({ state: 'closed', role: null, gig: null } as any);
+    renderAt('/today?invite=a-1');
+    expect(await screen.findByText('Dashboard stub')).toBeInTheDocument();
   });
 
   it('sends a Viewer to the gig list', async () => {
