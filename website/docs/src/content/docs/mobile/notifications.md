@@ -76,6 +76,10 @@ To keep even titles and names off the lock screen, turn on **Hide details on the
 
 Tapping an alert opens GigWrangler on the screen it's about: the gig, the requests on **Team**, or **Financials** for payments. It switches to the right organization if needed, and marks the notification in the bell as read.
 
+A **gig request** opens differently on a phone: Home opens with the **Gig invite** sheet over it, showing the role, the gig and its date and times, with **Accept**, **Decline** and **Open gig**. Accepting or declining sends your reply ("Accepted" or "Declined") and closes the sheet; Home's [Needs you](/mobile/home/#needs-you) count goes down. If you've already answered, the sheet says "You accepted this." or "You declined this."; if the gig was cancelled or is over, "No longer needed". **Done** closes it. On a computer, the same alert opens the gig's page, where **Accept** and **Decline** are too.
+
+If the phone is offline when you answer, the reply is kept and sent when it's back online. A sheet that can't load says "Couldn't load this invite. Connect and try again."
+
 ## Related
 
 - [Settings & integrations](/settings/overview/)

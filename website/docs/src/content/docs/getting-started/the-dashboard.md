@@ -47,4 +47,13 @@ The avatar menu (top-right) has **Switch Organization**, **Settings**,
 as decisions on [access requests](/getting-started/organizations/), with a count of
 unread ones on the bell.
 
+When you're asked to work a gig ("You've been asked to work Stage Hand on Harvest
+Gala (Sat 10 Oct).") the notification has **Accept** and **Decline** under it while
+the request is open. Answering sends your reply, shows "Accepted" or "Declined", and
+marks the notification read. Selecting the text still opens the gig. A request you've
+already answered says "You accepted this." or "You declined this.", and one for a gig
+that's been cancelled or is over, or a place that's been taken away, says "No longer
+needed", with no buttons. If your reply can't be sent, you see "Couldn't send your
+reply. Try again." and the buttons stay.
+
 ![The open avatar menu, showing the signed-in name and email above Switch Organization, Settings, Edit Profile and Sign Out](../../../assets/screenshots/getting-started/the-dashboard-avatar-menu.png)
