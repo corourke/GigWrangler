@@ -413,7 +413,8 @@ describe('GigListScreen', () => {
       const onViewGig = vi.fn();
       renderScreen('list', onViewGig);
 
-      await ue.click(await screen.findByRole('button', { name: 'View' }));
+      // The banner loads after the list (#453), so under load it can take longer than findBy's 1 s default.
+      await ue.click(await screen.findByRole('button', { name: 'View' }, { timeout: 5000 }));
 
       expect(onViewGig).toHaveBeenCalledWith('gig-future');
       expect(onViewGig.mock.calls[0][1]).toBeFalsy();
@@ -424,7 +425,8 @@ describe('GigListScreen', () => {
       const onViewGig = vi.fn();
       renderScreen('calendar', onViewGig);
 
-      await ue.click(await screen.findByRole('button', { name: 'View' }));
+      // The banner loads after the list (#453), so under load it can take longer than findBy's 1 s default.
+      await ue.click(await screen.findByRole('button', { name: 'View' }, { timeout: 5000 }));
 
       expect(onViewGig).toHaveBeenCalledWith('gig-future', true);
     });
