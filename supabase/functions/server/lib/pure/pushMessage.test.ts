@@ -11,6 +11,15 @@ describe('pushMessage', () => {
     expect(m).toEqual({ title: 'New gig request', body: "You've been asked to work Sound Tech · Sat, Oct 10 · Spring Show", url: '/gigs/g1', tag: 'gig-g1' });
   });
 
+  // #457 part 2: an invite push opens the reply sheet on Home (a bad id falls back to the gig).
+  it('an invite with its assignment id opens the reply sheet', () => {
+    const id = '0f6c1d5e-1b7a-4c1e-9d2a-3b4c5d6e7f80';
+    const m = pushMessage(n('assignment.requested', { assignment_id: id, gig_id: 'g1', gig_title: 'Spring Show', gig_date: 'Sat, Oct 10', role_name: 'Sound Tech' }), show);
+    expect(m?.url).toBe(`/today?invite=${id}`);
+    expect(pushMessage(n('assignment.requested', { assignment_id: id, gig_id: 'g1' }), { hideDetails: true })?.url).toBe(`/today?invite=${id}`);
+    expect(pushMessage(n('assignment.requested', { assignment_id: '../x?y=1', gig_id: 'g1', gig_title: 'S' }), show)?.url).toBe('/gigs/g1');
+  });
+
   it('accept and decline replies name the person and the role', () => {
     expect(pushMessage(n('assignment.accepted', { gig_id: 'g1', gig_title: 'Spring Show', role_name: 'Sound Tech', first_name: 'Avery' }), show)?.body)
       .toBe('Avery accepted Sound Tech · Spring Show');

@@ -65,6 +65,8 @@ const MobileDaySheet = lazy(() => import('../components/mobile/MobileDaySheet'))
 const MobileInventoryMode = lazy(() => import('../components/mobile/MobileInventoryMode'));
 const MobileSettings = lazy(() => import('../components/mobile/MobileSettings'));
 const MobileToday = lazy(() => import('../components/mobile/MobileToday'));
+const InviteToGig = lazy(() => import('./InviteToGig'));
+const InviteReplySheet = lazy(() => import('../components/mobile/InviteReplySheet'));
 const SaveTodaySheetsAhead = lazy(() => import('../components/mobile/SaveTodaySheetsAhead'));
 import { hasTodayTab } from '../components/mobile/todayTab';
 import MobileLayout from '../components/mobile/MobileLayout';
@@ -286,7 +288,12 @@ function TodayRoute() {
   const nav = useNav();
   const [params] = useSearchParams();
   if (!user || !organization) return <LoadingSpinner />;
-  if (!isMobile) return <Navigate to="/dashboard" replace />;
+  const invite = params.get('invite');
+  if (!isMobile) {
+    return invite
+      ? <Suspense fallback={<LoadingSpinner />}><InviteToGig assignmentId={invite} /></Suspense>
+      : <Navigate to="/dashboard" replace />;
+  }
   if (!hasTodayTab(userRole)) return <Navigate to="/gigs" replace />;
   // Before #445 a gig's sheet opened on Today (/today?gig=…); it has its own screen now.
   const gig = params.get('gig');
@@ -297,6 +304,15 @@ function TodayRoute() {
         onViewGigDetail={(id) => nav.viewGig(id)}
         onOpenDaySheet={(id) => nav.navigate(`/gigs/${id}/day-sheet`)}
       />
+      {invite && (
+        <Suspense fallback={null}>
+          <InviteReplySheet
+            assignmentId={invite}
+            onClose={() => nav.navigate('/today', { replace: true })}
+            onViewGigDetail={(id) => nav.viewGig(id)}
+          />
+        </Suspense>
+      )}
     </MobileShell>
   );
 }
