@@ -48,14 +48,18 @@ export interface MyAssignment {
  * to reply to, already answered, or no longer needed (gone, cancelled, over, or not theirs).
  */
 export async function fetchMyAssignment(assignmentId: string, now: Date = new Date()): Promise<MyAssignment> {
-  const { data, error } = await getSupabase()
+  const supabase = getSupabase();
+  const { data, error } = await supabase
     .from('gig_staff_assignments')
-    .select('id, status, slot:gig_staff_slots!inner(staff_role:staff_roles(name), gig:gigs!inner(id, title, status, start, end, timezone, all_day))')
+    .select('id, user_id, status, slot:gig_staff_slots!inner(staff_role:staff_roles(name), gig:gigs!inner(id, title, status, start, end, timezone, all_day))')
     .eq('id', assignmentId)
     .maybeSingle();
   if (error) throw error;
   const gig = (data as any)?.slot?.gig;
   if (!data || !gig) return { state: 'closed', role: null, gig: null };
+  // An invite is shown only to the person it was sent to, however the row came to be readable.
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || (data as any).user_id !== user.id) return { state: 'closed', role: null, gig: null };
   return { state: inviteState({ status: (data as any).status, gig }, now), role: (data as any).slot?.staff_role?.name ?? null, gig };
 }
 
