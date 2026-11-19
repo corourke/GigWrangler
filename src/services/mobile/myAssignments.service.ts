@@ -6,6 +6,8 @@ import { idbStore } from '../../utils/idb/store';
 import { fetchMyUpcomingAssignments, type StaffDashboardGig } from './staffDashboard.service';
 import { updateStaffAssignmentStatus } from '../gig.service';
 import { offlineSyncService } from './offlineSync.service';
+import { getSupabase } from '../base/dataAccess';
+import { inviteState, type InviteState } from '../../utils/needsYou';
 
 /**
  * Hands any device copy to `onCached` straight away, then (online) fetches the fresh list and
@@ -32,4 +34,20 @@ export async function setMyAssignmentStatus(assignmentId: string, status: 'Confi
   } else {
     await offlineSyncService.queueTrackingUpdate({ assignmentId, status }, 'STAFF_ASSIGNMENT_UPDATE');
   }
+}
+
+/**
+ * Where one of the signed-in person's own assignments stands (#457): open to reply to, already
+ * answered, or no longer needed (gone, cancelled, over, or not theirs to reply to).
+ */
+export async function fetchMyAssignmentState(assignmentId: string, now: Date = new Date()): Promise<InviteState> {
+  const { data, error } = await getSupabase()
+    .from('gig_staff_assignments')
+    .select('id, status, slot:gig_staff_slots!inner(gig:gigs!inner(status, start, end))')
+    .eq('id', assignmentId)
+    .maybeSingle();
+  if (error) throw error;
+  const gig = (data as any)?.slot?.gig;
+  if (!data || !gig) return 'closed';
+  return inviteState({ status: (data as any).status, gig }, now);
 }

@@ -225,6 +225,8 @@ export const queryKeys = {
   savedDaySheets: (userId: string) => ['savedDaySheets', userId] as const,
   /** Today's "Needs you" counts (#445). The role-filtered ones carry the user. */
   needsYouInvites: (userId: string) => ['needsYou', userId, 'invites'] as const,
+  /** One invite's state, for the bell and the push reply sheet (#457). */
+  inviteState: (userId: string, assignmentId: string) => ['inviteState', userId, assignmentId] as const,
   needsYouCrewSpots: (orgId: string) => ['needsYou', 'crewSpots', orgId] as const,
   needsYouAccessRequests: (userId: string, orgId: string) => ['needsYou', userId, 'accessRequests', orgId] as const,
   needsYouReceipts: (orgId: string) => ['needsYou', 'receipts', orgId] as const,

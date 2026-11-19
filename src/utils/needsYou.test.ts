@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isPendingInvite, openCrewSpots, paymentsDue, receiptsToReview, UNPAID_STAGES, gigsThisWeek, equipmentConflicts } from './needsYou';
+import { inviteState, isPendingInvite, openCrewSpots, paymentsDue, receiptsToReview, UNPAID_STAGES, gigsThisWeek, equipmentConflicts } from './needsYou';
 
 // Plan #445 (A2b): the definitions of Today's "Needs you" counts.
 const NOW = new Date('2026-11-10T17:00:00Z');
@@ -96,5 +96,23 @@ describe('equipmentConflicts', () => {
 
   it('leaves out staff and venue conflicts and warnings', () => {
     expect(equipmentConflicts([c('a', 'b', 'staff'), c('a', 'b', 'venue'), c('a', 'b', 'equipment', 'warning')]).count).toBe(0);
+  });
+});
+
+describe('inviteState (#457)', () => {
+  const now = new Date('2026-11-10T12:00:00Z');
+  const future = { start: '2026-11-12T20:00:00Z', end: '2026-11-12T23:00:00Z', status: 'Booked' };
+  it('is open for a Requested or Invited assignment on a coming gig', () => {
+    expect(inviteState({ status: 'Requested', gig: future }, now)).toBe('open');
+    expect(inviteState({ status: 'Invited', gig: future }, now)).toBe('open');
+  });
+  it('shows an answer already given', () => {
+    expect(inviteState({ status: 'Confirmed', gig: future }, now)).toBe('Confirmed');
+    expect(inviteState({ status: 'Declined', gig: future }, now)).toBe('Declined');
+  });
+  it('is closed when the gig is cancelled or over, or the assignment is anything else', () => {
+    expect(inviteState({ status: 'Invited', gig: { ...future, status: 'Cancelled' } }, now)).toBe('closed');
+    expect(inviteState({ status: 'Invited', gig: { ...future, end: '2026-11-09T23:00:00Z' } }, now)).toBe('closed');
+    expect(inviteState({ status: 'Removed', gig: future }, now)).toBe('closed');
   });
 });
