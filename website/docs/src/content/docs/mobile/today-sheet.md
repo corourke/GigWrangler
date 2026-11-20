@@ -53,7 +53,7 @@ On the day, crew record when they arrived, and Admins and Managers can see who's
 
 If you're **Confirmed** on the gig, **I've arrived** appears on your day sheet from 12 hours before the gig starts until 12 hours after it ends. Tap it when you get there: the sheet records your phone's time and shows "Arrived 2:42 PM", in the gig's time zone, with **Undo**. You have one arrival per gig, even if you're in more than one place on it. Someone who's only been asked (**Requested**), or has declined, doesn't get the button.
 
-If you tap it with no signal, the sheet shows "Arrived 2:42 PM · will send when you're online", and the time is sent when the phone is back online.
+If you tap it with no signal, the sheet shows "Arrived 2:42 PM · will send when you're online", and the time is sent when the phone is back online, as long as that's within 2 days of the window closing.
 
 If a Manager or Admin has set or corrected your time, the sheet says "A manager set your arrival time." and there's no **Undo**: only they can change it.
 
@@ -62,7 +62,7 @@ If a Manager or Admin has set or corrected your time, the sheet says "A manager 
 Admins and Managers of the organization that owns the gig, and of the organization that staffs a person, see each of those crew members' arrival on their lines: "Arrived 2:42 PM" or "Not arrived yet". They can also:
 
 - **Check in** someone who's Confirmed, which records the current time;
-- **Edit time**, to set the time in the gig's time zone, then **Save** (or **Cancel**);
+- **Edit time**, to set the time in the gig's time zone, then **Save** (or **Cancel**). The time has to fall within the gig's window, and can't be more than 5 minutes ahead of now;
 - **Clear** the arrival.
 
 These controls need a connection; offline, the sheet shows the last times it saw. There are no controls on your own line: that's your own arrival, as above.
