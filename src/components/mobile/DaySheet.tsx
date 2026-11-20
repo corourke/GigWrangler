@@ -19,12 +19,12 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { cn } from '../ui/utils';
 import { toast } from 'sonner';
-import { useDayOfShowDocuments, useKeepDayOfShowSheet, useMyArrival } from './useDayOfShowData';
+import { useCrewArrivals, useDayOfShowDocuments, useKeepDayOfShowSheet, useMyArrival } from './useDayOfShowData';
 import { getSavedDocument, SAVE_REFUSAL } from '../../services/mobile/dayOfShowFiles.service';
 import type { DayOfShowFile } from '../../utils/idb/store';
 import { addressLines, mapsHref, smsHref, telHref } from '../../utils/contactLinks';
 import { formatFileSize } from '../../utils/fileSize';
-import { formatDateTimeDisplay, formatInTimeZone, formatTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
+import { formatDateTimeDisplay, formatForDateTimeInput, formatInTimeZone, formatTimeDisplay, isGigAllDay, parseLocalToUTC } from '../../utils/dateUtils';
 import { arrivalTimeLabel, arrivalWindowOpen } from '../../utils/crewArrival';
 import { GIG_STATUS_CONFIG, SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
 import { getAttachmentUrl } from '../../services/attachment.service';
@@ -76,7 +76,7 @@ export default function DaySheet({ sheet, isOffline, onViewGigDetail }: { sheet:
       <ScheduleSection sheet={sheet} />
       <VenueSection sheet={sheet} />
       <PeopleSection title="Contacts" people={sheet.contacts} />
-      <PeopleSection title="Crew" people={sheet.crew} />
+      <CrewSection sheet={sheet} isOffline={isOffline} />
       <DocumentsSection sheet={sheet} isOffline={isOffline} />
     </>
   );
@@ -241,7 +241,7 @@ function PeopleSection({ title, people }: { title: string; people: DayOfShowPers
   );
 }
 
-function PersonRow({ person }: { person: DayOfShowPerson }) {
+function PersonRow({ person, children }: { person: DayOfShowPerson; children?: React.ReactNode }) {
   const call = telHref(person.phone);
   const text = smsHref(person.phone);
   const detail = [person.title, person.org_name && `${person.org_name}${person.org_role ? ` (${person.org_role})` : ''}`]
@@ -261,6 +261,97 @@ function PersonRow({ person }: { person: DayOfShowPerson }) {
             <a className={ACTION} href={`mailto:${person.email}`} aria-label={`Email ${person.name}`}><Mail className="w-4 h-4" />Email</a>
           )}
         </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+/** The crew list; for Admins and Managers who manage a person, with their arrival time (#458). */
+function CrewSection({ sheet, isOffline }: { sheet: DayOfShowSheet; isOffline: boolean }) {
+  const crew = useCrewArrivals(sheet);
+  if (sheet.crew.length === 0) return null;
+  return (
+    <Card style={{ gap: 0 }}>
+      <CardContent className="p-3">
+        <p className={SECTION_TITLE}><Users className="w-3.5 h-3.5" />Crew</p>
+        <div className="divide-y divide-border/50">
+          {sheet.crew.map((p) => (
+            <PersonRow key={p.key} person={p}>
+              {crew.canManage(p) && <CrewArrivalLine sheet={sheet} person={p} crew={crew} isOffline={isOffline} />}
+            </PersonRow>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CrewArrivalLine({ sheet, person, crew, isOffline }: {
+  sheet: DayOfShowSheet;
+  person: DayOfShowSheet['crew'][number];
+  crew: ReturnType<typeof useCrewArrivals>;
+  isOffline: boolean;
+}) {
+  const tz = sheet.gig.timezone;
+  const userId = person.user_id as string;
+  const arrival = crew.arrivalOf(userId);
+  const [editing, setEditing] = React.useState<string | null>(null);
+  const busy = crew.set.isPending || crew.clear.isPending;
+  const mayCheckIn = person.status === 'Confirmed' || person.status === 'Invited';
+  const smallButton = 'text-xs font-medium underline disabled:opacity-50';
+
+  return (
+    <div className="mt-1.5">
+      <p className="text-xs font-medium">{arrival ? `Arrived ${arrivalTimeLabel(arrival.arrived_at, tz)}` : 'Not arrived yet'}</p>
+      {editing !== null ? (
+        <div className="flex items-center gap-2 mt-1">
+          <input
+            type="datetime-local"
+            aria-label={`Arrival time for ${person.name}`}
+            className="text-xs border rounded px-1 py-0.5"
+            value={editing}
+            onChange={(e) => setEditing(e.target.value)}
+          />
+          <button
+            type="button"
+            className={smallButton}
+            disabled={busy || !editing}
+            onClick={() =>
+              crew.set.mutate(
+                { userId, at: new Date(parseLocalToUTC(editing, tz || undefined)) },
+                { onSuccess: () => setEditing(null) },
+              )
+            }
+          >
+            Save
+          </button>
+          <button type="button" className={smallButton} onClick={() => setEditing(null)}>Cancel</button>
+        </div>
+      ) : (
+        !isOffline && (
+          <div className="flex items-center gap-3 mt-1">
+            {arrival ? (
+              <>
+                <button type="button" className={smallButton} aria-label={`Edit time for ${person.name}`} disabled={busy}
+                  onClick={() => setEditing(formatForDateTimeInput(arrival.arrived_at, tz || undefined))}>
+                  Edit time
+                </button>
+                <button type="button" className={smallButton} aria-label={`Clear ${person.name}`} disabled={busy}
+                  onClick={() => crew.clear.mutate({ userId })}>
+                  Clear
+                </button>
+              </>
+            ) : (
+              mayCheckIn && (
+                <button type="button" className={smallButton} aria-label={`Check in ${person.name}`} disabled={busy}
+                  onClick={() => crew.set.mutate({ userId, at: new Date() })}>
+                  Check in
+                </button>
+              )
+            )}
+          </div>
+        )
       )}
     </div>
   );

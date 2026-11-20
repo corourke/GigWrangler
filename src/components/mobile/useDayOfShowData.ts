@@ -18,8 +18,8 @@ import {
   saveDayOfShowDocument,
   saveGigDocumentsAhead,
 } from '../../services/mobile/dayOfShowFiles.service';
-import { recordMyArrival, undoMyArrival } from '../../services/mobile/crewArrival.service';
-import { canCheckInOwn, type MyArrival } from '../../utils/crewArrival';
+import { clearCrewArrival, recordMyArrival, setCrewArrival, undoMyArrival } from '../../services/mobile/crewArrival.service';
+import { canCheckInOwn, canManageArrival, type CrewArrival, type MyArrival } from '../../utils/crewArrival';
 import type { UserRole } from '../../utils/supabase/types';
 
 import { hasTodayTab } from './todayTab';
@@ -172,4 +172,41 @@ export function useMyArrival(sheet: DayOfShowSheet) {
   });
 
   return { canCheckIn: canCheckInOwn(sheet.crew, userId), arrival: sheet.my_arrival ?? null, record, undo };
+}
+
+/**
+ * Crew arrival times for an Admin or Manager of the gig's owner organization, or of the
+ * organization staffing a person (#458): who they may manage, and record, correct and clear a time.
+ * The sheet in the cache is updated at once.
+ */
+export function useCrewArrivals(sheet: DayOfShowSheet) {
+  const queryClient = useQueryClient();
+  const { user, userRole, selectedOrganization } = useAuth();
+  const sheetKey = queryKeys.dayOfShow(sheet.gig_id);
+  const change = (fn: (list: CrewArrival[]) => CrewArrival[]) => {
+    const current = queryClient.getQueryData<DayOfShowSheet | null>(sheetKey);
+    if (current) queryClient.setQueryData(sheetKey, { ...current, crew_arrivals: fn(current.crew_arrivals ?? []) });
+  };
+
+  const set = useMutation({
+    mutationFn: ({ userId, at }: { userId: string; at: Date }) => setCrewArrival(sheet.gig_id, userId, at),
+    networkMode: 'always',
+    onSuccess: (_r, { userId, at }) =>
+      change((list) => [...list.filter((a) => a.user_id !== userId), { user_id: userId, arrived_at: at.toISOString() }]),
+    onError: () => toast.error("Couldn't save the arrival. Try again."),
+  });
+  const clear = useMutation({
+    mutationFn: ({ userId }: { userId: string }) => clearCrewArrival(sheet.gig_id, userId),
+    networkMode: 'always',
+    onSuccess: (_r, { userId }) => change((list) => list.filter((a) => a.user_id !== userId)),
+    onError: () => toast.error("Couldn't clear the arrival. Try again."),
+  });
+
+  return {
+    canManage: (person: { user_id?: string | null; organization_id?: string | null }) =>
+      canManageArrival({ role: userRole, orgId: selectedOrganization?.id }, person, sheet.gig, user?.id),
+    arrivalOf: (userId?: string | null) => (sheet.crew_arrivals ?? []).find((a) => a.user_id === userId) ?? null,
+    set,
+    clear,
+  };
 }
