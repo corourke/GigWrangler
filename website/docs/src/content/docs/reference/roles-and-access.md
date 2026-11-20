@@ -21,6 +21,8 @@ You can be an **Admin** of one organization and a **Viewer** of another. Switchi
 | Delete a gig | ✓ | — | — | — |
 | Staff a gig and assign people to slots | ✓ | ✓ | — | — |
 | Use **Home** and day sheets on your phone | ✓ | ✓ | ✓ | — |
+| Check in on a gig you're confirmed for (your own arrival, on the day sheet) | ✓ | ✓ | ✓ | — |
+| See, check in, correct and clear crew arrival times (crew your organization owns the gig for or staffs) | ✓ | ✓ | — | — |
 | Accept or decline a slot you're asked to work (on your phone: from **Home**, or the gig's page) | ✓ | ✓ | ✓ | ✓ |
 | See staff pay rates and fees | ✓ | ✓ | — | — |
 | See a gig's **Financials** tab and **Financials → Purchases** | ✓ | ✓ | — | — |
