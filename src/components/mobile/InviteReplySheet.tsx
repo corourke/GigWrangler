@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '../ui/sheet';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMarkNotificationRead, useNotifications } from '../../hooks/useNotifications';
 import { queryKeys, invalidateAfterAssignmentChange } from '../../lib/queryKeys';
 import { fetchMyAssignment, setMyAssignmentStatus } from '../../services/mobile/myAssignments.service';
 import { formatDateTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
@@ -22,6 +23,9 @@ export default function InviteReplySheet({ assignmentId, onClose, onViewGigDetai
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const userId = user?.id ?? '';
+  // The bell's notification for this invite, found by assignment id among the person's own.
+  const notifications = useNotifications(user?.id);
+  const markRead = useMarkNotificationRead(user?.id);
 
   const invite = useQuery({
     queryKey: [...queryKeys.inviteState(userId, assignmentId), 'details'],
@@ -38,6 +42,9 @@ export default function InviteReplySheet({ assignmentId, onClose, onViewGigDetai
       void invalidateAfterAssignmentChange(queryClient, { gigId: invite.data?.gig?.id });
       void queryClient.invalidateQueries({ queryKey: queryKeys.needsYouInvites(userId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.inviteState(userId, assignmentId) });
+      for (const n of notifications.data ?? []) {
+        if (n.type === 'assignment.requested' && (n.payload as { assignment_id?: string } | null)?.assignment_id === assignmentId) markRead.mutate(n.id);
+      }
       onClose();
     },
     onError: () => toast.error("Couldn't send your reply. Try again."),

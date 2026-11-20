@@ -8,6 +8,16 @@ vi.mock('../../services/mobile/myAssignments.service', () => ({
   fetchMyAssignment: vi.fn(),
   setMyAssignmentStatus: vi.fn(),
 }));
+const markRead = vi.fn();
+const notifications = [
+  { id: 'n-9', type: 'assignment.requested', payload: { assignment_id: 'a-1' } },
+  { id: 'n-8', type: 'assignment.requested', payload: { assignment_id: 'a-2' } },
+  { id: 'n-7', type: 'gig.changed', payload: { assignment_id: 'a-1' } },
+];
+vi.mock('../../hooks/useNotifications', () => ({
+  useNotifications: () => ({ data: notifications }),
+  useMarkNotificationRead: () => ({ mutate: (...a: unknown[]) => markRead(...a) }),
+}));
 const toastError = vi.fn();
 const toastSuccess = vi.fn();
 vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a), success: (...a: unknown[]) => toastSuccess(...a) } }));
@@ -43,6 +53,14 @@ describe('InviteReplySheet', () => {
     await waitFor(() => expect(setMyAssignmentStatus).toHaveBeenCalledWith('a-1', 'Confirmed'));
     await waitFor(() => expect(p.onClose).toHaveBeenCalled());
     expect(toastSuccess).toHaveBeenCalledWith('Accepted');
+  });
+
+  // Docs Lead smoke 11-19: a plain /today?invite= link doesn't clear the bell, so the sheet does.
+  it("marks that invite's notification read when it is answered", async () => {
+    render(<InviteReplySheet {...props()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
+    await waitFor(() => expect(markRead).toHaveBeenCalledWith('n-9'));
+    expect(markRead).toHaveBeenCalledTimes(1); // not another invite's, nor another kind
   });
 
   it('Decline replies Declined', async () => {
