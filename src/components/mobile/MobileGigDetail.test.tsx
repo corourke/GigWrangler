@@ -63,8 +63,15 @@ vi.mock('../../services/organization.service', () => ({
   searchOrganizations: vi.fn(),
 }))
 
+vi.mock('../../services/mobile/crewRoster.service', () => ({
+  fetchGigCrewRoster: vi.fn(async () => []),
+  rosterToCrew: (rows: any[], known: Set<string>) =>
+    rows.filter((r) => !known.has(r.assignment_id)).map((r) => ({ key: `roster-${r.assignment_id}`, name: `${r.first_name} ${r.last_name}`, role: r.role_name, phone: r.phone, email: r.email, org_name: r.organization_name })),
+}))
+
 import { getGig, updateStaffAssignmentStatus, updateGig, updateGigParticipants } from '../../services/gig.service'
 import { searchOrganizations } from '../../services/organization.service'
+import { fetchGigCrewRoster } from '../../services/mobile/crewRoster.service'
 import { makeOrganization } from '../../test/factories'
 import { toast } from 'sonner'
 
@@ -693,5 +700,52 @@ describe('MobileGigDetail: organization search (A10 characterization)', () => {
     expect(await screen.findByText('Hall (any)', {}, { timeout: 1000 })).toBeInTheDocument()
     fireEvent.change(box, { target: { value: '' } })
     await waitFor(() => expect(screen.queryByText('Hall (any)')).not.toBeInTheDocument())
+  })
+})
+
+// Plan #466 part 2 (Cameron 11-20): Admins and Managers of any organization on the gig see the others' crew.
+describe("MobileGigDetail: other organizations' crew (#466)", () => {
+  const rosterRow = (over: Record<string, unknown> = {}) => ({
+    assignment_id: 'zz1', slot_id: 's9', organization_id: 'org-9', organization_name: 'Harbor Sound', user_id: 'u9',
+    first_name: 'Sam', last_name: 'Rivera', role_name: 'Monitor Engineer', status: 'Confirmed',
+    phone: '555-0177', email: 'sam@example.test', arrived_at: null, ...over,
+  })
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(getGig).mockResolvedValue(mockGig as unknown as Awaited<ReturnType<typeof getGig>>)
+    mockUseAuth.mockReturnValue({ user: { id: 'user-1' }, userRole: 'Manager', selectedOrganization: { id: 'org-2' } })
+  })
+
+  it('shows them in their own block with organization, role, phone and email actions', async () => {
+    vi.mocked(fetchGigCrewRoster).mockResolvedValue([rosterRow()] as any)
+    render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+    expect(await screen.findByText("Other organizations' crew")).toBeInTheDocument()
+    expect(screen.getByText('Sam Rivera')).toBeInTheDocument()
+    expect(screen.getByText(/Harbor Sound/)).toBeInTheDocument()
+    expect(screen.getByText(/Monitor Engineer/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Call Sam Rivera' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Email Sam Rivera' })).toHaveAttribute('href', 'mailto:sam@example.test')
+  })
+
+  it("doesn't repeat people the Staff card already lists", async () => {
+    vi.mocked(fetchGigCrewRoster).mockResolvedValue([rosterRow({ assignment_id: 'a1' })] as any)
+    render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+    await waitFor(() => expect(fetchGigCrewRoster).toHaveBeenCalledWith('gig-1'))
+    expect(screen.queryByText("Other organizations' crew")).not.toBeInTheDocument()
+  })
+
+  it('shows no block when there are none (Staff and Viewers get none from the server)', async () => {
+    vi.mocked(fetchGigCrewRoster).mockResolvedValue([])
+    render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+    expect(screen.queryByText("Other organizations' crew")).not.toBeInTheDocument()
+  })
+
+  it('shows no block, and no error, when the roster cannot be read', async () => {
+    vi.mocked(fetchGigCrewRoster).mockRejectedValue(new Error('network'))
+    render(<MobileGigDetail gigId="gig-1" onBack={vi.fn()} onViewPackingList={vi.fn()} />)
+    await waitFor(() => expect(screen.getByText('Summer Festival')).toBeInTheDocument())
+    expect(screen.queryByText("Other organizations' crew")).not.toBeInTheDocument()
   })
 })
