@@ -19,6 +19,12 @@ INSERT INTO gig_staff_assignments (slot_id, user_id, status) VALUES
   ('00000000-0000-0000-0000-0000000058b1', rls_test.u('b_viewer'),  'Declined'),
   ('00000000-0000-0000-0000-0000000058b1', rls_test.u('b_staff'),   'Confirmed');
 
+-- The statements below name people with rls_test.u(...), so the signed-in role may read the id table
+-- (this file is rolled back afterwards).
+GRANT USAGE ON SCHEMA rls_test TO authenticated;
+GRANT SELECT ON rls_test.ids TO authenticated;
+GRANT EXECUTE ON FUNCTION rls_test.u(text) TO authenticated;
+
 -- Writes as `actor` and keeps the change (try() rolls it back), for checks that need a row to exist.
 CREATE FUNCTION rls_test.run(p_actor text, p_sql text) RETURNS int LANGUAGE plpgsql AS $$
 DECLARE n int;
@@ -59,8 +65,8 @@ SELECT rls_test.expect('12 hours before the start is allowed', rls_test.arrive('
 SELECT rls_test.expect('earlier than that is not', rls_test.arrive('a_staff', 'a_staff', $$now() - interval '12 hours 1 minute'$$), -1);
 SELECT rls_test.expect('12 hours after the end is allowed', rls_test.arrive('a_staff', 'a_staff', $$now() + interval '15 hours 59 minutes'$$), 1);
 SELECT rls_test.expect('later than that is not', rls_test.arrive('a_staff', 'a_staff', $$now() + interval '16 hours 1 minute'$$), -1);
-SELECT rls_test.expect("a person may not check in someone else", rls_test.arrive('a_staff', 'b_staff'), -1);
-SELECT rls_test.expect("a Staff colleague may not check in someone", rls_test.arrive('a_staff', 'a_manager'), -1);
+SELECT rls_test.expect('a person may not check in someone else', rls_test.arrive('a_staff', 'b_staff'), -1);
+SELECT rls_test.expect('a Staff colleague may not check in someone', rls_test.arrive('a_staff', 'a_manager'), -1);
 
 -- One row per person per gig: a second tap (two slots, one person) can't make a second row.
 SELECT rls_test.expect('first tap kept', rls_test.arrive_keep('a_staff', 'a_staff'), 1);
@@ -71,9 +77,9 @@ SELECT rls_test.expect('two slots, one row', rls_test.rows_of('a_staff'), 1);
 SELECT rls_test.expect('b_staff checks in (kept)', rls_test.arrive_keep('b_staff', 'b_staff'), 1);
 SELECT rls_test.expect('crew see their own only', rls_test.visible(rls_test.u('a_staff'), 'gig_crew_arrivals'), 1);
 SELECT rls_test.expect('another crew member sees only their own', rls_test.visible(rls_test.u('b_staff'), 'gig_crew_arrivals'), 1);
-SELECT rls_test.expect("the staffing org's Manager sees its crew's", rls_test.visible(rls_test.u('b_manager'), 'gig_crew_arrivals'), 1);
-SELECT rls_test.expect("the gig owner's Admin sees all crew, including the other org's", rls_test.visible(rls_test.u('a_admin'), 'gig_crew_arrivals'), 2);
-SELECT rls_test.expect("the gig owner's Manager does too", rls_test.visible(rls_test.u('a_manager'), 'gig_crew_arrivals'), 2);
+SELECT rls_test.expect('the staffing org''s Manager sees its crew''s', rls_test.visible(rls_test.u('b_manager'), 'gig_crew_arrivals'), 1);
+SELECT rls_test.expect('the gig owner''s Admin sees all crew, including the other org''s', rls_test.visible(rls_test.u('a_admin'), 'gig_crew_arrivals'), 2);
+SELECT rls_test.expect('the gig owner''s Manager does too', rls_test.visible(rls_test.u('a_manager'), 'gig_crew_arrivals'), 2);
 SELECT rls_test.expect('Staff and Viewer members of the owner see only their own', rls_test.visible(rls_test.u('a_viewer'), 'gig_crew_arrivals'), 0);
 SELECT rls_test.expect('an unrelated org sees nothing', rls_test.visible(rls_test.u('c_admin'), 'gig_crew_arrivals'), 0);
 SELECT rls_test.expect('signed out: refused', rls_test.try_anon('SELECT * FROM gig_crew_arrivals'), -1);
@@ -82,23 +88,25 @@ SELECT rls_test.expect('signed out: refused', rls_test.try_anon('SELECT * FROM g
 SELECT rls_test.expect('own time changed', rls_test.try(rls_test.u('a_staff'), $$UPDATE gig_crew_arrivals SET arrived_at = now() - interval '1 hour' WHERE user_id = rls_test.u('a_staff')$$), 1);
 SELECT rls_test.expect('own time undone', rls_test.try(rls_test.u('a_staff'), $$DELETE FROM gig_crew_arrivals WHERE user_id = rls_test.u('a_staff')$$), 1);
 SELECT rls_test.expect('the person and gig on a row cannot be changed', rls_test.try(rls_test.u('a_staff'), format($q$UPDATE gig_crew_arrivals SET user_id = %L WHERE user_id = %L$q$, rls_test.u('b_staff'), rls_test.u('a_staff'))), -1);
-SELECT rls_test.expect("a person cannot change another's", rls_test.try(rls_test.u('a_staff'), $$UPDATE gig_crew_arrivals SET arrived_at = now() WHERE user_id = rls_test.u('b_staff')$$), 0);
-SELECT rls_test.expect("a person cannot undo another's", rls_test.try(rls_test.u('a_staff'), $$DELETE FROM gig_crew_arrivals WHERE user_id = rls_test.u('b_staff')$$), 0);
+SELECT rls_test.expect('a person cannot change another''s', rls_test.try(rls_test.u('a_staff'), $$UPDATE gig_crew_arrivals SET arrived_at = now() WHERE user_id = rls_test.u('b_staff')$$), 0);
+SELECT rls_test.expect('a person cannot undo another''s', rls_test.try(rls_test.u('a_staff'), $$DELETE FROM gig_crew_arrivals WHERE user_id = rls_test.u('b_staff')$$), 0);
 
 -- ── The staffing organization's Admins and Managers ────────────────────────────────────────
 SELECT rls_test.expect('staffing Manager corrects (kept)', rls_test.try(rls_test.u('b_manager'), $$UPDATE gig_crew_arrivals SET arrived_at = now() - interval '2 hours' WHERE user_id = rls_test.u('b_staff')$$), 1);
 SELECT rls_test.expect('staffing Admin clears', rls_test.try(rls_test.u('b_admin'), $$DELETE FROM gig_crew_arrivals WHERE user_id = rls_test.u('b_staff')$$), 1);
+-- (the checks above were rolled back; start these from no row for b_staff)
+DELETE FROM gig_crew_arrivals WHERE user_id = rls_test.u('b_staff');
 SELECT rls_test.expect('staffing Manager checks in their crew', rls_test.arrive('b_manager', 'b_staff'), 1);
 SELECT rls_test.expect('staffing Admin checks in their crew', rls_test.arrive('b_admin', 'b_staff'), 1);
-SELECT rls_test.expect("a Viewer of the staffing org may not", rls_test.arrive('b_viewer', 'b_staff'), -1);
-SELECT rls_test.expect("a Staff member of the staffing org may not", rls_test.arrive('a_staff', 'a_manager'), -1);
+SELECT rls_test.expect('a Viewer of the staffing org may not', rls_test.arrive('b_viewer', 'b_staff'), -1);
+SELECT rls_test.expect('a Staff member of the staffing org may not', rls_test.arrive('a_staff', 'a_manager'), -1);
 SELECT rls_test.expect('not for someone who is not on their slots', rls_test.arrive('b_manager', 'a_staff'), -1);
 SELECT rls_test.expect('not for a Declined assignment', rls_test.arrive('b_manager', 'b_viewer'), -1);
 SELECT rls_test.expect('outside the window, a Manager cannot check in either', rls_test.arrive('b_manager', 'b_staff', $$now() + interval '17 hours'$$), -1);
 
 -- ── The gig owner's Admins and Managers, for crew from another organization ────────────────
-SELECT rls_test.expect("owner Admin checks in another org's crew", rls_test.arrive('a_admin', 'b_staff'), 1);
-SELECT rls_test.expect("owner Manager checks in another org's crew", rls_test.arrive('a_manager', 'b_staff'), 1);
+SELECT rls_test.expect('owner Admin checks in another org''s crew', rls_test.arrive('a_admin', 'b_staff'), 1);
+SELECT rls_test.expect('owner Manager checks in another org''s crew', rls_test.arrive('a_manager', 'b_staff'), 1);
 SELECT rls_test.expect('owner Staff may not', rls_test.arrive('a_staff', 'b_staff'), -1);
 SELECT rls_test.expect('owner Viewer may not', rls_test.arrive('a_viewer', 'b_staff'), -1);
 SELECT rls_test.expect('an unrelated Admin may not', rls_test.arrive('c_admin', 'b_staff'), -1);

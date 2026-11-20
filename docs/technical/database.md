@@ -929,6 +929,26 @@ Actual staff assigned to positions
 
 ---
 
+### gig_crew_arrivals
+
+When each person arrived at a gig (#458; migration 20261120100000). One row per person per gig, whatever their slots. Information only: nothing in pay, financials, reports or exports reads it.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| gig_id | UUID | Reference to gigs.id (ON DELETE CASCADE); part of the primary key |
+| user_id | UUID | Reference to users.id (ON DELETE CASCADE); part of the primary key |
+| arrived_at | TIMESTAMPTZ | The phone's time when it was tapped (NOT NULL) |
+| set_by | UUID | Who wrote the row; set by a trigger to the signed-in user (nullable, ON DELETE SET NULL) |
+| updated_at | TIMESTAMPTZ | Server time of the last write; for audit, not shown (default NOW()) |
+
+**Notes:**
+- A person with a Confirmed or Invited assignment on the gig records their own, from 12 hours before the gig starts to 12 hours after it ends, and may change or undo it unless a Manager or Admin set it.
+- Admins and Managers of the gig's owner organization, and of any organization with a staff slot holding that person on the gig, may record, correct and clear anyone's. A person sees their own; those Admins and Managers see their crew's.
+- A person acting on their own row is treated as crew even if they also manage the gig.
+- Helpers (security definer): `holds_checkin_assignment`, `manages_gig_arrivals`, `gig_arrival_time_ok`. Tests: `supabase/tests/rls/97_gig_crew_arrivals.test.sql`.
+
+---
+
 ## Equipment Tables
 
 ### ER Diagram: Equipment & Inventory
