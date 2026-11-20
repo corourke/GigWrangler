@@ -270,27 +270,32 @@ function PersonRow({ person, children }: { person: DayOfShowPerson; children?: R
 /** The crew list; for Admins and Managers who manage a person, with their arrival time (#458). */
 function CrewSection({ sheet, isOffline }: { sheet: DayOfShowSheet; isOffline: boolean }) {
   const crew = useCrewArrivals(sheet);
-  if (sheet.crew.length === 0) return null;
+  const all = [...sheet.crew, ...(sheet.crew_others ?? [])];
+  if (all.length === 0) return null;
   // A person on two slots is two lines; their arrival (and its controls) shows once, on the first.
   const linesOf = new Map<string, DayOfShowSheet['crew']>();
-  for (const p of sheet.crew) if (p.user_id) linesOf.set(p.user_id, [...(linesOf.get(p.user_id) ?? []), p]);
+  for (const p of all) if (p.user_id) linesOf.set(p.user_id, [...(linesOf.get(p.user_id) ?? []), p]);
+  // Admins and Managers of any organization on the gig get other organizations' crew from the server (#466): they see times.
+  const viewsRoster = (sheet.crew_others ?? []).length > 0;
   const shown = new Set<string>();
   return (
     <Card style={{ gap: 0 }}>
       <CardContent className="p-3">
         <p className={SECTION_TITLE}><Users className="w-3.5 h-3.5" />Crew</p>
         <div className="divide-y divide-border/50">
-          {sheet.crew.map((p) => {
+          {all.map((p) => {
             const lines = p.user_id ? (linesOf.get(p.user_id) ?? [p]) : [p];
             const first = !p.user_id || !shown.has(p.user_id);
             if (p.user_id) shown.add(p.user_id);
+            const manages = lines.some((l) => crew.canManage(l));
             return (
               <PersonRow key={p.key} person={p}>
-                {first && lines.some((l) => crew.canManage(l)) && (
+                {first && p.user_id && (manages || (viewsRoster && !crew.isOwn(p.user_id))) && (
                   <CrewArrivalLine
                     sheet={sheet}
                     person={p}
                     mayCheckIn={lines.some((l) => l.status === 'Confirmed' || l.status === 'Invited')}
+                    mayChange={manages}
                     crew={crew}
                     isOffline={isOffline}
                   />
@@ -304,10 +309,12 @@ function CrewSection({ sheet, isOffline }: { sheet: DayOfShowSheet; isOffline: b
   );
 }
 
-function CrewArrivalLine({ sheet, person, mayCheckIn, crew, isOffline }: {
+function CrewArrivalLine({ sheet, person, mayCheckIn, mayChange, crew, isOffline }: {
   sheet: DayOfShowSheet;
   person: DayOfShowSheet['crew'][number];
   mayCheckIn: boolean;
+  /** False: the time is shown read-only (an Admin or Manager of another organization). */
+  mayChange: boolean;
   crew: ReturnType<typeof useCrewArrivals>;
   isOffline: boolean;
 }) {
@@ -346,7 +353,7 @@ function CrewArrivalLine({ sheet, person, mayCheckIn, crew, isOffline }: {
           <button type="button" className={smallButton} onClick={() => setEditing(null)}>Cancel</button>
         </div>
       ) : (
-        !isOffline && (
+        mayChange && !isOffline && (
           <div className="flex items-center gap-3 mt-1">
             {arrival ? (
               <>

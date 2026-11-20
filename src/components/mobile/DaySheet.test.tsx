@@ -431,3 +431,63 @@ describe('Arrival on the day sheet (managing)', () => {
     expect(screen.getAllByRole('button', { name: 'Check in Robin Crew' })).toHaveLength(1)
   })
 })
+
+// Plan #466 part 2 (Cameron 11-20): Admins and Managers of any organization on the gig see the
+// other organizations' crew, with the organization, phone and email; times read-only unless they manage.
+describe("Other organizations' crew on the day sheet (#466)", () => {
+  const mine = { key: 'a1', name: 'Sam Crew', role: 'FOH Engineer', title: 'FOH Engineer', phone: null, email: null, user_id: 'u1', status: 'Confirmed', organization_id: 'org-act' }
+  const other = (over: Record<string, unknown> = {}) => ({ key: 'roster-a9', name: 'Sam Rivera', role: 'Monitor Engineer', title: 'Monitor Engineer', phone: '555-0177', email: 'sam@example.test', org_name: 'Harbor Sound', user_id: 'u9', status: 'Confirmed', organization_id: 'org-prod', ...over })
+  const load = (others: any[], arrivals: { user_id: string; arrived_at: string }[] = []) =>
+    vi.mocked(loadDayOfShowSheet).mockImplementation(async () => ({ ...sheetFor(TODAY), gig: { ...TODAY, owner_organization_id: 'org-venue' }, crew: [mine], crew_others: others, crew_arrivals: arrivals }) as any)
+  const as = (role: string, orgId: string) => { auth.userRole = role; (auth as any).selectedOrganization = { id: orgId } }
+  const open = async () => { render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />); await screen.findAllByText('Sam Crew') }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+    setOnline(true)
+  })
+  afterEach(() => { vi.useRealTimers(); setOnline(true); as('Staff', 'org-1') })
+
+  it('lists them with their organization, phone and email actions', async () => {
+    as('Admin', 'org-act')
+    load([other()])
+    await open()
+    expect(screen.getByText('Sam Rivera')).toBeInTheDocument()
+    expect(screen.getByText(/Harbor Sound/)).toBeInTheDocument()
+    expect(screen.getByText('555-0177')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Call Sam Rivera' })).toHaveAttribute('href', expect.stringContaining('555'))
+    expect(screen.getByRole('link', { name: 'Email Sam Rivera' })).toHaveAttribute('href', 'mailto:sam@example.test')
+  })
+
+  it("shows their arrival time read-only to an Admin of a third organization", async () => {
+    as('Admin', 'org-act')
+    load([other()], [{ user_id: 'u9', arrived_at: '2026-11-10T22:42:00Z' }])
+    await open()
+    expect(screen.getByText('Arrived 2:42 PM')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Check in|Edit time|Clear/ })).not.toBeInTheDocument()
+  })
+
+  it('shows Not arrived yet, still without controls, when there is no time', async () => {
+    as('Manager', 'org-act')
+    load([other()])
+    await open()
+    expect(screen.getByText('Not arrived yet')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Check in/ })).not.toBeInTheDocument()
+  })
+
+  it("the gig owner's Admin can check them in", async () => {
+    as('Admin', 'org-venue')
+    load([other()])
+    await open()
+    expect(screen.getByRole('button', { name: 'Check in Sam Rivera' })).toBeInTheDocument()
+  })
+
+  it('shows Staff nothing extra when the server gives them none', async () => {
+    as('Staff', 'org-act')
+    load([])
+    await open()
+    expect(screen.queryByText('Not arrived yet')).not.toBeInTheDocument()
+  })
+})

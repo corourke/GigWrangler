@@ -23,6 +23,7 @@ export const queryKeys = {
   /** Per-gig money totals for the list's optional columns and the export. */
   gigAggregates: (orgId: string) => ['gigs', orgId, 'aggregates'] as const,
   gig: (gigId: string) => ['gig', gigId] as const,
+  gigCrewRoster: (gigId: string) => ['gig', gigId, 'crewRoster'] as const,
   gigChildCount: (gigId: string) => ['gig', gigId, 'children'] as const,
   /** Conflicts for a gig as seen by one organization, for the times they were checked at. */
   gigConflicts: (gigId: string, orgId: string, when: { start: string; end: string; timezone?: string; allDay: boolean }) =>
