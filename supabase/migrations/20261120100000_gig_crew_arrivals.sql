@@ -10,48 +10,66 @@
 --     slot holding that person on the gig, may record, correct and clear anyone's.
 --   * A person sees their own; those Admins and Managers see their crew's.
 
--- 1. Helpers: they read assignments and gigs the caller's own policies might hide -------------
+-- 1. Helpers: they use the signed-in person (auth.uid()), never one passed in -----------------
+-- They read assignments and gigs the caller's own policies might hide, so each answers only for
+-- the person asking (null when nobody is signed in, as for the service role).
+CREATE OR REPLACE FUNCTION public.manages_gig_arrivals(p_gig_id uuid, p_user_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT auth.uid() IS NOT NULL AND (
+    EXISTS (
+      SELECT 1 FROM gigs g
+       WHERE g.id = p_gig_id AND g.owner_organization_id IS NOT NULL
+         AND user_is_admin_or_manager_of_org(g.owner_organization_id, auth.uid())
+    )
+    OR EXISTS (
+      SELECT 1
+        FROM gig_staff_slots s
+        JOIN gig_staff_assignments a ON a.slot_id = s.id
+       WHERE s.gig_id = p_gig_id AND a.user_id = p_user_id
+         AND user_is_admin_or_manager_of_org(s.organization_id, auth.uid())
+    )
+  )
+$$;
+
+-- A Confirmed or Invited assignment on the gig: answered for the signed-in person, or for someone
+-- they manage the arrivals of.
 CREATE OR REPLACE FUNCTION public.holds_checkin_assignment(p_gig_id uuid, p_user_id uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT EXISTS (
-    SELECT 1
-      FROM gig_staff_assignments a
-      JOIN gig_staff_slots s ON s.id = a.slot_id
-     WHERE s.gig_id = p_gig_id AND a.user_id = p_user_id AND a.status IN ('Confirmed', 'Invited')
-  )
+  SELECT auth.uid() IS NOT NULL
+     AND (p_user_id = auth.uid() OR public.manages_gig_arrivals(p_gig_id, p_user_id))
+     AND EXISTS (
+       SELECT 1
+         FROM gig_staff_assignments a
+         JOIN gig_staff_slots s ON s.id = a.slot_id
+        WHERE s.gig_id = p_gig_id AND a.user_id = p_user_id AND a.status IN ('Confirmed', 'Invited')
+     )
 $$;
 
-CREATE OR REPLACE FUNCTION public.manages_gig_arrivals(p_gig_id uuid, p_user_id uuid, p_caller uuid)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT EXISTS (
-           SELECT 1 FROM gigs g
-            WHERE g.id = p_gig_id AND g.owner_organization_id IS NOT NULL
-              AND user_is_admin_or_manager_of_org(g.owner_organization_id, p_caller)
-         )
-      OR EXISTS (
-           SELECT 1
-             FROM gig_staff_slots s
-             JOIN gig_staff_assignments a ON a.slot_id = s.id
-            WHERE s.gig_id = p_gig_id AND a.user_id = p_user_id
-              AND user_is_admin_or_manager_of_org(s.organization_id, p_caller)
-         )
-$$;
-
+-- The time is within 12 hours of the gig's start and end: answered only for someone who can already
+-- see the gig (or is assigned to it).
 CREATE OR REPLACE FUNCTION public.gig_arrival_time_ok(p_gig_id uuid, p_at timestamptz)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM gigs g
-     WHERE g.id = p_gig_id
-       AND p_at >= g.start - interval '12 hours'
-       AND p_at <= g."end" + interval '12 hours'
-  )
+  SELECT auth.uid() IS NOT NULL
+     AND (
+       public.user_has_access_to_gig(p_gig_id, auth.uid())
+       OR EXISTS (
+         SELECT 1 FROM gig_staff_assignments a JOIN gig_staff_slots s ON s.id = a.slot_id
+          WHERE s.gig_id = p_gig_id AND a.user_id = auth.uid()
+       )
+     )
+     AND EXISTS (
+       SELECT 1 FROM gigs g
+        WHERE g.id = p_gig_id
+          AND p_at >= g.start - interval '12 hours'
+          AND p_at <= g."end" + interval '12 hours'
+     )
 $$;
 
 REVOKE ALL ON FUNCTION public.holds_checkin_assignment(uuid, uuid) FROM PUBLIC, anon;
-REVOKE ALL ON FUNCTION public.manages_gig_arrivals(uuid, uuid, uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.manages_gig_arrivals(uuid, uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.gig_arrival_time_ok(uuid, timestamptz) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.holds_checkin_assignment(uuid, uuid) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.manages_gig_arrivals(uuid, uuid, uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.manages_gig_arrivals(uuid, uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.gig_arrival_time_ok(uuid, timestamptz) TO authenticated, service_role;
 
 -- 2. The table -----------------------------------------------------------------------------------
@@ -99,7 +117,7 @@ CREATE POLICY "See own arrival, or the crew's when managing" ON public.gig_crew_
   FOR SELECT TO authenticated
   USING (
     user_id = (SELECT auth.uid())
-    OR public.manages_gig_arrivals(gig_id, user_id, (SELECT auth.uid()))
+    OR public.manages_gig_arrivals(gig_id, user_id)
   );
 
 CREATE POLICY "Record own arrival, or the crew's when managing" ON public.gig_crew_arrivals
@@ -109,7 +127,7 @@ CREATE POLICY "Record own arrival, or the crew's when managing" ON public.gig_cr
     AND public.holds_checkin_assignment(gig_id, user_id)
     AND (
       user_id = (SELECT auth.uid())
-      OR public.manages_gig_arrivals(gig_id, user_id, (SELECT auth.uid()))
+      OR public.manages_gig_arrivals(gig_id, user_id)
     )
   );
 
@@ -117,13 +135,13 @@ CREATE POLICY "Change own arrival unless a manager set it, or the crew's when ma
   FOR UPDATE TO authenticated
   USING (
     (user_id = (SELECT auth.uid()) AND set_by = (SELECT auth.uid()))
-    OR (user_id <> (SELECT auth.uid()) AND public.manages_gig_arrivals(gig_id, user_id, (SELECT auth.uid())))
+    OR (user_id <> (SELECT auth.uid()) AND public.manages_gig_arrivals(gig_id, user_id))
   )
   WITH CHECK (
     public.gig_arrival_time_ok(gig_id, arrived_at)
     AND (
       user_id = (SELECT auth.uid())
-      OR public.manages_gig_arrivals(gig_id, user_id, (SELECT auth.uid()))
+      OR public.manages_gig_arrivals(gig_id, user_id)
     )
   );
 
@@ -131,7 +149,7 @@ CREATE POLICY "Undo own arrival unless a manager set it, or clear the crew's whe
   FOR DELETE TO authenticated
   USING (
     (user_id = (SELECT auth.uid()) AND set_by = (SELECT auth.uid()))
-    OR (user_id <> (SELECT auth.uid()) AND public.manages_gig_arrivals(gig_id, user_id, (SELECT auth.uid())))
+    OR (user_id <> (SELECT auth.uid()) AND public.manages_gig_arrivals(gig_id, user_id))
   );
 
 -- Every table with row-level security carries the two-factor rule (migration 20261107110000).

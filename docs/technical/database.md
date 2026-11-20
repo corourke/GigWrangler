@@ -945,7 +945,7 @@ When each person arrived at a gig (#458; migration 20261120100000). One row per 
 - A person with a Confirmed or Invited assignment on the gig records their own, from 12 hours before the gig starts to 12 hours after it ends, and may change or undo it unless a Manager or Admin set it.
 - Admins and Managers of the gig's owner organization, and of any organization with a staff slot holding that person on the gig, may record, correct and clear anyone's. A person sees their own; those Admins and Managers see their crew's.
 - A person acting on their own row is treated as crew even if they also manage the gig.
-- Helpers (security definer): `holds_checkin_assignment`, `manages_gig_arrivals`, `gig_arrival_time_ok`. Tests: `supabase/tests/rls/97_gig_crew_arrivals.test.sql`.
+- Helpers (security definer, each answering for the signed-in person only): `holds_checkin_assignment`, `manages_gig_arrivals`, `gig_arrival_time_ok`. Tests: `supabase/tests/rls/97_gig_crew_arrivals.test.sql`.
 
 ---
 

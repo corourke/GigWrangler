@@ -2599,7 +2599,7 @@ export type Database = {
           }
       is_platform_moderator: { Args: never; Returns: boolean }
       manages_gig_arrivals: {
-        Args: { p_caller: string; p_gig_id: string; p_user_id: string }
+        Args: { p_gig_id: string; p_user_id: string }
         Returns: boolean
       }
       kit_would_create_cycle: {
