@@ -21,6 +21,8 @@ vi.mock('../../utils/idb/store', () => ({
     addToOutbox: vi.fn().mockResolvedValue(1),
     removeFromOutbox: vi.fn().mockResolvedValue(undefined),
     updateOutboxItem: vi.fn().mockResolvedValue(undefined),
+    getDayOfShow: vi.fn().mockResolvedValue(undefined),
+    putDayOfShow: vi.fn().mockResolvedValue(undefined),
   },
 }))
 
@@ -528,3 +530,52 @@ describe('offlineSyncService: receipts kept on the phone', () => {
     vi.mocked(idbStore.getOutbox).mockResolvedValue([])
   })
 })
+
+// Plan #458: crew arrival times queued on the phone.
+describe('offlineSyncService: CREW_ARRIVAL handler', () => {
+  const sent = (arrivedAt: string | null) => outboxItem('CREW_ARRIVAL' as any, { gigId: 'g1', userId: 'user-1', arrivedAt });
+  const upsertChain = (error: any = null) => {
+    const chain = makeChain({ data: null, error });
+    (chain as any).upsert = vi.fn().mockReturnValue(chain);
+    return chain;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('saves a queued arrival', async () => {
+    const chain = upsertChain();
+    mockFrom.mockReturnValue(chain);
+    await offlineSyncService.syncItem(sent('2026-11-10T22:42:00Z'));
+    expect(mockFrom).toHaveBeenCalledWith('gig_crew_arrivals');
+    expect(chain.upsert).toHaveBeenCalledWith({ gig_id: 'g1', user_id: 'user-1', arrived_at: '2026-11-10T22:42:00Z' }, { onConflict: 'gig_id,user_id' });
+  });
+
+  it("then drops 'waiting to send' from the phone's copy of the sheet", async () => {
+    mockFrom.mockReturnValue(upsertChain());
+    vi.mocked(idbStore.getDayOfShow as any).mockResolvedValue({ gig_id: 'g1', saved_at: 1, my_arrival: { arrived_at: '2026-11-10T22:42:00Z', by_manager: false, pending: true } });
+    await offlineSyncService.syncItem(sent('2026-11-10T22:42:00Z'));
+    expect(idbStore.putDayOfShow).toHaveBeenCalledWith(expect.objectContaining({ my_arrival: { arrived_at: '2026-11-10T22:42:00Z', by_manager: false } }));
+  });
+
+  it('removes the arrival for a queued undo', async () => {
+    const chain = makeChain({ data: null, error: null });
+    mockFrom.mockReturnValue(chain);
+    await offlineSyncService.syncItem(sent(null));
+    expect(chain.delete).toHaveBeenCalled();
+    expect(chain.eq).toHaveBeenCalledWith('gig_id', 'g1');
+    expect(chain.eq).toHaveBeenCalledWith('user_id', 'user-1');
+  });
+
+  it('says so, without retrying, when the server refuses it (a Manager may have set it)', async () => {
+    mockFrom.mockReturnValue(upsertChain({ code: '42501', message: 'row-level security' }));
+    await expect(offlineSyncService.syncItem(sent('2026-11-10T22:42:00Z'))).resolves.toBeUndefined();
+    expect(toast.error).toHaveBeenCalledWith("Couldn't save the arrival. A manager may have set it.");
+  });
+
+  it('retries on any other failure', async () => {
+    mockFrom.mockReturnValue(upsertChain({ code: '08006', message: 'network' }));
+    await expect(offlineSyncService.syncItem(sent('2026-11-10T22:42:00Z'))).rejects.toBeTruthy();
+  });
+});

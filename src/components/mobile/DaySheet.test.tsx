@@ -13,6 +13,8 @@ vi.mock('../../services/mobile/dayOfShow.service', async (importOriginal) => {
   return { ...actual, loadDayOfShowSheet: vi.fn() }
 })
 vi.mock('../../services/attachment.service', () => ({ getAttachmentUrl: vi.fn() }))
+vi.mock('../../services/mobile/crewArrival.service', () => ({ recordMyArrival: vi.fn(), undoMyArrival: vi.fn() }))
+const toastSuccess = vi.fn()
 vi.mock('../../services/mobile/dayOfShowFiles.service', async (importOriginal) => {
   const actual: any = await importOriginal()
   return {
@@ -33,9 +35,10 @@ vi.mock('./DaySheetGigPicker', () => ({
     </div>
   ),
 }))
-vi.mock('sonner', () => ({ toast: { error: (...a: any[]) => toastError(...a), success: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { error: (...a: any[]) => toastError(...a), success: (...a: any[]) => toastSuccess(...a) } }))
 
 import { loadDayOfShowSheet, type DayOfShowSheet } from '../../services/mobile/dayOfShow.service'
+import { recordMyArrival, undoMyArrival } from '../../services/mobile/crewArrival.service'
 import { saveGigDocumentsAhead, listSavedDocuments, saveDayOfShowDocument, getSavedDocument } from '../../services/mobile/dayOfShowFiles.service'
 
 const NOW = new Date('2026-11-10T17:00:00Z') // 9 AM in Los Angeles
@@ -180,5 +183,103 @@ describe('The day sheet (DaySheet, via MobileDaySheet)', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Save stage-plot.pdf for offline' }))
       await waitFor(() => expect(toastError).toHaveBeenCalledWith("This gig's saved documents would pass 50 MB"))
     })
+  })
+})
+
+// Plan #458 part 2 (Cameron 11-20): a crew member records their own arrival from the day sheet.
+describe('Arrival on the day sheet (crew)', () => {
+  const me = (status = 'Confirmed') => [{ key: 'a1', name: 'Sam Crew', role: 'FOH Engineer', title: 'FOH Engineer', phone: null, email: null, user_id: 'u1', status }]
+  const load = (extra: Partial<DayOfShowSheet> = {}, crew: any = me()) =>
+    vi.mocked(loadDayOfShowSheet).mockImplementation(async () => ({ ...sheetFor(TODAY), crew, ...extra }) as any)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW) // 9 AM in Los Angeles: the gig starts at 2 PM, so the window is open
+    setOnline(true)
+    vi.mocked(recordMyArrival).mockResolvedValue({ outcome: 'saved', arrived_at: '2026-11-10T17:00:00Z' })
+    vi.mocked(undoMyArrival).mockResolvedValue('undone')
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    setOnline(true)
+  })
+
+  it("shows I've arrived to a crew member; tapping it records it and shows the time with Undo", async () => {
+    load()
+    render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: "I've arrived" }))
+    await waitFor(() => expect(recordMyArrival).toHaveBeenCalledWith('g1'))
+    expect(await screen.findByText('Arrived 9:00 AM')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: "I've arrived" })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+  })
+
+  it('Undo takes it back', async () => {
+    load({ my_arrival: { arrived_at: '2026-11-10T17:00:00Z', by_manager: false } })
+    render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
+    expect(await screen.findByText('Arrived 9:00 AM')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(undoMyArrival).toHaveBeenCalledWith('g1'))
+    expect(await screen.findByRole('button', { name: "I've arrived" })).toBeInTheDocument()
+  })
+
+  it('a time a Manager or Admin set has no Undo, and says so', async () => {
+    load({ my_arrival: { arrived_at: '2026-11-10T17:00:00Z', by_manager: true } })
+    render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
+    expect(await screen.findByText('Arrived 9:00 AM')).toBeInTheDocument()
+    expect(screen.getByText('A manager set your arrival time.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+  })
+
+  it("an Undo the server refuses says a manager set it and shows the server's time", async () => {
+    load({ my_arrival: { arrived_at: '2026-11-10T17:00:00Z', by_manager: false } })
+    vi.mocked(undoMyArrival).mockResolvedValue('locked')
+    render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith('A manager set your arrival time.'))
+  })
+
+  it('offline: shows it as waiting to send', async () => {
+    setOnline(false)
+    load({ my_arrival: { arrived_at: '2026-11-10T17:00:00Z', by_manager: false, pending: true } })
+    render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
+    expect(await screen.findByText("Arrived 9:00 AM · will send when you're online")).toBeInTheDocument()
+  })
+
+  it('offline: a tap is queued and shown as waiting to send', async () => {
+    setOnline(false)
+    load()
+    vi.mocked(recordMyArrival).mockResolvedValue({ outcome: 'queued', arrived_at: '2026-11-10T17:00:00Z' })
+    render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: "I've arrived" }))
+    expect(await screen.findByText("Arrived 9:00 AM · will send when you're online")).toBeInTheDocument()
+  })
+
+  it('a failed save says so and keeps the button', async () => {
+    load()
+    vi.mocked(recordMyArrival).mockRejectedValue(new Error('nope'))
+    render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: "I've arrived" }))
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Couldn't save the arrival. Try again."))
+    expect(screen.getByRole('button', { name: "I've arrived" })).toBeInTheDocument()
+  })
+
+  it('shows nothing to someone not on the crew, on Requested, or for another person', async () => {
+    for (const crew of [[], me('Requested'), me('Confirmed').map((c) => ({ ...c, user_id: 'u2' }))]) {
+      load({}, crew)
+      const view = render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
+      await screen.findByText('Tonight Show')
+      expect(screen.queryByRole('button', { name: "I've arrived" })).not.toBeInTheDocument()
+      view.unmount()
+    }
+  })
+
+  it('shows nothing outside the window (more than 12 hours before the start)', async () => {
+    vi.setSystemTime(new Date('2026-11-09T22:00:00Z')) // 26 hours before the gig starts
+    load()
+    render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
+    await screen.findByText('Tonight Show')
+    expect(screen.queryByRole('button', { name: "I've arrived" })).not.toBeInTheDocument()
   })
 })

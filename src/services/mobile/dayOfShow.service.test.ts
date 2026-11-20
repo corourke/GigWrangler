@@ -13,6 +13,7 @@ vi.mock('../gig.service', () => ({ getGig: vi.fn() }));
 vi.mock('../gigParticipantContacts.service', () => ({ getAllGigContacts: vi.fn() }));
 vi.mock('../attachment.service', () => ({ getEntityAttachments: vi.fn() }));
 vi.mock('./myAssignments.service', () => ({ loadMyUpcomingAssignments: vi.fn() }));
+vi.mock('./crewArrival.service', () => ({ fetchMyArrival: vi.fn(async () => null) }));
 vi.mock('./dayOfShowFiles.service', () => ({
   removeSavedDocumentsForGig: vi.fn(async () => {}),
   saveDayOfShowDocument: vi.fn(async () => ({ saved: true })),
@@ -25,6 +26,7 @@ import { getGig } from '../gig.service';
 import { getAllGigContacts } from '../gigParticipantContacts.service';
 import { getEntityAttachments } from '../attachment.service';
 import { loadMyUpcomingAssignments } from './myAssignments.service';
+import { fetchMyArrival } from './crewArrival.service';
 import { packingListService } from './packingList.service';
 import { removeSavedDocumentsForGig, saveDayOfShowDocument } from './dayOfShowFiles.service';
 import {
@@ -82,7 +84,7 @@ describe('buildDayOfShowSheet', () => {
     expect(sheet.contacts).toEqual([
       expect.objectContaining({ name: 'Pat Venue', title: 'Production manager', org_name: 'Test Hall', org_role: 'Venue', phone: '555-0109' }),
     ]);
-    expect(sheet.crew).toEqual([expect.objectContaining({ name: 'Sam Crew', role: 'FOH Engineer', phone: '555-0101' })]);
+    expect(sheet.crew).toEqual([expect.objectContaining({ name: 'Sam Crew', role: 'FOH Engineer', phone: '555-0101', user_id: 'u1', status: 'Confirmed' })]);
     expect(sheet.documents).toEqual([{ id: 'att-1', file_name: 'stage-plot.pdf', file_path: 'org/att-1.pdf' }]);
   });
 
@@ -110,6 +112,35 @@ describe('loadDayOfShowSheet', () => {
     expect(onCached).toHaveBeenCalledWith(saved);
     expect(sheet?.venue?.name).toBe('Test Hall');
     expect(idbStore.putDayOfShow).toHaveBeenCalledWith(expect.objectContaining({ gig_id: 'gig-1' }));
+  });
+
+  // #458: the person's own arrival time rides on the sheet, so it shows offline too.
+  it('adds the signed-in person\'s own arrival to the fresh sheet', async () => {
+    setOnline(true);
+    (idbStore.getDayOfShow as any).mockResolvedValue(undefined);
+    vi.mocked(fetchMyArrival).mockResolvedValueOnce({ arrived_at: '2026-11-10T22:00:00Z', by_manager: false });
+    const sheet = await loadDayOfShowSheet('gig-1', vi.fn());
+    expect(fetchMyArrival).toHaveBeenCalledWith('gig-1');
+    expect(sheet?.my_arrival).toEqual({ arrived_at: '2026-11-10T22:00:00Z', by_manager: false });
+    expect(idbStore.putDayOfShow).toHaveBeenCalledWith(expect.objectContaining({ my_arrival: { arrived_at: '2026-11-10T22:00:00Z', by_manager: false } }));
+  });
+
+  it('keeps an arrival still waiting to be sent over what the server has', async () => {
+    setOnline(true);
+    const waiting = { arrived_at: '2026-11-10T22:42:00Z', by_manager: false, pending: true };
+    (idbStore.getDayOfShow as any).mockResolvedValue({ gig_id: 'gig-1', saved_at: 1, my_arrival: waiting });
+    vi.mocked(fetchMyArrival).mockResolvedValueOnce(null);
+    expect((await loadDayOfShowSheet('gig-1', vi.fn()))?.my_arrival).toEqual(waiting);
+  });
+
+  it('a sheet still loads when the arrival cannot be read, keeping what the phone had', async () => {
+    setOnline(true);
+    const had = { arrived_at: '2026-11-10T22:00:00Z', by_manager: false };
+    (idbStore.getDayOfShow as any).mockResolvedValue({ gig_id: 'gig-1', saved_at: 1, my_arrival: had });
+    vi.mocked(fetchMyArrival).mockRejectedValueOnce(new Error('network'));
+    const sheet = await loadDayOfShowSheet('gig-1', vi.fn());
+    expect(sheet?.venue?.name).toBe('Test Hall');
+    expect(sheet?.my_arrival).toEqual(had);
   });
 
   it('offline, returns the saved copy without asking the server', async () => {
