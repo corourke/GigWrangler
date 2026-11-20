@@ -579,6 +579,52 @@ export type Database = {
           },
         ]
       }
+      gig_crew_arrivals: {
+        Row: {
+          arrived_at: string
+          gig_id: string
+          set_by: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          arrived_at: string
+          gig_id: string
+          set_by?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          arrived_at?: string
+          gig_id?: string
+          set_by?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gig_crew_arrivals_gig_id_fkey"
+            columns: ["gig_id"]
+            isOneToOne: false
+            referencedRelation: "gigs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gig_crew_arrivals_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gig_crew_arrivals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gig_financials: {
         Row: {
           amount: number | null
@@ -2512,7 +2558,15 @@ export type Database = {
         Args: { p_actor: string; p_gig_id: string; p_subject_org: string }
         Returns: string
       }
+      gig_arrival_time_ok: {
+        Args: { p_at: string; p_gig_id: string }
+        Returns: boolean
+      }
       gig_staff_slot_org_id: { Args: { p_slot_id: string }; Returns: string }
+      holds_checkin_assignment: {
+        Args: { p_gig_id: string; p_user_id: string }
+        Returns: boolean
+      }
       insert_purchase_line_unit: {
         Args: {
           p_header: Database["public"]["Tables"]["purchases"]["Row"]
@@ -2544,6 +2598,10 @@ export type Database = {
             Returns: Json
           }
       is_platform_moderator: { Args: never; Returns: boolean }
+      manages_gig_arrivals: {
+        Args: { p_gig_id: string; p_user_id: string }
+        Returns: boolean
+      }
       kit_would_create_cycle: {
         Args: { p_child_kit_id: string; p_parent_kit_id: string }
         Returns: boolean
