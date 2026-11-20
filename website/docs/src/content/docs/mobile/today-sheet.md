@@ -39,7 +39,7 @@ The venue's name, address and phone number, shown as text you can select and cop
 
 If you're an Admin or Manager of any organization on the gig, **Crew** also lists the crew of the other organizations on it, with their organization and status (Requested or Confirmed; people who declined aren't listed). An organization marked Inactive on the gig sees only its own crew, and its crew aren't listed to the others.
 
-**If you work a gig that other organizations take part in, their Admins and Managers can see your name, position, status, phone number and email on that gig.** They never see your rate or fee.
+**If you work a gig that other organizations take part in, their Admins and Managers can see your name, position, status, phone number and email on that gig, on screen and on the printed gig sheet.** They never see your rate or fee.
 
 There's no money on the sheet: no rates, fees or payments, and no gig notes.
 
