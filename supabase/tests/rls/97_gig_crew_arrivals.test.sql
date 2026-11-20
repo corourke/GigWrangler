@@ -123,6 +123,31 @@ SELECT rls_test.expect('another Manager still can', rls_test.try(rls_test.u('a_a
 SELECT rls_test.expect('set_by cannot be forged on insert', rls_test.run('a_admin', format($q$INSERT INTO gig_crew_arrivals (gig_id, user_id, arrived_at, set_by) VALUES (%L, %L, now(), %L) ON CONFLICT (gig_id, user_id) DO UPDATE SET arrived_at = now(), set_by = %L$q$, rls_test.u('gig'), rls_test.u('b_staff'), rls_test.u('b_staff'), rls_test.u('b_staff'))), 1);
 SELECT rls_test.expect('set_by is the caller', (SELECT count(*)::int FROM gig_crew_arrivals WHERE user_id = rls_test.u('b_staff') AND set_by = rls_test.u('a_admin')), 1);
 
+-- ── The helpers answer only for the signed-in person ───────────────────────────────────────
+CREATE FUNCTION rls_test.asks(p_actor text, p_call text) RETURNS int LANGUAGE sql AS $$
+  SELECT rls_test.try(rls_test.u(p_actor), format('SELECT 1 WHERE %s', p_call))
+$$;
+CREATE FUNCTION rls_test.h_manages(p_actor text, p_target text) RETURNS int LANGUAGE sql AS $$
+  SELECT rls_test.asks(p_actor, format('public.manages_gig_arrivals(%L, %L)', rls_test.u('gig'), rls_test.u(p_target)))
+$$;
+CREATE FUNCTION rls_test.h_holds(p_actor text, p_target text) RETURNS int LANGUAGE sql AS $$
+  SELECT rls_test.asks(p_actor, format('public.holds_checkin_assignment(%L, %L)', rls_test.u('gig'), rls_test.u(p_target)))
+$$;
+SELECT rls_test.expect('an unrelated person asking about others gets no', rls_test.h_manages('c_staff', 'b_staff'), 0);
+SELECT rls_test.expect('an unrelated person asking about an assignment gets no', rls_test.h_holds('c_staff', 'a_staff'), 0);
+SELECT rls_test.expect('an unrelated person asking about a gig time gets no', rls_test.asks('c_staff', format('public.gig_arrival_time_ok(%L, now())', rls_test.u('gig'))), 0);
+SELECT rls_test.expect('an unrelated Admin gets no either', rls_test.h_manages('c_admin', 'b_staff'), 0);
+SELECT rls_test.expect('a helper cannot be asked on behalf of another person', rls_test.try(rls_test.u('c_staff'), format('SELECT 1 WHERE public.manages_gig_arrivals(%L, %L, %L)', rls_test.u('gig'), rls_test.u('b_staff'), rls_test.u('a_admin'))), -1);
+SELECT rls_test.expect('signed out: refused', rls_test.try_anon(format('SELECT public.holds_checkin_assignment(%L, %L)', rls_test.u('gig'), rls_test.u('a_staff'))), -1);
+SELECT rls_test.expect('a person asking about themselves gets yes', rls_test.h_holds('a_staff', 'a_staff'), 1);
+SELECT rls_test.expect('a person asking about someone else''s assignment gets no', rls_test.h_holds('a_staff', 'b_staff'), 0);
+SELECT rls_test.expect('the gig owner Admin gets yes for crew from another organization', rls_test.h_manages('a_admin', 'b_staff'), 1);
+SELECT rls_test.expect('and for their assignment', rls_test.h_holds('a_admin', 'b_staff'), 1);
+SELECT rls_test.expect('the staffing Manager gets yes for their crew', rls_test.h_manages('b_manager', 'b_staff'), 1);
+SELECT rls_test.expect('and no for someone not on their slots', rls_test.h_manages('b_manager', 'a_staff'), 0);
+SELECT rls_test.expect('a participant can ask about the gig time', rls_test.asks('a_staff', format('public.gig_arrival_time_ok(%L, now())', rls_test.u('gig'))), 1);
+SELECT rls_test.expect('the time answer follows the window', rls_test.asks('a_staff', format($q$public.gig_arrival_time_ok(%L, now() + interval '17 hours')$q$, rls_test.u('gig'))), 0);
+
 -- ── Clearing works after the person's assignment changed; deleting the gig removes the rows ─
 UPDATE gig_staff_assignments SET status = 'Declined' WHERE user_id = rls_test.u('b_staff');
 SELECT rls_test.expect('a Manager can still clear after the assignment was declined', rls_test.try(rls_test.u('b_manager'), $$DELETE FROM gig_crew_arrivals WHERE user_id = rls_test.u('b_staff')$$), 1);
