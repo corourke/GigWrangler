@@ -19,12 +19,13 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { cn } from '../ui/utils';
 import { toast } from 'sonner';
-import { useDayOfShowDocuments, useKeepDayOfShowSheet } from './useDayOfShowData';
+import { useDayOfShowDocuments, useKeepDayOfShowSheet, useMyArrival } from './useDayOfShowData';
 import { getSavedDocument, SAVE_REFUSAL } from '../../services/mobile/dayOfShowFiles.service';
 import type { DayOfShowFile } from '../../utils/idb/store';
 import { addressLines, mapsHref, smsHref, telHref } from '../../utils/contactLinks';
 import { formatFileSize } from '../../utils/fileSize';
 import { formatDateTimeDisplay, formatInTimeZone, formatTimeDisplay, isGigAllDay } from '../../utils/dateUtils';
+import { arrivalTimeLabel, arrivalWindowOpen } from '../../utils/crewArrival';
 import { GIG_STATUS_CONFIG, SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
 import { getAttachmentUrl } from '../../services/attachment.service';
 import type { DayOfShowDocument, DayOfShowPerson, DayOfShowSheet } from '../../services/mobile/dayOfShow.service';
@@ -60,6 +61,7 @@ export default function DaySheet({ sheet, isOffline, onViewGigDetail }: { sheet:
             )}
           </div>
           <KeepRow sheet={sheet} isOffline={isOffline} />
+          <ArrivalRow sheet={sheet} />
           <div className="flex items-center justify-between mt-2">
             <span className="text-[10px] text-muted-foreground">{sheet.kept ? `Saved on this phone · ${savedAt}` : `Updated ${savedAt}`}</span>
             {!isOffline && (
@@ -77,6 +79,41 @@ export default function DaySheet({ sheet, isOffline, onViewGigDetail }: { sheet:
       <PeopleSection title="Crew" people={sheet.crew} />
       <DocumentsSection sheet={sheet} isOffline={isOffline} />
     </>
+  );
+}
+
+/**
+ * "I've arrived" for a crew member with a Confirmed or Invited assignment, from 12 hours before the
+ * gig starts to 12 hours after it ends (#458). Once recorded: the time, with Undo, unless a Manager
+ * or Admin set it. Offline, a change says it will send when the phone is online.
+ */
+function ArrivalRow({ sheet }: { sheet: DayOfShowSheet }) {
+  const { canCheckIn, arrival, record, undo } = useMyArrival(sheet);
+  if (!canCheckIn) return null;
+  if (!arrival) {
+    if (!arrivalWindowOpen(sheet.gig)) return null;
+    return (
+      <div className="mt-2">
+        <Button className="w-full" disabled={record.isPending} onClick={() => record.mutate()}>
+          {record.isPending ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : null}
+          I've arrived
+        </Button>
+      </div>
+    );
+  }
+  const time = arrivalTimeLabel(arrival.arrived_at, sheet.gig.timezone);
+  return (
+    <div className="mt-2 rounded-md border px-2 py-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium">{arrival.pending ? `Arrived ${time} · will send when you're online` : `Arrived ${time}`}</span>
+        {!arrival.by_manager && (
+          <button type="button" className="text-xs font-medium underline disabled:opacity-50" disabled={undo.isPending} onClick={() => undo.mutate()}>
+            Undo
+          </button>
+        )}
+      </div>
+      {arrival.by_manager && <p className="text-[10px] text-muted-foreground mt-0.5">A manager set your arrival time.</p>}
+    </div>
   );
 }
 

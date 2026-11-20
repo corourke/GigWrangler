@@ -230,6 +230,38 @@ registerSyncHandler('STAFF_ASSIGNMENT_UPDATE', async (payload: any) => {
   }
 });
 
+// Crew arrival times recorded or taken back while offline (#458). A refusal (a Manager or Admin set
+// it, or the time is out of range) is told to the person and not retried.
+registerSyncHandler('CREW_ARRIVAL', async (payload: any) => {
+  const { gigId, userId, arrivedAt } = payload;
+  let removedFromPhone = false;
+  if (arrivedAt) {
+    const { error } = await supabase
+      .from('gig_crew_arrivals')
+      .upsert({ gig_id: gigId, user_id: userId, arrived_at: arrivedAt }, { onConflict: 'gig_id,user_id' });
+    if (error) {
+      if ((error as any).code !== '42501') throw error;
+      toast.error("Couldn't save the arrival. A manager may have set it.");
+      removedFromPhone = true;
+    }
+  } else {
+    const { error } = await supabase.from('gig_crew_arrivals').delete().eq('gig_id', gigId).eq('user_id', userId);
+    if (error) throw error;
+  }
+  // The phone's copy of the sheet: no longer waiting to send.
+  try {
+    const cached: any = await idbStore.getDayOfShow(gigId);
+    if (cached?.my_arrival?.pending) {
+      await idbStore.putDayOfShow({
+        ...cached,
+        my_arrival: arrivedAt && !removedFromPhone ? { arrived_at: arrivedAt, by_manager: false } : null,
+      });
+    }
+  } catch {
+    /* the phone's copy is a convenience */
+  }
+});
+
 // Receipts kept on the phone (mobile receipt capture, 11-10). Registered here so they sync from
 // app start; the upload code loads only when one is sent.
 registerSyncHandler('RECEIPT_UPLOAD', async (payload: any) => {

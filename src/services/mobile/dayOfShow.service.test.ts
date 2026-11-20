@@ -129,8 +129,8 @@ describe('loadDayOfShowSheet', () => {
     setOnline(true);
     const waiting = { arrived_at: '2026-11-10T22:42:00Z', by_manager: false, pending: true };
     (idbStore.getDayOfShow as any).mockResolvedValue({ gig_id: 'gig-1', saved_at: 1, my_arrival: waiting });
-    vi.mocked(fetchMyArrival).mockResolvedValueOnce(null);
     expect((await loadDayOfShowSheet('gig-1', vi.fn()))?.my_arrival).toEqual(waiting);
+    expect(fetchMyArrival).not.toHaveBeenCalled();
   });
 
   it('a sheet still loads when the arrival cannot be read, keeping what the phone had', async () => {

@@ -11,7 +11,7 @@ const chain: any = new Proxy({}, {
 });
 vi.mock('../base/dataAccess', () => ({
   getSupabase: () => ({
-    auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) },
+    auth: { getSession: async () => ({ data: { session: { user: { id: 'u1' } } } }) },
     from: (t: string) => { calls.push(['from', t]); return chain; },
   }),
 }));
