@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { countChildGigs, getGig } from '../../services/gig.service';
 import { getGigActivity } from '../../services/activityLog.service';
+import { fetchGigCrewRoster, rosterToCrew } from '../../services/mobile/crewRoster.service';
 import { checkAllConflicts, type Conflict } from '../../services/conflictDetection.service';
 import { queryKeys, invalidateAfterGigChange, invalidateAfterGigListChange } from '../../lib/queryKeys';
 import { isGigAllDay } from '../../utils/dateUtils';
@@ -49,6 +50,19 @@ export function useGigPageData(gigId: string, organizationId: string, historyOpe
     staleTime: 0,
   });
 
+  // Other organizations' crew (#466): the server gives it only to Admins and Managers of an organization
+  // on the gig; a failed read just leaves the block out.
+  const roster = useQuery({
+    queryKey: queryKeys.gigCrewRoster(gigId),
+    queryFn: () => fetchGigCrewRoster(gigId),
+    staleTime: 0,
+    retry: false,
+  });
+  const otherCrew = useMemo(
+    () => rosterToCrew((roster.data ?? []).filter((r) => r.organization_id !== organizationId), new Set()),
+    [roster.data, organizationId],
+  );
+
   /** Load the gig again (Retry). */
   const { refetch } = gigQuery;
   const reload = useCallback(() => { void refetch(); }, [refetch]);
@@ -72,8 +86,9 @@ export function useGigPageData(gigId: string, organizationId: string, historyOpe
     conflicts: conflicts.data ?? NO_CONFLICTS,
     activity: activity.data ?? NO_ACTIVITY,
     activityLoading: historyOpen && activity.isPending,
+    otherCrew,
     reload,
     afterGigChange,
     afterListChange,
-  }), [gig, loadError, childCount.data, conflicts.data, activity.data, activity.isPending, historyOpen, reload, afterGigChange, afterListChange]);
+  }), [gig, loadError, childCount.data, conflicts.data, activity.data, activity.isPending, otherCrew, historyOpen, reload, afterGigChange, afterListChange]);
 }

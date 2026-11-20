@@ -10,6 +10,7 @@ import { formatDateTimeDisplay, formatInTimeZone, isGigAllDay } from '../../../u
 import type { Gig, GigStaffSlotView, Organization } from '../../../utils/supabase/types';
 import MarkdownContent from '../../MarkdownContent';
 import { assignmentCost, money, rateBasis, staffRows } from '../view/staffRows';
+import type { RosterCrewLine } from '../../../services/mobile/crewRoster.service';
 import { projectedStaffCost } from '../../../utils/rateEstimate';
 import { settledAmount, stageLabel } from '../../../utils/moneyFlow';
 
@@ -18,6 +19,8 @@ interface GigPrintSheetProps {
   organization: Organization;
   /** This organization's staff slots on the gig. */
   slots: GigStaffSlotView[];
+  /** Other organizations' crew (#466), listed on the Crew table with phone and email; never pay. */
+  otherCrew?: RosterCrewLine[];
   /** Adds page 2, the financials (Admins and Managers only). */
   includeFinancials: boolean;
   /** Called once everything on the sheet has loaded, so the page can print. */
@@ -52,7 +55,7 @@ function PageHeader({ kicker, title, detail, right }: { kicker: string; title: s
  * crew contacts and notes; page 2, only when asked for, the gig's financials.
  * Equipment is left to the packing list.
  */
-export default function GigPrintSheet({ gig, organization, slots, includeFinancials, onReady }: GigPrintSheetProps) {
+export default function GigPrintSheet({ gig, organization, slots, otherCrew = [], includeFinancials, onReady }: GigPrintSheetProps) {
   const participants = (gig.participants ?? []) as any[];
   const venue = participants.find((p) => p.role === 'Venue')?.organization;
   const actNames = Object.fromEntries(participants.filter((p) => p.role === 'Act').map((p) => [p.id, p.organization?.name ?? '']));
@@ -94,6 +97,7 @@ export default function GigPrintSheet({ gig, organization, slots, includeFinanci
   const schedule = [...(gig.schedule_entries ?? [])].sort((a, b) => a.start_time.localeCompare(b.start_time));
   const multiDay = new Set(schedule.map((e) => day(e.start_time, tz))).size > 1;
   const crew = staffRows(slots);
+  const withOrgs = otherCrew.length > 0;
   const printed = `Printed ${format(new Date(), 'MMM d, yyyy')}`;
   const when = formatDateTimeDisplay(gig.start, gig.end, tz, isGigAllDay(gig));
   const status = GIG_STATUS_CONFIG[gig.status]?.label ?? gig.status;
@@ -191,15 +195,26 @@ export default function GigPrintSheet({ gig, organization, slots, includeFinanci
         <div>
           <h2 className={H2}>Crew</h2>
           <table aria-label="Crew" className={TABLE}>
-            <thead><tr><th>Role</th><th>Name</th><th>Phone</th><th>Email</th><th>Status</th></tr></thead>
+            <thead><tr>{withOrgs && <th>Organization</th>}<th>Role</th><th>Name</th><th>Phone</th><th>Email</th><th>Status</th></tr></thead>
             <tbody>
               {crew.map((r) => (
                 <tr key={r.key}>
+                  {withOrgs && <td>{organization.name}</td>}
                   <td>{r.role}</td>
                   <td>{r.name ?? '(open)'}</td>
                   <td>{r.phone ?? ''}</td>
                   <td>{r.email ?? ''}</td>
                   <td>{r.status === 'Open' ? '' : r.status}</td>
+                </tr>
+              ))}
+              {otherCrew.map((c) => (
+                <tr key={c.key}>
+                  <td>{c.org_name}</td>
+                  <td>{c.role}</td>
+                  <td>{c.name}</td>
+                  <td>{c.phone ?? ''}</td>
+                  <td>{c.email ?? ''}</td>
+                  <td>{c.status ?? ''}</td>
                 </tr>
               ))}
             </tbody>

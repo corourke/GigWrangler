@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import GigPage from './GigPage';
 import { renderWithQuery } from '../../test/renderWithQuery';
 import { getGig, updateGig } from '../../services/gig.service';
+import { fetchGigCrewRoster } from '../../services/mobile/crewRoster.service';
 
 vi.mock('../AppHeader', () => ({ default: () => <div data-testid="app-header" /> }));
 vi.mock('../AttachmentManager', () => ({ default: () => <div data-testid="attachments" /> }));
@@ -28,9 +29,9 @@ vi.mock('./GigScheduleEditor', async () => {
   return { default: ScheduleEditorStandIn };
 });
 vi.mock('./print/GigPrintSheet', () => ({
-  default: function PrintSheetStandIn({ includeFinancials, onReady }: { includeFinancials: boolean; onReady: () => void }) {
+  default: function PrintSheetStandIn({ includeFinancials, onReady, otherCrew }: { includeFinancials: boolean; onReady: () => void; otherCrew?: { name: string }[] }) {
     useEffect(() => { onReady(); }, [onReady]);
-    return <div data-testid="print-sheet" data-financials={String(includeFinancials)} />;
+    return <div data-testid="print-sheet" data-financials={String(includeFinancials)} data-other-crew={(otherCrew ?? []).map((c) => c.name).join('|')} />;
   },
 }));
 vi.mock('../inventory/InventoryReports', async () => {
@@ -58,6 +59,7 @@ vi.mock('./GigFinancialsSection', () => ({
 vi.mock('../../services/activityLog.service', () => ({ getGigActivity: vi.fn().mockResolvedValue([]) }));
 vi.mock('../../services/conflictDetection.service', () => ({ checkAllConflicts: vi.fn().mockResolvedValue({ conflicts: [] }) }));
 vi.mock('./NotReturnedSection', () => ({ default: () => null }));
+vi.mock('../../services/mobile/crewRoster.service', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../services/mobile/crewRoster.service')>()), fetchGigCrewRoster: vi.fn(async () => []) }));
 vi.mock('./EquipmentNeededTable', () => ({ default: ({ gigId }: { gigId: string }) => <div data-testid="equipment-needed" data-gig={gigId} /> }));
 
 const gig = {
@@ -631,4 +633,54 @@ describe('GigPage: data loading (A10)', () => {
     await user.click(screen.getByRole('button', { name: 'Done' }));
     await waitFor(() => expect(vi.mocked(getGig).mock.calls.length).toBeGreaterThan(before));
   });
+
+  // Plan #466 part 3: Admins and Managers of any organization on the gig see the other organizations' crew.
+  describe("other organizations' crew (#466)", () => {
+    const rosterRow = (over: Record<string, unknown> = {}) => ({
+      assignment_id: 'zz1', slot_id: 's9', organization_id: 'org-9', organization_name: 'Harbor Sound', user_id: 'u9',
+      first_name: 'Sam', last_name: 'Rivera', role_name: 'Monitor Engineer', status: 'Confirmed',
+      phone: '555-0177', email: 'sam@example.test', arrived_at: null, ...over,
+    })
+    const staffingCard = () => screen.getByRole('heading', { name: /Staffing/ }).closest('div.rounded-xl, [data-slot="card"]') as HTMLElement
+
+    it('shows them, read-only, on the Staffing card with organization, phone and email', async () => {
+      vi.mocked(fetchGigCrewRoster).mockResolvedValue([rosterRow()] as any)
+      renderWithQuery(<GigPage {...baseProps} userRole="Manager" />)
+      await screen.findByText('Riverside Summer Series')
+      const card = staffingCard()
+      expect(await within(card).findByText("Other organizations' crew")).toBeInTheDocument()
+      expect(within(card).getByText('Sam Rivera')).toBeInTheDocument()
+      expect(within(card).getByText('Harbor Sound')).toBeInTheDocument()
+      expect(within(card).getByRole('link', { name: '555-0177' })).toHaveAttribute('href', 'tel:555-0177')
+      expect(within(card).getByRole('link', { name: 'sam@example.test' })).toHaveAttribute('href', 'mailto:sam@example.test')
+      expect((within(card).getByText('Sam Rivera').closest('tr') as HTMLElement).textContent).not.toMatch(/\$/) // no pay for them
+      expect(within(card).queryByRole('button', { name: /edit|remove|add/i })).not.toBeInTheDocument()
+    })
+
+    it("leaves out this organization's own crew (the table above already lists them)", async () => {
+      vi.mocked(fetchGigCrewRoster).mockResolvedValue([rosterRow({ organization_id: 'org-1', organization_name: 'Northwest Sound Co' })] as any)
+      renderWithQuery(<GigPage {...baseProps} userRole="Admin" />)
+      await screen.findByText('Riverside Summer Series')
+      await waitFor(() => expect(fetchGigCrewRoster).toHaveBeenCalledWith('g1'))
+      expect(screen.queryByText("Other organizations' crew")).not.toBeInTheDocument()
+    })
+
+    it('shows no block when there are none (Staff and Viewers get none from the server)', async () => {
+      vi.mocked(fetchGigCrewRoster).mockResolvedValue([])
+      renderWithQuery(<GigPage {...baseProps} userRole="Staff" />)
+      await screen.findByText('Riverside Summer Series')
+      expect(screen.queryByText("Other organizations' crew")).not.toBeInTheDocument()
+    })
+
+    it('hands them to the printed gig sheet', async () => {
+      window.print = vi.fn()
+      vi.mocked(fetchGigCrewRoster).mockResolvedValue([rosterRow()] as any)
+      const user = userEvent.setup()
+      renderWithQuery(<GigPage {...baseProps} userRole="Manager" />)
+      await screen.findByText("Other organizations' crew")
+      await user.click(await screen.findByRole('button', { name: 'Print' }))
+      await user.click(await screen.findByRole('menuitem', { name: 'Gig sheet' }))
+      await waitFor(() => expect(screen.getByTestId('print-sheet').dataset.otherCrew).toBe('Sam Rivera'))
+    })
+  })
 });
