@@ -73,6 +73,18 @@ The **Rate / Fee** column shows a rate with its unit, such as "$400 / day", and 
 
 ![The read-only Staffing card: "5 of 6 filled · 4 confirmed", each role with the person, phone, email, status and pay, such as $350 fee, $400 / day, $35 / hr and $200 / ½ day, an open Stage Hand place, and the Staff cost line](../../../assets/screenshots/gigs/staffing-view-card.png)
 
+## Other organizations' crew
+
+When other organizations take part in a gig, each one staffs its own places, and only it can change them. Admins and Managers of any organization on the gig also see the other organizations' crew:
+
+- on a computer, in an **Other organizations' crew** table inside the **Staffing** card, with **Organization**, **Role**, **Person**, **Phone**, **Email** and **Status**;
+- on a phone, in an **Other organizations' crew** card on the gig page, and in the **Crew** list of the [day sheet](/mobile/today-sheet/#contacts-and-crew);
+- on the printed **Gig sheet**, whose Crew table gains an **Organization** column with their phone and email. The column appears only when there are other organizations' crew. The financials page never includes them.
+
+People who declined aren't listed. No rates, fees or other pay are shown for another organization's crew. An organization marked Inactive on the gig sees only its own crew, and its crew aren't listed to the others. Staff and Viewers see only their own organization's staffing, as before.
+
+**If you work a gig that other organizations take part in, their Admins and Managers can see your name, position, status, phone number and email on that gig, on screen and on the printed gig sheet.**
+
 ## Related
 
 - [Participating organizations](/gigs/participating-organizations/)
