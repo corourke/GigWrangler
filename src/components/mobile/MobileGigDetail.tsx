@@ -28,6 +28,8 @@ import { SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
 import type { ScheduleActivityType } from '../../utils/supabase/types';
 import { format, parseISO } from 'date-fns';
 import { useMobileGigDetailData } from './useMobileGigDetailData';
+import OtherOrganizationsCrew from './OtherOrganizationsCrew';
+import { rosterToCrew } from '../../services/mobile/crewRoster.service';
 import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG } from '../../utils/supabase/constants';
 import { formatDateTimeDisplay, formatGigDateTimeForInput, gigStartDay, isGigAllDay, parseGigDateTimeFromInput } from '../../utils/dateUtils';
 import { getAllTimezones } from '../../utils/timezones';
@@ -78,7 +80,7 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList, onVi
   const isOffline = useIsOffline();
   const canEdit = userRole?.toLowerCase() === 'admin' || userRole?.toLowerCase() === 'manager';
   const isAdmin = userRole === 'Admin' || userRole === 'Manager';
-  const { gigQuery, changeStatus, answerAssignment, saveEdit } = useMobileGigDetailData(gigId, selectedOrganization?.id);
+  const { gigQuery, rosterQuery, changeStatus, answerAssignment, saveEdit } = useMobileGigDetailData(gigId, selectedOrganization?.id);
   const gig: any = gigQuery.data ?? null;
   const loading = gigQuery.isPending;
   const [updatingAssignment, setUpdatingAssignment] = useState<string | null>(null);
@@ -930,6 +932,13 @@ export default function MobileGigDetail({ gigId, onBack, onViewPackingList, onVi
             </CardContent>
           </Card>
         )}
+
+        <OtherOrganizationsCrew
+          crew={rosterToCrew(
+            rosterQuery.data ?? [],
+            new Set((gig.staff_slots ?? []).flatMap((s: any) => (s.staff_assignments ?? []).map((a: any) => String(a.id)))),
+          )}
+        />
 
         {isAdmin && (
           <MobileGigFinancials 

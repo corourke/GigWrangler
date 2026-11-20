@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys, invalidateAfterAssignmentChange, invalidateAfterGigChange } from '../../lib/queryKeys';
 import { getGig, updateGig, updateGigParticipants, updateStaffAssignmentStatus } from '../../services/gig.service';
+import { fetchGigCrewRoster } from '../../services/mobile/crewRoster.service';
 import type { GigStatus } from '../../utils/supabase/types';
 
 /**
@@ -21,6 +22,17 @@ export function useMobileGigDetailData(gigId: string, orgId: string | undefined)
     staleTime: 0,
     // Seeds the edit form: load fresh on each open (gcTime 0).
     gcTime: 0,
+    networkMode: 'always',
+  });
+
+  // Other organizations' crew (#466): the server gives it only to Admins and Managers of an organization
+  // on the gig; a failed read just leaves the block out.
+  const rosterQuery = useQuery({
+    queryKey: queryKeys.gigCrewRoster(gigId),
+    queryFn: () => fetchGigCrewRoster(gigId),
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
     networkMode: 'always',
   });
 
@@ -59,5 +71,5 @@ export function useMobileGigDetailData(gigId: string, orgId: string | undefined)
     onSuccess: refreshGig,
   });
 
-  return { gigQuery, changeStatus, answerAssignment, saveEdit };
+  return { gigQuery, rosterQuery, changeStatus, answerAssignment, saveEdit };
 }
