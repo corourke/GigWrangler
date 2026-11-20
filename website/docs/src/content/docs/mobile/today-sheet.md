@@ -37,6 +37,10 @@ The venue's name, address and phone number, shown as text you can select and cop
 
 **Contacts** lists the contacts of the venue, act and other organizations on the gig. **Crew** lists the people staffing it, with their positions. Each person has **Call**, **Text** and **Email** buttons where they have a number or email, and the number is also shown as text.
 
+If you're an Admin or Manager of any organization on the gig, **Crew** also lists the crew of the other organizations on it, with their organization and status (Requested or Confirmed; people who declined aren't listed). An organization marked Inactive on the gig sees only its own crew, and its crew aren't listed to the others.
+
+**If you work a gig that other organizations take part in, their Admins and Managers can see your name, position, status, phone number and email on that gig.** They never see your rate or fee.
+
 There's no money on the sheet: no rates, fees or payments, and no gig notes.
 
 ### Documents
@@ -59,15 +63,15 @@ If a Manager or Admin has set or corrected your time, the sheet says "A manager 
 
 ### Your crew's arrivals
 
-Admins and Managers of the organization that owns the gig, and of the organization that staffs a person, see each of those crew members' arrival on their lines: "Arrived 2:42 PM" or "Not arrived yet". They can also:
+Admins and Managers of any organization on the gig (except one marked Inactive on it) see each crew member's arrival on their line: "Arrived 2:42 PM" or "Not arrived yet". Those of the organization that owns the gig, and of the organization that staffs the person, can also:
 
 - **Check in** someone who's Confirmed, which records the current time;
 - **Edit time**, to set the time in the gig's time zone, then **Save** (or **Cancel**). The time has to fall within the gig's window, and can't be more than 5 minutes ahead of now;
 - **Clear** the arrival.
 
-These controls need a connection; offline, the sheet shows the last times it saw. There are no controls on your own line: that's your own arrival, as above.
+Another organization's Admins and Managers see the times but can't change them. These controls need a connection; offline, the sheet shows the last times it saw. There are no controls on your own line: that's your own arrival, as above.
 
-Anyone else sees nothing about arrivals, and crew see only their own. Arrival times don't notify anyone, and they aren't used in pay, reports or exports.
+Staff and Viewers see nothing about other people's arrivals: crew see only their own. Arrival times don't notify anyone, and they aren't used in pay, reports or exports.
 
 ## Saving a day sheet on the phone
 
