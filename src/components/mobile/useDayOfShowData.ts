@@ -18,6 +18,7 @@ import {
   saveDayOfShowDocument,
   saveGigDocumentsAhead,
 } from '../../services/mobile/dayOfShowFiles.service';
+import { OUTBOX_SYNCED_EVENT } from '../../services/mobile/offlineSync.service';
 import { clearCrewArrival, recordMyArrival, setCrewArrival, undoMyArrival } from '../../services/mobile/crewArrival.service';
 import { canCheckInOwn, canManageArrival, type CrewArrival, type MyArrival } from '../../utils/crewArrival';
 import type { UserRole } from '../../utils/supabase/types';
@@ -47,6 +48,13 @@ export function useTodayGigs({ userId, orgId, role }: { userId?: string; orgId?:
 export function useDayOfShowSheet(gigId: string | null | undefined) {
   const queryClient = useQueryClient();
   const key = queryKeys.dayOfShow(gigId ?? '');
+  // Something the phone had queued has just been sent (an arrival "waiting to send"): read the sheet again.
+  useEffect(() => {
+    if (!gigId) return;
+    const refresh = () => void queryClient.invalidateQueries({ queryKey: key });
+    window.addEventListener(OUTBOX_SYNCED_EVENT, refresh);
+    return () => window.removeEventListener(OUTBOX_SYNCED_EVENT, refresh);
+  }, [gigId, queryClient]); // eslint-disable-line react-hooks/exhaustive-deps -- key follows gigId
   return useQuery<DayOfShowSheet | null>({
     queryKey: key,
     queryFn: () => loadDayOfShowSheet(gigId as string, (cached) => queryClient.setQueryData(key, cached)),

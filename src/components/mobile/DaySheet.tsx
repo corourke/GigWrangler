@@ -271,25 +271,43 @@ function PersonRow({ person, children }: { person: DayOfShowPerson; children?: R
 function CrewSection({ sheet, isOffline }: { sheet: DayOfShowSheet; isOffline: boolean }) {
   const crew = useCrewArrivals(sheet);
   if (sheet.crew.length === 0) return null;
+  // A person on two slots is two lines; their arrival (and its controls) shows once, on the first.
+  const linesOf = new Map<string, DayOfShowSheet['crew']>();
+  for (const p of sheet.crew) if (p.user_id) linesOf.set(p.user_id, [...(linesOf.get(p.user_id) ?? []), p]);
+  const shown = new Set<string>();
   return (
     <Card style={{ gap: 0 }}>
       <CardContent className="p-3">
         <p className={SECTION_TITLE}><Users className="w-3.5 h-3.5" />Crew</p>
         <div className="divide-y divide-border/50">
-          {sheet.crew.map((p) => (
-            <PersonRow key={p.key} person={p}>
-              {crew.canManage(p) && <CrewArrivalLine sheet={sheet} person={p} crew={crew} isOffline={isOffline} />}
-            </PersonRow>
-          ))}
+          {sheet.crew.map((p) => {
+            const lines = p.user_id ? (linesOf.get(p.user_id) ?? [p]) : [p];
+            const first = !p.user_id || !shown.has(p.user_id);
+            if (p.user_id) shown.add(p.user_id);
+            return (
+              <PersonRow key={p.key} person={p}>
+                {first && lines.some((l) => crew.canManage(l)) && (
+                  <CrewArrivalLine
+                    sheet={sheet}
+                    person={p}
+                    mayCheckIn={lines.some((l) => l.status === 'Confirmed' || l.status === 'Invited')}
+                    crew={crew}
+                    isOffline={isOffline}
+                  />
+                )}
+              </PersonRow>
+            );
+          })}
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function CrewArrivalLine({ sheet, person, crew, isOffline }: {
+function CrewArrivalLine({ sheet, person, mayCheckIn, crew, isOffline }: {
   sheet: DayOfShowSheet;
   person: DayOfShowSheet['crew'][number];
+  mayCheckIn: boolean;
   crew: ReturnType<typeof useCrewArrivals>;
   isOffline: boolean;
 }) {
@@ -298,7 +316,6 @@ function CrewArrivalLine({ sheet, person, crew, isOffline }: {
   const arrival = crew.arrivalOf(userId);
   const [editing, setEditing] = React.useState<string | null>(null);
   const busy = crew.set.isPending || crew.clear.isPending;
-  const mayCheckIn = person.status === 'Confirmed' || person.status === 'Invited';
   const smallButton = 'text-xs font-medium underline disabled:opacity-50';
 
   return (
