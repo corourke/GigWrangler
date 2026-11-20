@@ -579,3 +579,31 @@ describe('offlineSyncService: CREW_ARRIVAL handler', () => {
     await expect(offlineSyncService.syncItem(sent('2026-11-10T22:42:00Z'))).rejects.toBeTruthy();
   });
 });
+
+// #458 smoke: screens showing something "waiting to send" refresh when the queue has synced.
+describe('offlineSyncService: the sync event', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('announces that the outbox synced, once something was sent', async () => {
+    const chain: any = makeChain({ data: null, error: null });
+    chain.upsert = vi.fn().mockReturnValue(chain);
+    mockFrom.mockReturnValue(chain);
+    vi.mocked(idbStore.getOutbox as any).mockResolvedValue([{ id: 1, ...outboxItem('CREW_ARRIVAL' as any, { gigId: 'g1', userId: 'user-1', arrivedAt: '2026-11-10T22:42:00Z' }) }]);
+    const heard = vi.fn();
+    window.addEventListener('gigwrangler:outbox-synced', heard);
+    await offlineSyncService.sendOutbox();
+    window.removeEventListener('gigwrangler:outbox-synced', heard);
+    expect(heard).toHaveBeenCalledTimes(1);
+  });
+
+  it('says nothing when there was nothing to send', async () => {
+    vi.mocked(idbStore.getOutbox as any).mockResolvedValue([]);
+    const heard = vi.fn();
+    window.addEventListener('gigwrangler:outbox-synced', heard);
+    await offlineSyncService.sendOutbox();
+    window.removeEventListener('gigwrangler:outbox-synced', heard);
+    expect(heard).not.toHaveBeenCalled();
+  });
+});
