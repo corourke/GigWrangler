@@ -11,13 +11,15 @@ import { getEntityAttachments } from '../attachment.service';
 import { loadMyUpcomingAssignments } from './myAssignments.service';
 import { packingListService } from './packingList.service';
 import { isAutoSaveType, removeSavedDocumentsForGig, saveDayOfShowDocument } from './dayOfShowFiles.service';
-import { fetchMyArrival } from './crewArrival.service';
-import type { MyArrival } from '../../utils/crewArrival';
+import { fetchCrewArrivals, fetchMyArrival } from './crewArrival.service';
+import type { CrewArrival, MyArrival } from '../../utils/crewArrival';
 import { pickTodayGigs, type TodayGigLike } from '../../utils/todayGig';
 import type { UserRole } from '../../utils/supabase/types';
 
 export interface DayOfShowGig extends TodayGigLike {
   title: string;
+  /** The organization that owns the gig; its Admins and Managers may manage crew arrivals (#458). */
+  owner_organization_id?: string | null;
 }
 
 export interface DayOfShowPlace {
@@ -65,7 +67,7 @@ export interface DayOfShowSheet {
   venue: DayOfShowPlace | null;
   schedule: DayOfShowScheduleEntry[];
   contacts: DayOfShowPerson[];
-  crew: (DayOfShowPerson & { role: string; user_id?: string | null; status?: string | null })[];
+  crew: (DayOfShowPerson & { role: string; user_id?: string | null; status?: string | null; organization_id?: string | null })[];
   documents: DayOfShowDocument[];
   /** Saved on the phone by the person (#445): kept until removed, or 30 days after the gig. */
   kept?: boolean;
@@ -73,6 +75,8 @@ export interface DayOfShowSheet {
   kept_at?: number;
   /** The signed-in person's own arrival at this gig (#458); null when there is none. */
   my_arrival?: MyArrival | null;
+  /** Crew arrival times the signed-in person can see (Admins and Managers see their crew's; #458). */
+  crew_arrivals?: CrewArrival[];
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -145,6 +149,7 @@ export function buildDayOfShowSheet(
         title: role,
         user_id: a.user_id,
         status: a.status ?? null,
+        organization_id: slot.organization_id ?? null,
         phone: a.user.phone ?? null,
         email: a.user.email ?? null,
       }));
@@ -161,6 +166,7 @@ export function buildDayOfShowSheet(
       timezone: gig.timezone ?? null,
       all_day: gig.all_day ?? null,
       status: gig.status ?? null,
+      owner_organization_id: gig.owner_organization_id ?? null,
     },
     venue: place(participants.find((p) => p.role === 'Venue')?.organization),
     schedule,
@@ -214,6 +220,15 @@ async function arrivalForSheet(gigId: string, cached: DayOfShowSheet | null | un
   }
 }
 
+/** The crew's arrival times the signed-in person can see; if they can't be read, what the phone had. */
+async function crewArrivalsForSheet(gigId: string, cached: DayOfShowSheet | null | undefined): Promise<CrewArrival[]> {
+  try {
+    return await fetchCrewArrivals(gigId);
+  } catch {
+    return cached?.crew_arrivals ?? [];
+  }
+}
+
 /**
  * Hands the device copy to `onCached` straight away, then (online) fetches a fresh sheet, saves
  * it and returns it. Offline, or when the server can't be reached, returns the device copy; with
@@ -237,6 +252,7 @@ export async function loadDayOfShowSheet(
     fresh = buildDayOfShowSheet(gig, contacts, attachments ?? []);
     if (cached?.kept) { fresh.kept = true; if (cached.kept_at !== undefined) fresh.kept_at = cached.kept_at; }
     fresh.my_arrival = await arrivalForSheet(gigId, cached);
+    fresh.crew_arrivals = await crewArrivalsForSheet(gigId, cached);
   } catch (error) {
     if (cached) return cached;
     throw error;
@@ -264,6 +280,7 @@ export async function keepDayOfShowSheet(gigId: string): Promise<{ roomShort: bo
     kept: true,
     kept_at: Date.now(),
     my_arrival: await arrivalForSheet(gigId, cachedCopy),
+    crew_arrivals: await crewArrivalsForSheet(gigId, cachedCopy),
   };
   await idbStore.putDayOfShow(sheet);
   let roomShort = false;
