@@ -63,9 +63,15 @@ SELECT rls_test.expect('the staffing organization''s Manager still can', rls_tes
 SELECT rls_test.expect('and the owner''s Admin', rls_test.try(rls_test.u('a_admin'), format('DELETE FROM gig_crew_arrivals WHERE user_id = %L', rls_test.u('b_staff'))), 1);
 
 -- ── An organization marked Inactive on the gig ─────────────────────────────────────────────
+-- (The app releases an organization's staff before it can be marked Inactive; the triggers are
+-- skipped here to check the roster against the state anyway.)
+SET LOCAL session_replication_role = replica;
 UPDATE gig_participants SET inactive = true WHERE gig_id = rls_test.u('gig') AND organization_id = rls_test.u('org_b');
+SET LOCAL session_replication_role = origin;
 SELECT rls_test.expect('an Inactive organization''s Admin gets nothing', rls_test.roster('b_admin'), 0);
 SELECT rls_test.expect('its crew are not listed to the others (2 left)', rls_test.roster('a_admin'), 2);
 SELECT rls_test.expect('nor are their arrival times read through the roster rule', rls_test.visible(rls_test.u('c_admin'), 'gig_crew_arrivals', format('user_id = %L', rls_test.u('b_staff'))), 0);
+SET LOCAL session_replication_role = replica;
 UPDATE gig_participants SET inactive = true WHERE gig_id = rls_test.u('gig') AND organization_id = rls_test.u('org_c');
+SET LOCAL session_replication_role = origin;
 SELECT rls_test.expect('an Inactive third organization sees nothing', rls_test.roster('c_admin'), 0);

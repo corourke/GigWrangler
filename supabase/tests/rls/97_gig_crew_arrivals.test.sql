@@ -76,7 +76,8 @@ SELECT rls_test.expect('two slots, one row', rls_test.rows_of('a_staff'), 1);
 SELECT rls_test.expect('b_staff checks in (kept)', rls_test.arrive_keep('b_staff', 'b_staff'), 1);
 SELECT rls_test.expect('crew see their own only', rls_test.visible(rls_test.u('a_staff'), 'gig_crew_arrivals'), 1);
 SELECT rls_test.expect('another crew member sees only their own', rls_test.visible(rls_test.u('b_staff'), 'gig_crew_arrivals'), 1);
-SELECT rls_test.expect('the staffing org''s Manager sees its crew''s', rls_test.visible(rls_test.u('b_manager'), 'gig_crew_arrivals'), 1);
+-- (An organization on the gig reads everyone's arrival time since #466; it still writes only its own crew's.)
+SELECT rls_test.expect('the staffing org''s Manager sees its crew''s, and the other organization''s on the same gig', rls_test.visible(rls_test.u('b_manager'), 'gig_crew_arrivals'), 2);
 SELECT rls_test.expect('the gig owner''s Admin sees all crew, including the other org''s', rls_test.visible(rls_test.u('a_admin'), 'gig_crew_arrivals'), 2);
 SELECT rls_test.expect('the gig owner''s Manager does too', rls_test.visible(rls_test.u('a_manager'), 'gig_crew_arrivals'), 2);
 SELECT rls_test.expect('Staff and Viewer members of the owner see only their own', rls_test.visible(rls_test.u('a_viewer'), 'gig_crew_arrivals'), 0);
