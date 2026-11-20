@@ -163,3 +163,40 @@ describe('GigPrintSheet (#12)', () => {
     });
   });
 });
+
+// Plan #466 part 3 (Cameron 11-20): the printed Crew table lists other organizations' crew too,
+// with their phone and email, an Organization column, and no pay.
+describe('GigPrintSheet: other organizations\' crew (#466)', () => {
+  const other = { key: 'roster-z1', name: 'Sam Rivera', role: 'Monitor Engineer', title: 'Monitor Engineer', phone: '(503) 555-0177', email: 'sam@example.test', org_name: 'Harbor Sound', user_id: 'u9', status: 'Confirmed', organization_id: 'org-9' };
+
+  it('adds an Organization column and their rows, with phone and email', async () => {
+    const { onReady } = renderSheet({ otherCrew: [other] } as any);
+    await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
+    const crew = within(page(/gig sheet/i)).getByRole('table', { name: 'Crew' });
+    expect(within(crew).getByRole('columnheader', { name: 'Organization' })).toBeInTheDocument();
+    const sam = within(crew).getByText('Sam Rivera').closest('tr') as HTMLElement;
+    expect(sam.textContent).toMatch(/Monitor Engineer/);
+    expect(sam.textContent).toMatch(/Harbor Sound/);
+    expect(sam.textContent).toMatch(/\(503\) 555-0177/);
+    expect(sam.textContent).toMatch(/sam@example\.test/);
+    // This organization's own crew carry its name.
+    expect((within(crew).getByText('Jordan Lee').closest('tr') as HTMLElement).textContent).toMatch(/Northwest Sound Co/);
+  });
+
+  it('prints no pay for them, even with the financials page', async () => {
+    const { onReady } = renderSheet({ otherCrew: [other], includeFinancials: true } as any);
+    await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
+    const crew = within(page(/gig sheet/i)).getByRole('table', { name: 'Crew' });
+    expect(crew.textContent).not.toMatch(/\$|fee|rate/i);
+    const financials = page(/gig financials/i);
+    expect(within(financials).queryByText(/Sam Rivera/)).not.toBeInTheDocument();
+  });
+
+  it('leaves the table as it was when there are none', async () => {
+    const { onReady } = renderSheet({ otherCrew: [] } as any);
+    await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
+    const crew = within(page(/gig sheet/i)).getByRole('table', { name: 'Crew' });
+    expect(within(crew).queryByRole('columnheader', { name: 'Organization' })).not.toBeInTheDocument();
+  });
+});
+
