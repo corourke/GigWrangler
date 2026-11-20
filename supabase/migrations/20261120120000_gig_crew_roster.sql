@@ -22,9 +22,10 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
 $$;
 
 -- The person has a non-declined assignment on the gig with an organization that is not Inactive.
+-- Answers only for someone who can view the gig's roster, or about themselves.
 CREATE OR REPLACE FUNCTION public.crew_listed_on_gig(p_gig_id uuid, p_user_id uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT auth.uid() IS NOT NULL AND EXISTS (
+  SELECT auth.uid() IS NOT NULL AND (public.views_gig_roster(p_gig_id) OR p_user_id = auth.uid()) AND EXISTS (
     SELECT 1
       FROM gig_staff_assignments a
       JOIN gig_staff_slots s ON s.id = a.slot_id

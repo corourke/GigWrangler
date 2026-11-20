@@ -40,6 +40,13 @@ SELECT rls_test.expect('an Admin of an organization not on the gig gets nothing'
 SELECT rls_test.expect('signed out: refused', rls_test.try_anon(format('SELECT * FROM public.gig_crew_roster(%L)', rls_test.u('gig'))), -1);
 SELECT rls_test.expect('another gig: nothing', rls_test.visible(rls_test.u('a_admin'), format('public.gig_crew_roster(%L)', '00000000-0000-0000-0000-00000000dead')), 0);
 
+-- The helper answers only for someone who can view the roster, or about themselves.
+SELECT rls_test.expect('asked directly, a participating Admin gets true for crew listed on the gig', rls_test.visible(rls_test.u('a_admin'), format('public.crew_listed_on_gig(%L, %L)', rls_test.u('gig'), rls_test.u('b_staff')), 'crew_listed_on_gig'), 1);
+SELECT rls_test.expect('asked directly, a Staff member gets false about someone else', rls_test.visible(rls_test.u('a_staff'), format('public.crew_listed_on_gig(%L, %L)', rls_test.u('gig'), rls_test.u('b_staff')), 'crew_listed_on_gig'), 0);
+SELECT rls_test.expect('a Viewer gets false about someone else', rls_test.visible(rls_test.u('a_viewer'), format('public.crew_listed_on_gig(%L, %L)', rls_test.u('gig'), rls_test.u('b_staff')), 'crew_listed_on_gig'), 0);
+SELECT rls_test.expect('an Admin of an organization not on the gig gets false', rls_test.visible(rls_test.u('c_admin'), format('public.crew_listed_on_gig(%L, %L)', rls_test.u('gig'), rls_test.u('b_staff')), 'crew_listed_on_gig'), 0);
+SELECT rls_test.expect('a Staff member can still ask about themselves', rls_test.visible(rls_test.u('a_staff'), format('public.crew_listed_on_gig(%L, %L)', rls_test.u('gig'), rls_test.u('a_staff')), 'crew_listed_on_gig'), 1);
+
 -- ── What they get ──────────────────────────────────────────────────────────────────────────
 SELECT rls_test.expect('Declined is not listed', rls_test.roster('a_admin', format('user_id = %L', rls_test.u('a_manager'))), 0);
 SELECT rls_test.expect('Requested is listed, with its status', rls_test.roster('a_admin', format($q$user_id = %L AND status = 'Requested'$q$, rls_test.u('a_viewer'))), 1);
