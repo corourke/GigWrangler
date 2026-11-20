@@ -63,7 +63,6 @@ SELECT rls_test.expect('Declined may not', rls_test.arrive('b_viewer', 'b_viewer
 SELECT rls_test.expect('no assignment may not', rls_test.arrive('c_staff', 'c_staff'), -1);
 SELECT rls_test.expect('12 hours before the start is allowed', rls_test.arrive('a_staff', 'a_staff', $$now() - interval '11 hours 59 minutes'$$), 1);
 SELECT rls_test.expect('earlier than that is not', rls_test.arrive('a_staff', 'a_staff', $$now() - interval '12 hours 1 minute'$$), -1);
-SELECT rls_test.expect('12 hours after the end is allowed', rls_test.arrive('a_staff', 'a_staff', $$now() + interval '15 hours 59 minutes'$$), 1);
 SELECT rls_test.expect('later than that is not', rls_test.arrive('a_staff', 'a_staff', $$now() + interval '16 hours 1 minute'$$), -1);
 SELECT rls_test.expect('a person may not check in someone else', rls_test.arrive('a_staff', 'b_staff'), -1);
 SELECT rls_test.expect('a Staff colleague may not check in someone', rls_test.arrive('a_staff', 'a_manager'), -1);
@@ -147,6 +146,37 @@ SELECT rls_test.expect('the staffing Manager gets yes for their crew', rls_test.
 SELECT rls_test.expect('and no for someone not on their slots', rls_test.h_manages('b_manager', 'a_staff'), 0);
 SELECT rls_test.expect('a participant can ask about the gig time', rls_test.asks('a_staff', format('public.gig_arrival_time_ok(%L, now())', rls_test.u('gig'))), 1);
 SELECT rls_test.expect('the time answer follows the window', rls_test.asks('a_staff', format($q$public.gig_arrival_time_ok(%L, now() + interval '17 hours')$q$, rls_test.u('gig'))), 0);
+
+-- ── The server bounds the time: not in the future, and written within two days of the window ─
+-- (start from no rows, so a refusal below is about the time and not a second row)
+DELETE FROM gig_crew_arrivals;
+SELECT rls_test.expect('a time far in the future is refused', rls_test.arrive('a_staff', 'a_staff', $$now() + interval '40 days'$$), -1);
+SELECT rls_test.expect('a time hours ahead, even inside the window, is refused', rls_test.arrive('a_staff', 'a_staff', $$now() + interval '2 hours'$$), -1);
+SELECT rls_test.expect('a few minutes ahead (a clock a little fast) is allowed', rls_test.arrive('a_staff', 'a_staff', $$now() + interval '4 minutes'$$), 1);
+SELECT rls_test.expect('six minutes ahead is refused', rls_test.arrive('a_staff', 'a_staff', $$now() + interval '6 minutes'$$), -1);
+
+-- A gig that ended a day and a half ago: a tap made then and synced now (offline) is accepted.
+UPDATE gigs SET start = now() - interval '30 hours', "end" = now() - interval '26 hours' WHERE id = rls_test.u('gig');
+SELECT rls_test.expect('a tap made at the gig and synced hours later is allowed', rls_test.arrive('a_staff', 'a_staff', $$now() - interval '27 hours'$$), 1);
+SELECT rls_test.expect('a time after the window closed is still refused', rls_test.arrive('a_staff', 'a_staff', $$now() - interval '1 minute'$$), -1);
+
+UPDATE gigs SET start = now() - interval '63 hours', "end" = now() - interval '59 hours' WHERE id = rls_test.u('gig');
+SELECT rls_test.expect('written just inside two days after the window is allowed', rls_test.arrive('a_staff', 'a_staff', $$now() - interval '60 hours'$$), 1);
+
+UPDATE gigs SET start = now() - interval '66 hours', "end" = now() - interval '62 hours' WHERE id = rls_test.u('gig');
+SELECT rls_test.expect('written later than two days after the window is refused', rls_test.arrive('a_staff', 'a_staff', $$now() - interval '63 hours'$$), -1);
+SELECT rls_test.expect('a Manager cannot record a time that late either', rls_test.arrive('b_manager', 'b_staff', $$now() - interval '63 hours'$$), -1);
+SELECT set_config('request.jwt.claim.sub', '', true); -- written as the table owner, not as the last person above
+INSERT INTO gig_crew_arrivals (gig_id, user_id, arrived_at, set_by)
+  VALUES (rls_test.u('gig'), rls_test.u('b_staff'), now() - interval '63 hours', rls_test.u('b_staff'));
+SELECT rls_test.expect('but a Manager can still clear one', rls_test.try(rls_test.u('b_manager'), $$DELETE FROM gig_crew_arrivals WHERE user_id = rls_test.u('b_staff')$$), 1);
+SELECT rls_test.expect('and the person can still undo their own', rls_test.try(rls_test.u('b_staff'), $$DELETE FROM gig_crew_arrivals WHERE user_id = rls_test.u('b_staff')$$), 1);
+
+-- The window's upper edge, now that the gig is in the past.
+UPDATE gigs SET start = now() - interval '16 hours', "end" = now() - interval '11 hours 30 minutes' WHERE id = rls_test.u('gig');
+SELECT rls_test.expect('12 hours after the end is allowed', rls_test.arrive('a_staff', 'a_staff', $$now() - interval '1 minute'$$), 1);
+UPDATE gigs SET start = now() - interval '17 hours', "end" = now() - interval '12 hours 30 minutes' WHERE id = rls_test.u('gig');
+SELECT rls_test.expect('later than 12 hours after the end is not', rls_test.arrive('a_staff', 'a_staff', $$now() - interval '1 minute'$$), -1);
 
 -- ── Clearing works after the person's assignment changed; deleting the gig removes the rows ─
 UPDATE gig_staff_assignments SET status = 'Declined' WHERE user_id = rls_test.u('b_staff');

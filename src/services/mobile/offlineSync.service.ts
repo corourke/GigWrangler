@@ -4,6 +4,9 @@ import { toast } from 'sonner';
 
 const supabase = getSupabase();
 
+/** Fired on the window when the outbox has sent something, so a screen showing "waiting to send" can refresh. */
+export const OUTBOX_SYNCED_EVENT = 'gigwrangler:outbox-synced';
+
 type SyncHandler = (payload: any) => Promise<void>;
 
 const syncHandlers: Record<string, SyncHandler> = {};
@@ -306,6 +309,7 @@ export const offlineSyncService = {
 
     let newlyFailed = 0;
     let failed = 0;
+    let sent = 0;
     for (const item of outbox) {
       if (actorOf(item) !== me) {
         await idbStore.removeFromOutbox(item.id!);
@@ -318,6 +322,7 @@ export const offlineSyncService = {
       try {
         await this.syncItem(item);
         await idbStore.removeFromOutbox(item.id!);
+        sent += 1;
       } catch (error) {
         console.error('Sync failed for item:', item, error);
         item.attempts = (item.attempts || 0) + 1;
@@ -332,6 +337,7 @@ export const offlineSyncService = {
     if (newlyFailed > 0) {
       toast.error(`${failed} change${failed === 1 ? '' : 's'} couldn't sync`);
     }
+    if (sent > 0 && typeof window !== 'undefined') window.dispatchEvent(new Event(OUTBOX_SYNCED_EVENT));
   },
 
   async syncItem(item: OutboxItem) {

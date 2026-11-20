@@ -265,6 +265,19 @@ describe('Arrival on the day sheet (crew)', () => {
     expect(screen.getByRole('button', { name: "I've arrived" })).toBeInTheDocument()
   })
 
+  it("refreshes the sheet when the phone's queue has synced, so 'will send' goes away", async () => {
+    setOnline(false)
+    load({ my_arrival: { arrived_at: '2026-11-10T17:00:00Z', by_manager: false, pending: true } })
+    render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
+    expect(await screen.findByText("Arrived 9:00 AM · will send when you're online")).toBeInTheDocument()
+    load({ my_arrival: { arrived_at: '2026-11-10T17:00:00Z', by_manager: false } }) // what the phone's copy says after it synced
+    const before = vi.mocked(loadDayOfShowSheet).mock.calls.length
+    window.dispatchEvent(new Event('gigwrangler:outbox-synced'))
+    await waitFor(() => expect(vi.mocked(loadDayOfShowSheet).mock.calls.length).toBeGreaterThan(before))
+    expect(await screen.findByText('Arrived 9:00 AM')).toBeInTheDocument()
+    expect(screen.queryByText(/will send/)).not.toBeInTheDocument()
+  })
+
   it('shows nothing to someone not on the crew, on Requested, or for another person', async () => {
     for (const crew of [[], me('Requested'), me('Confirmed').map((c) => ({ ...c, user_id: 'u2' }))]) {
       load({}, crew)
@@ -292,7 +305,7 @@ describe('Arrival on the day sheet (managing)', () => {
   const load = (crew: any[], arrivals: { user_id: string; arrived_at: string }[] = []) =>
     vi.mocked(loadDayOfShowSheet).mockImplementation(async () => ({ ...sheetFor(TODAY), gig: { ...TODAY, owner_organization_id: 'org-owner' }, crew, crew_arrivals: arrivals }) as any)
   const as = (role: string, orgId: string) => { auth.userRole = role; (auth as any).selectedOrganization = { id: orgId } }
-  const open = async () => { render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />); await screen.findByText('Robin Crew') }
+  const open = async () => { render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />); await screen.findAllByText('Robin Crew') }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -392,5 +405,29 @@ describe('Arrival on the day sheet (managing)', () => {
     await open()
     expect(screen.getByText('Arrived 2:42 PM')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Check in|Edit time|Clear/ })).not.toBeInTheDocument()
+  })
+
+  // #458 smoke: a person on two slots is two crew lines; the arrival (and its controls) is shown once.
+  it('shows the arrival and its controls once for a person on two slots', async () => {
+    as('Admin', 'org-owner')
+    load([person(), person({ key: 'a2b', role: 'Sound' })], [])
+    await open()
+    expect(screen.getAllByText('Not arrived yet')).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Check in Robin Crew' })).toHaveLength(1)
+  })
+
+  it('and a time shows once, on the first line', async () => {
+    as('Admin', 'org-owner')
+    load([person(), person({ key: 'a2b', role: 'Sound' })], [{ user_id: 'u2', arrived_at: '2026-11-10T22:42:00Z' }])
+    await open()
+    expect(screen.getAllByText('Arrived 2:42 PM')).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Clear Robin Crew' })).toHaveLength(1)
+  })
+
+  it('Check in is offered if any of the person\'s slots is Confirmed or Invited', async () => {
+    as('Admin', 'org-owner')
+    load([person({ status: 'Requested' }), person({ key: 'a2b', role: 'Sound', status: 'Confirmed' })], [])
+    await open()
+    expect(screen.getAllByRole('button', { name: 'Check in Robin Crew' })).toHaveLength(1)
   })
 })
