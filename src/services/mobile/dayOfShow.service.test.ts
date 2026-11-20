@@ -14,6 +14,7 @@ vi.mock('../gigParticipantContacts.service', () => ({ getAllGigContacts: vi.fn()
 vi.mock('../attachment.service', () => ({ getEntityAttachments: vi.fn() }));
 vi.mock('./myAssignments.service', () => ({ loadMyUpcomingAssignments: vi.fn() }));
 vi.mock('./crewArrival.service', () => ({ fetchMyArrival: vi.fn(async () => null), fetchCrewArrivals: vi.fn(async () => []) }));
+vi.mock('./crewRoster.service', () => ({ fetchGigCrewRoster: vi.fn(async () => []), rosterToCrew: vi.fn((rows: any[]) => rows.map((r) => ({ key: `roster-${r.assignment_id}`, name: r.first_name, role: r.role_name, user_id: r.user_id, organization_id: r.organization_id }))) }));
 vi.mock('./dayOfShowFiles.service', () => ({
   removeSavedDocumentsForGig: vi.fn(async () => {}),
   saveDayOfShowDocument: vi.fn(async () => ({ saved: true })),
@@ -27,6 +28,7 @@ import { getAllGigContacts } from '../gigParticipantContacts.service';
 import { getEntityAttachments } from '../attachment.service';
 import { loadMyUpcomingAssignments } from './myAssignments.service';
 import { fetchMyArrival, fetchCrewArrivals } from './crewArrival.service';
+import { fetchGigCrewRoster } from './crewRoster.service';
 import { packingListService } from './packingList.service';
 import { removeSavedDocumentsForGig, saveDayOfShowDocument } from './dayOfShowFiles.service';
 import {
@@ -162,6 +164,27 @@ describe('loadDayOfShowSheet', () => {
     (idbStore.getDayOfShow as any).mockResolvedValue({ gig_id: 'gig-1', saved_at: 1, crew_arrivals: had });
     vi.mocked(fetchCrewArrivals).mockRejectedValueOnce(new Error('network'));
     expect((await loadDayOfShowSheet('gig-1', vi.fn()))?.crew_arrivals).toEqual(had);
+  });
+
+  // #466: other organizations' crew, for Admins and Managers of any organization on the gig.
+  it("adds other organizations' crew to the fresh sheet as crew_others", async () => {
+    setOnline(true);
+    (idbStore.getDayOfShow as any).mockResolvedValue(undefined);
+    vi.mocked(fetchGigCrewRoster).mockResolvedValueOnce([{ assignment_id: 'zz', first_name: 'Sam', role_name: 'Tech', user_id: 'u9', organization_id: 'org-b' } as any]);
+    const sheet = await loadDayOfShowSheet('gig-1', vi.fn());
+    expect(fetchGigCrewRoster).toHaveBeenCalledWith('gig-1');
+    expect(sheet?.crew_others?.map((c) => c.key)).toEqual(['roster-zz']);
+    expect(idbStore.putDayOfShow).toHaveBeenCalledWith(expect.objectContaining({ crew_others: expect.any(Array) }));
+  });
+
+  it("keeps the last other-organization crew the phone had when they cannot be read", async () => {
+    setOnline(true);
+    const had = [{ key: 'roster-old', name: 'Sam', role: 'Tech' }];
+    (idbStore.getDayOfShow as any).mockResolvedValue({ gig_id: 'gig-1', saved_at: 1, crew_others: had });
+    vi.mocked(fetchGigCrewRoster).mockRejectedValueOnce(new Error('network'));
+    const sheet = await loadDayOfShowSheet('gig-1', vi.fn());
+    expect(sheet?.venue?.name).toBe('Test Hall');
+    expect(sheet?.crew_others).toEqual(had);
   });
 
   it('offline, returns the saved copy without asking the server', async () => {
