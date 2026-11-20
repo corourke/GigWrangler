@@ -4,6 +4,7 @@ import { assignmentCost, money, staffRows } from './staffRows';
 import { projectedStaffCost, type GigTimes } from '../../../utils/rateEstimate';
 import ColumnsPicker from './ColumnsPicker';
 import GigSection from './GigSection';
+import type { RosterCrewLine } from '../../../services/mobile/crewRoster.service';
 import { useColumnVisibility, type ColumnDef } from './useColumnVisibility';
 
 const STATUS_STYLE: Record<string, string> = {
@@ -19,10 +20,12 @@ interface GigStaffingTableProps {
   showAmounts: boolean;
   /** The gig's times: a booked rate's projected cost is estimated from them (#213). */
   gig?: GigTimes;
+  /** Other organizations' crew (#466): read-only, with how to reach them, never pay. */
+  otherCrew?: RosterCrewLine[];
 }
 
 /** Read-only staffing for the viewer's own organization (#12). */
-export default function GigStaffingTable({ slots, showAmounts, gig }: GigStaffingTableProps) {
+export default function GigStaffingTable({ slots, showAmounts, gig, otherCrew = [] }: GigStaffingTableProps) {
   const columns: ColumnDef[] = [
     { key: 'role', label: 'Role', required: true },
     { key: 'person', label: 'Person', required: true },
@@ -78,6 +81,35 @@ export default function GigStaffingTable({ slots, showAmounts, gig }: GigStaffin
         <p className="text-xs text-muted-foreground text-right">
           Staff cost · Finalized {money(finalized)} · Projected {money(projected)} · Total {money(finalized + projected)}
         </p>
+      )}
+      {otherCrew.length > 0 && (
+        <div className="border-t pt-2.5">
+          <h3 className="text-[13px] font-semibold mb-1">Other organizations' crew</h3>
+          <table className="w-full text-sm" aria-label="Other organizations' crew">
+            <thead>
+              <tr className="text-left text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground border-b">
+                <th className="py-1 pr-3 font-bold">Organization</th>
+                <th className="py-1 pr-3 font-bold">Role</th>
+                <th className="py-1 pr-3 font-bold">Person</th>
+                <th className="py-1 pr-3 font-bold">Phone</th>
+                <th className="py-1 pr-3 font-bold">Email</th>
+                <th className="py-1 font-bold">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {otherCrew.map((c) => (
+                <tr key={c.key} className="border-b border-border/40 last:border-0">
+                  <td className="py-1.5 pr-3">{c.org_name}</td>
+                  <td className="py-1.5 pr-3">{c.role}</td>
+                  <td className="py-1.5 pr-3 font-semibold">{c.name}</td>
+                  <td className="py-1.5 pr-3 whitespace-nowrap">{c.phone && <a className="text-sky-700 hover:underline" href={`tel:${c.phone}`}>{c.phone}</a>}</td>
+                  <td className="py-1.5 pr-3">{c.email && <a className="text-sky-700 hover:underline" href={`mailto:${c.email}`}>{c.email}</a>}</td>
+                  <td className="py-1.5"><Badge className={`${STATUS_STYLE[c.status ?? ''] ?? STATUS_STYLE.Open} border-0`}>{c.status}</Badge></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </GigSection>
   );

@@ -90,7 +90,7 @@ export default function GigPage({
   const setTab = (t: string) => (onTabChange ? onTabChange(t as GigTab) : setLocalTab(t as GigTab));
   // A10: the gig, its child count, conflicts and history come from react-query.
   const {
-    gig, loadError, childGigCount, conflicts, activity, activityLoading,
+    gig, loadError, childGigCount, conflicts, activity, activityLoading, otherCrew,
     reload: loadGig, afterGigChange, afterListChange,
   } = useGigPageData(gigId, organization.id, tab === 'history');
   const [viewingOrg, setViewingOrg] = useState<Partial<Organization> | null>(null);
@@ -432,7 +432,7 @@ export default function GigPage({
                   />
                 </div>
                 <div className="lg:col-span-3">
-                  <GigStaffingTable slots={ownSlots} showAmounts={canEdit} gig={gig} />
+                  <GigStaffingTable slots={ownSlots} showAmounts={canEdit} gig={gig} otherCrew={otherCrew} />
                 </div>
               </div>
             )}
@@ -513,6 +513,7 @@ export default function GigPage({
           gig={gig}
           organization={organization}
           slots={ownSlots}
+          otherCrew={otherCrew}
           includeFinancials={canEdit && printRequest.financials}
           onReady={printWhenReady}
         />

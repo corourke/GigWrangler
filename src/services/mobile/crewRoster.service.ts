@@ -23,6 +23,9 @@ export async function fetchGigCrewRoster(gigId: string): Promise<RosterRow[]> {
   return (data ?? []) as RosterRow[];
 }
 
+/** A roster line as the screens use it: who, in which role, for which organization, and how to reach them. */
+export type RosterCrewLine = ReturnType<typeof rosterToCrew>[number];
+
 /** Roster rows as day-sheet crew lines, leaving out assignments the sheet already lists. */
 export function rosterToCrew(rows: readonly RosterRow[], knownAssignmentIds: ReadonlySet<string>) {
   return rows
