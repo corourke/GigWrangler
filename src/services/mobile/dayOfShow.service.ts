@@ -12,6 +12,7 @@ import { loadMyUpcomingAssignments } from './myAssignments.service';
 import { packingListService } from './packingList.service';
 import { isAutoSaveType, removeSavedDocumentsForGig, saveDayOfShowDocument } from './dayOfShowFiles.service';
 import { fetchCrewArrivals, fetchMyArrival } from './crewArrival.service';
+import { fetchGigCrewRoster, rosterToCrew } from './crewRoster.service';
 import type { CrewArrival, MyArrival } from '../../utils/crewArrival';
 import { pickTodayGigs, type TodayGigLike } from '../../utils/todayGig';
 import type { UserRole } from '../../utils/supabase/types';
@@ -59,6 +60,8 @@ export interface DayOfShowDocument {
   file_path: string;
 }
 
+export type DayOfShowCrew = DayOfShowPerson & { role: string; user_id?: string | null; status?: string | null; organization_id?: string | null };
+
 export interface DayOfShowSheet {
   gig_id: string;
   /** When this copy was fetched (ms since epoch). */
@@ -67,7 +70,9 @@ export interface DayOfShowSheet {
   venue: DayOfShowPlace | null;
   schedule: DayOfShowScheduleEntry[];
   contacts: DayOfShowPerson[];
-  crew: (DayOfShowPerson & { role: string; user_id?: string | null; status?: string | null; organization_id?: string | null })[];
+  crew: DayOfShowCrew[];
+  /** Other organizations' crew, for Admins and Managers of any organization on the gig (#466). No pay. */
+  crew_others?: DayOfShowCrew[];
   documents: DayOfShowDocument[];
   /** Saved on the phone by the person (#445): kept until removed, or 30 days after the gig. */
   kept?: boolean;
@@ -229,6 +234,16 @@ async function crewArrivalsForSheet(gigId: string, cached: DayOfShowSheet | null
   }
 }
 
+/** Other organizations' crew (#466); if they can't be read, what the phone had. */
+async function crewOthersForSheet(sheet: DayOfShowSheet, cached: DayOfShowSheet | null | undefined): Promise<DayOfShowCrew[]> {
+  try {
+    const rows = await fetchGigCrewRoster(sheet.gig_id);
+    return rosterToCrew(rows, new Set(sheet.crew.map((c) => c.key)));
+  } catch {
+    return cached?.crew_others ?? [];
+  }
+}
+
 /**
  * Hands the device copy to `onCached` straight away, then (online) fetches a fresh sheet, saves
  * it and returns it. Offline, or when the server can't be reached, returns the device copy; with
@@ -253,6 +268,7 @@ export async function loadDayOfShowSheet(
     if (cached?.kept) { fresh.kept = true; if (cached.kept_at !== undefined) fresh.kept_at = cached.kept_at; }
     fresh.my_arrival = await arrivalForSheet(gigId, cached);
     fresh.crew_arrivals = await crewArrivalsForSheet(gigId, cached);
+    fresh.crew_others = await crewOthersForSheet(fresh, cached);
   } catch (error) {
     if (cached) return cached;
     throw error;
@@ -282,6 +298,7 @@ export async function keepDayOfShowSheet(gigId: string): Promise<{ roomShort: bo
     my_arrival: await arrivalForSheet(gigId, cachedCopy),
     crew_arrivals: await crewArrivalsForSheet(gigId, cachedCopy),
   };
+  sheet.crew_others = await crewOthersForSheet(sheet, cachedCopy);
   await idbStore.putDayOfShow(sheet);
   let roomShort = false;
   for (const doc of sheet.documents) {

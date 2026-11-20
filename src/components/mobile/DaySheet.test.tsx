@@ -436,7 +436,7 @@ describe('Arrival on the day sheet (managing)', () => {
 // other organizations' crew, with the organization, phone and email; times read-only unless they manage.
 describe("Other organizations' crew on the day sheet (#466)", () => {
   const mine = { key: 'a1', name: 'Sam Crew', role: 'FOH Engineer', title: 'FOH Engineer', phone: null, email: null, user_id: 'u1', status: 'Confirmed', organization_id: 'org-act' }
-  const other = (over: Record<string, unknown> = {}) => ({ key: 'roster-a9', name: 'Sam Rivera', role: 'Monitor Engineer', title: 'Monitor Engineer', phone: '555-0100', email: 'sam@example.test', org_name: 'Harbor Sound', user_id: 'u9', status: 'Confirmed', organization_id: 'org-prod', ...over })
+  const other = (over: Record<string, unknown> = {}) => ({ key: 'roster-a9', name: 'Sam Rivera', role: 'Monitor Engineer', title: 'Monitor Engineer', phone: '555-0177', email: 'sam@example.test', org_name: 'Harbor Sound', user_id: 'u9', status: 'Confirmed', organization_id: 'org-prod', ...over })
   const load = (others: any[], arrivals: { user_id: string; arrived_at: string }[] = []) =>
     vi.mocked(loadDayOfShowSheet).mockImplementation(async () => ({ ...sheetFor(TODAY), gig: { ...TODAY, owner_organization_id: 'org-venue' }, crew: [mine], crew_others: others, crew_arrivals: arrivals }) as any)
   const as = (role: string, orgId: string) => { auth.userRole = role; (auth as any).selectedOrganization = { id: orgId } }
@@ -456,7 +456,7 @@ describe("Other organizations' crew on the day sheet (#466)", () => {
     await open()
     expect(screen.getByText('Sam Rivera')).toBeInTheDocument()
     expect(screen.getByText(/Harbor Sound/)).toBeInTheDocument()
-    expect(screen.getByText('555-0100')).toBeInTheDocument()
+    expect(screen.getByText('555-0177')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Call Sam Rivera' })).toHaveAttribute('href', expect.stringContaining('555'))
     expect(screen.getByRole('link', { name: 'Email Sam Rivera' })).toHaveAttribute('href', 'mailto:sam@example.test')
   })

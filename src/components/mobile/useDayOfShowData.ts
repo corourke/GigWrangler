@@ -211,6 +211,7 @@ export function useCrewArrivals(sheet: DayOfShowSheet) {
   });
 
   return {
+    isOwn: (userId?: string | null) => !!userId && userId === user?.id,
     canManage: (person: { user_id?: string | null; organization_id?: string | null }) =>
       canManageArrival({ role: userRole, orgId: selectedOrganization?.id }, person, sheet.gig, user?.id),
     arrivalOf: (userId?: string | null) => (sheet.crew_arrivals ?? []).find((a) => a.user_id === userId) ?? null,
