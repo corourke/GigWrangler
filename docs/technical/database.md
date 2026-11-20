@@ -950,6 +950,18 @@ When each person arrived at a gig (#458; migration 20261120100000). One row per 
 
 ---
 
+### gig_crew_roster (function)
+
+The gig's crew for Admins and Managers of any organization on the gig (#466; migration 20261120120000): `gig_crew_roster(gig)` returns each non-declined assignment's assignment and slot, organization (id, name), person (id, first and last name, phone, email), role name, status and arrived time. It answers for the signed-in person only and returns nothing unless they are an Admin or Manager of an organization on the gig that is not Inactive on it; the crew of an Inactive organization are left out.
+
+**Notes:**
+- Staff assignment rows also carry pay, so they are not opened up: the function returns only the columns above (no rate, fee, notes or units).
+- Phone numbers and emails of other organizations' crew are visible to those viewers on a shared gig (decided 11-20).
+- `gig_crew_arrivals` is readable by the same viewers (for crew listed on the gig); its write rules are unchanged.
+- Helpers: `views_gig_roster`, `crew_listed_on_gig`. Tests: `supabase/tests/rls/98_gig_crew_roster.test.sql`.
+
+---
+
 ## Equipment Tables
 
 ### ER Diagram: Equipment & Inventory

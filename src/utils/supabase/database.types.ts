@@ -2562,7 +2562,28 @@ export type Database = {
         Args: { p_at: string; p_gig_id: string }
         Returns: boolean
       }
+      gig_crew_roster: {
+        Args: { p_gig_id: string }
+        Returns: {
+          arrived_at: string
+          assignment_id: string
+          email: string
+          first_name: string
+          last_name: string
+          organization_id: string
+          organization_name: string
+          phone: string
+          role_name: string
+          slot_id: string
+          status: string
+          user_id: string
+        }[]
+      }
       gig_staff_slot_org_id: { Args: { p_slot_id: string }; Returns: string }
+      crew_listed_on_gig: {
+        Args: { p_gig_id: string; p_user_id: string }
+        Returns: boolean
+      }
       holds_checkin_assignment: {
         Args: { p_gig_id: string; p_user_id: string }
         Returns: boolean
@@ -2598,6 +2619,7 @@ export type Database = {
             Returns: Json
           }
       is_platform_moderator: { Args: never; Returns: boolean }
+      views_gig_roster: { Args: { p_gig_id: string }; Returns: boolean }
       manages_gig_arrivals: {
         Args: { p_gig_id: string; p_user_id: string }
         Returns: boolean
