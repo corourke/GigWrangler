@@ -13,7 +13,7 @@ vi.mock('../gig.service', () => ({ getGig: vi.fn() }));
 vi.mock('../gigParticipantContacts.service', () => ({ getAllGigContacts: vi.fn() }));
 vi.mock('../attachment.service', () => ({ getEntityAttachments: vi.fn() }));
 vi.mock('./myAssignments.service', () => ({ loadMyUpcomingAssignments: vi.fn() }));
-vi.mock('./crewArrival.service', () => ({ fetchMyArrival: vi.fn(async () => null) }));
+vi.mock('./crewArrival.service', () => ({ fetchMyArrival: vi.fn(async () => null), fetchCrewArrivals: vi.fn(async () => []) }));
 vi.mock('./dayOfShowFiles.service', () => ({
   removeSavedDocumentsForGig: vi.fn(async () => {}),
   saveDayOfShowDocument: vi.fn(async () => ({ saved: true })),
@@ -26,7 +26,7 @@ import { getGig } from '../gig.service';
 import { getAllGigContacts } from '../gigParticipantContacts.service';
 import { getEntityAttachments } from '../attachment.service';
 import { loadMyUpcomingAssignments } from './myAssignments.service';
-import { fetchMyArrival } from './crewArrival.service';
+import { fetchMyArrival, fetchCrewArrivals } from './crewArrival.service';
 import { packingListService } from './packingList.service';
 import { removeSavedDocumentsForGig, saveDayOfShowDocument } from './dayOfShowFiles.service';
 import {
@@ -47,6 +47,7 @@ const GIG = {
   timezone: 'America/Los_Angeles',
   all_day: false,
   status: 'Booked',
+  owner_organization_id: 'org-owner',
   notes: 'private notes',
   financials: [{ amount: 1000 }],
   participants: [
@@ -59,7 +60,7 @@ const GIG = {
   ],
   staff_slots: [
     {
-      id: 'slot-1', role: 'FOH Engineer',
+      id: 'slot-1', role: 'FOH Engineer', organization_id: 'org-staff',
       staff_assignments: [
         { id: 'as-1', user_id: 'u1', status: 'Confirmed', rate: 50, fee: 300, user: { id: 'u1', first_name: 'Sam', last_name: 'Crew', phone: '555-0101', email: 's@example.com' } },
         { id: 'as-2', user_id: 'u2', status: 'Declined', fee: 200, user: { id: 'u2', first_name: 'No', last_name: 'Show', phone: '555-0102' } },
@@ -84,7 +85,9 @@ describe('buildDayOfShowSheet', () => {
     expect(sheet.contacts).toEqual([
       expect.objectContaining({ name: 'Pat Venue', title: 'Production manager', org_name: 'Test Hall', org_role: 'Venue', phone: '555-0109' }),
     ]);
-    expect(sheet.crew).toEqual([expect.objectContaining({ name: 'Sam Crew', role: 'FOH Engineer', phone: '555-0101', user_id: 'u1', status: 'Confirmed' })]);
+    expect(sheet.crew).toEqual([expect.objectContaining({ name: 'Sam Crew', role: 'FOH Engineer', phone: '555-0101', user_id: 'u1', status: 'Confirmed', organization_id: 'org-staff' })]);
+    // #458 part 3: who owns the gig, so the sheet knows who may manage arrivals.
+    expect(sheet.gig.owner_organization_id).toBe('org-owner');
     expect(sheet.documents).toEqual([{ id: 'att-1', file_name: 'stage-plot.pdf', file_path: 'org/att-1.pdf' }]);
   });
 
@@ -141,6 +144,24 @@ describe('loadDayOfShowSheet', () => {
     const sheet = await loadDayOfShowSheet('gig-1', vi.fn());
     expect(sheet?.venue?.name).toBe('Test Hall');
     expect(sheet?.my_arrival).toEqual(had);
+  });
+
+  // #458 part 3: Admins and Managers see their crew's arrival times, kept on the phone's copy.
+  it("adds the crew's arrival times the signed-in person can see", async () => {
+    setOnline(true);
+    (idbStore.getDayOfShow as any).mockResolvedValue(undefined);
+    vi.mocked(fetchCrewArrivals).mockResolvedValueOnce([{ user_id: 'u1', arrived_at: '2026-11-10T22:00:00Z' }]);
+    const sheet = await loadDayOfShowSheet('gig-1', vi.fn());
+    expect(sheet?.crew_arrivals).toEqual([{ user_id: 'u1', arrived_at: '2026-11-10T22:00:00Z' }]);
+    expect(idbStore.putDayOfShow).toHaveBeenCalledWith(expect.objectContaining({ crew_arrivals: [{ user_id: 'u1', arrived_at: '2026-11-10T22:00:00Z' }] }));
+  });
+
+  it('keeps the last crew times the phone had when they cannot be read', async () => {
+    setOnline(true);
+    const had = [{ user_id: 'u1', arrived_at: '2026-11-10T22:00:00Z' }];
+    (idbStore.getDayOfShow as any).mockResolvedValue({ gig_id: 'gig-1', saved_at: 1, crew_arrivals: had });
+    vi.mocked(fetchCrewArrivals).mockRejectedValueOnce(new Error('network'));
+    expect((await loadDayOfShowSheet('gig-1', vi.fn()))?.crew_arrivals).toEqual(had);
   });
 
   it('offline, returns the saved copy without asking the server', async () => {

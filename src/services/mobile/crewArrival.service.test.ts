@@ -21,7 +21,7 @@ vi.mock('../../utils/idb/store', () => ({ idbStore: { getDayOfShow: (...a: unkno
 const queue = vi.fn();
 vi.mock('./offlineSync.service', () => ({ offlineSyncService: { queueTrackingUpdate: (...a: unknown[]) => queue(...a) } }));
 
-import { fetchMyArrival, recordMyArrival, undoMyArrival } from './crewArrival.service';
+import { fetchMyArrival, recordMyArrival, undoMyArrival, fetchCrewArrivals, setCrewArrival, clearCrewArrival } from './crewArrival.service';
 
 const setOnline = (on: boolean) => Object.defineProperty(navigator, 'onLine', { value: on, configurable: true });
 const NOW = new Date('2026-11-10T22:42:00Z');
@@ -90,5 +90,41 @@ describe('undoMyArrival', () => {
     expect(await undoMyArrival('g1')).toBe('queued');
     expect(queue).toHaveBeenCalledWith({ gigId: 'g1', userId: 'u1', arrivedAt: null }, 'CREW_ARRIVAL');
     expect(putDayOfShow).toHaveBeenCalledWith(expect.objectContaining({ gig_id: 'g1', my_arrival: null }));
+  });
+});
+
+// Plan #458 part 3: Admins and Managers see, record, correct and clear their crew's.
+describe('crew arrivals (managing)', () => {
+  it("lists the arrivals the signed-in person can see for the gig", async () => {
+    result = { data: [{ user_id: 'u2', arrived_at: '2026-11-10T22:00:00Z' }, { user_id: 'u3', arrived_at: '2026-11-10T22:10:00Z' }], error: null };
+    expect(await fetchCrewArrivals('g1')).toEqual([
+      { user_id: 'u2', arrived_at: '2026-11-10T22:00:00Z' },
+      { user_id: 'u3', arrived_at: '2026-11-10T22:10:00Z' },
+    ]);
+    expect(calls).toContainEqual(['from', 'gig_crew_arrivals']);
+    expect(calls).toContainEqual(['eq', 'gig_id', 'g1']);
+  });
+
+  it("records or corrects a person's time", async () => {
+    await setCrewArrival('g1', 'u2', new Date('2026-11-10T22:30:00Z'));
+    expect(calls).toContainEqual(['upsert', { gig_id: 'g1', user_id: 'u2', arrived_at: '2026-11-10T22:30:00.000Z' }, { onConflict: 'gig_id,user_id' }]);
+  });
+
+  it('throws when the server refuses', async () => {
+    result = { data: null, error: new Error('refused') };
+    await expect(setCrewArrival('g1', 'u2', new Date())).rejects.toThrow('refused');
+  });
+
+  it("clears a person's time", async () => {
+    result = { data: [{ gig_id: 'g1' }], error: null };
+    await clearCrewArrival('g1', 'u2');
+    expect(calls).toContainEqual(['delete']);
+    expect(calls).toContainEqual(['eq', 'gig_id', 'g1']);
+    expect(calls).toContainEqual(['eq', 'user_id', 'u2']);
+  });
+
+  it('says so when nothing was cleared', async () => {
+    result = { data: [], error: null };
+    await expect(clearCrewArrival('g1', 'u2')).rejects.toThrow();
   });
 });

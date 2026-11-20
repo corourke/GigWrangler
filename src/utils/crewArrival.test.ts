@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { arrivalWindowOpen, arrivalTimeLabel, canCheckInOwn, type ArrivalCrew } from './crewArrival';
+import { arrivalWindowOpen, arrivalTimeLabel, canCheckInOwn, canManageArrival, type ArrivalCrew } from './crewArrival';
 
 const gig = { start: '2026-11-10T20:00:00Z', end: '2026-11-11T00:00:00Z' };
 const at = (iso: string) => new Date(iso);
@@ -42,5 +42,28 @@ describe('arrivalTimeLabel', () => {
   it("shows the time in the gig's time zone", () => {
     expect(arrivalTimeLabel('2026-11-10T22:42:00Z', 'America/Los_Angeles')).toBe('2:42 PM');
     expect(arrivalTimeLabel('2026-11-10T22:42:00Z', 'UTC')).toBe('10:42 PM');
+  });
+});
+
+// Plan #458 part 3: Admins and Managers of the gig's owner organization, or of the organization
+// that staffs the person, record, correct and clear anyone else's.
+describe('canManageArrival', () => {
+  const crew = { user_id: 'u2', organization_id: 'org-staffing' };
+  const gig = { owner_organization_id: 'org-owner' };
+  it("is for an Admin or Manager of the gig's owner organization", () => {
+    expect(canManageArrival({ role: 'Admin', orgId: 'org-owner' }, crew, gig, 'u1')).toBe(true);
+    expect(canManageArrival({ role: 'Manager', orgId: 'org-owner' }, crew, gig, 'u1')).toBe(true);
+  });
+  it("is for an Admin or Manager of the person's staffing organization", () => {
+    expect(canManageArrival({ role: 'Manager', orgId: 'org-staffing' }, crew, gig, 'u1')).toBe(true);
+  });
+  it('is not for Staff or Viewer, or for an unrelated organization', () => {
+    expect(canManageArrival({ role: 'Staff', orgId: 'org-owner' }, crew, gig, 'u1')).toBe(false);
+    expect(canManageArrival({ role: 'Viewer', orgId: 'org-staffing' }, crew, gig, 'u1')).toBe(false);
+    expect(canManageArrival({ role: 'Admin', orgId: 'org-other' }, crew, gig, 'u1')).toBe(false);
+    expect(canManageArrival({ role: 'Admin', orgId: undefined }, crew, gig, 'u1')).toBe(false);
+  });
+  it("is not for one's own row (that is the person's own arrival)", () => {
+    expect(canManageArrival({ role: 'Admin', orgId: 'org-owner' }, { ...crew, user_id: 'u1' }, gig, 'u1')).toBe(false);
   });
 });

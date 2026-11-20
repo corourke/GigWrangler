@@ -13,7 +13,7 @@ vi.mock('../../services/mobile/dayOfShow.service', async (importOriginal) => {
   return { ...actual, loadDayOfShowSheet: vi.fn() }
 })
 vi.mock('../../services/attachment.service', () => ({ getAttachmentUrl: vi.fn() }))
-vi.mock('../../services/mobile/crewArrival.service', () => ({ recordMyArrival: vi.fn(), undoMyArrival: vi.fn() }))
+vi.mock('../../services/mobile/crewArrival.service', () => ({ recordMyArrival: vi.fn(), undoMyArrival: vi.fn(), setCrewArrival: vi.fn(), clearCrewArrival: vi.fn() }))
 const toastSuccess = vi.fn()
 vi.mock('../../services/mobile/dayOfShowFiles.service', async (importOriginal) => {
   const actual: any = await importOriginal()
@@ -38,7 +38,7 @@ vi.mock('./DaySheetGigPicker', () => ({
 vi.mock('sonner', () => ({ toast: { error: (...a: any[]) => toastError(...a), success: (...a: any[]) => toastSuccess(...a) } }))
 
 import { loadDayOfShowSheet, type DayOfShowSheet } from '../../services/mobile/dayOfShow.service'
-import { recordMyArrival, undoMyArrival } from '../../services/mobile/crewArrival.service'
+import { recordMyArrival, undoMyArrival, setCrewArrival, clearCrewArrival } from '../../services/mobile/crewArrival.service'
 import { saveGigDocumentsAhead, listSavedDocuments, saveDayOfShowDocument, getSavedDocument } from '../../services/mobile/dayOfShowFiles.service'
 
 const NOW = new Date('2026-11-10T17:00:00Z') // 9 AM in Los Angeles
@@ -281,5 +281,116 @@ describe('Arrival on the day sheet (crew)', () => {
     render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
     await screen.findByText('Tonight Show')
     expect(screen.queryByRole('button', { name: "I've arrived" })).not.toBeInTheDocument()
+  })
+})
+
+// Plan #458 part 3 (Cameron 11-20): Admins and Managers of the gig's owner organization, or of the
+// organization staffing a person, see the crew's arrival times and record, correct and clear them.
+describe('Arrival on the day sheet (managing)', () => {
+  const person = (over: Record<string, unknown> = {}) => ({ key: 'a2', name: 'Robin Crew', role: 'Lights', title: 'Lights', phone: null, email: null, user_id: 'u2', status: 'Confirmed', organization_id: 'org-staff', ...over })
+  const mine = { key: 'a1', name: 'Sam Crew', role: 'FOH Engineer', title: 'FOH Engineer', phone: null, email: null, user_id: 'u1', status: 'Confirmed', organization_id: 'org-owner' }
+  const load = (crew: any[], arrivals: { user_id: string; arrived_at: string }[] = []) =>
+    vi.mocked(loadDayOfShowSheet).mockImplementation(async () => ({ ...sheetFor(TODAY), gig: { ...TODAY, owner_organization_id: 'org-owner' }, crew, crew_arrivals: arrivals }) as any)
+  const as = (role: string, orgId: string) => { auth.userRole = role; (auth as any).selectedOrganization = { id: orgId } }
+  const open = async () => { render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />); await screen.findByText('Robin Crew') }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+    setOnline(true)
+    vi.mocked(setCrewArrival).mockResolvedValue(undefined)
+    vi.mocked(clearCrewArrival).mockResolvedValue(undefined)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    setOnline(true)
+    as('Staff', 'org-1')
+  })
+
+  it("shows each crew member's time, or Not arrived yet, to an Admin of the gig's owner organization", async () => {
+    as('Admin', 'org-owner')
+    load([mine, person(), person({ key: 'a3', name: 'Alex Crew', user_id: 'u3' })], [{ user_id: 'u2', arrived_at: '2026-11-10T22:42:00Z' }])
+    await open()
+    expect(screen.getByText('Arrived 2:42 PM')).toBeInTheDocument()
+    expect(screen.getByText('Not arrived yet')).toBeInTheDocument()
+  })
+
+  it('a Manager of the staffing organization sees them too', async () => {
+    as('Manager', 'org-staff')
+    load([person()], [{ user_id: 'u2', arrived_at: '2026-11-10T22:42:00Z' }])
+    await open()
+    expect(screen.getByText('Arrived 2:42 PM')).toBeInTheDocument()
+  })
+
+  it('Check in records the person, now', async () => {
+    as('Manager', 'org-owner')
+    load([person()])
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Check in Robin Crew' }))
+    await waitFor(() => expect(setCrewArrival).toHaveBeenCalledWith('g1', 'u2', expect.any(Date)))
+    expect(await screen.findByText('Arrived 9:00 AM')).toBeInTheDocument()
+  })
+
+  it('Edit time corrects it, in the gig\'s time zone', async () => {
+    as('Admin', 'org-owner')
+    load([person()], [{ user_id: 'u2', arrived_at: '2026-11-10T22:42:00Z' }])
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit time for Robin Crew' }))
+    const input = screen.getByLabelText('Arrival time for Robin Crew')
+    expect(input).toHaveValue('2026-11-10T14:42')
+    fireEvent.change(input, { target: { value: '2026-11-10T14:15' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(setCrewArrival).toHaveBeenCalledWith('g1', 'u2', new Date('2026-11-10T22:15:00Z')))
+    expect(await screen.findByText('Arrived 2:15 PM')).toBeInTheDocument()
+  })
+
+  it('Clear takes it away', async () => {
+    as('Admin', 'org-owner')
+    load([person()], [{ user_id: 'u2', arrived_at: '2026-11-10T22:42:00Z' }])
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear Robin Crew' }))
+    await waitFor(() => expect(clearCrewArrival).toHaveBeenCalledWith('g1', 'u2'))
+    expect(await screen.findByText('Not arrived yet')).toBeInTheDocument()
+  })
+
+  it('a failed save says so and keeps what was shown', async () => {
+    as('Admin', 'org-owner')
+    load([person()])
+    vi.mocked(setCrewArrival).mockRejectedValue(new Error('nope'))
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Check in Robin Crew' }))
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Couldn't save the arrival. Try again."))
+    expect(screen.getByText('Not arrived yet')).toBeInTheDocument()
+  })
+
+  it('shows nothing, and no controls, to Staff or to an unrelated organization', async () => {
+    for (const [role, org] of [['Staff', 'org-owner'], ['Viewer', 'org-staff'], ['Admin', 'org-other']] as const) {
+      as(role, org)
+      load([person()], [{ user_id: 'u2', arrived_at: '2026-11-10T22:42:00Z' }])
+      const view = render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />)
+      await screen.findByText('Robin Crew')
+      expect(screen.queryByText('Arrived 2:42 PM')).not.toBeInTheDocument()
+      expect(screen.queryByText('Not arrived yet')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Check in|Edit time|Clear/ })).not.toBeInTheDocument()
+      view.unmount()
+    }
+  })
+
+  it('has no Check in for someone on Requested, and none on your own line', async () => {
+    as('Admin', 'org-owner')
+    load([mine, person({ status: 'Requested' })])
+    await open()
+    expect(screen.queryByRole('button', { name: 'Check in Robin Crew' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Check in Sam Crew' })).not.toBeInTheDocument()
+  })
+
+  it('offline: shows the last times seen, with no controls', async () => {
+    setOnline(false)
+    as('Admin', 'org-owner')
+    load([person()], [{ user_id: 'u2', arrived_at: '2026-11-10T22:42:00Z' }])
+    await open()
+    expect(screen.getByText('Arrived 2:42 PM')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Check in|Edit time|Clear/ })).not.toBeInTheDocument()
   })
 })
