@@ -11,6 +11,8 @@ import { getEntityAttachments } from '../attachment.service';
 import { loadMyUpcomingAssignments } from './myAssignments.service';
 import { packingListService } from './packingList.service';
 import { isAutoSaveType, removeSavedDocumentsForGig, saveDayOfShowDocument } from './dayOfShowFiles.service';
+import { fetchMyArrival } from './crewArrival.service';
+import type { MyArrival } from '../../utils/crewArrival';
 import { pickTodayGigs, type TodayGigLike } from '../../utils/todayGig';
 import type { UserRole } from '../../utils/supabase/types';
 
@@ -63,12 +65,14 @@ export interface DayOfShowSheet {
   venue: DayOfShowPlace | null;
   schedule: DayOfShowScheduleEntry[];
   contacts: DayOfShowPerson[];
-  crew: (DayOfShowPerson & { role: string })[];
+  crew: (DayOfShowPerson & { role: string; user_id?: string | null; status?: string | null })[];
   documents: DayOfShowDocument[];
   /** Saved on the phone by the person (#445): kept until removed, or 30 days after the gig. */
   kept?: boolean;
   /** When the person saved it (ms): a kept sheet stays 30 days from the later of this and the gig's end. */
   kept_at?: number;
+  /** The signed-in person's own arrival at this gig (#458); null when there is none. */
+  my_arrival?: MyArrival | null;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -139,6 +143,8 @@ export function buildDayOfShowSheet(
         name: fullName(a.user),
         role,
         title: role,
+        user_id: a.user_id,
+        status: a.status ?? null,
         phone: a.user.phone ?? null,
         email: a.user.email ?? null,
       }));
@@ -196,6 +202,19 @@ export async function pruneDayOfShow(now: number = Date.now()): Promise<void> {
 }
 
 /**
+ * The signed-in person's own arrival for the sheet (#458): the server's, except an arrival still
+ * waiting to be sent from this phone stays as it is. If it can't be read, what the phone had.
+ */
+async function arrivalForSheet(gigId: string, cached: DayOfShowSheet | null | undefined): Promise<MyArrival | null> {
+  if (cached?.my_arrival?.pending) return cached.my_arrival;
+  try {
+    return await fetchMyArrival(gigId);
+  } catch {
+    return cached?.my_arrival ?? null;
+  }
+}
+
+/**
  * Hands the device copy to `onCached` straight away, then (online) fetches a fresh sheet, saves
  * it and returns it. Offline, or when the server can't be reached, returns the device copy; with
  * no device copy, null offline, or the error online.
@@ -217,6 +236,7 @@ export async function loadDayOfShowSheet(
     ]);
     fresh = buildDayOfShowSheet(gig, contacts, attachments ?? []);
     if (cached?.kept) { fresh.kept = true; if (cached.kept_at !== undefined) fresh.kept_at = cached.kept_at; }
+    fresh.my_arrival = await arrivalForSheet(gigId, cached);
   } catch (error) {
     if (cached) return cached;
     throw error;
@@ -238,7 +258,13 @@ export async function keepDayOfShowSheet(gigId: string): Promise<{ roomShort: bo
     getAllGigContacts(gigId),
     getEntityAttachments('gig', gigId),
   ]);
-  const sheet: DayOfShowSheet = { ...buildDayOfShowSheet(gig, contacts, attachments ?? []), kept: true, kept_at: Date.now() };
+  const cachedCopy = ((await idbStore.getDayOfShow(gigId).catch(() => undefined)) ?? null) as DayOfShowSheet | null;
+  const sheet: DayOfShowSheet = {
+    ...buildDayOfShowSheet(gig, contacts, attachments ?? []),
+    kept: true,
+    kept_at: Date.now(),
+    my_arrival: await arrivalForSheet(gigId, cachedCopy),
+  };
   await idbStore.putDayOfShow(sheet);
   let roomShort = false;
   for (const doc of sheet.documents) {

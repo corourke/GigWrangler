@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryKeys';
+import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   forgetDayOfShowSheet,
@@ -17,6 +18,8 @@ import {
   saveDayOfShowDocument,
   saveGigDocumentsAhead,
 } from '../../services/mobile/dayOfShowFiles.service';
+import { recordMyArrival, undoMyArrival } from '../../services/mobile/crewArrival.service';
+import { canCheckInOwn, type MyArrival } from '../../utils/crewArrival';
 import type { UserRole } from '../../utils/supabase/types';
 
 import { hasTodayTab } from './todayTab';
@@ -134,4 +137,39 @@ export function useKeepDayOfShowSheet(gigId: string) {
     },
   });
   return { keep, forget };
+}
+
+/**
+ * The signed-in person's own arrival at this gig (#458): whether they may record one, and record
+ * or take it back. The sheet in the cache is updated at once; offline, a change shows as waiting to send.
+ */
+export function useMyArrival(sheet: DayOfShowSheet) {
+  const queryClient = useQueryClient();
+  const userId = useAuth().user?.id;
+  const sheetKey = queryKeys.dayOfShow(sheet.gig_id);
+  const setArrival = (arrival: MyArrival | null) => {
+    const current = queryClient.getQueryData<DayOfShowSheet | null>(sheetKey);
+    if (current) queryClient.setQueryData(sheetKey, { ...current, my_arrival: arrival });
+  };
+
+  const record = useMutation({
+    mutationFn: () => recordMyArrival(sheet.gig_id),
+    networkMode: 'always',
+    onSuccess: (r) => setArrival({ arrived_at: r.arrived_at, by_manager: false, pending: r.outcome === 'queued' }),
+    onError: () => toast.error("Couldn't save the arrival. Try again."),
+  });
+  const undo = useMutation({
+    mutationFn: () => undoMyArrival(sheet.gig_id),
+    networkMode: 'always',
+    onSuccess: (outcome) => {
+      if (outcome === 'locked') {
+        toast.error('A manager set your arrival time.');
+        return queryClient.invalidateQueries({ queryKey: sheetKey }); // shows the server's time
+      }
+      setArrival(null);
+    },
+    onError: () => toast.error("Couldn't undo the arrival. Try again."),
+  });
+
+  return { canCheckIn: canCheckInOwn(sheet.crew, userId), arrival: sheet.my_arrival ?? null, record, undo };
 }
