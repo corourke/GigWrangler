@@ -491,3 +491,115 @@ describe("Other organizations' crew on the day sheet (#466)", () => {
     expect(screen.queryByText('Not arrived yet')).not.toBeInTheDocument()
   })
 })
+
+// Plan #470 (Cameron 11-24): the gig's notes, each schedule entry's note, and a Participants list.
+describe('Notes and Participants on the day sheet (#470)', () => {
+  const load = (extra: Record<string, unknown>) =>
+    vi.mocked(loadDayOfShowSheet).mockImplementation(async () => ({ ...sheetFor(TODAY), ...extra }) as any)
+  const open = async () => { render(<MobileDaySheet gigId="g1" onBack={vi.fn()} onViewGigDetail={vi.fn()} />); await screen.findAllByText('Tonight Show') }
+  const withNotes = (notes: string | null, extra: Record<string, unknown> = {}) => ({ gig: { ...TODAY, notes, ...extra } })
+
+  beforeEach(() => { vi.clearAllMocks(); setOnline(true); auth.userRole = 'Staff' })
+
+  describe('notes', () => {
+    it('shows the gig notes as Markdown', async () => {
+      load(withNotes('**Bring a ladder**\n\n- Stage left\n- Dock B'))
+      await open()
+      expect(screen.getByText('Notes')).toBeInTheDocument()
+      expect(screen.getByText('Bring a ladder').tagName).toBe('STRONG')
+      expect(screen.getAllByRole('listitem').map((l) => l.textContent)).toEqual(['Stage left', 'Dock B'])
+    })
+    it('has no Notes section when there are none', async () => {
+      load(withNotes(null))
+      await open()
+      expect(screen.queryByText('Notes')).not.toBeInTheDocument()
+    })
+    it('Staff read them as an Admin does', async () => {
+      auth.userRole = 'Staff'
+      load(withNotes('Parking is behind the hall.'))
+      await open()
+      expect(screen.getByText('Parking is behind the hall.')).toBeInTheDocument()
+    })
+    it('collapses long notes with Show more and Show less', async () => {
+      load(withNotes('word '.repeat(300)))
+      await open()
+      fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+      expect(screen.getByRole('button', { name: 'Show less' })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Show less' }))
+      expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+    })
+    it('does not offer Show more for short notes', async () => {
+      load(withNotes('Short note.'))
+      await open()
+      expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
+    })
+    it('says when the notes were shortened on the phone', async () => {
+      load(withNotes('Cut off', { notes_truncated: true }))
+      await open()
+      expect(screen.getByText('Shortened on this phone. Open the full gig page online for the rest.')).toBeInTheDocument()
+    })
+    it("shows a schedule entry's note under its line, and no note when there is none", async () => {
+      const base = sheetFor(TODAY)
+      load({ schedule: [{ ...base.schedule[0], notes: 'Dock B, ring the bell' }, base.schedule[1]] })
+      await open()
+      expect(screen.getByText('Dock B, ring the bell')).toBeInTheDocument()
+      expect(screen.getAllByText('Dock B, ring the bell')).toHaveLength(1)
+    })
+    it('says when a schedule note was shortened', async () => {
+      const base = sheetFor(TODAY)
+      load({ schedule: [{ ...base.schedule[0], notes: 'Cut here', notes_truncated: true }, base.schedule[1]] })
+      await open()
+      expect(screen.getByText(/Cut here/).textContent).toMatch(/Shortened on this phone\./)
+    })
+  })
+
+  describe('participants', () => {
+    const participants = [
+      {
+        key: 'p1', org_name: 'Test Hall', role: 'Venue', is_client: false, org_phone: '555-0100',
+        contacts: [
+          { key: 'c1', name: 'Pat Venue', title: 'Production', phone: '555-0109', email: 'p@example.com', is_primary: true },
+          { key: 'c2', name: 'Lee Stage', title: 'Stage manager', phone: null, email: null, is_primary: false },
+        ],
+      },
+      { key: 'p2', org_name: 'Test Band', role: 'Act', is_client: true, org_phone: '555-0200', contacts: [] },
+      { key: 'p3', org_name: 'Quiet Sound', role: 'Production', is_client: false, org_phone: null, contacts: [{ key: 'c3', name: 'No Phone', title: null, phone: null, email: null, is_primary: true }] },
+    ]
+    it('lists every organization with its role, and stars the client', async () => {
+      load({ participants })
+      await open()
+      expect(screen.getByText('Participants')).toBeInTheDocument()
+      for (const name of ['Test Hall', 'Test Band', 'Quiet Sound']) expect(screen.getByText(name)).toBeInTheDocument()
+      expect(screen.getAllByLabelText('Client')).toHaveLength(1)
+      expect(screen.getByText('Act')).toBeInTheDocument()
+    })
+    it('shows contacts with the primary first and marked, with call and email actions', async () => {
+      load({ participants })
+      await open()
+      const names = screen.getAllByText(/Pat Venue|Lee Stage/).map((n) => n.textContent)
+      expect(names).toEqual(['Pat Venue', 'Lee Stage'])
+      expect(screen.getByText(/Production · Primary/)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Call Pat Venue' })).toHaveAttribute('href', expect.stringContaining('5550109'))
+      expect(screen.getByRole('link', { name: 'Email Pat Venue' })).toHaveAttribute('href', 'mailto:p@example.com')
+    })
+    it("uses the organization's own phone when it has no contact, or its contact has no phone", async () => {
+      load({ participants })
+      await open()
+      expect(screen.getByRole('link', { name: 'Call Test Band' })).toHaveAttribute('href', expect.stringContaining('5550200'))
+      // The venue's primary contact has a phone, so the venue's main line is not repeated.
+      expect(screen.queryByRole('link', { name: 'Call Test Hall' })).not.toBeInTheDocument()
+    })
+    it('replaces Contacts: nobody appears twice', async () => {
+      load({ participants, contacts: [{ key: 'c1', name: 'Pat Venue', title: 'Production', phone: '555-0109', email: 'p@example.com', org_name: 'Test Hall', org_role: 'Venue' }] })
+      await open()
+      expect(screen.queryByText('Contacts')).not.toBeInTheDocument()
+      expect(screen.getAllByText('Pat Venue')).toHaveLength(1)
+    })
+    it('a sheet saved before this change still shows Contacts', async () => {
+      load({})
+      await open()
+      expect(screen.getByText('Contacts')).toBeInTheDocument()
+      expect(screen.queryByText('Participants')).not.toBeInTheDocument()
+    })
+  })
+})
