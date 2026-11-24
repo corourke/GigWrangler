@@ -50,21 +50,21 @@ const GIG = {
   all_day: false,
   status: 'Booked',
   owner_organization_id: 'org-owner',
-  notes: 'private notes',
+  notes: 'Load in at the dock.',
   financials: [{ amount: 1000 }],
   participants: [
     { id: 'p-venue', role: 'Venue', organization_id: 'org-v', organization: { id: 'org-v', name: 'Test Hall', address_line1: '1 Main St', city: 'Town', state: 'CA', postal_code: '90000', phone_number: '555-0100', notes: 'internal' } },
-    { id: 'p-act', role: 'Act', organization_id: 'org-a', organization: { id: 'org-a', name: 'Test Band' } },
+    { id: 'p-act', role: 'Act', organization_id: 'org-a', is_client: true, organization: { id: 'org-a', name: 'Test Band', phone_number: '555-0200' } },
   ],
   schedule_entries: [
     { id: 's2', activity_type: 'Doors', start_time: '2026-11-11T03:00:00Z', end_time: null, label: null, act_participant: null },
-    { id: 's1', activity_type: 'LoadIn', start_time: '2026-11-10T22:00:00Z', end_time: '2026-11-10T23:00:00Z', label: 'Load in', act_participant: null },
+    { id: 's1', activity_type: 'LoadIn', start_time: '2026-11-10T22:00:00Z', end_time: '2026-11-10T23:00:00Z', label: 'Load in', notes: 'Dock B', act_participant: null },
   ],
   staff_slots: [
     {
-      id: 'slot-1', role: 'FOH Engineer', organization_id: 'org-staff',
+      id: 'slot-1', role: 'FOH Engineer', organization_id: 'org-staff', notes: 'slot secret',
       staff_assignments: [
-        { id: 'as-1', user_id: 'u1', status: 'Confirmed', rate: 50, fee: 300, user: { id: 'u1', first_name: 'Sam', last_name: 'Crew', phone: '555-0101', email: 's@example.com' } },
+        { id: 'as-1', user_id: 'u1', status: 'Confirmed', rate: 50, fee: 300, notes: 'assignment secret', user: { id: 'u1', first_name: 'Sam', last_name: 'Crew', phone: '555-0101', email: 's@example.com' } },
         { id: 'as-2', user_id: 'u2', status: 'Declined', fee: 200, user: { id: 'u2', first_name: 'No', last_name: 'Show', phone: '555-0102' } },
       ],
     },
@@ -95,7 +95,66 @@ describe('buildDayOfShowSheet', () => {
 
   it('saves no money, rates, fees or internal notes', () => {
     const text = JSON.stringify(buildDayOfShowSheet(GIG, CONTACTS as any, DOCS, 1000));
-    expect(text).not.toMatch(/financials|"rate"|"fee"|"amount"|private notes|internal/);
+    expect(text).not.toMatch(/financials|"rate"|"fee"|"amount"|slot secret|assignment secret|internal/);
+  });
+
+  // Plan #470 (Cameron 11-24): the gig's notes and each schedule entry's note, as the web sheet shows them.
+  describe('notes (#470)', () => {
+    it("keeps the gig's notes and each schedule entry's note", () => {
+      const sheet = buildDayOfShowSheet(GIG, CONTACTS as any, DOCS, 1000);
+      expect(sheet.gig.notes).toBe('Load in at the dock.');
+      expect(sheet.gig.notes_truncated).toBeFalsy();
+      expect(sheet.schedule.find((e) => e.id === 's1')?.notes).toBe('Dock B');
+      expect(sheet.schedule.find((e) => e.id === 's2')?.notes ?? null).toBeNull();
+    });
+    it('stores up to 10,000 characters of the gig notes, and says when it cut', () => {
+      const exact = buildDayOfShowSheet({ ...GIG, notes: 'a'.repeat(10000) }, [], [], 1);
+      expect(exact.gig.notes).toHaveLength(10000);
+      expect(exact.gig.notes_truncated).toBeFalsy();
+      const cut = buildDayOfShowSheet({ ...GIG, notes: 'a'.repeat(10001) }, [], [], 1);
+      expect(cut.gig.notes).toHaveLength(10000);
+      expect(cut.gig.notes_truncated).toBe(true);
+    });
+    it('stores up to 500 characters of a schedule note, and says when it cut', () => {
+      const entries = [
+        { id: 'x1', activity_type: 'Doors', start_time: '2026-11-10T22:00:00Z', notes: 'b'.repeat(500) },
+        { id: 'x2', activity_type: 'Set', start_time: '2026-11-10T23:00:00Z', notes: 'c'.repeat(501) },
+      ];
+      const sheet = buildDayOfShowSheet({ ...GIG, schedule_entries: entries }, [], [], 1);
+      expect(sheet.schedule[0].notes).toHaveLength(500);
+      expect(sheet.schedule[0].notes_truncated).toBeFalsy();
+      expect(sheet.schedule[1].notes).toHaveLength(500);
+      expect(sheet.schedule[1].notes_truncated).toBe(true);
+    });
+    it('has no notes when there are none', () => {
+      const sheet = buildDayOfShowSheet({ ...GIG, notes: null }, [], [], 1);
+      expect(sheet.gig.notes ?? null).toBeNull();
+    });
+  });
+
+  // Plan #470: every organization on the gig, its role, the client, and its contacts with the primary first.
+  describe('participants (#470)', () => {
+    const more = [
+      { id: 'c2', gig_id: 'gig-1', organization_id: 'org-v', user_id: 'u8', is_primary_contact: false, title: 'Stage manager', created_at: '', user: { id: 'u8', first_name: 'Lee', last_name: 'Stage', email: null, phone: null } },
+      { id: 'c3', gig_id: 'gig-1', organization_id: 'org-v', user_id: null, is_primary_contact: false, title: null, created_at: '', user: null },
+    ];
+    it('lists each organization with its role, client mark and own phone', () => {
+      const sheet = buildDayOfShowSheet(GIG, CONTACTS as any, DOCS, 1);
+      expect(sheet.participants).toEqual([
+        expect.objectContaining({ org_name: 'Test Hall', role: 'Venue', is_client: false, org_phone: '555-0100' }),
+        expect.objectContaining({ org_name: 'Test Band', role: 'Act', is_client: true, org_phone: '555-0200', contacts: [] }),
+      ]);
+    });
+    it("lists an organization's contacts, primary first and marked, leaving out rows with no person", () => {
+      const sheet = buildDayOfShowSheet(GIG, [...more, ...CONTACTS] as any, DOCS, 1);
+      const venue = sheet.participants?.find((p) => p.role === 'Venue');
+      expect(venue?.contacts.map((c) => [c.name, c.is_primary])).toEqual([['Pat Venue', true], ['Lee Stage', false]]);
+      expect(venue?.contacts[0]).toMatchObject({ title: 'Production manager', phone: '555-0109', email: 'p@example.com' });
+    });
+    it('saves no organization notes or other private fields', () => {
+      const text = JSON.stringify(buildDayOfShowSheet(GIG, CONTACTS as any, DOCS, 1).participants);
+      expect(text).not.toMatch(/internal|notes/);
+    });
   });
 });
 

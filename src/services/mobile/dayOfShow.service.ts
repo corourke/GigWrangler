@@ -21,6 +21,10 @@ export interface DayOfShowGig extends TodayGigLike {
   title: string;
   /** The organization that owns the gig; its Admins and Managers may manage crew arrivals (#458). */
   owner_organization_id?: string | null;
+  /** The gig's notes (#470), shared gig data: whoever can open the gig reads them. Markdown. */
+  notes?: string | null;
+  /** The notes were longer than the phone keeps and were cut. */
+  notes_truncated?: boolean;
 }
 
 export interface DayOfShowPlace {
@@ -40,6 +44,9 @@ export interface DayOfShowScheduleEntry {
   start_time: string;
   end_time?: string | null;
   act_name?: string | null;
+  /** This entry's note (#470), plain text. */
+  notes?: string | null;
+  notes_truncated?: boolean;
 }
 
 export interface DayOfShowPerson {
@@ -52,6 +59,20 @@ export interface DayOfShowPerson {
   /** For a contact: the participating organization and its role on the gig. */
   org_name?: string | null;
   org_role?: string | null;
+  /** In Participants: the organization's primary contact on the gig (#470). */
+  is_primary?: boolean;
+}
+
+/** One organization on the gig, with its contacts (#470): what the web gig sheet's Participants table shows. */
+export interface DayOfShowParticipant {
+  key: string;
+  org_name: string;
+  role: string;
+  is_client: boolean;
+  /** The organization's own phone, used when it has no contact with one. */
+  org_phone?: string | null;
+  /** Primary first. */
+  contacts: DayOfShowPerson[];
 }
 
 export interface DayOfShowDocument {
@@ -70,6 +91,8 @@ export interface DayOfShowSheet {
   venue: DayOfShowPlace | null;
   schedule: DayOfShowScheduleEntry[];
   contacts: DayOfShowPerson[];
+  /** Every organization on the gig with its contacts (#470). Sheets saved before it have none and show Contacts. */
+  participants?: DayOfShowParticipant[];
   crew: DayOfShowCrew[];
   /** Other organizations' crew, for Admins and Managers of any organization on the gig (#466). No pay. */
   crew_others?: DayOfShowCrew[];
@@ -104,9 +127,20 @@ const place = (org: any): DayOfShowPlace | null =>
       }
     : null;
 
+/** How much of the gig's notes, and of one schedule entry's note, the phone keeps (#470). */
+export const GIG_NOTES_MAX = 10000;
+export const ENTRY_NOTE_MAX = 500;
+
+const capNote = (text: unknown, max: number): { text: string | null; truncated: boolean } => {
+  if (typeof text !== 'string' || !text.trim()) return { text: null, truncated: false };
+  return text.length > max ? { text: text.slice(0, max), truncated: true } : { text, truncated: false };
+};
+
 /**
  * The sheet from a gig as getGig returns it, its contacts and its attachments. Picks fields one by
- * one, so nothing else the gig carries (financials, rates, fees, notes) is saved on the phone.
+ * one, so nothing else the gig carries (financials, rates, fees, staffing and organization notes) is
+ * saved on the phone. The gig's notes and each schedule entry's note are shared gig data, so they
+ * are kept (up to the caps above), as the web gig sheet shows them (#470).
  */
 export function buildDayOfShowSheet(
   gig: any,
@@ -119,14 +153,19 @@ export function buildDayOfShowSheet(
 
   const schedule: DayOfShowScheduleEntry[] = [...(gig.schedule_entries ?? [])]
     .sort((a: any, b: any) => String(a.start_time).localeCompare(String(b.start_time)))
-    .map((e: any) => ({
-      id: e.id,
-      activity_type: e.activity_type,
-      label: e.label ?? null,
-      start_time: e.start_time,
-      end_time: e.end_time ?? null,
-      act_name: e.act_participant?.organization?.name ?? null,
-    }));
+    .map((e: any) => {
+      const note = capNote(e.notes, ENTRY_NOTE_MAX);
+      return {
+        id: e.id,
+        activity_type: e.activity_type,
+        label: e.label ?? null,
+        start_time: e.start_time,
+        end_time: e.end_time ?? null,
+        act_name: e.act_participant?.organization?.name ?? null,
+        notes: note.text,
+        ...(note.truncated ? { notes_truncated: true } : {}),
+      };
+    });
 
   const people: DayOfShowPerson[] = (contacts ?? [])
     .filter((c) => c.user)
@@ -142,6 +181,28 @@ export function buildDayOfShowSheet(
         org_role: p?.role ?? null,
       };
     });
+
+  // Participants (#470): each organization on the gig, as the web gig sheet's table lists them
+  // (Inactive ones too). Its contacts, the primary first.
+  const participantList: DayOfShowParticipant[] = participants.map((p: any) => ({
+    key: String(p.id),
+    org_name: p.organization?.name ?? '',
+    role: p.role,
+    is_client: !!p.is_client,
+    org_phone: p.organization?.phone_number ?? null,
+    contacts: (contacts ?? [])
+      .filter((c) => c.user && c.organization_id === p.organization_id)
+      .map((c) => ({
+        key: c.id,
+        name: fullName(c.user),
+        title: c.title ?? null,
+        phone: c.user.phone ?? null,
+        email: c.user.email ?? null,
+        is_primary: !!c.is_primary_contact,
+      }))
+      .sort((a, b) => Number(b.is_primary) - Number(a.is_primary)),
+  }));
+  const gigNotes = capNote(gig.notes, GIG_NOTES_MAX);
 
   const crew = (gig.staff_slots ?? []).flatMap((slot: any) => {
     const role = slot.role || slot.role_info?.name || 'Crew';
@@ -172,10 +233,13 @@ export function buildDayOfShowSheet(
       all_day: gig.all_day ?? null,
       status: gig.status ?? null,
       owner_organization_id: gig.owner_organization_id ?? null,
+      notes: gigNotes.text,
+      ...(gigNotes.truncated ? { notes_truncated: true } : {}),
     },
     venue: place(participants.find((p) => p.role === 'Venue')?.organization),
     schedule,
     contacts: people,
+    participants: participantList,
     crew,
     documents: (attachments ?? []).map((a: any) => ({ id: a.id, file_name: a.file_name, file_path: a.file_path })),
   };
