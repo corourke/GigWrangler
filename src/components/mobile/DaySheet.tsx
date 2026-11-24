@@ -11,9 +11,11 @@ import {
   Navigation,
   Phone,
   Share2,
+  Star,
   Users,
   X,
 } from 'lucide-react';
+import MarkdownContent from '../MarkdownContent';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -26,10 +28,10 @@ import { addressLines, mapsHref, smsHref, telHref } from '../../utils/contactLin
 import { formatFileSize } from '../../utils/fileSize';
 import { formatDateTimeDisplay, formatForDateTimeInput, formatInTimeZone, formatTimeDisplay, isGigAllDay, parseLocalToUTC } from '../../utils/dateUtils';
 import { arrivalTimeLabel, arrivalWindowOpen } from '../../utils/crewArrival';
-import { GIG_STATUS_CONFIG, SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
+import { GIG_STATUS_CONFIG, ORG_ROLE_CONFIG, SCHEDULE_ACTIVITY_CONFIG } from '../../utils/supabase/constants';
 import { getAttachmentUrl } from '../../services/attachment.service';
-import type { DayOfShowDocument, DayOfShowPerson, DayOfShowSheet } from '../../services/mobile/dayOfShow.service';
-import type { GigStatus } from '../../utils/supabase/types';
+import type { DayOfShowDocument, DayOfShowParticipant, DayOfShowPerson, DayOfShowSheet } from '../../services/mobile/dayOfShow.service';
+import type { GigStatus, OrganizationRole } from '../../utils/supabase/types';
 
 
 const SECTION_TITLE = 'text-[11px] font-semibold flex items-center gap-1.5 text-muted-foreground mb-2 uppercase tracking-wide';
@@ -75,7 +77,13 @@ export default function DaySheet({ sheet, isOffline, onViewGigDetail }: { sheet:
 
       <ScheduleSection sheet={sheet} />
       <VenueSection sheet={sheet} />
-      <PeopleSection title="Contacts" people={sheet.contacts} />
+      <NotesSection sheet={sheet} />
+      {sheet.participants ? (
+        <ParticipantsSection participants={sheet.participants} />
+      ) : (
+        // A sheet saved before Participants existed keeps its Contacts until it refreshes.
+        <PeopleSection title="Contacts" people={sheet.contacts} />
+      )}
       <CrewSection sheet={sheet} isOffline={isOffline} />
       <DocumentsSection sheet={sheet} isOffline={isOffline} />
     </>
@@ -186,6 +194,11 @@ function ScheduleSection({ sheet }: { sheet: DayOfShowSheet }) {
                     {e.act_name && <span className="text-xs text-muted-foreground truncate">{e.act_name}</span>}
                     {e.end_time && <span className="ml-auto text-[10px] text-muted-foreground tabular-nums">to {formatTimeDisplay(e.end_time, tz)}</span>}
                   </div>
+                  {e.notes && (
+                    <p className="text-xs text-muted-foreground pb-2 pl-[92px] whitespace-pre-wrap break-words">
+                      {e.notes}{e.notes_truncated ? ' Shortened on this phone.' : ''}
+                    </p>
+                  )}
                 </div>
               );
             })}
@@ -241,10 +254,76 @@ function PeopleSection({ title, people }: { title: string; people: DayOfShowPers
   );
 }
 
+/** The gig's notes, as Markdown, collapsed when long (#470). */
+const NOTES_COLLAPSE_CHARS = 600;
+const NOTES_COLLAPSE_LINES = 8;
+function NotesSection({ sheet }: { sheet: DayOfShowSheet }) {
+  const notes = sheet.gig.notes;
+  const [open, setOpen] = React.useState(false);
+  if (!notes) return null;
+  const long = notes.length > NOTES_COLLAPSE_CHARS || notes.split('\n').length > NOTES_COLLAPSE_LINES;
+  return (
+    <Card style={{ gap: 0 }}>
+      <CardContent className="p-3">
+        <p className={SECTION_TITLE}><FileText className="w-3.5 h-3.5" />Notes</p>
+        <div
+          className={cn('text-sm break-words [&_p:last-child]:mb-0', long && !open && 'max-h-44 overflow-hidden')}
+        >
+          <MarkdownContent>{notes}</MarkdownContent>
+        </div>
+        {long && (
+          <button type="button" className="text-xs font-medium underline mt-1" onClick={() => setOpen((v) => !v)}>
+            {open ? 'Show less' : 'Show more'}
+          </button>
+        )}
+        {sheet.gig.notes_truncated && (
+          <p className="text-[10px] text-muted-foreground mt-1">Shortened on this phone. Open the full gig page online for the rest.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Every organization on the gig with its role and contacts, the client starred (#470). */
+function ParticipantsSection({ participants }: { participants: DayOfShowParticipant[] }) {
+  if (participants.length === 0) return null;
+  return (
+    <Card style={{ gap: 0 }}>
+      <CardContent className="p-3">
+        <p className={SECTION_TITLE}><Users className="w-3.5 h-3.5" />Participants</p>
+        <div className="divide-y divide-border/50">
+          {participants.map((p) => {
+            const roleColor = ORG_ROLE_CONFIG[p.role as OrganizationRole]?.color ?? 'bg-gray-100 text-gray-700';
+            const orgCall = !p.contacts[0]?.phone ? telHref(p.org_phone) : null;
+            const orgText = !p.contacts[0]?.phone ? smsHref(p.org_phone) : null;
+            return (
+              <div key={p.key} className="py-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold">{p.org_name}</p>
+                  {p.is_client && <Star aria-label="Client" className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />}
+                  <Badge className={cn('text-[10px] border-0', roleColor)}>{p.role}</Badge>
+                </div>
+                {orgCall && (
+                  <div className="flex gap-2 mt-1.5">
+                    <a className={ACTION} href={orgCall} aria-label={`Call ${p.org_name}`}><Phone className="w-4 h-4" />Call</a>
+                    {orgText && <a className={ACTION} href={orgText} aria-label={`Text ${p.org_name}`}><MessageSquare className="w-4 h-4" />Text</a>}
+                    <span className="self-center text-xs text-muted-foreground tabular-nums">{p.org_phone}</span>
+                  </div>
+                )}
+                {p.contacts.map((c) => <PersonRow key={c.key} person={c} />)}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function PersonRow({ person, children }: { person: DayOfShowPerson; children?: React.ReactNode }) {
   const call = telHref(person.phone);
   const text = smsHref(person.phone);
-  const detail = [person.title, person.org_name && `${person.org_name}${person.org_role ? ` (${person.org_role})` : ''}`]
+  const detail = [person.title, person.is_primary ? 'Primary' : null, person.org_name && `${person.org_name}${person.org_role ? ` (${person.org_role})` : ''}`]
     .filter(Boolean)
     .join(' · ');
   return (

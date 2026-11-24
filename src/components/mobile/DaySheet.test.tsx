@@ -556,7 +556,7 @@ describe('Notes and Participants on the day sheet (#470)', () => {
   describe('participants', () => {
     const participants = [
       {
-        key: 'p1', org_name: 'Test Hall', role: 'Venue', is_client: false, org_phone: '555-0100',
+        key: 'p1', org_name: 'Grand Venue Co', role: 'Venue', is_client: false, org_phone: '555-0100',
         contacts: [
           { key: 'c1', name: 'Pat Venue', title: 'Production', phone: '555-0109', email: 'p@example.com', is_primary: true },
           { key: 'c2', name: 'Lee Stage', title: 'Stage manager', phone: null, email: null, is_primary: false },
@@ -569,7 +569,7 @@ describe('Notes and Participants on the day sheet (#470)', () => {
       load({ participants })
       await open()
       expect(screen.getByText('Participants')).toBeInTheDocument()
-      for (const name of ['Test Hall', 'Test Band', 'Quiet Sound']) expect(screen.getByText(name)).toBeInTheDocument()
+      for (const name of ['Grand Venue Co', 'Test Band', 'Quiet Sound']) expect(screen.getByText(name)).toBeInTheDocument()
       expect(screen.getAllByLabelText('Client')).toHaveLength(1)
       expect(screen.getByText('Act')).toBeInTheDocument()
     })
@@ -587,10 +587,10 @@ describe('Notes and Participants on the day sheet (#470)', () => {
       await open()
       expect(screen.getByRole('link', { name: 'Call Test Band' })).toHaveAttribute('href', expect.stringContaining('5550200'))
       // The venue's primary contact has a phone, so the venue's main line is not repeated.
-      expect(screen.queryByRole('link', { name: 'Call Test Hall' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'Call Grand Venue Co' })).not.toBeInTheDocument()
     })
     it('replaces Contacts: nobody appears twice', async () => {
-      load({ participants, contacts: [{ key: 'c1', name: 'Pat Venue', title: 'Production', phone: '555-0109', email: 'p@example.com', org_name: 'Test Hall', org_role: 'Venue' }] })
+      load({ participants, contacts: [{ key: 'c1', name: 'Pat Venue', title: 'Production', phone: '555-0109', email: 'p@example.com', org_name: 'Grand Venue Co', org_role: 'Venue' }] })
       await open()
       expect(screen.queryByText('Contacts')).not.toBeInTheDocument()
       expect(screen.getAllByText('Pat Venue')).toHaveLength(1)
