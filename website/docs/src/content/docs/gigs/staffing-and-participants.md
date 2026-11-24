@@ -81,7 +81,7 @@ When other organizations take part in a gig, each one staffs its own places, and
 - on a phone, in an **Other organizations' crew** card on the gig page, and in the **Crew** list of the [day sheet](/mobile/today-sheet/#contacts-and-crew);
 - on the printed **Gig sheet**, whose Crew table gains an **Organization** column with their phone and email. The column appears only when there are other organizations' crew. The financials page never includes them.
 
-People who declined aren't listed. No rates, fees or other pay are shown for another organization's crew. An organization marked Inactive on the gig sees only its own crew, and its crew aren't listed to the others. Staff and Viewers see only their own organization's staffing, as before.
+People who declined aren't listed. No rates, fees or other pay are shown for another organization's crew. An organization marked Inactive on the gig sees only its own crew, and its crew aren't listed to the others. (An organization can only be marked Inactive once its staff and equipment on the gig are released.) Staff and Viewers see only their own organization's staffing, as before.
 
 **If you work a gig that other organizations take part in, their Admins and Managers can see your name, position, status, phone number and email on that gig, on screen and on the printed gig sheet.**
 
